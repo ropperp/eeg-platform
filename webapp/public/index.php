@@ -218,9 +218,9 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
     $bezugItem = null; $einspeisungItem = null; $beitragItem = null;
     foreach ($items as $it) {
-        if ($it['type'] === 'bezug')       $bezugItem       = $it;
-        if ($it['type'] === 'einspeisung') $einspeisungItem = $it;
-        if ($it['type'] === 'beitrag')     $beitragItem     = $it;
+        if ($it['type'] === 'bezug')           $bezugItem       = $it;
+        if ($it['type'] === 'einspeisung')     $einspeisungItem = $it;
+        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem    = $it;
     }
 
     $steuerHinweis = 'Gem\\"{a}\\ss{} \\S{} 6 Abs.\\,1 Z 27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
@@ -236,14 +236,14 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
         'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
         'BEZUG_KWH'             => $bezugItem ? number_format($bezugItem['kwh'], 2, ',', '.') : '0,00',
-        'BEZUG_TARIF'           => $bezugItem ? number_format($bezugItem['rate_ct'], 4, ',', '.') : '0,0000',
+        'BEZUG_TARIF'           => $bezugItem ? number_format($bezugItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
         'BEZUG_BETRAG'          => $bezugItem ? number_format($bezugItem['amount_eur'], 2, ',', '.') : '0,00',
         'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format($einspeisungItem['kwh'], 2, ',', '.') : '0,00',
-        'EINSPEISUNG_TARIF'     => $einspeisungItem ? number_format($einspeisungItem['rate_ct'], 4, ',', '.') : '0,0000',
-        'EINSPEISUNG_BETRAG'    => $einspeisungItem ? number_format($einspeisungItem['amount_eur'], 2, ',', '.') : '0,00',
+        'EINSPEISUNG_TARIF'     => $einspeisungItem ? number_format($einspeisungItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
+        'EINSPEISUNG_BETRAG'    => $einspeisungItem ? number_format(abs($einspeisungItem['amount_eur']), 2, ',', '.') : '0,00',
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format($beitragItem['amount_eur'], 2, ',', '.') : '0,00',
-        'SUMME_NETTO'           => number_format($invoice['amount_brutto'], 2, ',', '.'),
-        'SUMME_BRUTTO'          => number_format($invoice['amount_brutto'], 2, ',', '.'),
+        'SUMME_NETTO'           => number_format($invoice['saldo_eur'], 2, ',', '.'),
+        'SUMME_BRUTTO'          => number_format($invoice['saldo_eur'], 2, ',', '.'),
         'STEUER_HINWEIS'        => $steuerHinweis,
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
@@ -259,10 +259,10 @@ $router->get('/portal/members', function () {
     $members = DB::fetchAll(
         "SELECT m.*,
                 COUNT(DISTINCT mp.id) AS metering_point_count,
-                COALESCE(SUM(i.amount_brutto) FILTER (WHERE i.paid_at IS NULL), 0) AS open_amount
+                COALESCE(SUM(i.saldo_eur) FILTER (WHERE i.saldo_eur > 0 AND i.sent_at IS NULL), 0) AS open_amount
          FROM members m
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
-         LEFT JOIN invoices i ON i.member_id = m.id AND i.paid_at IS NULL
+         LEFT JOIN invoices i ON i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL
          WHERE m.community_id = ?
          GROUP BY m.id ORDER BY m.last_name, m.first_name",
         [$communityId]
