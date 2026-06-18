@@ -1,0 +1,196 @@
+services:
+
+  # ─────────────────────────────────────────
+  # Reverse Proxy + SSL (Let's Encrypt)
+  # ─────────────────────────────────────────
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: always
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/eeg/traefik/letsencrypt:/letsencrypt
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # Datenbank — PostgreSQL 16 + TimescaleDB
+  # ─────────────────────────────────────────
+  timescaledb:
+    image: timescale/timescaledb-ha:pg16
+    container_name: timescaledb
+    restart: always
+    volumes:
+      - /opt/eeg/timescaledb:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # Session-Cache
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    volumes:
+      - /opt/eeg/redis:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # MQTT Broker
+  # ─────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: always
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+    volumes:
+      - ./docker/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - /opt/eeg/mosquitto/data:/mosquitto/data
+      - /opt/eeg/mosquitto/log:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # MQTT → TimescaleDB Subscriber (Python)
+  # ─────────────────────────────────────────
+  mqtt-subscriber:
+    build: ./mqtt-subscriber
+    container_name: mqtt-subscriber
+    restart: always
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # Webapplikation — nginx + PHP 8.2
+  # ─────────────────────────────────────────
+  webapp:
+    build: ./webapp
+    container_name: webapp
+    restart: always
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LATEX_SERVICE_URL: http://latex-service:3210
+      LATEX_API_KEY: ${LATEX_API_KEY}
+      APP_SECRET: ${APP_SECRET}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      DOMAIN: ${DOMAIN}
+    labels:
+      - "traefik.enable=true"
+      # Landingpage
+      - "traefik.http.routers.webapp.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.webapp.entrypoints=websecure"
+      - "traefik.http.routers.webapp.tls.certresolver=letsencrypt"
+      # Live-Dashboard
+      - "traefik.http.routers.live.rule=Host(`live.${DOMAIN}`)"
+      - "traefik.http.routers.live.entrypoints=websecure"
+      - "traefik.http.routers.live.tls.certresolver=letsencrypt"
+      # Portal
+      - "traefik.http.routers.portal.rule=Host(`portal.${DOMAIN}`)"
+      - "traefik.http.routers.portal.entrypoints=websecure"
+      - "traefik.http.routers.portal.tls.certresolver=letsencrypt"
+      # Admin
+      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
+      - "traefik.http.routers.admin.entrypoints=websecure"
+      - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.webapp.loadbalancer.server.port=80"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # PDF-Generator (latex-service)
+  # Dateien werden von Patrick geliefert
+  # ─────────────────────────────────────────
+  latex-service:
+    build: ./latex-service
+    container_name: latex-service
+    restart: always
+    environment:
+      API_KEY: ${LATEX_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3210/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - eeg-net
+
+networks:
+  eeg-net:
+    driver: bridge

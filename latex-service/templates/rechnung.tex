@@ -1,0 +1,101 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{eurosym}
+
+\definecolor{green}{RGB}{22,163,74}
+\definecolor{lightgray}{RGB}{249,250,251}
+\definecolor{midgray}{RGB}{107,114,128}
+
+\begin{document}
+\pagestyle{empty}
+
+% ─── Kopfzeile ────────────────────────────────────────────────────────────────
+\begin{tabularx}{\textwidth}{Xr}
+  {\Large\bfseries\color{green}<<<EEG_NAME>>>} &
+  \begin{tabular}[t]{r}
+    \small<<<EEG_ADRESSE>>>\\
+    \small<<<EEG_UID>>>
+  \end{tabular}
+\end{tabularx}
+
+\vspace{1em}
+\hrule height 0.8pt
+\vspace{1.5em}
+
+% ─── Empfänger ────────────────────────────────────────────────────────────────
+\begin{tabular}{l}
+  \textbf{<<<MITGLIED_NAME>>>}\\
+  <<<MITGLIED_ADRESSE>>>\\
+  <<<MITGLIED_UID>>>
+\end{tabular}
+
+\vspace{2em}
+
+% ─── Rechnungsdetails ─────────────────────────────────────────────────────────
+\begin{tabularx}{\textwidth}{lX}
+  \textbf{Rechnungsnummer:}    & <<<RECHNUNGSNUMMER>>> \\
+  \textbf{Rechnungsdatum:}     & <<<RECHNUNGSDATUM>>> \\
+  \textbf{Abrechnungszeitraum:}& <<<ABRECHNUNGSZEITRAUM>>> \\
+\end{tabularx}
+
+\vspace{2em}
+
+{\Large\bfseries Rechnung}
+
+\vspace{1em}
+
+% ─── Positionen ───────────────────────────────────────────────────────────────
+\begin{tabularx}{\textwidth}{lrrrX}
+  \toprule
+  \textbf{Position} & \textbf{Menge} & \textbf{Einheit} & \textbf{Preis} & \textbf{Betrag (EUR)} \\
+  \midrule
+  Energiebezug & <<<BEZUG_KWH>>> & kWh & <<<BEZUG_TARIF>>> ct/kWh & <<<BEZUG_BETRAG>>> \\
+  Einspeisegutschrift & <<<EINSPEISUNG_KWH>>> & kWh & <<<EINSPEISUNG_TARIF>>> ct/kWh & $-$\,<<<EINSPEISUNG_BETRAG>>> \\
+  Mitgliedsbeitrag & 1 & Quartal & & <<<MITGLIEDSBEITRAG>>> \\
+  \midrule
+  \textbf{Summe netto} & & & & \textbf{<<<SUMME_NETTO>>>} \\
+  <<<STEUER_HINWEIS>>>
+  \bottomrule
+\end{tabularx}
+
+\vspace{1em}
+
+\colorbox{lightgray}{%
+  \begin{minipage}{\textwidth}
+    \vspace{.5em}
+    \hspace{1em}
+    \large\textbf{Gesamtbetrag: \EUR{<<<SUMME_BRUTTO>>>}}
+    \vspace{.5em}
+  \end{minipage}%
+}
+
+\vspace{2em}
+
+% ─── Zahlungsdetails ──────────────────────────────────────────────────────────
+\textbf{Zahlungsinformationen}
+
+\begin{tabular}{ll}
+  IBAN: & <<<IBAN>>> \\
+  BIC:  & <<<BIC>>> \\
+  Verwendungszweck: & <<<RECHNUNGSNUMMER>>> \\
+  Zahlungsziel: & <<<ZAHLUNGSZIEL>>> \\
+\end{tabular}
+
+\vspace{2em}
+
+% ─── Kleinunternehmer-Klausel (bedingt) ──────────────────────────────────────
+\small\color{midgray}
+<<<STEUER_HINWEIS>>>
+
+\vspace{1em}
+Vielen Dank für Ihre Mitgliedschaft bei der <<<EEG_NAME>>>!
+
+\end{document}

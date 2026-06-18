@@ -1,0 +1,10 @@
+.env
+/opt/
+*.log
+__pycache__/
+*.pyc
+.DS_Store
+/webapp/storage/uploads/*
+/webapp/storage/pdfs/*
+!/webapp/storage/uploads/.gitkeep
+!/webapp/storage/pdfs/.gitkeep
