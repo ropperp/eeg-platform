@@ -10,12 +10,12 @@ RUN apk add --no-cache nginx libpq-dev python3 py3-pip \
     && pip3 install --break-system-packages pandas openpyxl psycopg2-binary
 
 # nginx Konfiguration
-COPY docker/nginx.conf /etc/nginx/nginx.conf
-COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+COPY webapp/docker/nginx.conf /etc/nginx/nginx.conf
+COPY webapp/docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 # App-Code + EDA-Parser
-COPY public/ /var/www/html/public/
-COPY src/ /var/www/html/src/
+COPY webapp/public/ /var/www/html/public/
+COPY webapp/src/ /var/www/html/src/
 COPY eda-parser/ /var/www/html/eda-parser/
 
 WORKDIR /var/www/html
@@ -26,6 +26,6 @@ RUN mkdir -p /var/www/html/storage/uploads /var/www/html/storage/pdfs && \
 
 EXPOSE 80
 
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY webapp/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 CMD ["/entrypoint.sh"]
