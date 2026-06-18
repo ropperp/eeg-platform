@@ -1,0 +1,158 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{parskip}
+\usepackage{eurosym}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+
+\definecolor{braun}{RGB}{180,83,9}
+\definecolor{hellgrau}{RGB}{249,250,251}
+\definecolor{mittelgrau}{RGB}{107,114,128}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered{} EEG-Verwaltungsportal \textperiodcentered{} Vorlage: energiegemeinschaften.gv.at, August 2022}
+\fancyfoot[R]{\small\thepage}
+
+\begin{document}
+
+%% ─── Kopfzeile ────────────────────────────────────────────────────────
+\begin{tabularx}{\textwidth}{Xr}
+  {\large\bfseries\color{braun}<<<EEG_NAME>>>} &
+  \begin{tabular}[t]{r}
+    \small <<<EEG_ADRESSE>>>\\
+    \small ZVR: <<<EEG_ZVR>>>\\
+    \small Marktpartner-ID: <<<EEG_MARKTPARTNER_ID>>>
+  \end{tabular}
+\end{tabularx}
+
+\vspace{.8em}
+{\color{braun}\hrule height 1.2pt}
+\vspace{1.5em}
+
+\begin{center}
+  {\small\bfseries\color{mittelgrau}\MakeUppercase{Vorschlag f\"ur eine}}\\[4pt]
+  {\LARGE\bfseries VEREINBARUNG \"uber BESTAND und NUTZUNG}\\[4pt]
+  {\large\bfseries einer ENERGIEERZEUGUNGSANLAGE}\\[6pt]
+  {\normalsize (Typ: \"Uberschusseinspeiser)}\\[3pt]
+  {\normalsize gem\"a\ss{} \S\S{} 79f EAG und \S\S{} 16c ff ElWOG 2010}
+\end{center}
+
+\vspace{1em}
+\begin{center}\textbf{abgeschlossen zwischen}\end{center}
+
+\vspace{.5em}
+\noindent
+\begin{tabularx}{\textwidth}{|X|X|}
+\hline
+\vspace{2pt}
+\textbf{Erneuerbare-Energie-Gemeinschaft (EEG)}\par
+\smallskip
+<<<EEG_NAME>>>\par
+<<<EEG_ADRESSE>>>\par
+ZVR: <<<EEG_ZVR>>>\par
+IBAN: <<<EEG_IBAN>>>\vspace{4pt} &
+\vspace{2pt}
+\textbf{Eigent\"umer:in der Erzeugungsanlage}\par
+\smallskip
+<<<MITGLIED_NAME>>>\par
+<<<MITGLIED_ADRESSE>>>\par
+<<<MITGLIED_UID_ZEILE>>>\vspace{4pt}\\
+\hline
+\end{tabularx}
+
+\vspace{1em}
+\begin{center}\textbf{wie folgt:}\end{center}
+
+%% Präambel
+\section*{Pr\"aambel}
+
+<<<MITGLIED_NAME>>> ist Eigent\"umer:in der nachstehend beschriebenen Energieerzeugungsanlage sowie Mitglied der EEG \textit{<<<EEG_NAME>>>}. Mit der vorliegenden Vereinbarung wird der EEG die Betriebs- und Verf\"ugungsgewalt \"uber die Energieerzeugungsanlage im festgelegten Umfang \"ubertragen.
+
+%% §1
+\section*{\S{} 1 \quad Bestandgegenstand -- Energieerzeugungsanlage}
+
+1.1 \quad Gegenstand der vorliegenden Vereinbarung ist die im Eigentum des/der Eigent\"umer:in stehende Energieerzeugungsanlage mit folgenden Einspeise-Z\"ahlpunkten:
+
+\vspace{.5em}
+\begin{tabularx}{\textwidth}{clX}
+\toprule
+\textbf{Nr.} & \textbf{Z\"ahlpunktnummer (AT\ldots)} & \textbf{Z\"ahlernummer} \\
+\midrule
+<<<ZAEHLPUNKTE_TABELLE>>>
+\bottomrule
+\end{tabularx}
+
+1.2 \quad Der Eigenverbrauch des/der Eigent\"umer:in ist mangels Einspeisung in das \"offentliche Netz von der Verteilung ausgeschlossen. Verbleibende \"Uberschussenergie wird dem Erzeugungsz\"ahlpunkt des/der Eigent\"umer:in zugeordnet.
+
+%% §2
+\section*{\S{} 2 \quad Dauer und K\"undigung}
+
+2.1 \quad Das Bestandverh\"altnis beginnt am \textbf{<<<MITGLIED_SEIT>>>} und wird auf unbestimmte Zeit geschlossen. Eine K\"undigung ist mit einer Frist von 3 Monaten zum Quartalsende m\"oglich.
+
+2.2 \quad Das Recht zur sofortigen Aufl\"osung aus wichtigem Grund (\S\S{} 1117, 1118 ABGB) bleibt beiden Seiten vorbehalten.
+
+%% §3
+\section*{\S{} 3 \quad Bestandzins -- Verg\"utung f\"ur die Einspeisung}
+
+3.1 \quad Der monatliche Bestandzins ist dynamisch von der der EEG zugewiesenen Energiemenge abh\"angig und betr\"agt:
+
+\vspace{.5em}
+\begin{tabularx}{\textwidth}{Xrr}
+\toprule
+\textbf{Leistung} & \textbf{Verg\"utung} & \textbf{G\"ultig ab} \\
+\midrule
+Einspeisung in die EEG & <<<EINSPEISUNG_TARIF>>> ct/kWh & <<<TARIF_GUELTIG_AB>>> \\
+\bottomrule
+\end{tabularx}
+
+3.2 \quad Auszahlung des Bestandzinses quartalm\"a\ss{}ig bis zum 15. des Folgemonats auf das Konto des/der Eigent\"umer:in:\par
+IBAN: \textbf{<<<MITGLIED_IBAN>>>}\quad BIC: \textbf{<<<MITGLIED_BIC>>>}
+
+3.3 \quad Bei Zahlungsverzug der EEG gelten 4\,\% Verzugszinsen p.\,a.
+
+%% §4
+\section*{\S{} 4 \quad Betriebs- und Verf\"ugungsgewalt}
+
+4.1 \quad Der/die Eigent\"umer:in \"ubertr\"agt der EEG die Betriebs- und Verf\"ugungsgewalt an der Energieerzeugungsanlage im Umfang der von der EEG und deren teilnehmenden Netzbenutzenden verbrauchten, h\"ochstens jedoch der ins \"offentliche Netz eingespeisten Energie (\"Uberschusseinspeiser).
+
+4.2 \quad Es ist dem/der Eigent\"umer:in untersagt, die der EEG zugewiesene Energiemenge an Dritte zu verkaufen oder zu \"ubertragen.
+
+4.3 \quad Wartung und Instandhaltung der Energieerzeugungsanlage obliegen dem/der Eigent\"umer:in auf eigene Kosten.
+
+%% §5
+\section*{\S{} 5 \quad Z\"ahlpunktmanagement}
+
+5.1 \quad Der/die Eigent\"umer:in verbleibt Inhaber:in der mit der Erzeugungsanlage verbundenen Z\"ahlpunkte und Vertragspartner:in des Netzbetreibers.
+
+5.2 \quad Der/die Eigent\"umer:in erteilt der EEG mit Unterfertigung dieser Vereinbarung Auftrag und Vollmacht f\"ur alle zur Vertragsumsetzung erforderlichen Rechtsgesch\"afte.
+
+%% §6
+\section*{\S{} 6 \quad Datenschutz}
+
+Die EEG verarbeitet personenbezogene Daten des/der Eigent\"umer:in gem\"a\ss{} Art.\,6 Abs.\,1 lit.\,b DSGVO ausschlie\ss{}lich zur Verwaltung der Gemeinschaft und zur Abrechnung. Auskunfts- und Berichtigungsrechte gem\"a\ss{} Art.\,15--17 DSGVO bleiben unber\"uhrt.
+
+%% §7
+\section*{\S{} 7 \quad Sonstiges}
+
+\"Anderungen dieser Vereinbarung bed\"urfen der Schriftform. Gerichtsstand ist das sachlich zust\"andige Gericht am Sitz der EEG. Es gilt \"osterreichisches Recht.
+
+%% Unterschriften
+\vspace{3em}
+\begin{tabularx}{\textwidth}{XX}
+<<<MITGLIED_ADRESSE_ORT>>>, \rule{3cm}{0.4pt} &
+<<<EEG_ORT>>>, \rule{3cm}{0.4pt} \\[3em]
+\rule{6cm}{0.4pt} & \rule{6cm}{0.4pt} \\
+\small Unterschrift Eigent\"umer:in & \small F\"ur die EEG -- Obmann/Obfrau \\
+\small <<<MITGLIED_NAME>>> & \small <<<EEG_NAME>>>
+\end{tabularx}
+
+\end{document}

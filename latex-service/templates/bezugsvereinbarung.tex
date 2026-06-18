@@ -1,0 +1,151 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{parskip}
+\usepackage{eurosym}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+
+\definecolor{blau}{RGB}{29,78,216}
+\definecolor{hellgrau}{RGB}{249,250,251}
+\definecolor{mittelgrau}{RGB}{107,114,128}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered{} EEG-Verwaltungsportal \textperiodcentered{} Vorlage: energiegemeinschaften.gv.at}
+\fancyfoot[R]{\small\thepage}
+
+\begin{document}
+
+%% ─── Kopfzeile ────────────────────────────────────────────────────────
+\begin{tabularx}{\textwidth}{Xr}
+  {\large\bfseries\color{blau}<<<EEG_NAME>>>} &
+  \begin{tabular}[t]{r}
+    \small <<<EEG_ADRESSE>>>\\
+    \small ZVR: <<<EEG_ZVR>>>\\
+    \small Marktpartner-ID: <<<EEG_MARKTPARTNER_ID>>>
+  \end{tabular}
+\end{tabularx}
+
+\vspace{.8em}
+{\color{blau}\hrule height 1.2pt}
+\vspace{1.5em}
+
+\begin{center}
+  {\small\bfseries\color{mittelgrau}\MakeUppercase{Vorschlag f\"ur eine}}\\[4pt]
+  {\LARGE\bfseries ENERGIE- und LEISTUNGSBEZUGSVEREINBARUNG}\\[6pt]
+  {\normalsize gem\"a\ss{} \S\S{} 79f EAG und \S\S{} 16c ff ElWOG 2010}
+\end{center}
+
+\vspace{1em}
+\begin{center}\textbf{abgeschlossen zwischen}\end{center}
+
+\vspace{.5em}
+\noindent
+\begin{tabularx}{\textwidth}{|X|X|}
+\hline
+\vspace{2pt}
+\textbf{Erneuerbare-Energie-Gemeinschaft (EEG)}\par
+\smallskip
+<<<EEG_NAME>>>\par
+<<<EEG_ADRESSE>>>\par
+ZVR: <<<EEG_ZVR>>>\par
+IBAN: <<<EEG_IBAN>>>\vspace{4pt} &
+\vspace{2pt}
+\textbf{Mitglied / teilnehmende:r Netzbenutzer:in}\par
+\smallskip
+<<<MITGLIED_NAME>>>\par
+<<<MITGLIED_ADRESSE>>>\par
+<<<MITGLIED_UID_ZEILE>>>\vspace{4pt}\\
+\hline
+\end{tabularx}
+
+\vspace{1em}
+\begin{center}\textbf{wie folgt:}\end{center}
+
+%% §1
+\section*{\S{} 1 \quad Grundlagen der Leistungserbringung}
+
+1.1 \quad Die EEG \textit{<<<EEG_NAME>>>} ist eine Erneuerbare-Energie-Gemeinschaft gem\"a\ss{} \S\S{} 79f Erneuerbaren-Ausbau-Gesetz (EAG) iVm \S\S{} 16c ff Elektrizit\"atswirtschafts- und -organisationsgesetz (ElWOG 2010).
+
+1.2 \quad Das Mitglied ist Mitglied der EEG und verf\"ugt \"uber eine Verbrauchsanlage mit folgender Z\"ahlpunktnummer:
+
+\vspace{.5em}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Z\"ahlpunktnummer (AT\ldots)} & \textbf{Z\"ahlernummer} \\
+\midrule
+<<<ZAEHLPUNKTE_TABELLE>>>
+\bottomrule
+\end{tabularx}
+
+1.3 \quad Das Mitglied stimmt ausdr\"ucklich zu, dass der zust\"andige Netzbetreiber den Energiebezug der Verbrauchsanlage mit einem geeigneten Messger\"at misst und diese Daten f\"ur die Energieverteilung und Verrechnung innerhalb der EEG verarbeitet (§ 16e Abs 3 ElWOG 2010).
+
+%% §2
+\section*{\S{} 2 \quad Energiezuweisung und Aufteilung}
+
+2.1 \quad Die virtuelle Zuweisung der von der EEG erzeugten Energie erfolgt nach dem tats\"achlichen physikalischen Bezug (Messung am Z\"ahlpunkt) der Verbrauchsanlagen im dynamischen Aufteilungsmodell.
+
+2.2 \quad Die Zuordnung ist mit dem Energieverbrauch des jeweiligen Mitglieds in der Viertelstunde begrenzt. Bei Nullverbrauch wird die Energie den anderen teilnehmenden Netzbenutzenden zugeordnet.
+
+%% §3
+\section*{\S{} 3 \quad Energiebezugspreis und Zahlung}
+
+3.1 \quad Das Mitglied verpflichtet sich, der EEG f\"ur den vom Netzbetreiber festgestellten Energiebezug folgende Entgelte zu entrichten (exkl. allenfalls anfallender USt):
+
+\vspace{.5em}
+\begin{tabularx}{\textwidth}{Xrr}
+\toprule
+\textbf{Leistung} & \textbf{Preis} & \textbf{G\"ultig ab} \\
+\midrule
+Energiebezugspreis (Bezug aus EEG) & <<<BEZUG_TARIF>>> ct/kWh & <<<TARIF_GUELTIG_AB>>> \\
+Mitgliedsbeitrag & <<<MITGLIEDSBEITRAG>>> EUR/Quartal & <<<TARIF_GUELTIG_AB>>> \\
+\bottomrule
+\end{tabularx}
+
+3.2 \quad Tarife k\"onnen durch Beschluss des Vorstandes der EEG ge\"andert werden. Das Mitglied wird mindestens 6 Wochen im Voraus informiert.
+
+3.3 \quad Abrechnung und F\"alligkeit erfolgen quartalm\"a\ss{}ig. Bei Zahlungsverzug gelten 4\,\% Verzugszinsen p.\,a.
+
+%% §4
+\section*{\S{} 4 \quad Betrieb, Haftung und Gew\"ahrleistung}
+
+4.1 \quad Betrieb, Erhaltung und Wartung der Energieerzeugungsanlage liegen in der alleinigen Verantwortung der EEG. Die EEG leistet keine Gew\"ahr f\"ur die Quantit\"at der erzeugten Energie.
+
+4.2 \quad Die EEG haftet f\"ur Sch\"aden aus der Energieerzeugungsanlage und h\"alt das Mitglied gegen Anspr\"uche Dritter schad- und klaglos.
+
+%% §5
+\section*{\S{} 5 \quad Laufzeit und K\"undigung}
+
+5.1 \quad Diese Vereinbarung tritt mit Unterzeichnung in Kraft und wird auf unbestimmte Zeit geschlossen.
+
+5.2 \quad Eine K\"undigung ist unter Einhaltung einer Frist von 3 Monaten zum Quartalsende m\"oglich. Bei schwerwiegenden Verst\"o\ss{}en gegen diese Vereinbarung ist die sofortige K\"undigung vorbehalten.
+
+%% §6
+\section*{\S{} 6 \quad Datenschutz}
+
+6.1 \quad Die EEG verarbeitet personenbezogene Daten (Name, Adresse, Z\"ahlpunktdaten, Verbrauchsmesswerte) ausschlie\ss{}lich gem\"a\ss{} Art.\,6 Abs.\,1 lit.\,b DSGVO zur Verwaltung der Gemeinschaft und zur Abrechnung. Auskunfts- und Berichtigungsrechte gem\"a\ss{} Art.\,15--17 DSGVO bleiben unber\"uhrt.
+
+%% §7
+\section*{\S{} 7 \quad Sonstiges}
+
+\"Anderungen dieser Vereinbarung bed\"urfen der Schriftform. Gerichtsstand ist das sachlich zust\"andige Gericht am Sitz der EEG. Es gilt \"osterreichisches Recht.
+
+%% Unterschriften
+\vspace{3em}
+\begin{tabularx}{\textwidth}{XX}
+<<<MITGLIED_ADRESSE_ORT>>>, \rule{3cm}{0.4pt} &
+<<<EEG_ORT>>>, \rule{3cm}{0.4pt} \\[3em]
+\rule{6cm}{0.4pt} & \rule{6cm}{0.4pt} \\
+\small Unterschrift Mitglied & \small F\"ur die EEG -- Obmann/Obfrau \\
+\small <<<MITGLIED_NAME>>> & \small <<<EEG_NAME>>>
+\end{tabularx}
+
+\end{document}

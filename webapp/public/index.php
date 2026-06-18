@@ -10,6 +10,42 @@ foreach (['DB', 'Auth', 'Router', 'Billing'] as $class) {
 
 Auth::start();
 
+/**
+ * Ruft den latex-service auf und streamt das PDF direkt an den Browser.
+ * @param string $template  Template-Name ohne .tex
+ * @param array  $vars      Platzhalter-Werte (werden im Service escaped)
+ * @param string $filename  Dateiname für Content-Disposition
+ */
+function streamLatexPdf(string $template, array $vars, string $filename): void
+{
+    $url     = (getenv('LATEX_SERVICE_URL') ?: 'http://latex-service:3210') . '/generate';
+    $apiKey  = getenv('LATEX_API_KEY') ?: 'dev-key';
+    $payload = json_encode(['template' => $template, 'vars' => $vars]);
+
+    $ctx = stream_context_create(['http' => [
+        'method'  => 'POST',
+        'header'  => "Content-Type: application/json\r\nX-Api-Key: {$apiKey}\r\n",
+        'content' => $payload,
+        'timeout' => 60,
+        'ignore_errors' => true,
+    ]]);
+
+    $body = file_get_contents($url, false, $ctx);
+    $code = (int)explode(' ', $http_response_header[0] ?? 'HTTP/1.1 500')[1];
+
+    if ($code !== 200 || !$body) {
+        http_response_code(500);
+        $detail = is_string($body) ? htmlspecialchars(substr($body, 0, 300)) : 'latex-service nicht erreichbar';
+        echo "<pre>PDF-Generierung fehlgeschlagen (HTTP $code):\n$detail</pre>";
+        return;
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . addslashes($filename) . '"');
+    header('Content-Length: ' . strlen($body));
+    echo $body;
+}
+
 $router = new Router();
 
 // ─── Gesundheitscheck ───────────────────────────────────
@@ -160,13 +196,59 @@ $router->get('/portal/invoices', function () {
 
 $router->get('/portal/invoices/:id/pdf', function ($params) {
     Auth::requireLogin();
-    $invoice = DB::fetchOne('SELECT * FROM invoices WHERE id = ?', [$params['id']]);
-    if (!$invoice || !$invoice['pdf_path'] || !file_exists($invoice['pdf_path'])) {
-        http_response_code(404); echo 'PDF nicht gefunden'; return;
+    $communityId = Auth::activeCommunityId();
+    if ($communityId) DB::setCommunity($communityId);
+
+    $invoice = DB::fetchOne(
+        'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
+                br.quartal, br.period_from, br.period_to,
+                c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
+                tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur
+         FROM invoices i
+         JOIN members m ON m.id = i.member_id
+         JOIN billing_runs br ON br.id = i.billing_run_id
+         JOIN communities c ON c.id = br.community_id
+         LEFT JOIN tariff_config tc ON tc.community_id = c.id AND tc.valid_from <= br.period_from
+         WHERE i.id = ?
+         ORDER BY tc.valid_from DESC',
+        [$params['id']]
+    );
+    if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+
+    $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
+    $bezugItem = null; $einspeisungItem = null; $beitragItem = null;
+    foreach ($items as $it) {
+        if ($it['type'] === 'bezug')       $bezugItem       = $it;
+        if ($it['type'] === 'einspeisung') $einspeisungItem = $it;
+        if ($it['type'] === 'beitrag')     $beitragItem     = $it;
     }
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: attachment; filename="' . $invoice['rechnungsnummer'] . '.pdf"');
-    readfile($invoice['pdf_path']);
+
+    $steuerHinweis = 'Gem\\"{a}\\ss{} \\S{} 6 Abs.\\,1 Z 27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+
+    streamLatexPdf('rechnung', [
+        'EEG_NAME'              => $invoice['eeg_name'],
+        'EEG_ADRESSE'           => $invoice['eeg_address'] ?? '',
+        'EEG_UID'               => '',
+        'MITGLIED_NAME'         => $invoice['first_name'] . ' ' . $invoice['last_name'],
+        'MITGLIED_ADRESSE'      => $invoice['address'] . ', ' . $invoice['zip'] . ' ' . $invoice['city'],
+        'MITGLIED_UID'          => $invoice['invoice_uid'] ?? '',
+        'RECHNUNGSNUMMER'       => $invoice['rechnungsnummer'],
+        'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
+        'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
+        'BEZUG_KWH'             => $bezugItem ? number_format($bezugItem['kwh'], 2, ',', '.') : '0,00',
+        'BEZUG_TARIF'           => $bezugItem ? number_format($bezugItem['rate_ct'], 4, ',', '.') : '0,0000',
+        'BEZUG_BETRAG'          => $bezugItem ? number_format($bezugItem['amount_eur'], 2, ',', '.') : '0,00',
+        'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format($einspeisungItem['kwh'], 2, ',', '.') : '0,00',
+        'EINSPEISUNG_TARIF'     => $einspeisungItem ? number_format($einspeisungItem['rate_ct'], 4, ',', '.') : '0,0000',
+        'EINSPEISUNG_BETRAG'    => $einspeisungItem ? number_format($einspeisungItem['amount_eur'], 2, ',', '.') : '0,00',
+        'MITGLIEDSBEITRAG'      => $beitragItem ? number_format($beitragItem['amount_eur'], 2, ',', '.') : '0,00',
+        'SUMME_NETTO'           => number_format($invoice['amount_brutto'], 2, ',', '.'),
+        'SUMME_BRUTTO'          => number_format($invoice['amount_brutto'], 2, ',', '.'),
+        'STEUER_HINWEIS'        => $steuerHinweis,
+        'IBAN'                  => $invoice['eeg_iban'] ?? '--',
+        'BIC'                   => $invoice['eeg_bic'] ?? '--',
+        'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days')),
+    ], $invoice['rechnungsnummer'] . '.pdf');
 });
 
 // ─── Portal: Mitgliederverwaltung ───────────────────────
@@ -342,27 +424,72 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member  = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at', [$params['id']]);
+    $mps     = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
-    // Markieren dass Vertrag erstellt wurde
+
     DB::execute("UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END WHERE id = ?", [$params['id']]);
-    require ROOT . '/src/views/pages/contract_bezug.php';
+
+    // Zählpunkte-Tabellenzeilen aufbauen (LaTeX)
+    $zpLines = empty($mps) ? "\\textit{Kein Bezugs-Z\\\"ahlpunkt registriert} & -- \\\\\n"
+        : implode("\n", array_map(fn($mp) => $mp['zaehlpunkt_nr'] . ' & ' . ($mp['meter_code'] ?? '--') . ' \\\\', $mps));
+
+    streamLatexPdf('bezugsvereinbarung', [
+        'EEG_NAME'              => $community['name'],
+        'EEG_ADRESSE'           => $community['address'] ?? '',
+        'EEG_ZVR'               => $community['zvr_number'] ?? '--',
+        'EEG_MARKTPARTNER_ID'   => $community['marktpartner_id'] ?? '--',
+        'EEG_IBAN'              => $community['iban'] ?? '--',
+        'EEG_ORT'               => explode(',', $community['address'] ?? '')[0],
+        'MITGLIED_NAME'         => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_ADRESSE'      => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
+        'MITGLIED_ADRESSE_ORT'  => $member['city'],
+        'MITGLIED_UID_ZEILE'    => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
+        'BEZUG_TARIF'           => $tariff ? number_format($tariff['bezug_ct_kwh'], 4, ',', '.') : '--',
+        'MITGLIEDSBEITRAG'      => $tariff ? number_format($tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
+        'TARIF_GUELTIG_AB'      => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
+        'ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'ERSTELLT_AM'           => date('d.m.Y'),
+    ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf');
 });
 
 $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member  = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at', [$params['id']]);
+    $mps     = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+
     DB::execute("UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END WHERE id = ?", [$params['id']]);
-    require ROOT . '/src/views/pages/contract_einspeisung.php';
+
+    $i = 1;
+    $zpLines = empty($mps) ? "1 & \\textit{Kein Einspeise-Z\\\"ahlpunkt registriert} & -- \\\\\n"
+        : implode("\n", array_map(fn($mp) => ($i++) . ' & ' . $mp['zaehlpunkt_nr'] . ' & ' . ($mp['meter_code'] ?? '--') . ' \\\\', $mps));
+
+    streamLatexPdf('einspeisevereinbarung', [
+        'EEG_NAME'              => $community['name'],
+        'EEG_ADRESSE'           => $community['address'] ?? '',
+        'EEG_ZVR'               => $community['zvr_number'] ?? '--',
+        'EEG_MARKTPARTNER_ID'   => $community['marktpartner_id'] ?? '--',
+        'EEG_IBAN'              => $community['iban'] ?? '--',
+        'EEG_ORT'               => explode(',', $community['address'] ?? '')[0],
+        'MITGLIED_NAME'         => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_ADRESSE'      => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
+        'MITGLIED_ADRESSE_ORT'  => $member['city'],
+        'MITGLIED_UID_ZEILE'    => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
+        'MITGLIED_SEIT'         => $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '--',
+        'MITGLIED_IBAN'         => $member['member_iban'] ?? '--',
+        'MITGLIED_BIC'          => $member['member_bic'] ?? '--',
+        'EINSPEISUNG_TARIF'     => $tariff ? number_format($tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
+        'TARIF_GUELTIG_AB'      => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
+        'ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'ERSTELLT_AM'           => date('d.m.Y'),
+    ], 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf');
 });
 
 $router->post('/portal/members/:id/contract-status', function ($params) {
