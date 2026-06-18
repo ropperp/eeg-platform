@@ -1,0 +1,24 @@
+# Lokale Entwicklung ohne TLS (nip.io oder IP)
+# Wird automatisch von docker compose geladen.
+# Für Produktion (echte Domain + Let's Encrypt): diese Datei löschen oder umbenennen.
+
+services:
+  traefik:
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      # Kein HTTPS-Redirect, kein Let's Encrypt
+
+  webapp:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webapp.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.webapp.entrypoints=web"
+      - "traefik.http.routers.live.rule=Host(`live.${DOMAIN}`)"
+      - "traefik.http.routers.live.entrypoints=web"
+      - "traefik.http.routers.portal.rule=Host(`portal.${DOMAIN}`)"
+      - "traefik.http.routers.portal.entrypoints=web"
+      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
+      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.services.webapp.loadbalancer.server.port=80"
