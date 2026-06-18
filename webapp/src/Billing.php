@@ -18,7 +18,7 @@ class Billing
         DB::setCommunity($communityId);
 
         $existing = DB::fetchOne(
-            'SELECT * FROM billing_runs WHERE community_id = $1 AND quartal = $2',
+            'SELECT * FROM billing_runs WHERE community_id = ? AND quartal = ?',
             [$communityId, $quartal]
         );
         if ($existing) return $existing;
@@ -27,12 +27,12 @@ class Billing
 
         DB::execute(
             'INSERT INTO billing_runs (community_id, quartal, period_from, period_to, freigabe_nach, status)
-             VALUES ($1, $2, $3, $4, $5, $6)',
+             VALUES (?, ?, ?, ?, ?, ?)',
             [$communityId, $quartal, $periodFrom, $periodTo, $freigabeNach, 'pending']
         );
 
         return DB::fetchOne(
-            'SELECT * FROM billing_runs WHERE community_id = $1 AND quartal = $2',
+            'SELECT * FROM billing_runs WHERE community_id = ? AND quartal = ?',
             [$communityId, $quartal]
         );
     }
@@ -43,7 +43,7 @@ class Billing
      */
     public static function release(string $billingRunId, string $releasedByUserId): void
     {
-        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = $1', [$billingRunId]);
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$billingRunId]);
         if (!$run) throw new RuntimeException('Abrechnungslauf nicht gefunden');
         if ($run['status'] !== 'ready') throw new RuntimeException('Abrechnung ist noch nicht bereit');
 
@@ -64,7 +64,7 @@ class Billing
                 'SELECT m.*, mp.id AS mp_id, mp.type AS mp_type, mp.zaehlpunkt_nr
                  FROM members m
                  JOIN metering_points mp ON mp.member_id = m.id AND mp.community_id = m.community_id
-                 WHERE m.community_id = $1 AND m.status = $2',
+                 WHERE m.community_id = ? AND m.status = ?',
                 [$run['community_id'], 'active']
             );
 
@@ -73,7 +73,7 @@ class Billing
             $tax    = self::getTaxForPeriod($run['community_id'], $run['period_from']);
 
             // Fortlaufende Rechnungsnummer
-            $community = DB::fetchOne('SELECT marktpartner_id FROM communities WHERE id = $1', [$run['community_id']]);
+            $community = DB::fetchOne('SELECT marktpartner_id FROM communities WHERE id = ?', [$run['community_id']]);
             $prefix    = ($community['marktpartner_id'] ?? 'EEG') . '-' . $run['quartal'] . '-';
 
             $invoiceSeq = 1;
@@ -98,8 +98,8 @@ class Billing
                             SUM(kwh_teilnahme)   AS kwh_bezug,
                             SUM(kwh_erzeugung)   AS kwh_einspeisung
                          FROM eda_measurements
-                         WHERE community_id = $1 AND metering_point_id = $2
-                           AND time >= $3 AND time < $4::date + INTERVAL \'1 day\'
+                         WHERE community_id = ? AND metering_point_id = ?
+                           AND time >= ? AND time < ?::date + INTERVAL \'1 day\'
                            AND quality IN (\'L2\', \'L3\')',
                         [$run['community_id'], $mp['mp_id'], $run['period_from'], $run['period_to']]
                     );
@@ -129,16 +129,16 @@ class Billing
 
                 DB::execute(
                     'INSERT INTO invoices (billing_run_id, community_id, member_id, rechnungsnummer, saldo_eur)
-                     VALUES ($1, $2, $3, $4, $5)',
+                     VALUES (?, ?, ?, ?, ?)',
                     [$billingRunId, $run['community_id'], $mid, $rechnungsnummer, $saldo]
                 );
 
-                $invoiceId = DB::fetchOne('SELECT id FROM invoices WHERE rechnungsnummer = $1', [$rechnungsnummer])['id'];
+                $invoiceId = DB::fetchOne('SELECT id FROM invoices WHERE rechnungsnummer = ?', [$rechnungsnummer])['id'];
 
                 foreach ($items as $item) {
                     DB::execute(
                         'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur)
-                         VALUES ($1, $2, $3, $4, $5, $6)',
+                         VALUES (?, ?, ?, ?, ?, ?)',
                         [$invoiceId, $item['type'], $item['kwh'] ?? null, $item['rate_ct_kwh'] ?? null,
                          $item['months'] ?? null, $item['amount_eur']]
                     );
@@ -147,12 +147,12 @@ class Billing
                 // PDF generieren
                 $pdf = self::generatePdf($invoiceId, $member, $items, $saldo, $tariff, $tax, $community, $run);
                 if ($pdf) {
-                    DB::execute('UPDATE invoices SET pdf_path = $1 WHERE id = $2', [$pdf, $invoiceId]);
+                    DB::execute('UPDATE invoices SET pdf_path = ? WHERE id = ?', [$pdf, $invoiceId]);
                 }
             }
 
             DB::execute(
-                'UPDATE billing_runs SET status = $1, released_by = $2, released_at = now() WHERE id = $3',
+                'UPDATE billing_runs SET status = ?, released_by = ?, released_at = now() WHERE id = ?',
                 ['done', $releasedByUserId, $billingRunId]
             );
 
@@ -234,7 +234,7 @@ class Billing
     private static function getTariffForPeriod(string $communityId, string $date): array
     {
         $row = DB::fetchOne(
-            'SELECT * FROM tariff_config WHERE community_id = $1 AND valid_from <= $2
+            'SELECT * FROM tariff_config WHERE community_id = ? AND valid_from <= ?
              ORDER BY valid_from DESC LIMIT 1',
             [$communityId, $date]
         );
@@ -245,7 +245,7 @@ class Billing
     private static function getTaxForPeriod(string $communityId, string $date): array
     {
         $row = DB::fetchOne(
-            'SELECT * FROM tax_config WHERE community_id = $1 AND valid_from <= $2
+            'SELECT * FROM tax_config WHERE community_id = ? AND valid_from <= ?
              ORDER BY valid_from DESC LIMIT 1',
             [$communityId, $date]
         );

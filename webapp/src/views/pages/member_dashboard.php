@@ -8,7 +8,7 @@ $member = DB::fetchOne(
     'SELECT m.*, mp.id AS mp_id, mp.type AS mp_type, mp.zaehlpunkt_nr
      FROM members m
      JOIN metering_points mp ON mp.member_id = m.id
-     WHERE m.user_id = $1 AND m.community_id = $2 LIMIT 1',
+     WHERE m.user_id = ? AND m.community_id = ? LIMIT 1',
     [$userId, $communityId]
 );
 
@@ -21,7 +21,7 @@ if ($member) {
             MAX(energy_einspeisung_wh) - MIN(energy_einspeisung_wh) AS einsp_wh_today,
             MAX(power_bezug_w) AS peak_bezug_w
          FROM esp_measurements
-         WHERE community_id = $1 AND metering_point_id = $2 AND time >= CURRENT_DATE",
+         WHERE community_id = ? AND metering_point_id = ? AND time >= CURRENT_DATE",
         [$communityId, $member['mp_id']]
     );
 
@@ -29,7 +29,7 @@ if ($member) {
     $series = DB::fetchAll(
         "SELECT time_bucket('5 minutes', time) AS bucket, AVG(power_bezug_w) AS bezug_w, AVG(power_einspeisung_w) AS einsp_w
          FROM esp_measurements
-         WHERE community_id = $1 AND metering_point_id = $2 AND time >= CURRENT_DATE
+         WHERE community_id = ? AND metering_point_id = ? AND time >= CURRENT_DATE
          GROUP BY bucket ORDER BY bucket",
         [$communityId, $member['mp_id']]
     );
@@ -40,7 +40,7 @@ $communityAgg = DB::fetchOne(
     "SELECT COALESCE(SUM(power_einspeisung_w), 0) AS total_einsp_w,
             COALESCE(SUM(power_bezug_w), 0) AS total_bezug_w
      FROM esp_measurements
-     WHERE community_id = $1 AND time >= now() - INTERVAL '2 minutes'",
+     WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
     [$communityId]
 );
 $autarkie = ($communityAgg['total_bezug_w'] > 0)

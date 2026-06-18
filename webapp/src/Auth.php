@@ -27,7 +27,7 @@ class Auth
     public static function login(string $email, string $password): bool
     {
         $user = DB::fetchOne(
-            'SELECT id, password_hash, first_name, last_name, active FROM users WHERE email = $1',
+            'SELECT id, password_hash, first_name, last_name, active FROM users WHERE email = ?',
             [strtolower(trim($email))]
         );
 
@@ -40,7 +40,7 @@ class Auth
             'SELECT ur.community_id, ur.role, c.name AS community_name, c.slug AS community_slug
              FROM user_roles ur
              JOIN communities c ON c.id = ur.community_id
-             WHERE ur.user_id = $1',
+             WHERE ur.user_id = ?',
             [$user['id']]
         );
 
@@ -51,7 +51,7 @@ class Auth
         $_SESSION['active_role'] = self::pickDefaultRole($roles);
 
         // Last-Login aktualisieren
-        DB::execute('UPDATE users SET last_login_at = now() WHERE id = $1', [$user['id']]);
+        DB::execute('UPDATE users SET last_login_at = now() WHERE id = ?', [$user['id']]);
 
         session_regenerate_id(true);
         return true;
@@ -132,14 +132,14 @@ class Auth
     /** Passwort-Reset: Token erzeugen und in DB speichern */
     public static function createResetToken(string $email): ?string
     {
-        $user = DB::fetchOne('SELECT id FROM users WHERE email = $1 AND active = true', [$email]);
+        $user = DB::fetchOne('SELECT id FROM users WHERE email = ? AND active = true', [$email]);
         if (!$user) return null;
 
         $token = bin2hex(random_bytes(32));
         $expires = date('Y-m-d H:i:s', time() + 3600); // 1 Stunde
 
         DB::execute(
-            'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
+            'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
             [$token, $expires, $user['id']]
         );
         return $token;
@@ -148,14 +148,14 @@ class Auth
     public static function resetPassword(string $token, string $newPassword): bool
     {
         $user = DB::fetchOne(
-            'SELECT id FROM users WHERE reset_token = $1 AND reset_token_expires > now()',
+            'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > now()',
             [$token]
         );
         if (!$user) return false;
 
         $hash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
         DB::execute(
-            'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2',
+            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
             [$hash, $user['id']]
         );
         return true;

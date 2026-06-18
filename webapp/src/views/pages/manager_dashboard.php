@@ -3,19 +3,19 @@ $pageTitle = 'Verwaltungs-Übersicht';
 $communityId = Auth::activeCommunityId();
 DB::setCommunity($communityId);
 
-$community = DB::fetchOne('SELECT * FROM communities WHERE id = $1', [$communityId]);
-$memberCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = $1 AND status = $2', [$communityId, 'active'])['cnt'];
-$pendingCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = $1 AND status = $2', [$communityId, 'pending'])['cnt'];
-$mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = $1 AND active = true', [$communityId])['cnt'];
+$community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+$memberCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ?', [$communityId, 'active'])['cnt'];
+$pendingCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ?', [$communityId, 'pending'])['cnt'];
+$mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND active = true', [$communityId])['cnt'];
 
-$lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = $1 ORDER BY imported_at DESC LIMIT 1', [$communityId]);
-$openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = $1 AND status IN ('pending','ready') ORDER BY quartal DESC LIMIT 1", [$communityId]);
+$lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = ? ORDER BY imported_at DESC LIMIT 1', [$communityId]);
+$openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? AND status IN ('pending','ready') ORDER BY quartal DESC LIMIT 1", [$communityId]);
 
 // Community-Gesamtleistung live
 $live = DB::fetchOne(
     "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
             COUNT(DISTINCT metering_point_id) AS active_meters
-     FROM esp_measurements WHERE community_id = $1 AND time >= now() - INTERVAL '2 minutes'",
+     FROM esp_measurements WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
     [$communityId]
 );
 
