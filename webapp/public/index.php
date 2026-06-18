@@ -335,6 +335,18 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     exit;
 });
 
+$router->get('/portal/members/:id/contract', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at', [$params['id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+    require ROOT . '/src/views/pages/member_contract.php';
+});
+
 $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();

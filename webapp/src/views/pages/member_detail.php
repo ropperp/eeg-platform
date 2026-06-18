@@ -4,7 +4,8 @@
   <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Mitgliederliste</a>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
-  <a href="/portal/members/<?= $member['id'] ?>/edit" class="btn" style="margin-left:auto;background:#f3f4f6;color:#374151;font-size:.85rem">✏️ Bearbeiten</a>
+  <a href="/portal/members/<?= $member['id'] ?>/contract" class="btn" style="margin-left:auto;background:#16a34a;color:#fff;font-size:.85rem" target="_blank">📄 Vertrag</a>
+  <a href="/portal/members/<?= $member['id'] ?>/edit" class="btn" style="background:#f3f4f6;color:#374151;font-size:.85rem">✏️ Bearbeiten</a>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
@@ -111,13 +112,16 @@
 <!-- MQTT-Topics -->
 <?php $hasTopics = array_filter(array_column($metering_points, 'meter_code')); ?>
 <?php if ($hasTopics): ?>
+<?php $mqttId = Auth::activeCommunityMqttId() ?? '…'; ?>
 <div class="card" style="font-size:.8rem;color:#6b7280;margin-bottom:1.5rem">
   <strong>MQTT-Topics (Live-Daten):</strong>
+  <div style="margin-top:.25rem;font-size:.75rem;color:#9ca3af">
+    Payload: <code>{"pp": W-Bezug, "pm": W-Einspeisung, "ep": Wh-Bezug, "em": Wh-Einspeisung, "znr": "Zählernummer"}</code>
+  </div>
   <?php foreach ($metering_points as $mp): ?>
     <?php if ($mp['meter_code']): ?>
-      <div style="margin-top:.25rem">
-        <code>eeg/<?= htmlspecialchars(Auth::activeCommunitySlug() ?? '…') ?>/meter/<?= htmlspecialchars($mp['meter_code']) ?>/live</code>
-        <span style="margin-left:.5rem"><?= $mp['type'] === 'consumer' ? '(Bezug)' : '(Einspeisung)' ?></span>
+      <div style="margin-top:.4rem">
+        <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mp['meter_code']) ?>/live</code>
       </div>
     <?php endif; ?>
   <?php endforeach; ?>

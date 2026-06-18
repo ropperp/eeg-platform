@@ -35,11 +35,14 @@ class Auth
             return false;
         }
 
-        // Rollen aller Communities laden
+        // Rollen laden — LEFT JOIN damit platform_admin (community_id = NULL) nicht fehlt
         $roles = DB::fetchAll(
-            'SELECT ur.community_id, ur.role, c.name AS community_name, c.slug AS community_slug
+            'SELECT ur.community_id, ur.role,
+                    c.name AS community_name,
+                    c.slug AS community_slug,
+                    COALESCE(LOWER(c.marktpartner_id), c.slug) AS community_mqtt_id
              FROM user_roles ur
-             JOIN communities c ON c.id = ur.community_id
+             LEFT JOIN communities c ON c.id = ur.community_id
              WHERE ur.user_id = ?',
             [$user['id']]
         );
@@ -80,12 +83,12 @@ class Auth
     {
         self::requireLogin();
         $active = $_SESSION['active_role'] ?? null;
+        // platform_admin darf alles
+        if (self::isPlatformAdmin()) return;
         if (!$active || $active['role'] !== $role) {
-            if ($role !== 'platform_admin') {
-                header('HTTP/1.1 403 Forbidden');
-                echo 'Kein Zugriff';
-                exit;
-            }
+            http_response_code(403);
+            echo 'Kein Zugriff';
+            exit;
         }
     }
 
@@ -107,6 +110,7 @@ class Auth
     public static function userName(): string { return $_SESSION['user_name'] ?? ''; }
     public static function activeCommunityId(): ?string { return $_SESSION['active_role']['community_id'] ?? null; }
     public static function activeCommunitySlug(): ?string { return $_SESSION['active_role']['community_slug'] ?? null; }
+    public static function activeCommunityMqttId(): ?string { return $_SESSION['active_role']['community_mqtt_id'] ?? null; }
     public static function activeRole(): ?array { return $_SESSION['active_role'] ?? null; }
 
     /** Wechselt aktive Community/Rolle */

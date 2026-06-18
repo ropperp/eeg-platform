@@ -47,18 +47,22 @@ def get_db_pool() -> ThreadedConnectionPool:
     return db_pool
 
 
-def get_community_id(slug: str) -> str | None:
-    if slug in community_cache:
-        return community_cache[slug]
+def get_community_id(mqtt_id: str) -> str | None:
+    """Sucht Community anhand der MQTT-ID (= LOWER(marktpartner_id), Fallback: slug)."""
+    if mqtt_id in community_cache:
+        return community_cache[mqtt_id]
     pool = get_db_pool()
     conn = pool.getconn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM communities WHERE slug = %s AND active = true", (slug,))
+            cur.execute(
+                "SELECT id FROM communities WHERE (LOWER(marktpartner_id) = %s OR slug = %s) AND active = true",
+                (mqtt_id, mqtt_id)
+            )
             row = cur.fetchone()
             if row:
-                community_cache[slug] = str(row[0])
-                return community_cache[slug]
+                community_cache[mqtt_id] = str(row[0])
+                return community_cache[mqtt_id]
     finally:
         pool.putconn(conn)
     return None
