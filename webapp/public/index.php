@@ -219,8 +219,8 @@ $router->post('/portal/members', function () {
 
     // Mitglied anlegen
     DB::execute(
-        'INSERT INTO members (community_id, user_id, salutation, first_name, last_name, company_name, address, zip, city, email, phone, invoice_uid)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO members (community_id, user_id, salutation, first_name, last_name, company_name, address, zip, city, email, phone, invoice_uid, member_iban, member_bic, member_since, member_until)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
@@ -234,6 +234,10 @@ $router->post('/portal/members', function () {
             $email,
             trim($_POST['phone'] ?? '') ?: null,
             trim($_POST['invoice_uid'] ?? '') ?: null,
+            trim($_POST['member_iban'] ?? '') ?: null,
+            trim($_POST['member_bic'] ?? '') ?: null,
+            $_POST['member_since'] ?: date('Y-m-d'),
+            $_POST['member_until'] ?: '2099-12-31',
         ]
     );
 
@@ -258,6 +262,46 @@ $router->post('/portal/members', function () {
     }
 
     header('Location: /portal/members?success=1');
+    exit;
+});
+
+$router->get('/portal/members/:id/edit', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    require ROOT . '/src/views/pages/member_form.php';
+});
+
+$router->post('/portal/members/:id/edit', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); return; }
+
+    DB::execute(
+        'UPDATE members SET salutation=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
+         phone=?, invoice_uid=?, member_iban=?, member_bic=?, member_since=?, member_until=? WHERE id=?',
+        [
+            $_POST['salutation'] ?? null,
+            trim($_POST['first_name']),
+            trim($_POST['last_name']),
+            trim($_POST['company_name'] ?? '') ?: null,
+            trim($_POST['address']),
+            trim($_POST['zip']),
+            trim($_POST['city']),
+            trim($_POST['phone'] ?? '') ?: null,
+            trim($_POST['invoice_uid'] ?? '') ?: null,
+            trim($_POST['member_iban'] ?? '') ?: null,
+            trim($_POST['member_bic'] ?? '') ?: null,
+            $_POST['member_since'] ?: date('Y-m-d'),
+            $_POST['member_until'] ?: '2099-12-31',
+            $params['id'],
+        ]
+    );
+    header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
 
@@ -288,6 +332,62 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
         [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
     );
     header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+$router->post('/portal/members/:id/metering-points/:mpid/edit', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    DB::execute(
+        'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
+        [
+            strtoupper(trim($_POST['zaehlpunkt_nr'] ?? '')),
+            trim($_POST['meter_code'] ?? '') ?: null,
+            $_POST['type'] ?? 'consumer',
+            $params['mpid'],
+            $communityId,
+        ]
+    );
+    header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+$router->post('/portal/members/:id/metering-points/:mpid/delete', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    DB::execute('UPDATE metering_points SET active=false WHERE id=? AND community_id=?', [$params['mpid'], $communityId]);
+    header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+// ─── Portal: Passwort ändern ────────────────────────────
+$router->get('/portal/password', function () {
+    Auth::requireLogin();
+    require ROOT . '/src/views/pages/password_change.php';
+});
+
+$router->post('/portal/password', function () {
+    Auth::requireLogin();
+    $userId = Auth::userId();
+    $user = DB::fetchOne('SELECT password_hash FROM users WHERE id = ?', [$userId]);
+    $current  = $_POST['current_password'] ?? '';
+    $new      = $_POST['new_password'] ?? '';
+    $confirm  = $_POST['confirm_password'] ?? '';
+
+    if (!password_verify($current, $user['password_hash'])) {
+        $error = 'Aktuelles Passwort ist falsch.';
+    } elseif (strlen($new) < 8) {
+        $error = 'Das neue Passwort muss mindestens 8 Zeichen lang sein.';
+    } elseif ($new !== $confirm) {
+        $error = 'Die Passwörter stimmen nicht überein.';
+    } else {
+        $hash = password_hash($new, PASSWORD_BCRYPT, ['cost' => 12]);
+        DB::execute('UPDATE users SET password_hash=? WHERE id=?', [$hash, $userId]);
+        $success = 'Passwort wurde erfolgreich geändert.';
+    }
+    require ROOT . '/src/views/pages/password_change.php';
     exit;
 });
 

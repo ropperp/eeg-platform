@@ -67,6 +67,9 @@ CREATE TABLE members (
     -- Rechnungsangaben
     invoice_name    TEXT,                          -- abweichender Rechnungsname
     invoice_uid     TEXT,                          -- UID wenn Firma
+    -- Bankverbindung
+    member_iban     TEXT,
+    member_bic      TEXT,
     -- Mitgliedschaft
     member_since    DATE NOT NULL DEFAULT CURRENT_DATE,
     member_until    DATE,

@@ -4,10 +4,11 @@
   <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Mitgliederliste</a>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
+  <a href="/portal/members/<?= $member['id'] ?>/edit" class="btn" style="margin-left:auto;background:#f3f4f6;color:#374151;font-size:.85rem">✏️ Bearbeiten</a>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
-  <div class="alert alert-success" style="margin-bottom:1rem">Zählpunkt gespeichert.</div>
+  <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
 <?php elseif (isset($_GET['error'])): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
 <?php endif; ?>
@@ -22,6 +23,18 @@
       <tr><th>Adresse</th><td><?= htmlspecialchars($member['address'] . ', ' . $member['zip'] . ' ' . $member['city']) ?></td></tr>
       <tr><th>UID</th><td><?= htmlspecialchars($member['invoice_uid'] ?? '—') ?></td></tr>
       <tr><th>Mitglied seit</th><td><?= $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '—' ?></td></tr>
+      <tr><th>Mitglied bis</th><td>
+        <?php
+          $until = $member['member_until'] ?? '';
+          echo $until && $until !== '2099-12-31' ? date('d.m.Y', strtotime($until)) : 'aktiv';
+        ?>
+      </td></tr>
+      <?php if (!empty($member['member_iban'])): ?>
+      <tr><th>IBAN</th><td><code><?= htmlspecialchars($member['member_iban']) ?></code></td></tr>
+      <?php endif; ?>
+      <?php if (!empty($member['member_bic'])): ?>
+      <tr><th>BIC</th><td><?= htmlspecialchars($member['member_bic']) ?></td></tr>
+      <?php endif; ?>
     </table>
   </div>
 
@@ -38,7 +51,7 @@
             <th>Zählpunktnummer (AT...)</th>
             <th>Zählernummer</th>
             <th>Typ</th>
-            <th>Status</th>
+            <th>Aktionen</th>
           </tr>
         </thead>
         <tbody>
@@ -49,19 +62,25 @@
               <?php if ($mp['meter_code']): ?>
                 <code style="font-size:.75rem;color:#16a34a"><?= htmlspecialchars($mp['meter_code']) ?></code>
               <?php else: ?>
-                <span style="color:#9ca3af;font-size:.8rem">nicht zugewiesen</span>
+                <span style="color:#9ca3af;font-size:.8rem">—</span>
               <?php endif; ?>
             </td>
-            <td>
-              <?= $mp['type'] === 'consumer' ? '⬇️ Bezug' : '⬆️ Einspeisung' ?>
+            <td><?= $mp['type'] === 'consumer' ? '⬇️ Bezug' : '⬆️ Einspeisung' ?></td>
+            <td style="white-space:nowrap">
+              <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>')"
+                      style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#6b7280">✏️</button>
+              <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">
+                <button type="submit" onclick="return confirm('Zählpunkt wirklich deaktivieren?')"
+                        style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#ef4444">🗑️</button>
+              </form>
             </td>
-            <td><span class="badge badge-<?= $mp['active'] ? 'green' : 'gray' ?>"><?= $mp['active'] ? 'aktiv' : 'inaktiv' ?></span></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table>
     <?php endif; ?>
 
+    <!-- Zählpunkt hinzufügen -->
     <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
         <div class="form-group" style="margin-bottom:0">
@@ -70,13 +89,12 @@
                  style="font-family:monospace;font-size:.78rem">
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label style="font-size:.8rem">Zählernummer (13 Stellen) für ESP32</label>
+          <label style="font-size:.8rem">Zählernummer (13 Stellen)</label>
           <input type="text" name="meter_code" placeholder="1234567890123" maxlength="13" pattern="\d{13}"
                  style="font-family:monospace;font-size:.78rem">
-          <small style="color:#6b7280;font-size:.72rem">MQTT-Identifikation für Live-Daten</small>
         </div>
       </div>
-      <div style="display:flex;gap:.5rem;align-items:center">
+      <div style="display:flex;gap:.5rem;align-items:flex-end">
         <div class="form-group" style="margin-bottom:0">
           <label style="font-size:.8rem">Typ</label>
           <select name="type">
@@ -84,23 +102,62 @@
             <option value="producer">⬆️ Einspeisung</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary" style="height:38px;margin-top:1.1rem">+ Zählpunkt hinzufügen</button>
+        <button type="submit" class="btn btn-primary" style="height:38px">+ Hinzufügen</button>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card" style="font-size:.8rem;color:#6b7280">
-  <strong>MQTT-Topic für dieses Mitglied:</strong><br>
+<!-- MQTT-Topics -->
+<?php $hasTopics = array_filter(array_column($metering_points, 'meter_code')); ?>
+<?php if ($hasTopics): ?>
+<div class="card" style="font-size:.8rem;color:#6b7280;margin-bottom:1.5rem">
+  <strong>MQTT-Topics (Live-Daten):</strong>
   <?php foreach ($metering_points as $mp): ?>
     <?php if ($mp['meter_code']): ?>
-      <code>eeg/<?= htmlspecialchars(Auth::activeCommunitySlug() ?? '…') ?>/meter/<?= htmlspecialchars($mp['meter_code']) ?>/live</code>
-      (<?= $mp['type'] === 'consumer' ? 'Bezug' : 'Einspeisung' ?>)<br>
+      <div style="margin-top:.25rem">
+        <code>eeg/<?= htmlspecialchars(Auth::activeCommunitySlug() ?? '…') ?>/meter/<?= htmlspecialchars($mp['meter_code']) ?>/live</code>
+        <span style="margin-left:.5rem"><?= $mp['type'] === 'consumer' ? '(Bezug)' : '(Einspeisung)' ?></span>
+      </div>
     <?php endif; ?>
   <?php endforeach; ?>
-  <?php if (!array_filter(array_column($metering_points, 'meter_code'))): ?>
-    <em>Kein Zählpunkt mit Zählernummer registriert.</em>
-  <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<!-- Edit-Modal -->
+<dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+  <h3 style="margin-bottom:1rem">Zählpunkt bearbeiten</h3>
+  <form method="post" id="edit-mp-form">
+    <div class="form-group">
+      <label>Zählpunktnummer (AT...)</label>
+      <input type="text" name="zaehlpunkt_nr" id="edit-mp-znr" required style="font-family:monospace">
+    </div>
+    <div class="form-group">
+      <label>Zählernummer (13 Stellen)</label>
+      <input type="text" name="meter_code" id="edit-mp-mc" maxlength="13" style="font-family:monospace">
+    </div>
+    <div class="form-group">
+      <label>Typ</label>
+      <select name="type" id="edit-mp-type">
+        <option value="consumer">⬇️ Bezug</option>
+        <option value="producer">⬆️ Einspeisung</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:.75rem">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <button type="button" onclick="document.getElementById('edit-mp-dialog').close()" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function openEditMp(id, znr, mc, type) {
+  document.getElementById('edit-mp-form').action = '/portal/members/<?= $member['id'] ?>/metering-points/' + id + '/edit';
+  document.getElementById('edit-mp-znr').value = znr;
+  document.getElementById('edit-mp-mc').value = mc;
+  document.getElementById('edit-mp-type').value = type;
+  document.getElementById('edit-mp-dialog').showModal();
+}
+</script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

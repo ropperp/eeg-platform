@@ -17,15 +17,28 @@
       <tr><th>E-Mail</th><td><code><?= htmlspecialchars($successEmail) ?></code></td></tr>
       <tr><th>Temporäres Passwort</th><td><code style="font-size:1.1rem;color:#15803d"><?= htmlspecialchars($successTempPw) ?></code></td></tr>
     </table>
-    <p style="margin-top:.75rem;font-size:.8rem;color:#6b7280">
-      Das Mitglied sollte das Passwort nach dem ersten Login ändern.
-      Diese Anzeige erscheint nur einmal.
-    </p>
+    <p style="margin-top:.75rem;font-size:.8rem;color:#6b7280">Das Mitglied sollte das Passwort nach dem ersten Login ändern. Diese Anzeige erscheint nur einmal.</p>
   </div>
 <?php endif; ?>
 
+<!-- Suche & Filter -->
+<div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
+  <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+    <input type="text" id="search-input" placeholder="Name oder E-Mail suchen…"
+           style="flex:1;min-width:200px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
+           oninput="filterMembers()">
+    <select id="filter-status" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+      <option value="">Alle Status</option>
+      <option value="active">Aktiv</option>
+      <option value="pending">Ausstehend</option>
+      <option value="inactive">Inaktiv</option>
+    </select>
+    <span id="result-count" style="font-size:.8rem;color:#6b7280"></span>
+  </div>
+</div>
+
 <div class="card">
-  <table>
+  <table id="member-table">
     <thead>
       <tr>
         <th>Name</th>
@@ -38,7 +51,9 @@
     </thead>
     <tbody>
     <?php foreach ($members as $m): ?>
-      <tr>
+      <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
+          data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
+          data-status="<?= htmlspecialchars($m['status']) ?>">
         <td>
           <?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?>
         </td>
@@ -53,6 +68,8 @@
         </td>
         <td>
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
+          &nbsp;·&nbsp;
+          <a href="/portal/members/<?= $m['id'] ?>/edit" style="font-size:.8rem;color:#6b7280">Bearbeiten</a>
         </td>
       </tr>
     <?php endforeach; ?>
@@ -62,5 +79,23 @@
     </tbody>
   </table>
 </div>
+
+<script>
+function filterMembers() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const s = document.getElementById('filter-status').value;
+  const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
+  let visible = 0;
+  rows.forEach(row => {
+    const nameMatch = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q);
+    const statusMatch = !s || row.dataset.status === s;
+    const show = nameMatch && statusMatch;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  document.getElementById('result-count').textContent = visible + ' Mitglied' + (visible !== 1 ? 'er' : '') + ' gefunden';
+}
+filterMembers();
+</script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

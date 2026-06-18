@@ -12,21 +12,33 @@
   <div class="container inner">
     <a href="/" class="logo">⚡ EEG-Plattform</a>
     <nav>
-      <?php $ar = Auth::activeRole(); ?>
-      <?php if ($ar): ?>
-        <span style="font-size:.85rem;color:#6b7280"><?= htmlspecialchars($ar['community_name']) ?></span>
+      <?php
+        $ar    = Auth::activeRole();
+        $roles = $_SESSION['roles'] ?? [];
+        $isPlatformAdmin = Auth::isPlatformAdmin();
+        $isManager = Auth::isManager();
+        $activeRoleName = $ar['role'] ?? '';
+      ?>
+
+      <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>
+        <span style="font-size:.85rem;color:#6b7280"><?= htmlspecialchars($ar['community_name'] ?? '') ?></span>
+      <?php elseif ($isPlatformAdmin): ?>
+        <span style="font-size:.85rem;color:#16a34a;font-weight:600">Plattform-Admin</span>
       <?php endif; ?>
 
       <?php
         // Rollenwechsler: zeige wenn mehrere Rollen vorhanden
-        $roles = $_SESSION['roles'] ?? [];
         if (count($roles) > 1):
       ?>
         <select onchange="switchRole(this)" style="margin-left:1rem;padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
           <?php foreach ($roles as $r): ?>
-            <option value="<?= $r['community_id'] ?>|<?= $r['role'] ?>"
+            <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>"
               <?= ($r === Auth::activeRole()) ? 'selected' : '' ?>>
-              <?= htmlspecialchars($r['community_name']) ?> (<?= $r['role'] ?>)
+              <?php if ($r['role'] === 'platform_admin'): ?>
+                🔧 Plattform-Admin
+              <?php else: ?>
+                <?= htmlspecialchars($r['community_name'] ?? '') ?> (<?= $r['role'] ?>)
+              <?php endif; ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -51,24 +63,28 @@
 
 <div class="portal-layout">
   <aside class="sidebar">
-    <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">
-      <?= Auth::isManager() ? 'Verwaltung' : 'Mitglied' ?>
-    </p>
+    <?php if ($activeRoleName === 'platform_admin'): ?>
+      <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">Plattform</p>
+      <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">🔧 Administration</a>
 
-    <?php if (Auth::isManager()): ?>
+    <?php elseif ($isManager): ?>
+      <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">Verwaltung</p>
       <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">📊 Übersicht</a>
       <a href="/portal/members"   class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">👥 Mitglieder</a>
       <a href="/portal/billing"   class="<?= str_contains($_SERVER['REQUEST_URI'], 'billing') ? 'active' : '' ?>">💶 Abrechnung</a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">📂 EDA-Import</a>
       <a href="/portal/settings"  class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">⚙️ Einstellungen</a>
+
+      <?php if ($isPlatformAdmin): ?>
+        <hr style="margin:1rem 0;border-color:#e5e7eb">
+        <a href="/admin">🔧 Admin</a>
+      <?php endif; ?>
+
     <?php else: ?>
+      <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">Mitglied</p>
       <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">📊 Mein Verbrauch</a>
       <a href="/portal/invoices"  class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">🧾 Rechnungen</a>
-    <?php endif; ?>
-
-    <?php if (Auth::isPlatformAdmin()): ?>
-      <hr style="margin:1rem 0;border-color:#e5e7eb">
-      <a href="/admin">🔧 Admin</a>
+      <a href="/portal/password"  class="<?= str_contains($_SERVER['REQUEST_URI'], 'password') ? 'active' : '' ?>">🔑 Passwort ändern</a>
     <?php endif; ?>
   </aside>
 

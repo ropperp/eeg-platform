@@ -12,8 +12,24 @@ ob_start();
   <div class="alert alert-success">Abrechnung erfolgreich freigegeben. PDFs werden generiert und versendet.</div>
 <?php endif; ?>
 
+<!-- Suche -->
+<div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
+  <div style="display:flex;gap:.75rem;align-items:center">
+    <input type="text" id="billing-search" placeholder="Quartal suchen (z.B. 2026-Q1)…"
+           style="flex:1;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
+           oninput="filterBilling()">
+    <select id="billing-status" onchange="filterBilling()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+      <option value="">Alle Status</option>
+      <option value="pending">Ausstehend</option>
+      <option value="ready">Bereit</option>
+      <option value="released">Freigegeben</option>
+      <option value="done">Abgeschlossen</option>
+    </select>
+  </div>
+</div>
+
 <div class="card">
-  <table>
+  <table id="billing-table">
     <thead>
       <tr>
         <th>Quartal</th>
@@ -26,7 +42,7 @@ ob_start();
     </thead>
     <tbody>
     <?php foreach ($runs as $run): ?>
-      <tr>
+      <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
         <td><?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?></td>
         <td>
@@ -62,6 +78,18 @@ ob_start();
     </tbody>
   </table>
 </div>
+
+<script>
+function filterBilling() {
+  const q = document.getElementById('billing-search').value.toLowerCase();
+  const s = document.getElementById('billing-status').value;
+  document.querySelectorAll('#billing-table tbody tr[data-quartal]').forEach(row => {
+    const qm = !q || row.dataset.quartal.includes(q);
+    const sm = !s || row.dataset.status === s;
+    row.style.display = qm && sm ? '' : 'none';
+  });
+}
+</script>
 
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem">ℹ️ Hinweis zum 60-Tage-Korrekturfenster</h3>
