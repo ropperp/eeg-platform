@@ -2,7 +2,7 @@
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
   <h2>👥 Mitglieder</h2>
-  <a href="#" class="btn btn-primary">+ Mitglied anlegen</a>
+  <a href="/portal/members/new" class="btn btn-primary">+ Mitglied anlegen</a>
 </div>
 
 <div class="card">
@@ -33,8 +33,7 @@
           </span>
         </td>
         <td>
-          <a href="#" style="font-size:.8rem">Bearbeiten</a>
-          · <a href="#" style="font-size:.8rem">Vertrag</a>
+          <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
         </td>
       </tr>
     <?php endforeach; ?>

@@ -2,31 +2,82 @@
 
 <h2 style="margin-bottom:1.5rem">⚙️ EEG-Einstellungen</h2>
 
+<?php if (isset($_GET['success'])): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Einstellungen gespeichert.</div>
+<?php endif; ?>
+
+<!-- Stammdaten -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Stammdaten</h3>
-  <table>
-    <tr><th>Name</th><td><?= htmlspecialchars($community['name']) ?></td></tr>
-    <tr><th>Marktpartner-ID</th><td><?= htmlspecialchars($community['marktpartner_id'] ?? '—') ?></td></tr>
-    <tr><th>ZVR-Zahl</th><td><?= htmlspecialchars($community['zvr_number'] ?? '—') ?></td></tr>
-    <tr><th>Adresse</th><td><?= htmlspecialchars($community['address'] ?? '—') ?></td></tr>
-    <tr><th>IBAN</th><td><?= htmlspecialchars($community['iban'] ?? '—') ?></td></tr>
-    <tr><th>BIC</th><td><?= htmlspecialchars($community['bic'] ?? '—') ?></td></tr>
-  </table>
+  <form method="post" action="/portal/settings/community">
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Name der EEG</label>
+        <input type="text" name="name" required value="<?= htmlspecialchars($community['name'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Marktpartner-ID</label>
+        <input type="text" name="marktpartner_id" value="<?= htmlspecialchars($community['marktpartner_id'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>ZVR-Zahl</label>
+        <input type="text" name="zvr_number" value="<?= htmlspecialchars($community['zvr_number'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Adresse</label>
+        <input type="text" name="address" value="<?= htmlspecialchars($community['address'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>IBAN</label>
+        <input type="text" name="iban" value="<?= htmlspecialchars($community['iban'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>BIC</label>
+        <input type="text" name="bic" value="<?= htmlspecialchars($community['bic'] ?? '') ?>">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Stammdaten speichern</button>
+  </form>
 </div>
 
+<!-- Tarif -->
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:1rem">Aktueller Tarif (gültig ab <?= $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '—' ?>)</h3>
+  <h3 style="margin-bottom:.5rem">Tarif</h3>
   <?php if ($tariff): ?>
-  <table>
-    <tr><th>Bezugstarif</th><td><?= number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') ?> ct/kWh</td></tr>
-    <tr><th>Einspeisevergütung</th><td><?= number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') ?> ct/kWh</td></tr>
-    <tr><th>Mitgliedsbeitrag</th><td><?= number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') ?> EUR/Jahr</td></tr>
-  </table>
-  <?php else: ?>
-    <p style="color:#6b7280;font-size:.875rem">Kein Tarif konfiguriert.</p>
+    <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
+      Aktuell gültig ab <?= date('d.m.Y', strtotime($tariff['valid_from'])) ?>:
+      Bezug <?= number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') ?> ct/kWh ·
+      Einspeisung <?= number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') ?> ct/kWh ·
+      Mitgliedsbeitrag <?= number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') ?> EUR/Jahr
+    </p>
   <?php endif; ?>
+  <form method="post" action="/portal/settings/tariff">
+    <p style="font-size:.8rem;color:#92400e;margin-bottom:1rem">
+      ⚠️ Ein neuer Tarif wird ab dem angegebenen Datum gültig. Der alte Tarif bleibt für vergangene Abrechnungen erhalten.
+    </p>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Gültig ab</label>
+        <input type="date" name="valid_from" required value="<?= date('Y-m-d') ?>">
+      </div>
+      <div class="form-group">
+        <label>Bezugstarif (ct/kWh)</label>
+        <input type="text" name="bezug_ct_kwh" placeholder="12.00" value="<?= htmlspecialchars($tariff['bezug_ct_kwh'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Einspeisevergütung (ct/kWh)</label>
+        <input type="text" name="einspeisung_ct_kwh" placeholder="8.00" value="<?= htmlspecialchars($tariff['einspeisung_ct_kwh'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Mitgliedsbeitrag (EUR/Jahr)</label>
+        <input type="text" name="mitgliedsbeitrag_eur" placeholder="24.00" value="<?= htmlspecialchars($tariff['mitgliedsbeitrag_eur'] ?? '') ?>">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Neuen Tarif anlegen</button>
+  </form>
 </div>
 
+<!-- Steuerkonfiguration -->
 <div class="card">
   <h3 style="margin-bottom:1rem">Steuerkonfiguration</h3>
   <?php if ($tax): ?>
@@ -48,7 +99,7 @@
     <p style="color:#6b7280;font-size:.875rem">Keine Steuerkonfiguration vorhanden.</p>
   <?php endif; ?>
   <p style="margin-top:1rem;font-size:.8rem;color:#9ca3af">
-    Für Änderungen an Tarifen oder Steuerkonfiguration wenden Sie sich an den Plattform-Administrator.
+    Für Änderungen an der Steuerkonfiguration wenden Sie sich an den Plattform-Administrator.
     Alle Änderungen werden historisiert damit alte Rechnungen korrekt bleiben.
   </p>
 </div>

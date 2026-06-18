@@ -53,7 +53,7 @@
             <?= $c['active'] ? 'aktiv' : 'inaktiv' ?>
           </span>
         </td>
-        <td><a href="#" style="font-size:.8rem">Konfigurieren</a></td>
+        <td><a href="/admin/communities/<?= $c['id'] ?>" style="font-size:.8rem">Konfigurieren</a></td>
       </tr>
     <?php endforeach; ?>
     </tbody>

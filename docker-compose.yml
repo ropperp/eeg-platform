@@ -118,7 +118,9 @@ services:
   # Webapplikation — nginx + PHP 8.2
   # ─────────────────────────────────────────
   webapp:
-    build: ./webapp
+    build:
+      context: .
+      dockerfile: webapp/Dockerfile
     container_name: webapp
     restart: always
     environment:
