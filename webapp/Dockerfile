@@ -1,9 +1,12 @@
 FROM php:8.2-fpm-alpine
 
 # Extensions
-RUN apk add --no-cache nginx redis libpq-dev && \
-    docker-php-ext-install pdo pdo_pgsql && \
-    pecl install redis && docker-php-ext-enable redis
+RUN apk add --no-cache nginx libpq-dev \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
+    && docker-php-ext-install pdo pdo_pgsql \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .build-deps
 
 # nginx Konfiguration
 COPY docker/nginx.conf /etc/nginx/nginx.conf
