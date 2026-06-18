@@ -74,6 +74,9 @@ CREATE TABLE members (
     member_since    DATE NOT NULL DEFAULT CURRENT_DATE,
     member_until    DATE,
     status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('pending', 'active', 'inactive')),
+    -- Vertragsstatus
+    contract_bezug_status       TEXT NOT NULL DEFAULT 'none' CHECK (contract_bezug_status IN ('none','created','signed')),
+    contract_einspeisung_status TEXT NOT NULL DEFAULT 'none' CHECK (contract_einspeisung_status IN ('none','created','signed')),
     created_at      TIMESTAMPTZ DEFAULT now()
 );
 

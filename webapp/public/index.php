@@ -175,11 +175,14 @@ $router->get('/portal/members', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $members = DB::fetchAll(
-        'SELECT m.*, COUNT(mp.id) AS metering_point_count
+        "SELECT m.*,
+                COUNT(DISTINCT mp.id) AS metering_point_count,
+                COALESCE(SUM(i.amount_brutto) FILTER (WHERE i.paid_at IS NULL), 0) AS open_amount
          FROM members m
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
+         LEFT JOIN invoices i ON i.member_id = m.id AND i.paid_at IS NULL
          WHERE m.community_id = ?
-         GROUP BY m.id ORDER BY m.last_name, m.first_name',
+         GROUP BY m.id ORDER BY m.last_name, m.first_name",
         [$communityId]
     );
     require ROOT . '/src/views/pages/member_list.php';
@@ -335,7 +338,7 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     exit;
 });
 
-$router->get('/portal/members/:id/contract', function ($params) {
+$router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
@@ -344,7 +347,37 @@ $router->get('/portal/members/:id/contract', function ($params) {
     $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at', [$params['id']]);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
-    require ROOT . '/src/views/pages/member_contract.php';
+    // Markieren dass Vertrag erstellt wurde
+    DB::execute("UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END WHERE id = ?", [$params['id']]);
+    require ROOT . '/src/views/pages/contract_bezug.php';
+});
+
+$router->get('/portal/members/:id/contract/einspeisung', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at', [$params['id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+    DB::execute("UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END WHERE id = ?", [$params['id']]);
+    require ROOT . '/src/views/pages/contract_einspeisung.php';
+});
+
+$router->post('/portal/members/:id/contract-status', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $type   = $_POST['type'] ?? ''; // bezug | einspeisung
+    $status = $_POST['status'] ?? ''; // created | signed
+    if (!in_array($type, ['bezug', 'einspeisung']) || !in_array($status, ['none', 'created', 'signed'])) {
+        http_response_code(400); return;
+    }
+    $col = 'contract_' . $type . '_status';
+    DB::execute("UPDATE members SET {$col} = ? WHERE id = ? AND community_id = ?", [$status, $params['id'], $communityId]);
+    header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
 });
 
 $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($params) {

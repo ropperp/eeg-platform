@@ -1,4 +1,7 @@
-<?php $pageTitle = 'Mitglieder'; ob_start(); ?>
+<?php $pageTitle = 'Mitglieder'; ob_start();
+$statusBadge = ['none' => 'gray', 'created' => 'yellow', 'signed' => 'green'];
+$statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unterschr.'];
+?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
   <h2>👥 Mitglieder</h2>
@@ -25,7 +28,7 @@
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <input type="text" id="search-input" placeholder="Name oder E-Mail suchen…"
-           style="flex:1;min-width:200px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
+           style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
            oninput="filterMembers()">
     <select id="filter-status" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
@@ -33,48 +36,75 @@
       <option value="pending">Ausstehend</option>
       <option value="inactive">Inaktiv</option>
     </select>
+    <select id="filter-contract" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+      <option value="">Alle Verträge</option>
+      <option value="none">Keine Verträge</option>
+      <option value="open">Vertrag ausstehend</option>
+      <option value="signed">Alles unterschrieben</option>
+    </select>
     <span id="result-count" style="font-size:.8rem;color:#6b7280"></span>
   </div>
 </div>
 
-<div class="card">
-  <table id="member-table">
+<div class="card" style="overflow-x:auto">
+  <table id="member-table" style="min-width:900px">
     <thead>
       <tr>
         <th>Name</th>
         <th>E-Mail</th>
-        <th>Zählpunkte</th>
         <th>Mitglied seit</th>
         <th>Status</th>
+        <th style="text-align:center">Bezugsvertr.</th>
+        <th style="text-align:center">Einspeisevertr.</th>
+        <th style="text-align:right">Offener Betrag</th>
         <th>Aktionen</th>
       </tr>
     </thead>
     <tbody>
-    <?php foreach ($members as $m): ?>
+    <?php foreach ($members as $m):
+      $bezug = $m['contract_bezug_status'] ?? 'none';
+      $einsp = $m['contract_einspeisung_status'] ?? 'none';
+      $allSigned = ($bezug === 'signed' && $einsp === 'signed') ? 'signed' : ($bezug === 'none' && $einsp === 'none' ? 'none' : 'open');
+    ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
-          data-status="<?= htmlspecialchars($m['status']) ?>">
+          data-status="<?= htmlspecialchars($m['status']) ?>"
+          data-contract="<?= $allSigned ?>">
         <td>
-          <?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?>
+          <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
+          <?php if ($m['company_name']): ?>
+            <div style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
+          <?php endif; ?>
         </td>
-        <td><?= htmlspecialchars($m['email']) ?></td>
-        <td><?= $m['metering_point_count'] ?></td>
-        <td><?= $m['member_since'] ? date('d.m.Y', strtotime($m['member_since'])) : '—' ?></td>
+        <td style="font-size:.85rem"><?= htmlspecialchars($m['email']) ?></td>
+        <td style="font-size:.85rem;white-space:nowrap"><?= $m['member_since'] ? date('d.m.Y', strtotime($m['member_since'])) : '—' ?></td>
         <td>
-          <?php $badge = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
-          <span class="badge badge-<?= $badge[$m['status']] ?? 'gray' ?>">
-            <?= htmlspecialchars($m['status']) ?>
-          </span>
+          <?php $sb = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
+          <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= htmlspecialchars($m['status']) ?></span>
         </td>
-        <td>
+        <td style="text-align:center">
+          <span class="badge badge-<?= $statusBadge[$bezug] ?>" style="font-size:.75rem"><?= $statusLabel[$bezug] ?></span>
+        </td>
+        <td style="text-align:center">
+          <span class="badge badge-<?= $statusBadge[$einsp] ?>" style="font-size:.75rem"><?= $statusLabel[$einsp] ?></span>
+        </td>
+        <td style="text-align:right;font-size:.85rem;white-space:nowrap">
+          <?php $amount = (float)($m['open_amount'] ?? 0); ?>
+          <?php if ($amount > 0): ?>
+            <span style="color:#dc2626;font-weight:600"><?= number_format($amount, 2, ',', '.') ?> €</span>
+          <?php else: ?>
+            <span style="color:#16a34a">—</span>
+          <?php endif; ?>
+        </td>
+        <td style="white-space:nowrap">
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
           &nbsp;·&nbsp;
-          <a href="/portal/members/<?= $m['id'] ?>/edit" style="font-size:.8rem;color:#6b7280">Bearbeiten</a>
+          <a href="/portal/members/<?= $m['id'] ?>/edit" style="font-size:.8rem;color:#6b7280">Bearb.</a>
         </td>
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="6" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="8" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
@@ -84,12 +114,14 @@
 function filterMembers() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const s = document.getElementById('filter-status').value;
+  const c = document.getElementById('filter-contract').value;
   const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
   let visible = 0;
   rows.forEach(row => {
-    const nameMatch = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q);
-    const statusMatch = !s || row.dataset.status === s;
-    const show = nameMatch && statusMatch;
+    const nm = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q);
+    const sm = !s || row.dataset.status === s;
+    const cm = !c || row.dataset.contract === c;
+    const show = nm && sm && cm;
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });

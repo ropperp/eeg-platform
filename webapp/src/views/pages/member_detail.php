@@ -4,8 +4,14 @@
   <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Mitgliederliste</a>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
-  <a href="/portal/members/<?= $member['id'] ?>/contract" class="btn" style="margin-left:auto;background:#16a34a;color:#fff;font-size:.85rem" target="_blank">📄 Vertrag</a>
-  <a href="/portal/members/<?= $member['id'] ?>/edit" class="btn" style="background:#f3f4f6;color:#374151;font-size:.85rem">✏️ Bearbeiten</a>
+  <div style="margin-left:auto;display:flex;gap:.5rem">
+    <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
+       class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem">📄 Bezugsvereinbarung</a>
+    <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
+       class="btn" style="background:#b45309;color:#fff;font-size:.8rem">☀️ Einspeisevereinbarung</a>
+    <a href="/portal/members/<?= $member['id'] ?>/edit"
+       class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">✏️ Bearbeiten</a>
+  </div>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
@@ -127,6 +133,39 @@
   <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+<!-- Vertragsstatus -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:1rem">📋 Vertragsstatus</h3>
+  <div class="grid-2">
+    <?php
+    $contractTypes = [
+      'bezug'       => ['label' => 'Bezugsvereinbarung',     'color' => '#1d4ed8'],
+      'einspeisung' => ['label' => 'Einspeisevereinbarung',  'color' => '#b45309'],
+    ];
+    $statusLabels = ['none' => 'Nicht erstellt', 'created' => 'Erstellt', 'signed' => 'Unterschrieben'];
+    $statusBadge  = ['none' => 'gray', 'created' => 'yellow', 'signed' => 'green'];
+    foreach ($contractTypes as $type => $info):
+      $cur = $member['contract_' . $type . '_status'] ?? 'none';
+    ?>
+    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:.75rem 1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <strong style="font-size:.9rem"><?= $info['label'] ?></strong>
+        <span class="badge badge-<?= $statusBadge[$cur] ?? 'gray' ?>"><?= $statusLabels[$cur] ?></span>
+      </div>
+      <form method="post" action="/portal/members/<?= $member['id'] ?>/contract-status" style="display:flex;gap:.5rem;align-items:center">
+        <input type="hidden" name="type" value="<?= $type ?>">
+        <select name="status" style="flex:1;padding:.3rem .5rem;border:1px solid #e5e7eb;border-radius:6px;font-size:.8rem">
+          <?php foreach ($statusLabels as $val => $lbl): ?>
+            <option value="<?= $val ?>" <?= $cur === $val ? 'selected' : '' ?>><?= $lbl ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button type="submit" style="padding:.3rem .75rem;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.8rem">Speichern</button>
+      </form>
+    </div>
+    <?php endforeach; ?>
+  </div>
+</div>
 
 <!-- Edit-Modal -->
 <dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
