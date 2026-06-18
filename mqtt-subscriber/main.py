@@ -35,8 +35,8 @@ DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 
 db_pool: ThreadedConnectionPool | None = None
-community_cache: dict[str, str] = {}       # slug → community_id
-metering_point_cache: dict[str, str] = {}  # metering_point_id-string → uuid check
+community_cache: dict[str, str] = {}        # slug → community_id (UUID)
+metering_point_cache: dict[str, str] = {}  # "community_id:znr" → metering_point UUID
 
 
 def get_db_pool() -> ThreadedConnectionPool:
@@ -59,6 +59,27 @@ def get_community_id(slug: str) -> str | None:
             if row:
                 community_cache[slug] = str(row[0])
                 return community_cache[slug]
+    finally:
+        pool.putconn(conn)
+    return None
+
+
+def get_metering_point_uuid(community_id: str, zaehlpunkt_nr: str) -> str | None:
+    cache_key = f"{community_id}:{zaehlpunkt_nr}"
+    if cache_key in metering_point_cache:
+        return metering_point_cache[cache_key]
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM metering_points WHERE community_id = %s AND zaehlpunkt_nr = %s",
+                (community_id, zaehlpunkt_nr)
+            )
+            row = cur.fetchone()
+            if row:
+                metering_point_cache[cache_key] = str(row[0])
+                return metering_point_cache[cache_key]
     finally:
         pool.putconn(conn)
     return None
@@ -103,7 +124,7 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
         return
 
     community_slug = parts[1]
-    metering_point_id = parts[3]
+    zaehlpunkt_nr = parts[3]
 
     try:
         payload = json.loads(msg.payload.decode())
@@ -121,8 +142,13 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
         log.debug("Unbekannte Community-Slug: %s", community_slug)
         return
 
+    metering_point_uuid = get_metering_point_uuid(community_id, zaehlpunkt_nr)
+    if not metering_point_uuid:
+        log.warning("Unbekannter Zählpunkt %s für Community %s — Topic ignoriert", zaehlpunkt_nr, community_slug)
+        return
+
     try:
-        insert_measurement(community_id, metering_point_id, payload)
+        insert_measurement(community_id, metering_point_uuid, payload)
         log.debug("Gespeichert: %s → %s W Bezug", msg.topic, payload.get("pp"))
     except Exception as e:
         log.error("DB-Fehler bei %s: %s", msg.topic, e)
