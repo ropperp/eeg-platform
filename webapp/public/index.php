@@ -238,11 +238,24 @@ $router->post('/portal/members', function () {
     );
 
     // Rolle in user_roles eintragen
-    $member = DB::fetchOne('SELECT id FROM members WHERE community_id = ? AND email = ? ORDER BY created_at DESC LIMIT 1', [$communityId, $email]);
     DB::execute(
         'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
         [$communityId, $user['id'], 'member']
     );
+
+    // Temp-Passwort anzeigen falls neuer User
+    if (isset($tempPw)) {
+        $successTempPw = $tempPw;
+        $successEmail  = $email;
+        $members = DB::fetchAll(
+            'SELECT m.*, COUNT(mp.id) AS metering_point_count FROM members m
+             LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
+             WHERE m.community_id = ? GROUP BY m.id ORDER BY m.last_name, m.first_name',
+            [$communityId]
+        );
+        require ROOT . '/src/views/pages/member_list.php';
+        exit;
+    }
 
     header('Location: /portal/members?success=1');
     exit;
@@ -404,6 +417,11 @@ $router->get('/admin', function () {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $communities = DB::fetchAll('SELECT * FROM communities ORDER BY name');
     $userCount   = DB::fetchOne('SELECT COUNT(*) AS cnt FROM users')['cnt'];
+    $rawUsers    = DB::fetchAll('SELECT id, email, first_name, last_name, active FROM users ORDER BY last_name, first_name');
+    $allRoles    = DB::fetchAll('SELECT ur.user_id, ur.role, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id');
+    $roleMap = [];
+    foreach ($allRoles as $r) { $roleMap[$r['user_id']][] = $r; }
+    $users = array_map(fn($u) => array_merge($u, ['roles' => $roleMap[$u['id']] ?? []]), $rawUsers);
     require ROOT . '/src/views/pages/admin.php';
 });
 
@@ -427,6 +445,38 @@ $router->get('/admin/communities/:id', function ($params) {
     if (!$community) { http_response_code(404); return; }
     $members = DB::fetchAll('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ?', [$params['id']]);
     require ROOT . '/src/views/pages/admin_community.php';
+});
+
+$router->get('/admin/users/:id', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $user        = DB::fetchOne('SELECT id, email, first_name, last_name, active FROM users WHERE id = ?', [$params['id']]);
+    if (!$user) { http_response_code(404); return; }
+    $roles       = DB::fetchAll('SELECT ur.*, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id WHERE ur.user_id = ?', [$params['id']]);
+    $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
+    require ROOT . '/src/views/pages/admin_user.php';
+});
+
+$router->post('/admin/users/:id/roles', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $communityId = $_POST['community_id'] ?? null;
+    $role = $_POST['role'] ?? '';
+    if (!in_array($role, ['platform_admin', 'manager', 'member'])) { http_response_code(400); return; }
+    DB::execute(
+        'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+        [$communityId, $params['id'], $role]
+    );
+    header('Location: /admin/users/' . $params['id'] . '?success=1');
+    exit;
+});
+
+$router->post('/admin/users/:id/roles/delete', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    DB::execute('DELETE FROM user_roles WHERE id = ?', [$_POST['role_id']]);
+    header('Location: /admin/users/' . $params['id'] . '?success=1');
+    exit;
 });
 
 $router->post('/admin/communities/:id', function ($params) {

@@ -2,6 +2,10 @@
 
 <h2 style="margin-bottom:1.5rem">🔧 Plattform-Administration</h2>
 
+<?php if (isset($_GET['success'])): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
+<?php endif; ?>
+
 <div class="grid-2" style="margin-bottom:2rem">
   <div class="card stat-card">
     <div class="stat-value"><?= count($communities) ?></div>
@@ -36,7 +40,7 @@
 </div>
 
 <!-- EEG-Liste -->
-<div class="card">
+<div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Alle Energiegemeinschaften</h3>
   <table>
     <thead>
@@ -54,6 +58,41 @@
           </span>
         </td>
         <td><a href="/admin/communities/<?= $c['id'] ?>" style="font-size:.8rem">Konfigurieren</a></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+
+<!-- Benutzer & Rollen -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:1rem">👤 Benutzer & Rollen</h3>
+
+  <table style="margin-bottom:1.5rem">
+    <thead>
+      <tr><th>E-Mail</th><th>Name</th><th>Rollen</th><th>Aktionen</th></tr>
+    </thead>
+    <tbody>
+    <?php foreach ($users as $u): ?>
+      <tr>
+        <td><?= htmlspecialchars($u['email']) ?></td>
+        <td><?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?></td>
+        <td style="font-size:.8rem">
+          <?php foreach ($u['roles'] as $r): ?>
+            <span class="badge badge-<?= $r['role'] === 'platform_admin' ? 'green' : 'yellow' ?>" style="margin-right:.25rem">
+              <?= htmlspecialchars($r['role']) ?>
+              <?php if ($r['community_name']): ?>
+                (<?= htmlspecialchars($r['community_name']) ?>)
+              <?php endif; ?>
+            </span>
+          <?php endforeach; ?>
+          <?php if (empty($u['roles'])): ?>
+            <span style="color:#9ca3af">keine</span>
+          <?php endif; ?>
+        </td>
+        <td>
+          <a href="/admin/users/<?= $u['id'] ?>" style="font-size:.8rem">Rollen verwalten</a>
+        </td>
       </tr>
     <?php endforeach; ?>
     </tbody>

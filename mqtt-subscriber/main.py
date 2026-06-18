@@ -64,8 +64,9 @@ def get_community_id(slug: str) -> str | None:
     return None
 
 
-def get_metering_point_uuid(community_id: str, zaehlpunkt_nr: str) -> str | None:
-    cache_key = f"{community_id}:{zaehlpunkt_nr}"
+def get_metering_point_uuid(community_id: str, zaehlernummer: str) -> str | None:
+    """Sucht Metering-Point-UUID anhand der 13-stelligen Zählernummer (meter_code)."""
+    cache_key = f"{community_id}:{zaehlernummer}"
     if cache_key in metering_point_cache:
         return metering_point_cache[cache_key]
     pool = get_db_pool()
@@ -73,8 +74,8 @@ def get_metering_point_uuid(community_id: str, zaehlpunkt_nr: str) -> str | None
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM metering_points WHERE community_id = %s AND zaehlpunkt_nr = %s",
-                (community_id, zaehlpunkt_nr)
+                "SELECT id FROM metering_points WHERE community_id = %s AND meter_code = %s",
+                (community_id, zaehlernummer)
             )
             row = cur.fetchone()
             if row:
@@ -124,7 +125,7 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
         return
 
     community_slug = parts[1]
-    zaehlpunkt_nr = parts[3]
+    zaehlernummer = parts[3]  # 13-stellige Zählernummer vom ESP32
 
     try:
         payload = json.loads(msg.payload.decode())
@@ -142,9 +143,9 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
         log.debug("Unbekannte Community-Slug: %s", community_slug)
         return
 
-    metering_point_uuid = get_metering_point_uuid(community_id, zaehlpunkt_nr)
+    metering_point_uuid = get_metering_point_uuid(community_id, zaehlernummer)
     if not metering_point_uuid:
-        log.warning("Unbekannter Zählpunkt %s für Community %s — Topic ignoriert", zaehlpunkt_nr, community_slug)
+        log.warning("Unbekannte Zählernummer %s für Community %s — Topic ignoriert", zaehlernummer, community_slug)
         return
 
     try:

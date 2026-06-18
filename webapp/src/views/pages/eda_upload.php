@@ -3,11 +3,11 @@
 <h2 style="margin-bottom:1.5rem">📂 EDA-Daten importieren</h2>
 
 <?php if (!empty($error)): ?>
-  <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= $error ?></div>
 <?php endif; ?>
 
 <?php if (!empty($result)): ?>
-  <div class="alert alert-<?= empty($result['warnings']) ? 'success' : 'warning' ?>">
+  <div class="alert alert-<?= empty($result['warnings']) ? 'success' : 'warning' ?>" style="margin-bottom:1rem">
     <strong>Import abgeschlossen.</strong>
     <?= number_format($result['records'], 0, ',', '.') ?> Datensätze importiert
     (<?= htmlspecialchars($result['period_from']) ?> – <?= htmlspecialchars($result['period_to']) ?>).
@@ -32,15 +32,20 @@
   </p>
 
   <form method="post" action="/portal/eda/upload" enctype="multipart/form-data">
-    <label class="upload-zone" for="xlsx-input">
-      <div style="font-size:2.5rem;margin-bottom:.75rem">📄</div>
-      <div style="font-weight:600;margin-bottom:.25rem">XLSX hier ablegen oder klicken</div>
-      <div style="font-size:.8rem;color:#9ca3af">Maximale Dateigröße: 20 MB</div>
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div id="upload-zone" onclick="document.getElementById('xlsx-input').click()"
+           style="border:2px dashed #d1d5db;border-radius:8px;padding:2.5rem 2rem;cursor:pointer;
+                  display:inline-block;min-width:360px;transition:border-color .2s"
+           onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#d1d5db'">
+        <div style="font-size:2.5rem;margin-bottom:.75rem">📄</div>
+        <div style="font-weight:600;margin-bottom:.25rem">XLSX hier ablegen oder klicken</div>
+        <div style="font-size:.8rem;color:#9ca3af">Maximale Dateigröße: 20 MB</div>
+      </div>
       <input type="file" id="xlsx-input" name="xlsx" accept=".xlsx" style="display:none"
-             onchange="document.getElementById('file-name').textContent = this.files[0]?.name ?? ''">
-    </label>
-    <p id="file-name" style="margin-top:.5rem;font-size:.875rem;color:#16a34a;text-align:center"></p>
-    <div style="text-align:center;margin-top:1rem">
+             onchange="document.getElementById('file-label').textContent = this.files[0]?.name ?? ''">
+      <p id="file-label" style="margin-top:.75rem;font-size:.875rem;color:#16a34a;font-weight:500"></p>
+    </div>
+    <div style="text-align:center">
       <button type="submit" class="btn btn-primary btn-lg">Import starten</button>
     </div>
   </form>
