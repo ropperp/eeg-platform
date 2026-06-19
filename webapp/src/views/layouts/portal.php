@@ -61,10 +61,8 @@
 
       <!-- Profil-Dropdown -->
       <div class="profile-menu" id="profile-menu">
-        <button onclick="toggleProfile(event)" class="profile-btn" title="Profil">
+        <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
           <span class="profile-avatar">👤</span>
-          <span class="profile-name"><?= htmlspecialchars($currentUserEmail ?: 'Konto') ?></span>
-          <span style="font-size:.7rem;color:#9ca3af">▾</span>
         </button>
         <div class="profile-dropdown" id="profile-dropdown">
           <?php if (!$isPlatformAdmin): ?>
@@ -85,9 +83,6 @@
       <p class="sidebar-label">Plattform</p>
       <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">
         <span class="sidebar-icon">🔧</span><span class="sidebar-text">Administration</span>
-      </a>
-      <a href="/portal/password" class="<?= str_contains($_SERVER['REQUEST_URI'], 'password') ? 'active' : '' ?>">
-        <span class="sidebar-icon">🔑</span><span class="sidebar-text">Passwort ändern</span>
       </a>
 
     <?php elseif ($isManager): ?>
