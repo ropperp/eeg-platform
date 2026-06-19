@@ -96,16 +96,20 @@ app.post('/generate', requireApiKey, (req, res) => {
     cb
   );
 
+  const readLog = () => {
+    try { return fs.readFileSync(path.join(jobDir, 'doc.log'), 'utf8').slice(-4000); } catch { return '(no log)'; }
+  };
+
   run((err1) => {
     if (err1 && !fs.existsSync(pdfPath)) {
+      console.error('[latex] First pass error:', err1.message, '\n', readLog());
       cleanup(jobDir);
-      console.error('[latex] First pass error:', err1.message);
-      return res.status(500).json({ error: 'pdflatex failed', detail: err1.message });
+      return res.status(500).json({ error: 'pdflatex failed' });
     }
     run((err2) => {
       if (!fs.existsSync(pdfPath)) {
+        console.error('[latex] Second pass — no PDF\n', readLog());
         cleanup(jobDir);
-        console.error('[latex] Second pass — no PDF produced');
         return res.status(500).json({ error: 'pdflatex produced no output' });
       }
       const pdf = fs.readFileSync(pdfPath);

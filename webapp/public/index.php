@@ -11,12 +11,32 @@ foreach (['DB', 'Auth', 'Router', 'Billing'] as $class) {
 Auth::start();
 
 /**
- * Ruft den latex-service auf und streamt das PDF direkt an den Browser.
- * @param string $template  Template-Name ohne .tex
- * @param array  $vars      Platzhalter-Werte (werden im Service escaped)
- * @param string $filename  Dateiname für Content-Disposition
+ * Escaped einen String für sichere Verwendung in LaTeX-Zellwerten.
+ * Nicht für RAW_-Variablen verwenden (die enthalten bereits LaTeX-Syntax).
  */
-function streamLatexPdf(string $template, array $vars, string $filename): void
+function texEscape(string $s): string
+{
+    return strtr($s, [
+        '\\' => '\\textbackslash{}',
+        '&'  => '\\&',
+        '%'  => '\\%',
+        '$'  => '\\$',
+        '#'  => '\\#',
+        '_'  => '\\_',
+        '{'  => '\\{',
+        '}'  => '\\}',
+        '~'  => '\\textasciitilde{}',
+        '^'  => '\\textasciicircum{}',
+        '—'  => '--',
+        '–'  => '--',
+    ]);
+}
+
+/**
+ * Ruft den latex-service auf und streamt das PDF direkt an den Browser.
+ * Gibt true zurück wenn das PDF erfolgreich gesendet wurde, sonst false.
+ */
+function streamLatexPdf(string $template, array $vars, string $filename): bool
 {
     $url     = (getenv('LATEX_SERVICE_URL') ?: 'http://latex-service:3210') . '/generate';
     $apiKey  = getenv('LATEX_API_KEY') ?: 'dev-key';
@@ -35,15 +55,16 @@ function streamLatexPdf(string $template, array $vars, string $filename): void
 
     if ($code !== 200 || !$body) {
         http_response_code(500);
-        $detail = is_string($body) ? htmlspecialchars(substr($body, 0, 300)) : 'latex-service nicht erreichbar';
-        echo "<pre>PDF-Generierung fehlgeschlagen (HTTP $code):\n$detail</pre>";
-        return;
+        // Nur generische Fehlermeldung an Browser — kein internes Log/Pfad-Leaking
+        echo "<pre>PDF-Generierung fehlgeschlagen (HTTP $code). Bitte latex-service prüfen.</pre>";
+        return false;
     }
 
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . addslashes($filename) . '"');
     header('Content-Length: ' . strlen($body));
     echo $body;
+    return true;
 }
 
 $router = new Router();
@@ -422,82 +443,143 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
 
 $router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member  = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-    $mps     = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
+
+    // IDOR-Schutz: Manager darf nur die eigene EEG verwalten
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+
+    $communityId = $member['community_id'];
+    DB::setCommunity($communityId);
+
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Bezugs-Zählpunkt (Typ: Bezug) anlegen.'; return; }
+
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+
+    $genAt    = $member['contract_bezug_generated_at'] ?? null;
+    $tariffAt = $tariff['valid_from'] ?? null;
+    $status   = $member['contract_bezug_status'] ?? 'none';
+    if ($status === 'signed' && $genAt && (!$tariffAt || $tariffAt <= $genAt)) {
+        http_response_code(400);
+        echo 'Vertrag wurde bereits unterschrieben. Generierung nur nach einer Tarifänderung möglich.';
+        return;
+    }
+
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
-    $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 
-    DB::execute("UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END WHERE id = ?", [$params['id']]);
+    // Zellwerte einzeln escapen, dann als RAW_ übergeben (LaTeX-Tabellenstruktur bleibt erhalten)
+    $zpLines = implode("\n", array_map(
+        fn($mp) => texEscape($mp['zaehlpunkt_nr']) . ' & ' . texEscape($mp['meter_code'] ?? '--') . ' \\\\',
+        $mps
+    ));
 
-    // Zählpunkte-Tabellenzeilen aufbauen (LaTeX)
-    $zpLines = empty($mps) ? "\\textit{Kein Bezugs-Z\\\"ahlpunkt registriert} & -- \\\\\n"
-        : implode("\n", array_map(fn($mp) => $mp['zaehlpunkt_nr'] . ' & ' . ($mp['meter_code'] ?? '--') . ' \\\\', $mps));
-
-    streamLatexPdf('bezugsvereinbarung', [
-        'EEG_NAME'              => $community['name'],
-        'EEG_ADRESSE'           => $community['address'] ?? '',
-        'EEG_ZVR'               => $community['zvr_number'] ?? '--',
-        'EEG_MARKTPARTNER_ID'   => $community['marktpartner_id'] ?? '--',
-        'EEG_IBAN'              => $community['iban'] ?? '--',
-        'EEG_ORT'               => explode(',', $community['address'] ?? '')[0],
-        'MITGLIED_NAME'         => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
-        'MITGLIED_ADRESSE'      => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
-        'MITGLIED_ADRESSE_ORT'  => $member['city'],
-        'MITGLIED_UID_ZEILE'    => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
-        'BEZUG_TARIF'           => $tariff ? number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') : '--',
-        'MITGLIEDSBEITRAG'      => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
-        'TARIF_GUELTIG_AB'      => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
-        'ZAEHLPUNKTE_TABELLE'   => $zpLines,
-        'ERSTELLT_AM'           => date('d.m.Y'),
+    $ok = streamLatexPdf('bezugsvereinbarung', [
+        'EEG_NAME'                  => $community['name'],
+        'EEG_ADRESSE'               => $community['address'] ?? '',
+        'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
+        'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
+        'EEG_IBAN'                  => $community['iban'] ?? '--',
+        'EEG_ORT'                   => explode(',', $community['address'] ?? '')[0],
+        'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
+        'MITGLIED_ADRESSE_ORT'      => $member['city'],
+        'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
+        'BEZUG_TARIF'               => $tariff ? number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') : '--',
+        'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
+        'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
+        'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'ERSTELLT_AM'               => date('d.m.Y'),
     ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf');
+
+    // DB-Update NUR nach erfolgreichem PDF
+    if ($ok) {
+        DB::execute(
+            "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now() WHERE id = ?",
+            [$params['id']]
+        );
+    }
 });
 
 $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member  = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-    $mps     = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
+
+    // IDOR-Schutz
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+
+    $communityId = $member['community_id'];
+    DB::setCommunity($communityId);
+
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung) anlegen.'; return; }
+
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+
+    $genAt    = $member['contract_einspeisung_generated_at'] ?? null;
+    $tariffAt = $tariff['valid_from'] ?? null;
+    $status   = $member['contract_einspeisung_status'] ?? 'none';
+    if ($status === 'signed' && $genAt && (!$tariffAt || $tariffAt <= $genAt)) {
+        http_response_code(400);
+        echo 'Vertrag wurde bereits unterschrieben. Generierung nur nach einer Tarifänderung möglich.';
+        return;
+    }
+
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
-    $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 
-    DB::execute("UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END WHERE id = ?", [$params['id']]);
-
+    // Reguläre Closure mit Referenz damit $i korrekt hochzählt (arrow fn würde by-value fangen)
     $i = 1;
-    $zpLines = empty($mps) ? "1 & \\textit{Kein Einspeise-Z\\\"ahlpunkt registriert} & -- \\\\\n"
-        : implode("\n", array_map(fn($mp) => ($i++) . ' & ' . $mp['zaehlpunkt_nr'] . ' & ' . ($mp['meter_code'] ?? '--') . ' \\\\', $mps));
+    $zpLines = implode("\n", array_map(
+        function ($mp) use (&$i) {
+            return ($i++) . ' & ' . texEscape($mp['zaehlpunkt_nr']) . ' & ' . texEscape($mp['meter_code'] ?? '--') . ' \\\\';
+        },
+        $mps
+    ));
 
-    streamLatexPdf('einspeisevereinbarung', [
-        'EEG_NAME'              => $community['name'],
-        'EEG_ADRESSE'           => $community['address'] ?? '',
-        'EEG_ZVR'               => $community['zvr_number'] ?? '--',
-        'EEG_MARKTPARTNER_ID'   => $community['marktpartner_id'] ?? '--',
-        'EEG_IBAN'              => $community['iban'] ?? '--',
-        'EEG_ORT'               => explode(',', $community['address'] ?? '')[0],
-        'MITGLIED_NAME'         => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
-        'MITGLIED_ADRESSE'      => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
-        'MITGLIED_ADRESSE_ORT'  => $member['city'],
-        'MITGLIED_UID_ZEILE'    => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
-        'MITGLIED_SEIT'         => $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '--',
-        'MITGLIED_IBAN'         => $member['member_iban'] ?? '--',
-        'MITGLIED_BIC'          => $member['member_bic'] ?? '--',
-        'EINSPEISUNG_TARIF'     => $tariff ? number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
-        'TARIF_GUELTIG_AB'      => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
-        'ZAEHLPUNKTE_TABELLE'   => $zpLines,
-        'ERSTELLT_AM'           => date('d.m.Y'),
+    $ok = streamLatexPdf('einspeisevereinbarung', [
+        'EEG_NAME'                  => $community['name'],
+        'EEG_ADRESSE'               => $community['address'] ?? '',
+        'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
+        'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
+        'EEG_IBAN'                  => $community['iban'] ?? '--',
+        'EEG_ORT'                   => explode(',', $community['address'] ?? '')[0],
+        'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
+        'MITGLIED_ADRESSE_ORT'      => $member['city'],
+        'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
+        'MITGLIED_SEIT'             => $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '--',
+        'MITGLIED_IBAN'             => $member['member_iban'] ?? '--',
+        'MITGLIED_BIC'              => $member['member_bic'] ?? '--',
+        'EINSPEISUNG_TARIF'         => $tariff ? number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
+        'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
+        'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'ERSTELLT_AM'               => date('d.m.Y'),
     ], 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf');
+
+    if ($ok) {
+        DB::execute(
+            "UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END, contract_einspeisung_generated_at = now() WHERE id = ?",
+            [$params['id']]
+        );
+    }
 });
 
 $router->post('/portal/members/:id/contract-status', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    $member = DB::fetchOne('SELECT community_id FROM members WHERE id = ?', [$params['id']]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+    $communityId = $member['community_id'];
     DB::setCommunity($communityId);
-    $type   = $_POST['type'] ?? ''; // bezug | einspeisung
-    $status = $_POST['status'] ?? ''; // created | signed
+    $type   = $_POST['type'] ?? '';
+    $status = $_POST['status'] ?? '';
     if (!in_array($type, ['bezug', 'einspeisung']) || !in_array($status, ['none', 'created', 'signed'])) {
         http_response_code(400); return;
     }
@@ -509,7 +591,12 @@ $router->post('/portal/members/:id/contract-status', function ($params) {
 
 $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    $mp = DB::fetchOne('SELECT community_id FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $params['id']]);
+    if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden'; return; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+    $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
     DB::execute(
         'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
@@ -527,7 +614,12 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
 
 $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    $mp = DB::fetchOne('SELECT community_id FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $params['id']]);
+    if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden'; return; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+    $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
     DB::execute('UPDATE metering_points SET active=false WHERE id=? AND community_id=?', [$params['mpid'], $communityId]);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
@@ -535,6 +627,31 @@ $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($par
 });
 
 // ─── Portal: Passwort ändern ────────────────────────────
+$router->get('/portal/profile', function () {
+    Auth::requireLogin();
+    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    require ROOT . '/src/views/pages/profile.php';
+});
+
+$router->post('/portal/profile', function () {
+    Auth::requireLogin();
+    $email     = trim($_POST['email'] ?? '');
+    $firstName = trim($_POST['first_name'] ?? '');
+    $lastName  = trim($_POST['last_name'] ?? '');
+    if (!$email || !$firstName || !$lastName) {
+        $error = 'Alle Felder sind Pflichtfelder.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Ungültige E-Mail-Adresse.';
+    } else {
+        DB::execute('UPDATE users SET email=?, first_name=?, last_name=? WHERE id=?',
+            [$email, $firstName, $lastName, Auth::userId()]);
+        $_SESSION['user_email'] = $email;
+        $success = 'Daten wurden gespeichert.';
+    }
+    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    require ROOT . '/src/views/pages/profile.php';
+});
+
 $router->get('/portal/password', function () {
     Auth::requireLogin();
     require ROOT . '/src/views/pages/password_change.php';

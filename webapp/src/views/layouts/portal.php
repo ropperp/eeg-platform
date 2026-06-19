@@ -10,14 +10,20 @@
 
 <header class="navbar">
   <div class="container inner">
-    <a href="/" class="logo">⚡ EEG-Plattform</a>
-    <nav>
+    <div style="display:flex;align-items:center;gap:1rem">
+      <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
+              style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;font-size:1.2rem;color:#6b7280;line-height:1">☰</button>
+      <a href="/" class="logo">⚡ EEG-Plattform</a>
+    </div>
+
+    <nav style="display:flex;align-items:center;gap:1rem">
       <?php
         $ar    = Auth::activeRole();
         $roles = $_SESSION['roles'] ?? [];
         $isPlatformAdmin = Auth::isPlatformAdmin();
         $isManager = Auth::isManager();
         $activeRoleName = $ar['role'] ?? '';
+        $currentUserEmail = $_SESSION['user_email'] ?? '';
       ?>
 
       <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>
@@ -26,11 +32,8 @@
         <span style="font-size:.85rem;color:#16a34a;font-weight:600">Plattform-Admin</span>
       <?php endif; ?>
 
-      <?php
-        // Rollenwechsler: zeige wenn mehrere Rollen vorhanden
-        if (count($roles) > 1):
-      ?>
-        <select onchange="switchRole(this)" style="margin-left:1rem;padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
+      <?php if (count($roles) > 1): ?>
+        <select onchange="switchRole(this)" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
           <?php foreach ($roles as $r): ?>
             <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>"
               <?= ($r === Auth::activeRole()) ? 'selected' : '' ?>>
@@ -56,35 +59,70 @@
         </script>
       <?php endif; ?>
 
-      <a href="/portal/logout" style="margin-left:1.5rem;font-size:.875rem">Abmelden</a>
+      <!-- Profil-Dropdown -->
+      <div class="profile-menu" id="profile-menu">
+        <button onclick="toggleProfile(event)" class="profile-btn" title="Profil">
+          <span class="profile-avatar">👤</span>
+          <span class="profile-name"><?= htmlspecialchars($currentUserEmail ?: 'Konto') ?></span>
+          <span style="font-size:.7rem;color:#9ca3af">▾</span>
+        </button>
+        <div class="profile-dropdown" id="profile-dropdown">
+          <?php if (!$isPlatformAdmin): ?>
+          <a href="/portal/profile">✏️ Daten ändern</a>
+          <?php endif; ?>
+          <a href="/portal/password">🔑 Passwort ändern</a>
+          <hr style="margin:.3rem 0;border-color:#f3f4f6">
+          <a href="/portal/logout" style="color:#dc2626">🚪 Abmelden</a>
+        </div>
+      </div>
     </nav>
   </div>
 </header>
 
 <div class="portal-layout">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <?php if ($activeRoleName === 'platform_admin'): ?>
-      <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">Plattform</p>
-      <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">🔧 Administration</a>
+      <p class="sidebar-label">Plattform</p>
+      <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🔧</span><span class="sidebar-text">Administration</span>
+      </a>
+      <a href="/portal/password" class="<?= str_contains($_SERVER['REQUEST_URI'], 'password') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🔑</span><span class="sidebar-text">Passwort ändern</span>
+      </a>
 
     <?php elseif ($isManager): ?>
-      <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">Verwaltung</p>
-      <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">📊 Übersicht</a>
-      <a href="/portal/members"   class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">👥 Mitglieder</a>
-      <a href="/portal/billing"   class="<?= str_contains($_SERVER['REQUEST_URI'], 'billing') ? 'active' : '' ?>">💶 Abrechnung</a>
-      <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">📂 EDA-Import</a>
-      <a href="/portal/settings"  class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">⚙️ Einstellungen</a>
+      <p class="sidebar-label">Verwaltung</p>
+      <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📊</span><span class="sidebar-text">Übersicht</span>
+      </a>
+      <a href="/portal/members" class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">
+        <span class="sidebar-icon">👥</span><span class="sidebar-text">Mitglieder</span>
+      </a>
+      <a href="/portal/billing" class="<?= str_contains($_SERVER['REQUEST_URI'], 'billing') ? 'active' : '' ?>">
+        <span class="sidebar-icon">💶</span><span class="sidebar-text">Abrechnung</span>
+      </a>
+      <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📂</span><span class="sidebar-text">EDA-Import</span>
+      </a>
+      <a href="/portal/settings" class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">
+        <span class="sidebar-icon">⚙️</span><span class="sidebar-text">Einstellungen</span>
+      </a>
 
       <?php if ($isPlatformAdmin): ?>
         <hr style="margin:1rem 0;border-color:#e5e7eb">
-        <a href="/admin">🔧 Admin</a>
+        <a href="/admin">
+          <span class="sidebar-icon">🔧</span><span class="sidebar-text">Admin</span>
+        </a>
       <?php endif; ?>
 
     <?php else: ?>
-      <p style="font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:.75rem">Mitglied</p>
-      <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">📊 Mein Verbrauch</a>
-      <a href="/portal/invoices"  class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">🧾 Rechnungen</a>
-      <a href="/portal/password"  class="<?= str_contains($_SERVER['REQUEST_URI'], 'password') ? 'active' : '' ?>">🔑 Passwort ändern</a>
+      <p class="sidebar-label">Mitglied</p>
+      <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📊</span><span class="sidebar-text">Mein Verbrauch</span>
+      </a>
+      <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
+      </a>
     <?php endif; ?>
   </aside>
 
@@ -92,6 +130,31 @@
     <?= $content ?>
   </main>
 </div>
+
+<script>
+// ─── Sidebar toggle ───────────────────────────────────────────────
+const SIDEBAR_KEY = 'sidebarCollapsed';
+const sidebar = document.getElementById('sidebar');
+
+function toggleSidebar() {
+  const collapsed = sidebar.classList.toggle('collapsed');
+  localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+}
+
+// Zustand wiederherstellen
+if (localStorage.getItem(SIDEBAR_KEY) === '1') {
+  sidebar.classList.add('collapsed');
+}
+
+// ─── Profil-Dropdown ─────────────────────────────────────────────
+function toggleProfile(e) {
+  e.stopPropagation();
+  document.getElementById('profile-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('profile-dropdown').classList.remove('open');
+});
+</script>
 
 </body>
 </html>
