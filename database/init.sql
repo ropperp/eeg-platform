@@ -86,14 +86,17 @@ CREATE TABLE metering_points (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     community_id    UUID NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
     member_id       UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    zaehlpunkt_nr   TEXT NOT NULL,                 -- AT0070000956010000000000000689442
-    meter_code      TEXT,                          -- MeterCode aus EDA-XLSX
+    zaehlpunkt_nr   TEXT NOT NULL,                 -- AT0070000956010000000000000689442 (EDA-Pfad)
+    zaehler_nr      TEXT,                          -- 13-stellige ESP-Zählernummer (/power-MQTT-Pfad)
+    meter_code      TEXT,                          -- MeterCode aus EDA-XLSX (/live-MQTT-Pfad)
     type            TEXT NOT NULL CHECK (type IN ('consumer', 'producer', 'prosumer')),
     active          BOOLEAN DEFAULT true,
     registered_at   DATE,
     created_at      TIMESTAMPTZ DEFAULT now(),
     UNIQUE (community_id, zaehlpunkt_nr)
 );
+
+CREATE INDEX ON metering_points (community_id, zaehler_nr) WHERE zaehler_nr IS NOT NULL;
 
 -- ─────────────────────────────────────────
 -- ZEITREIHENDATEN (TimescaleDB Hypertables)

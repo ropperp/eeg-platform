@@ -477,18 +477,19 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); return; }
 
-    $znr = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $znr       = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $zaehlerNr = trim($_POST['zaehler_nr'] ?? '') ?: null;
     if (!$znr) { header('Location: /portal/members/' . $params['id'] . '?error=znr'); exit; }
 
     DB::execute(
-        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, meter_code, registered_at)
-         VALUES (?, ?, ?, ?, ?, CURRENT_DATE)
+        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, zaehler_nr, type, meter_code, registered_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE)
          ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
-        [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
+        [$communityId, $member['id'], $znr, $zaehlerNr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
     );
     $newMp = DB::fetchOne('SELECT id FROM metering_points WHERE community_id = ? AND zaehlpunkt_nr = ?', [$communityId, $znr]);
     Audit::log('metering_point.create', 'metering_point', $newMp['id'] ?? null,
-        ['zaehlpunkt_nr' => $znr, 'type' => $_POST['type'] ?? 'consumer'],
+        ['zaehlpunkt_nr' => $znr, 'zaehler_nr' => $zaehlerNr, 'type' => $_POST['type'] ?? 'consumer'],
         $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
@@ -656,10 +657,13 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
     }
     $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
+    $znrNew       = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $zaehlerNrNew = trim($_POST['zaehler_nr'] ?? '') ?: null;
     DB::execute(
-        'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
+        'UPDATE metering_points SET zaehlpunkt_nr=?, zaehler_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
         [
-            strtoupper(trim($_POST['zaehlpunkt_nr'] ?? '')),
+            $znrNew,
+            $zaehlerNrNew,
             trim($_POST['meter_code'] ?? '') ?: null,
             $_POST['type'] ?? 'consumer',
             $params['mpid'],
@@ -667,7 +671,7 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
         ]
     );
     Audit::log('metering_point.update', 'metering_point', $params['mpid'],
-        ['zaehlpunkt_nr' => strtoupper(trim($_POST['zaehlpunkt_nr'] ?? '')), 'type' => $_POST['type'] ?? 'consumer'],
+        ['zaehlpunkt_nr' => $znrNew, 'zaehler_nr' => $zaehlerNrNew, 'type' => $_POST['type'] ?? 'consumer'],
         $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;

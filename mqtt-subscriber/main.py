@@ -8,14 +8,15 @@ Unterstützte Topic-Formate
    Community-Auflösung: LOWER(marktpartner_id) OR slug
    Metering-Point-Auflösung: metering_points.meter_code
 
-2) eeg/{rc_nummer}/meter/{zaehlpunkt_nr}/power           (Node-RED, neu)
+2) eeg/{rc_nummer}/meter/{zaehler_nr}/power              (ESP32/Node-RED, neu)
    Payload: {"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}
    Community-Auflösung: LOWER(marktpartner_id) = LOWER(rc_nummer)
-   Metering-Point-Auflösung: metering_points.zaehlpunkt_nr
+   Metering-Point-Auflösung: metering_points.zaehler_nr  (13-stellige ESP-Zählernummer)
+   NICHT zaehlpunkt_nr (AT...) — dieser bleibt dem EDA-Pfad vorbehalten.
 
-Unbekannte Zählpunkte im /power-Pfad erzeugen eine Meldung im Postfach
+Unbekannte Zählernummern im /power-Pfad erzeugen eine Meldung im Postfach
 (manager + platform_admin) und einen audit_log-Eintrag. Dedupliziert pro
-(community_id, zaehlpunkt_nr) innerhalb von 6 Stunden.
+(community_id, zaehler_nr) innerhalb von 6 Stunden.
 """
 
 import json
@@ -48,7 +49,7 @@ db_pool: ThreadedConnectionPool | None = None
 # damit späte Zählpunkt-Zuordnung sofort wirkt.
 community_cache: dict[str, str] = {}        # mqtt_id (lowercase) → community_id UUID
 mp_by_code_cache: dict[str, str] = {}       # "community_id:meter_code" → mp UUID  (/live)
-mp_by_znr_cache: dict[str, str] = {}        # "community_id:zaehlpunkt_nr" → mp UUID (/power)
+mp_by_zaehler_cache: dict[str, str] = {}    # "community_id:zaehler_nr"  → mp UUID  (/power)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -117,22 +118,22 @@ def get_mp_by_meter_code(community_id: str, meter_code: str) -> str | None:
     return None
 
 
-def get_mp_by_zaehlpunkt(community_id: str, zaehlpunkt_nr: str) -> str | None:
-    """Metering-Point-UUID via zaehlpunkt_nr (AT..., /power-Topic)."""
-    cache_key = f"{community_id}:{zaehlpunkt_nr}"
-    if cache_key in mp_by_znr_cache:
-        return mp_by_znr_cache[cache_key]
+def get_mp_by_zaehler_nr(community_id: str, zaehler_nr: str) -> str | None:
+    """Metering-Point-UUID via zaehler_nr (13-stellige ESP-Zählernummer, /power-Topic)."""
+    cache_key = f"{community_id}:{zaehler_nr}"
+    if cache_key in mp_by_zaehler_cache:
+        return mp_by_zaehler_cache[cache_key]
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM metering_points WHERE community_id = %s AND zaehlpunkt_nr = %s AND active = true",
-                (community_id, zaehlpunkt_nr),
+                "SELECT id FROM metering_points WHERE community_id = %s AND zaehler_nr = %s AND active = true",
+                (community_id, zaehler_nr),
             )
             row = cur.fetchone()
             if row:
-                mp_by_znr_cache[cache_key] = str(row[0])
-                return mp_by_znr_cache[cache_key]
+                mp_by_zaehler_cache[cache_key] = str(row[0])
+                return mp_by_zaehler_cache[cache_key]
     finally:
         put_conn(conn)
     return None
@@ -238,26 +239,26 @@ def audit_log_write(action: str, entity_type: str, entity_id: str | None = None,
 # Unbekannter Zählpunkt: Postfach + Audit
 # ──────────────────────────────────────────────────────────────────
 
-def handle_unassigned_meter(community_id: str, zaehlpunkt_nr: str, topic: str, payload: dict) -> None:
+def handle_unassigned_meter(community_id: str, zaehler_nr: str, topic: str, payload: dict) -> None:
     """
     Sendet eine Postfach-Meldung an Manager und Platform-Admin und schreibt
-    einen Audit-Eintrag. Dedupliziert pro (community_id, zaehlpunkt_nr) / 6 h.
+    einen Audit-Eintrag. Dedupliziert pro (community_id, zaehler_nr) / 6 h.
     """
     type_  = "unassigned_meter"
-    dedup  = zaehlpunkt_nr
+    dedup  = zaehler_nr
 
     if notify_exists_recent(community_id, type_, dedup, within_hours=6):
-        log.debug("Dedupe: Meldung für %s bereits vorhanden, überspringe", zaehlpunkt_nr)
+        log.debug("Dedupe: Meldung für %s bereits vorhanden, überspringe", zaehler_nr)
         return
 
-    title = "Unbekannter Zählpunkt"
+    title = "Unbekannte Zählernummer (ESP)"
     body  = (
-        f"MQTT-Daten für Zählpunkt {zaehlpunkt_nr} erhalten, "
+        f"MQTT-Daten für Zählernummer {zaehler_nr} erhalten, "
         f"aber kein passender Metering-Point in dieser Community gefunden.\n"
-        f"Bitte Zählpunkt anlegen und zuordnen."
+        f"Bitte Zählpunkt anlegen und ESP-Zählernummer eintragen."
     )
     note_payload = {
-        "zaehlpunkt_nr": zaehlpunkt_nr,
+        "zaehler_nr": zaehler_nr,
         "topic": topic,
         "power_w": payload.get("power_w"),
         "ts": payload.get("ts"),
@@ -270,13 +271,13 @@ def handle_unassigned_meter(community_id: str, zaehlpunkt_nr: str, topic: str, p
         audit_log_write(
             action="meter.unassigned",
             entity_type="metering_point",
-            entity_id=zaehlpunkt_nr,
+            entity_id=zaehler_nr,
             details={"topic": topic, "power_w": payload.get("power_w"), "ts": payload.get("ts")},
             community_id=community_id,
         )
-        log.warning("Unbekannter Zählpunkt %s — Postfach + Audit geschrieben", zaehlpunkt_nr)
+        log.warning("Unbekannte ESP-Zählernummer %s — Postfach + Audit geschrieben", zaehler_nr)
     except Exception as exc:
-        log.error("Fehler beim Schreiben von Notify/Audit für %s: %s", zaehlpunkt_nr, exc)
+        log.error("Fehler beim Schreiben von Notify/Audit für %s: %s", zaehler_nr, exc)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -328,13 +329,14 @@ def handle_live(parts: list[str], raw_payload: bytes) -> None:
 
 def handle_power(parts: list[str], raw_payload: bytes) -> None:
     """
-    Neues Format: eeg/{rc_nummer}/meter/{zaehlpunkt_nr}/power
+    Neues Format: eeg/{rc_nummer}/meter/{zaehler_nr}/power
     Payload: {"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}
     Positives power_w = Bezug, negatives power_w = Einspeisung.
+    Auflösung per metering_points.zaehler_nr (13-stellige ESP-Zählernummer).
     """
-    rc_nummer     = parts[1]
-    zaehlpunkt_nr = parts[3].upper()
-    topic         = "/".join(parts)
+    rc_nummer  = parts[1]
+    zaehler_nr = parts[3]
+    topic      = "/".join(parts)
 
     try:
         payload = json.loads(raw_payload.decode())
@@ -354,9 +356,9 @@ def handle_power(parts: list[str], raw_payload: bytes) -> None:
         log.warning("Unbekannte RC-Nummer: %s — Topic ignoriert", rc_nummer)
         return
 
-    mp_id = get_mp_by_zaehlpunkt(community_id, zaehlpunkt_nr)
+    mp_id = get_mp_by_zaehler_nr(community_id, zaehler_nr)
     if not mp_id:
-        handle_unassigned_meter(community_id, zaehlpunkt_nr, topic, payload)
+        handle_unassigned_meter(community_id, zaehler_nr, topic, payload)
         return
 
     bezug_w = max(0, power_w)
