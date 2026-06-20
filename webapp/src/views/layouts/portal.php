@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – EEG-Plattform</title>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <!-- Kritisches Layout inline: resistent gegen gecachte app.css auf dem Server -->
+  <style>
+    .profile-menu { position: relative; }
+    .profile-btn  { display:flex;align-items:center;justify-content:center;width:36px;height:36px;
+                    background:#f3f4f6;border:2px solid #e5e7eb;border-radius:9999px;padding:0;
+                    cursor:pointer;font-size:1.2rem;line-height:1;
+                    transition:background .15s,border-color .15s; }
+    .profile-btn:hover { background:#dcfce7;border-color:#16a34a; }
+    .profile-dropdown { display:none;position:absolute;right:0;top:calc(100% + 6px);
+                        background:#fff;border:1px solid #e5e7eb;border-radius:8px;
+                        box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:190px;z-index:200;padding:.4rem; }
+    .profile-dropdown a { display:block;padding:.5rem .75rem;border-radius:6px;
+                          font-size:.875rem;color:#374151;white-space:nowrap;text-decoration:none; }
+    .profile-dropdown a:hover { background:#f3f4f6; }
+    .sidebar-text { transition:opacity .15s; }
+    .sidebar.collapsed .sidebar-text { opacity:0;width:0;overflow:hidden; }
+    .sidebar.collapsed .sidebar-label { opacity:0;height:0;margin:0;overflow:hidden; }
+  </style>
 </head>
 <body>
 
@@ -78,10 +96,12 @@
 
       <!-- Profil-Dropdown -->
       <div class="profile-menu" id="profile-menu">
-        <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
+        <button onclick="toggleProfile(event)" class="profile-btn"
+                title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
           <span class="profile-avatar">👤</span>
         </button>
-        <div class="profile-dropdown" id="profile-dropdown">
+        <!-- style="display:none" inline: verhindert Layout-Fehler bei gecachtem app.css -->
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none">
           <?php if (!$isPlatformAdmin): ?>
           <a href="/portal/profile">✏️ Daten ändern</a>
           <?php endif; ?>
@@ -173,18 +193,21 @@ function toggleSidebar() {
   localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
 }
 
-// Zustand wiederherstellen
 if (localStorage.getItem(SIDEBAR_KEY) === '1') {
   sidebar.classList.add('collapsed');
 }
 
 // ─── Profil-Dropdown ─────────────────────────────────────────────
+// Nutzt style.display direkt – unabhängig von gecachtem app.css
+const profileDropdown = document.getElementById('profile-dropdown');
+
 function toggleProfile(e) {
   e.stopPropagation();
-  document.getElementById('profile-dropdown').classList.toggle('open');
+  profileDropdown.style.display = profileDropdown.style.display === 'block' ? 'none' : 'block';
 }
-document.addEventListener('click', () => {
-  document.getElementById('profile-dropdown').classList.remove('open');
+
+document.addEventListener('click', function () {
+  profileDropdown.style.display = 'none';
 });
 </script>
 

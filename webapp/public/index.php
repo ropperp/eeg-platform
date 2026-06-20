@@ -473,8 +473,8 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     $communityId = $member['community_id'];
     DB::setCommunity($communityId);
 
-    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
-    if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Bezugs-Zählpunkt (Typ: Bezug) anlegen.'; return; }
+    $mps = DB::fetchAll("SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type IN ('consumer','prosumer') ORDER BY registered_at", [$params['id']]);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Bezug oder Prosumer) anlegen.'; return; }
 
     $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 
@@ -535,8 +535,8 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     $communityId = $member['community_id'];
     DB::setCommunity($communityId);
 
-    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
-    if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung) anlegen.'; return; }
+    $mps = DB::fetchAll("SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type IN ('producer','prosumer') ORDER BY registered_at", [$params['id']]);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung oder Prosumer) anlegen.'; return; }
 
     $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 

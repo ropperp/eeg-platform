@@ -5,8 +5,8 @@
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
   <div style="margin-left:auto;display:flex;gap:.5rem">
-    <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true))); ?>
-    <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true))); ?>
+    <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => in_array($mp['type'], ['consumer', 'prosumer'], true) && in_array($mp['active'], [true, 't', '1', 1], true))); ?>
+    <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => in_array($mp['type'], ['producer', 'prosumer'], true) && in_array($mp['active'], [true, 't', '1', 1], true))); ?>
     <?php if ($hasConsumer): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
        class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem">📄 Bezugsvereinbarung</a>

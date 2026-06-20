@@ -253,6 +253,8 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [ ] **Node-RED Testflow** einrichten und verifizieren (siehe `docs/NODERED_TEST.md`)
 - [x] **Abrechnung komplett fertigstellt**: `Billing::compute()` (idempotent, EDA-only, anteiliger Beitrag) + `Billing::release()` (60-Tage-Check) + PDF-Erzeugung via latex-service (Bugs behoben: `vars`-Key, Binär-Response, `RAW_STEUER_ZEILE` nie leer, `SELECT *` für Community) + neue UI-Routen: Lauf anlegen (`POST /portal/billing`), Berechnen (`POST /portal/billing/compute`)
 - [x] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt echte Rechnungen mit PDF-Download (nach `Billing::compute()`)
+- [x] **Layout-Regression behoben**: Profil-Dropdown (style.display statt CSS-Klasse, `display:none` inline) + kritisches CSS im `<style>`-Block in portal.php (resistent gegen gecachte app.css) + Verträge für `prosumer`-Typ
+- [x] **DB-Migration idempotent**: `migrate_20260620.sql` mit `IF NOT EXISTS` + DO-Blöcken für Policies; `notifications`/`audit_log` in `init.sql` ergänzt; `invoice_items` RLS-Policy in `init.sql` ergänzt
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
 - [ ] **EDA-Import UI**: Upload-Formular vorhanden, Parser-Output-Darstellung ausbaubar
 - [ ] **60-Tage-Freigabe End-to-End-Test**: UI + Backend implementiert, Raspi-Test fehlt
