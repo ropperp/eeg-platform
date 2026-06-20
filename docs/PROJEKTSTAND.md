@@ -1,6 +1,6 @@
 # Projektstand — EEG-Plattform
 
-**Stand:** 20. Juni 2026  
+**Stand:** 20. Juni 2026 (aktualisiert nach Notifications/Audit-Migration)  
 **Diplomarbeit HTL Kärnten 2026/27**  
 **Autoren:** Patrick Ropper, Fabian (nachbauend), Alexander (nachbauend)
 
@@ -152,6 +152,13 @@ Alle Services kommunizieren über das interne Docker-Netzwerk `eeg-net`. Nur Tra
 | `tariff_config` | Tarife mit `valid_from`: Bezug (ct/kWh), Einspeisung (ct/kWh), Mitgliedsbeitrag (EUR/Jahr) |
 | `tax_config` | Steuermodell mit `valid_from`: `kleinunternehmer` (§ 6 Abs 1 Z 27 UStG) oder `standard` (20% USt) |
 
+### Benachrichtigungen & Audit (migrate_20260620.sql)
+
+| Tabelle | Beschreibung |
+|---------|--------------|
+| `notifications` | Mandanten-Postfach: audience (`platform_admin`/`manager`/`member`), is_read, payload JSONB. RLS analog zu den anderen Tabellen. |
+| `audit_log` | Append-only Ereignisprotokoll: action, entity_type, entity_id, details JSONB, ip. App-Rolle hat kein UPDATE/DELETE. |
+
 Tarife und Steuern sind **nie hardcodiert** — immer aus DB mit dem zum Abrechnungszeitraum gültigen Eintrag.
 
 ### Abrechnung
@@ -191,6 +198,9 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 | `admin.php` | `/admin` | platform_admin | Alle EEGs verwalten |
 | `admin_community.php` | `/admin/communities/:id` | platform_admin | EEG-Detail |
 | `admin_user.php` | `/admin/users/:id` | platform_admin | Benutzer-Detail |
+| `postfach.php` | `/portal/postfach` | alle | Benachrichtigungs-Postfach mit Badge in der Navbar |
+| `audit.php` | `/portal/audit` | manager | Ereignisprotokoll der eigenen EEG |
+| `audit.php` | `/admin/audit` | platform_admin | Plattformweites Ereignisprotokoll |
 
 ---
 
@@ -224,10 +234,16 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] Dokumentation: BACKUP.md, DATENBANK.md, schema.sql, ER-Diagramm, STATISTIK.md
 - [x] Demo-Datensatz (database/seed_demo.sql) mit Fantasienamen für Screenshots
 - [x] pdflatex Root-Cause analysiert und alle Template-Bugs behoben (siehe unten)
+- [x] Notifications-Tabelle + Postfach-UI (`/portal/postfach`) mit Navbar-Badge
+- [x] Audit-Log-Tabelle (append-only) + `src/Audit.php` + Hooks an allen kritischen Aktionen
+- [x] `src/Notify.php` mit `create()` und `existsRecent()` (Deduplizierung)
+- [x] Audit-Log-Seiten: `/portal/audit` (Manager) und `/admin/audit` (Platform-Admin)
+- [x] Steuer-Konfiguration POST-Route (`/portal/settings/tax`) ergänzt
 
 ### In Arbeit / noch offen
 
 - [ ] **Docker-Images auf Raspi neu bauen**: `git pull && docker compose build --no-cache webapp latex-service && docker compose up -d` — danach `bash scripts/verify.sh`
+- [ ] **Migration einspielen**: `docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260620.sql`
 - [ ] **Abrechnung komplett fertigstellen**: Billing.php → Rechnungen generieren, PDFs erstellen, Status setzen
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
 - [ ] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt noch keine echten Daten

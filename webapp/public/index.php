@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'Router', 'Billing'] as $class) {
+foreach (['DB', 'Auth', 'Router', 'Billing', 'Notify', 'Audit'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 
@@ -154,8 +154,10 @@ $router->post('/portal/login', function () {
     $email    = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     if (Auth::login($email, $password)) {
+        Audit::log('login.success', 'user', Auth::userId());
         header('Location: /portal/dashboard');
     } else {
+        Audit::log('login.failed', 'user', null, ['email' => strtolower(trim($email))]);
         $error = 'E-Mail oder Passwort falsch.';
         require ROOT . '/src/views/pages/login.php';
     }
@@ -358,6 +360,11 @@ $router->post('/portal/members', function () {
         [$communityId, $user['id'], 'member']
     );
 
+    $newMember = DB::fetchOne('SELECT id FROM members WHERE email = ? AND community_id = ? ORDER BY created_at DESC LIMIT 1', [$email, $communityId]);
+    Audit::log('member.create', 'member', $newMember['id'] ?? null,
+        ['name' => trim($_POST['first_name']) . ' ' . trim($_POST['last_name'])],
+        $communityId);
+
     // Temp-Passwort anzeigen falls neuer User
     if (isset($tempPw)) {
         $successTempPw = $tempPw;
@@ -412,6 +419,9 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
+    Audit::log('member.update', 'member', $params['id'],
+        ['name' => trim($_POST['first_name']) . ' ' . trim($_POST['last_name'])],
+        $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -442,6 +452,10 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
          ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
         [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
     );
+    $newMp = DB::fetchOne('SELECT id FROM metering_points WHERE community_id = ? AND zaehlpunkt_nr = ?', [$communityId, $znr]);
+    Audit::log('metering_point.create', 'metering_point', $newMp['id'] ?? null,
+        ['zaehlpunkt_nr' => $znr, 'type' => $_POST['type'] ?? 'consumer'],
+        $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -590,6 +604,11 @@ $router->post('/portal/members/:id/contract-status', function ($params) {
     }
     $col = 'contract_' . $type . '_status';
     DB::execute("UPDATE members SET {$col} = ? WHERE id = ? AND community_id = ?", [$status, $params['id'], $communityId]);
+    if ($status === 'signed') {
+        Audit::log('contract.sign', 'member', $params['id'],
+            ['contract_type' => $type],
+            $communityId);
+    }
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -613,6 +632,9 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
             $communityId,
         ]
     );
+    Audit::log('metering_point.update', 'metering_point', $params['mpid'],
+        ['zaehlpunkt_nr' => strtoupper(trim($_POST['zaehlpunkt_nr'] ?? '')), 'type' => $_POST['type'] ?? 'consumer'],
+        $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -627,6 +649,7 @@ $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($par
     $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
     DB::execute('UPDATE metering_points SET active=false WHERE id=? AND community_id=?', [$params['mpid'], $communityId]);
+    Audit::log('metering_point.deactivate', 'metering_point', $params['mpid'], null, $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -700,7 +723,16 @@ $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
     try {
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$runId]);
         Billing::release($runId, Auth::userId());
+        Audit::log('billing.release', 'billing_run', $runId,
+            ['quartal' => $run['quartal'] ?? null],
+            $run['community_id'] ?? Auth::activeCommunityId());
+        Notify::create('manager', 'billing.released',
+            'Abrechnung ' . ($run['quartal'] ?? '') . ' freigegeben',
+            'Die Abrechnung wurde erfolgreich freigegeben und die Rechnungen erstellt.',
+            ['billing_run_id' => $runId],
+            $run['community_id'] ?? Auth::activeCommunityId());
         header('Location: /portal/billing?success=1');
     } catch (Throwable $e) {
         $error = $e->getMessage();
@@ -790,19 +822,145 @@ $router->post('/portal/settings/tariff', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    $bezug      = (float)str_replace(',', '.', $_POST['bezug_ct_kwh'] ?? '0');
+    $einspeis   = (float)str_replace(',', '.', $_POST['einspeisung_ct_kwh'] ?? '0');
+    $beitrag    = (float)str_replace(',', '.', $_POST['mitgliedsbeitrag_eur'] ?? '0');
+    $validFrom  = $_POST['valid_from'] ?? date('Y-m-d');
     DB::execute(
         'INSERT INTO tariff_config (community_id, valid_from, bezug_ct_kwh, einspeisung_ct_kwh, mitgliedsbeitrag_eur)
          VALUES (?, ?, ?, ?, ?)',
-        [
-            $communityId,
-            $_POST['valid_from'] ?? date('Y-m-d'),
-            (float)str_replace(',', '.', $_POST['bezug_ct_kwh'] ?? '0'),
-            (float)str_replace(',', '.', $_POST['einspeisung_ct_kwh'] ?? '0'),
-            (float)str_replace(',', '.', $_POST['mitgliedsbeitrag_eur'] ?? '0'),
-        ]
+        [$communityId, $validFrom, $bezug, $einspeis, $beitrag]
     );
+    Audit::log('tariff.update', 'tariff_config', null,
+        ['valid_from' => $validFrom, 'bezug_ct_kwh' => $bezug, 'einspeisung_ct_kwh' => $einspeis, 'mitgliedsbeitrag_eur' => $beitrag],
+        $communityId);
     header('Location: /portal/settings?success=1');
     exit;
+});
+
+$router->post('/portal/settings/tax', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $taxModel   = in_array($_POST['tax_model'] ?? '', ['kleinunternehmer', 'standard']) ? $_POST['tax_model'] : 'kleinunternehmer';
+    $taxRate    = $taxModel === 'standard' ? (float)str_replace(',', '.', $_POST['tax_rate_percent'] ?? '20') : null;
+    $uid        = trim($_POST['uid_number'] ?? '') ?: null;
+    $validFrom  = $_POST['valid_from'] ?? date('Y-m-d');
+    DB::execute(
+        'INSERT INTO tax_config (community_id, valid_from, tax_model, tax_rate_percent, uid_number)
+         VALUES (?, ?, ?, ?, ?)',
+        [$communityId, $validFrom, $taxModel, $taxRate, $uid]
+    );
+    Audit::log('tax.update', 'tax_config', null,
+        ['valid_from' => $validFrom, 'tax_model' => $taxModel, 'tax_rate_percent' => $taxRate],
+        $communityId);
+    header('Location: /portal/settings?success=1');
+    exit;
+});
+
+// ─── Portal: Postfach ───────────────────────────────────
+$router->get('/portal/postfach', function () {
+    Auth::requireLogin();
+    $cid = Auth::activeCommunityId();
+
+    if (Auth::isPlatformAdmin()) {
+        $notifications = DB::fetchAll(
+            "SELECT * FROM notifications WHERE audience = 'platform_admin' ORDER BY is_read ASC, created_at DESC LIMIT 100"
+        );
+    } elseif (Auth::isManager()) {
+        if ($cid) DB::setCommunity($cid);
+        $notifications = DB::fetchAll(
+            "SELECT * FROM notifications WHERE audience = 'manager' AND community_id = ? ORDER BY is_read ASC, created_at DESC LIMIT 100",
+            [$cid]
+        );
+    } else {
+        if ($cid) DB::setCommunity($cid);
+        $uid = Auth::userId();
+        $memberRec = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$uid, $cid]);
+        $memberId = $memberRec['id'] ?? null;
+        $notifications = $memberId ? DB::fetchAll(
+            "SELECT * FROM notifications WHERE audience = 'member' AND community_id = ? AND member_id = ? ORDER BY is_read ASC, created_at DESC LIMIT 100",
+            [$cid, $memberId]
+        ) : [];
+    }
+
+    $unreadCount = count(array_filter($notifications, fn($n) => !$n['is_read']));
+    require ROOT . '/src/views/pages/postfach.php';
+});
+
+$router->post('/portal/postfach/mark-read', function () {
+    Auth::requireLogin();
+    $id  = $_POST['id'] ?? '';
+    $cid = Auth::activeCommunityId();
+    if ($cid) DB::setCommunity($cid);
+
+    if (Auth::isPlatformAdmin()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE id = ? AND audience = 'platform_admin'", [$id]);
+    } elseif (Auth::isManager()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE id = ? AND community_id = ? AND audience = 'manager'", [$id, $cid]);
+    } else {
+        $uid = Auth::userId();
+        $memberRec = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$uid, $cid]);
+        if ($memberRec) {
+            DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE id = ? AND community_id = ? AND member_id = ? AND audience = 'member'", [$id, $cid, $memberRec['id']]);
+        }
+    }
+    header('Location: /portal/postfach');
+    exit;
+});
+
+$router->post('/portal/postfach/mark-all-read', function () {
+    Auth::requireLogin();
+    $cid = Auth::activeCommunityId();
+    if ($cid) DB::setCommunity($cid);
+
+    if (Auth::isPlatformAdmin()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE audience = 'platform_admin' AND is_read = false");
+    } elseif (Auth::isManager()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE community_id = ? AND audience = 'manager' AND is_read = false", [$cid]);
+    } else {
+        $uid = Auth::userId();
+        $memberRec = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$uid, $cid]);
+        if ($memberRec) {
+            DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE community_id = ? AND member_id = ? AND audience = 'member' AND is_read = false", [$cid, $memberRec['id']]);
+        }
+    }
+    header('Location: /portal/postfach');
+    exit;
+});
+
+// ─── Portal: Audit-Log (Manager — nur eigene Community) ─
+$router->get('/portal/audit', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $perPage = 50;
+    $currentPage = max(1, (int)($_GET['page'] ?? 1));
+    $offset = ($currentPage - 1) * $perPage;
+
+    $where  = ['a.community_id = ?'];
+    $params = [$communityId];
+
+    if (!empty($_GET['q'])) {
+        $where[]  = 'a.action ILIKE ?';
+        $params[] = '%' . $_GET['q'] . '%';
+    }
+    if (!empty($_GET['from'])) { $where[] = 'a.created_at >= ?'; $params[] = $_GET['from']; }
+    if (!empty($_GET['to']))   { $where[] = 'a.created_at < (?::date + INTERVAL \'1 day\')'; $params[] = $_GET['to']; }
+
+    $sql = 'FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE ' . implode(' AND ', $where);
+
+    $total      = (int)(DB::fetchOne("SELECT COUNT(*) AS cnt $sql", $params)['cnt'] ?? 0);
+    $totalPages = (int)ceil($total / $perPage);
+
+    $entries = DB::fetchAll(
+        "SELECT a.*, u.first_name || ' ' || u.last_name AS user_name, u.email AS user_email $sql ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset",
+        $params
+    );
+
+    $isAdmin = false;
+    require ROOT . '/src/views/pages/audit.php';
 });
 
 // ─── Admin-Bereich ──────────────────────────────────────
@@ -871,6 +1029,42 @@ $router->post('/admin/users/:id/roles/delete', function ($params) {
     DB::execute('DELETE FROM user_roles WHERE id = ?', [$_POST['role_id']]);
     header('Location: /admin/users/' . $params['id'] . '?success=1');
     exit;
+});
+
+$router->get('/admin/audit', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+
+    $perPage = 50;
+    $currentPage = max(1, (int)($_GET['page'] ?? 1));
+    $offset = ($currentPage - 1) * $perPage;
+
+    $where  = ['1=1'];
+    $params = [];
+
+    if (!empty($_GET['q'])) {
+        $where[]  = 'a.action ILIKE ?';
+        $params[] = '%' . $_GET['q'] . '%';
+    }
+    if (!empty($_GET['from'])) { $where[] = 'a.created_at >= ?'; $params[] = $_GET['from']; }
+    if (!empty($_GET['to']))   { $where[] = 'a.created_at < (?::date + INTERVAL \'1 day\')'; $params[] = $_GET['to']; }
+
+    $sql = 'FROM audit_log a
+            LEFT JOIN users u ON u.id = a.user_id
+            LEFT JOIN communities c ON c.id = a.community_id
+            WHERE ' . implode(' AND ', $where);
+
+    $total      = (int)(DB::fetchOne("SELECT COUNT(*) AS cnt $sql", $params)['cnt'] ?? 0);
+    $totalPages = (int)ceil($total / $perPage);
+
+    $entries = DB::fetchAll(
+        "SELECT a.*, u.first_name || ' ' || u.last_name AS user_name, u.email AS user_email, c.name AS community_name
+         $sql ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset",
+        $params
+    );
+
+    $isAdmin = true;
+    require ROOT . '/src/views/pages/audit.php';
 });
 
 $router->post('/admin/communities/:id', function ($params) {

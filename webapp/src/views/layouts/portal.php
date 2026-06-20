@@ -59,6 +59,23 @@
         </script>
       <?php endif; ?>
 
+      <!-- Postfach-Badge -->
+      <?php
+        $notifyCount = 0;
+        try { $notifyCount = Notify::unreadCount(); } catch (Throwable) {}
+      ?>
+      <a href="/portal/postfach" title="Postfach"
+         style="position:relative;display:flex;align-items:center;text-decoration:none;color:#374151;padding:.25rem .4rem;border-radius:6px">
+        <span style="font-size:1.15rem">📬</span>
+        <?php if ($notifyCount > 0): ?>
+          <span style="position:absolute;top:-2px;right:-2px;background:#dc2626;color:#fff;border-radius:50%;
+                       font-size:.6rem;font-weight:700;min-width:16px;height:16px;display:flex;
+                       align-items:center;justify-content:center;line-height:1;padding:0 2px">
+            <?= $notifyCount > 99 ? '99+' : $notifyCount ?>
+          </span>
+        <?php endif; ?>
+      </a>
+
       <!-- Profil-Dropdown -->
       <div class="profile-menu" id="profile-menu">
         <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
@@ -81,8 +98,18 @@
   <aside class="sidebar" id="sidebar">
     <?php if ($activeRoleName === 'platform_admin'): ?>
       <p class="sidebar-label">Plattform</p>
-      <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">
+      <a href="/admin" class="<?= str_starts_with($_SERVER['REQUEST_URI'], '/admin') && !str_contains($_SERVER['REQUEST_URI'], '/audit') ? 'active' : '' ?>">
         <span class="sidebar-icon">🔧</span><span class="sidebar-text">Administration</span>
+      </a>
+      <a href="/admin/audit" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/audit') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🗂</span><span class="sidebar-text">Protokoll</span>
+      </a>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], '/postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach
+          <?php if ($notifyCount > 0): ?>
+            <span style="background:#dc2626;color:#fff;border-radius:10px;font-size:.7rem;padding:1px 6px;margin-left:4px"><?= $notifyCount ?></span>
+          <?php endif; ?>
+        </span>
       </a>
 
     <?php elseif ($isManager): ?>
@@ -102,13 +129,16 @@
       <a href="/portal/settings" class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">
         <span class="sidebar-icon">⚙️</span><span class="sidebar-text">Einstellungen</span>
       </a>
-
-      <?php if ($isPlatformAdmin): ?>
-        <hr style="margin:1rem 0;border-color:#e5e7eb">
-        <a href="/admin">
-          <span class="sidebar-icon">🔧</span><span class="sidebar-text">Admin</span>
-        </a>
-      <?php endif; ?>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], '/postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach
+          <?php if ($notifyCount > 0): ?>
+            <span style="background:#dc2626;color:#fff;border-radius:10px;font-size:.7rem;padding:1px 6px;margin-left:4px"><?= $notifyCount ?></span>
+          <?php endif; ?>
+        </span>
+      </a>
+      <a href="/portal/audit" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/audit') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🗂</span><span class="sidebar-text">Protokoll</span>
+      </a>
 
     <?php else: ?>
       <p class="sidebar-label">Mitglied</p>
@@ -117,6 +147,13 @@
       </a>
       <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
         <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
+      </a>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], '/postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach
+          <?php if ($notifyCount > 0): ?>
+            <span style="background:#dc2626;color:#fff;border-radius:10px;font-size:.7rem;padding:1px 6px;margin-left:4px"><?= $notifyCount ?></span>
+          <?php endif; ?>
+        </span>
       </a>
     <?php endif; ?>
   </aside>
