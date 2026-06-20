@@ -92,8 +92,8 @@ class Billing
                     [$run['community_id'], $member['id']]
                 );
 
-                $items = [];
-                $saldo = 0.0;
+                $items   = [];
+                $saldoCt = 0;
 
                 foreach ($mps as $mp) {
                     $energy = DB::fetchOne(
@@ -106,41 +106,42 @@ class Billing
                         [$run['community_id'], $mp['id'], $run['period_from'], $run['period_to']]
                     );
 
+                    // Beträge in Cent rechnen (Integer) — dann summieren, zuletzt /100
                     if (in_array($mp['type'], ['consumer', 'prosumer']) && $energy['kwh_bezug'] > 0) {
-                        $amount  = round((float)$energy['kwh_bezug'] * (float)$tariff['bezug_ct_kwh'] / 100, 2);
-                        $items[] = [
+                        $amountCt = (int)round((float)$energy['kwh_bezug'] * (float)$tariff['bezug_ct_kwh']);
+                        $items[]  = [
                             'type'        => 'bezug',
                             'kwh'         => (float)$energy['kwh_bezug'],
                             'rate_ct_kwh' => (float)$tariff['bezug_ct_kwh'],
-                            'amount_eur'  => $amount,
+                            'amount_eur'  => $amountCt / 100,
                         ];
-                        $saldo += $amount;
+                        $saldoCt += $amountCt;
                     }
 
                     if (in_array($mp['type'], ['producer', 'prosumer']) && $energy['kwh_einsp'] > 0) {
-                        $gutschrift = round((float)$energy['kwh_einsp'] * (float)$tariff['einspeisung_ct_kwh'] / 100, 2);
-                        $items[]    = [
+                        $gutCt   = (int)round((float)$energy['kwh_einsp'] * (float)$tariff['einspeisung_ct_kwh']);
+                        $items[] = [
                             'type'        => 'einspeisung',
                             'kwh'         => (float)$energy['kwh_einsp'],
                             'rate_ct_kwh' => (float)$tariff['einspeisung_ct_kwh'],
-                            'amount_eur'  => -$gutschrift,
+                            'amount_eur'  => -($gutCt / 100),
                         ];
-                        $saldo -= $gutschrift;
+                        $saldoCt -= $gutCt;
                     }
                 }
 
                 // Mitgliedsbeitrag anteilig nach Tagen
-                $beitrag = round((float)$tariff['mitgliedsbeitrag_eur'] * $periodDays / 365, 2);
-                $months  = round($periodDays / 365 * 12, 2);
-                $items[] = [
+                $beitragCt = (int)round((float)$tariff['mitgliedsbeitrag_eur'] * 100 * $periodDays / 365);
+                $items[]   = [
                     'type'        => 'mitgliedsbeitrag',
                     'kwh'         => null,
                     'rate_ct_kwh' => null,
-                    'months'      => $months,
-                    'amount_eur'  => $beitrag,
+                    'months'      => round($periodDays / 365 * 12, 2),
+                    'amount_eur'  => $beitragCt / 100,
                 ];
-                $saldo += $beitrag;
+                $saldoCt += $beitragCt;
 
+                $saldo           = $saldoCt / 100;
                 $rechnungsnummer = $prefix . str_pad((string)$invoiceSeq++, 3, '0', STR_PAD_LEFT);
 
                 DB::execute(
@@ -212,7 +213,7 @@ class Billing
         DB::setCommunity($run['community_id']);
         DB::execute(
             'UPDATE billing_runs SET status = ?, released_by = ?, released_at = now() WHERE id = ?',
-            ['done', $releasedByUserId, $billingRunId]
+            ['released', $releasedByUserId, $billingRunId]
         );
     }
 
@@ -243,10 +244,12 @@ class Billing
         // RAW_STEUER_ZEILE darf nie leer sein — leere Zeile = LaTeX-Fehler in tabularx
         if ($tax['tax_model'] === 'kleinunternehmer') {
             $steuerZeile = '\multicolumn{5}{l}{\footnotesize Gem.~\S{}~6~Abs.~1~Z~27~UStG~wird~keine~Umsatzsteuer~ausgewiesen.} \\\\';
+            $steuerText  = 'Gem.~\S{}~6~Abs.~1~Z~27~UStG~(Kleinunternehmerregelung)~wird~keine~Umsatzsteuer~in~Rechnung~gestellt.';
         } else {
             $rate        = number_format((float)($tax['tax_rate_percent'] ?? 0), 0, ',', '.');
             $betragFmt   = number_format($steuerBetrag, 2, ',', '.');
             $steuerZeile = 'Umsatzsteuer ' . $rate . '\,\% & & & & \EUR{' . $betragFmt . '} \\\\';
+            $steuerText  = '';
         }
 
         $mitgliedName    = ($member['invoice_name'] ?? '') ?: trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
@@ -276,6 +279,7 @@ class Billing
             'SUMME_NETTO'         => number_format($saldo,       2, ',', '.'),
             'SUMME_BRUTTO'        => number_format($summeBrutto, 2, ',', '.'),
             'RAW_STEUER_ZEILE'    => $steuerZeile,
+            'RAW_STEUER_TEXT'     => $steuerText,
             'IBAN'                => $community['iban']          ?? '',
             'BIC'                 => $community['bic']           ?? '',
             'ZAHLUNGSZIEL'        => ($community['payment_days'] ?? 14) . ' Tage',

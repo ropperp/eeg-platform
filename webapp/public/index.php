@@ -210,8 +210,10 @@ $router->get('/portal/invoices', function () {
     $member = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$userId, $communityId]);
     if (!$member) { http_response_code(404); echo 'Mitglied nicht gefunden'; return; }
     $invoices = DB::fetchAll(
-        'SELECT i.*, br.quartal FROM invoices i JOIN billing_runs br ON br.id = i.billing_run_id
-         WHERE i.member_id = ? ORDER BY i.created_at DESC',
+        'SELECT i.*, br.quartal FROM invoices i
+         JOIN billing_runs br ON br.id = i.billing_run_id
+         WHERE i.member_id = ? AND br.status IN (\'released\', \'done\')
+         ORDER BY i.created_at DESC',
         [$member['id']]
     );
     require ROOT . '/src/views/pages/invoices.php';
@@ -226,31 +228,63 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
                 br.quartal, br.period_from, br.period_to,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
-                tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur
+                tx.tax_model, tx.tax_rate_percent
          FROM invoices i
          JOIN members m ON m.id = i.member_id
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN communities c ON c.id = br.community_id
-         LEFT JOIN tariff_config tc ON tc.community_id = c.id AND tc.valid_from <= br.period_from
-         WHERE i.id = ?
-         ORDER BY tc.valid_from DESC',
+         LEFT JOIN LATERAL (
+             SELECT tax_model, tax_rate_percent FROM tax_config
+             WHERE community_id = c.id AND valid_from <= br.period_from
+             ORDER BY valid_from DESC LIMIT 1
+         ) tx ON true
+         WHERE i.id = ?',
         [$params['id']]
     );
     if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
 
+    // IDOR-Schutz: Mitglieder dürfen nur eigene Rechnungen abrufen
+    if (!Auth::isManager() && !Auth::isPlatformAdmin()) {
+        $myMember = DB::fetchOne(
+            'SELECT id FROM members WHERE user_id = ? AND community_id = ?',
+            [Auth::userId(), $communityId]
+        );
+        if (!$myMember || $myMember['id'] !== $invoice['member_id']) {
+            http_response_code(403); echo 'Zugriff verweigert'; return;
+        }
+    }
+
+    // Gespeichertes PDF ausliefern (unveränderlich nach Freigabe)
+    if (!empty($invoice['pdf_path']) && file_exists($invoice['pdf_path'])) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . addslashes($invoice['rechnungsnummer'] . '.pdf') . '"');
+        header('Content-Length: ' . filesize($invoice['pdf_path']));
+        readfile($invoice['pdf_path']);
+        return;
+    }
+
+    // Fallback: PDF on-the-fly regenerieren (gespeicherte invoice_items als Quelle)
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
     $bezugItem = null; $einspeisungItem = null; $beitragItem = null;
     foreach ($items as $it) {
-        if ($it['type'] === 'bezug')           $bezugItem       = $it;
-        if ($it['type'] === 'einspeisung')     $einspeisungItem = $it;
-        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem    = $it;
+        if ($it['type'] === 'bezug')            $bezugItem        = $it;
+        if ($it['type'] === 'einspeisung')      $einspeisungItem  = $it;
+        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem      = $it;
     }
 
-    // RAW_: LaTeX-Befehle direkt übergeben — service.js darf diese NICHT escapen.
-    // Zeile im Tabellenkontext (5 Spalten, braucht \\):
-    $steuerZeile = '\\multicolumn{5}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
-    // Paragraph am Seitenende:
-    $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+    $netto = (float)$invoice['saldo_eur'];
+    if ($invoice['tax_model'] === 'standard' && (float)($invoice['tax_rate_percent'] ?? 0) > 0) {
+        $steuerBetrag = (int)round($netto * (float)$invoice['tax_rate_percent']);
+        $brutto       = $netto + $steuerBetrag / 100;
+        $rate         = number_format((float)$invoice['tax_rate_percent'], 0, ',', '.');
+        $betragFmt    = number_format($steuerBetrag / 100, 2, ',', '.');
+        $steuerZeile  = 'Umsatzsteuer ' . $rate . '\,\% & & & & \EUR{' . $betragFmt . '} \\\\';
+        $steuerText   = '';
+    } else {
+        $brutto      = $netto;
+        $steuerZeile = '\multicolumn{5}{l}{\footnotesize Gem.~\S{}~6~Abs.~1~Z~27~UStG~wird~keine~Umsatzsteuer~ausgewiesen.} \\\\';
+        $steuerText  = 'Gem.~\S{}~6~Abs.~1~Z~27~UStG~(Kleinunternehmerregelung)~wird~keine~Umsatzsteuer~in~Rechnung~gestellt.';
+    }
 
     streamLatexPdf('rechnung', [
         'EEG_NAME'              => $invoice['eeg_name'],
@@ -262,15 +296,15 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'RECHNUNGSNUMMER'       => $invoice['rechnungsnummer'],
         'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
         'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
-        'BEZUG_KWH'             => $bezugItem ? number_format((float)$bezugItem['kwh'], 2, ',', '.') : '0,00',
+        'BEZUG_KWH'             => $bezugItem ? number_format((float)$bezugItem['kwh'], 3, ',', '.') : '0,000',
         'BEZUG_TARIF'           => $bezugItem ? number_format((float)$bezugItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
         'BEZUG_BETRAG'          => $bezugItem ? number_format((float)$bezugItem['amount_eur'], 2, ',', '.') : '0,00',
-        'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format((float)$einspeisungItem['kwh'], 2, ',', '.') : '0,00',
+        'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format((float)$einspeisungItem['kwh'], 3, ',', '.') : '0,000',
         'EINSPEISUNG_TARIF'     => $einspeisungItem ? number_format((float)$einspeisungItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
         'EINSPEISUNG_BETRAG'    => $einspeisungItem ? number_format(abs((float)$einspeisungItem['amount_eur']), 2, ',', '.') : '0,00',
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
-        'SUMME_NETTO'           => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
-        'SUMME_BRUTTO'          => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
+        'SUMME_NETTO'           => number_format($netto, 2, ',', '.'),
+        'SUMME_BRUTTO'          => number_format($brutto, 2, ',', '.'),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',

@@ -51,7 +51,8 @@ ob_start();
             style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
       <option value="pending">Ausstehend</option>
-      <option value="ready">Bereit</option>
+      <option value="ready">Entwurf</option>
+      <option value="released">Freigegeben</option>
       <option value="done">Abgeschlossen</option>
     </select>
   </div>
@@ -72,8 +73,14 @@ ob_start();
     <tbody>
     <?php foreach ($runs as $run): ?>
       <?php
-        $statusBadge = ['pending' => 'gray', 'ready' => 'green', 'done' => 'green'];
-        $statusLabel = ['pending' => 'Ausstehend', 'ready' => 'Bereit', 'done' => 'Abgeschlossen'];
+        $statusBadge = ['pending' => 'gray', 'ready' => 'yellow', 'released' => 'green', 'done' => 'green'];
+        $statusLabel = ['pending' => 'Ausstehend', 'ready' => 'Entwurf', 'released' => 'Freigegeben', 'done' => 'Abgeschlossen'];
+        $freigabeDt  = new DateTimeImmutable($run['freigabe_nach']);
+        $now         = new DateTimeImmutable();
+        $canRelease  = $run['status'] === 'ready' && $now >= $freigabeDt;
+        $daysLeft    = $run['status'] === 'ready' && !$canRelease
+                       ? max(1, (int)ceil($now->diff($freigabeDt)->days + ($now->diff($freigabeDt)->h > 0 || $now->diff($freigabeDt)->i > 0 ? 1 : 0)))
+                       : 0;
       ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
@@ -86,24 +93,33 @@ ob_start();
         <td><?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?></td>
         <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
         <td>
-          <?php if ($run['status'] === 'ready'): ?>
-            <form method="post" action="/portal/billing/release"
-                  onsubmit="return confirm('Abrechnung wirklich freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
-              <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-              <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">
-                ✅ Freigeben
-              </button>
-            </form>
+          <?php if ($run['status'] === 'released' || $run['status'] === 'done'): ?>
+            <span style="font-size:.8rem;color:#16a34a">✅ Freigegeben</span>
+          <?php elseif ($run['status'] === 'ready'): ?>
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+              <form method="post" action="/portal/billing/compute"
+                    onsubmit="return confirm('Rechnungen neu berechnen? Bestehende Entwürfe werden überschrieben.')">
+                <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+                <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.8rem">🔄 Neu berechnen</button>
+              </form>
+              <?php if ($canRelease): ?>
+                <form method="post" action="/portal/billing/release"
+                      onsubmit="return confirm('Abrechnung wirklich freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
+                  <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+                  <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">✅ Freigeben</button>
+                </form>
+              <?php else: ?>
+                <span style="font-size:.75rem;color:#6b7280" title="Freigabe erst ab <?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?> möglich">
+                  ⏳ noch <?= $daysLeft ?> Tag<?= $daysLeft !== 1 ? 'e' : '' ?>
+                </span>
+              <?php endif; ?>
+            </div>
           <?php elseif ($run['status'] === 'pending'): ?>
             <form method="post" action="/portal/billing/compute"
-                  onsubmit="return confirm('Rechnungen jetzt berechnen? Bestehende Entwürfe werden überschrieben.')">
+                  onsubmit="return confirm('Rechnungen jetzt berechnen?')">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-              <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.8rem">
-                🔄 Berechnen
-              </button>
+              <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.8rem">🔄 Berechnen</button>
             </form>
-          <?php elseif ($run['status'] === 'done'): ?>
-            <span style="font-size:.8rem;color:#6b7280">Freigegeben</span>
           <?php endif; ?>
         </td>
       </tr>

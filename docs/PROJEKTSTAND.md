@@ -247,17 +247,25 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 
 ### In Arbeit / noch offen
 
-- [ ] **Docker-Images auf Raspi neu bauen**: `git pull && docker compose build --no-cache webapp latex-service && docker compose up -d` — danach `bash scripts/verify.sh`
+- [ ] **Docker-Images auf Raspi neu bauen**: `git pull origin claude/awesome-mendel-otivt9 && docker compose build --no-cache webapp && docker compose up -d` — danach `bash scripts/verify.sh`
 - [ ] **Migration einspielen**: `docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260620.sql`
 - [ ] **MQTT-Subscriber neu bauen**: `docker compose build --no-cache mqtt-subscriber && docker compose up -d mqtt-subscriber`
 - [ ] **Node-RED Testflow** einrichten und verifizieren (siehe `docs/NODERED_TEST.md`)
-- [x] **Abrechnung komplett fertigstellt**: `Billing::compute()` (idempotent, EDA-only, anteiliger Beitrag) + `Billing::release()` (60-Tage-Check) + PDF-Erzeugung via latex-service (Bugs behoben: `vars`-Key, Binär-Response, `RAW_STEUER_ZEILE` nie leer, `SELECT *` für Community) + neue UI-Routen: Lauf anlegen (`POST /portal/billing`), Berechnen (`POST /portal/billing/compute`)
-- [x] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt echte Rechnungen mit PDF-Download (nach `Billing::compute()`)
-- [x] **Layout-Regression behoben**: Profil-Dropdown (style.display statt CSS-Klasse, `display:none` inline) + kritisches CSS im `<style>`-Block in portal.php (resistent gegen gecachte app.css) + Verträge für `prosumer`-Typ
-- [x] **DB-Migration idempotent**: `migrate_20260620.sql` mit `IF NOT EXISTS` + DO-Blöcken für Policies; `notifications`/`audit_log` in `init.sql` ergänzt; `invoice_items` RLS-Policy in `init.sql` ergänzt
+- [x] **Abrechnung Paket 2 fertiggestellt** (2026-06-20):
+  - Status-Fluss: `pending → ready → released → done` korrekt implementiert (`release()` setzt jetzt `released`)
+  - Cent-Arithmetik: alle Betragsberechnungen laufen in Integer-Cent (`(int)round(kwh * ct)`), Summierung vor Division durch 100
+  - `RAW_STEUER_TEXT` in `generateInvoicePdf()` ergänzt (Kleinunternehmer-Klausel am Seitenende)
+  - Billing-UI: 60-Tage-Countdown für `ready`-Läufe (⏳ noch X Tage), "Neu berechnen" für `ready`, `released`-Badge grün
+  - `released`-Status als Gating für Mitglieder-Rechnungen: `/portal/invoices` zeigt nur `released`/`done`
+  - Invoice-PDF-Route: gespeichertes PDF wird ausgeliefert (immutable nach Freigabe), Fallback auf latex-service mit korrekte Brutto-Berechnung für Standard-USt; IDOR-Check (Mitglied darf nur eigene Rechnungen laden)
+  - EDA-Upload 500 behoben: null-Guard, proc_open mit explizitem Env-Array, PHP-FPM `clear_env = no`
+  - Hamburger BEM (`sidebar--collapsed`) + Dark-Mode-Umschalter (CSS-Tokens, `[data-theme="dark"]`, prefers-color-scheme)
+- [x] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt Rechnungen erst nach Freigabe (`br.status IN ('released','done')`)
+- [x] **Layout-Regression behoben**: Profil-Dropdown + kritisches CSS in portal.php + Verträge für `prosumer`-Typ
+- [x] **DB-Migration idempotent**: `migrate_20260620.sql` mit `IF NOT EXISTS` + DO-Blöcken; `notifications`/`audit_log` in `init.sql`; `invoice_items` RLS-Policy ergänzt
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
-- [ ] **EDA-Import UI**: Upload-Formular vorhanden, Parser-Output-Darstellung ausbaubar
-- [ ] **60-Tage-Freigabe End-to-End-Test**: UI + Backend implementiert, Raspi-Test fehlt
+- [ ] **EDA-Import Voraussetzungs-Test auf Demo-DB**: EDA-XLSX hochladen → `eda_measurements` prüfen → Demo-Billing-Lauf anlegen und berechnen
+- [ ] **60-Tage-Freigabe End-to-End-Test**: Für Demo-Zeitraum `freigabe_nach` temporär auf heute setzen, Freigabe testen
 - [ ] **TLS für MQTT** (Port 8883): Mosquitto-Config vorbereitet, Zertifikate fehlen noch
 - [ ] **SEPA-Lastschrift**: Template-Platzhalter vorhanden, kein Code
 - [ ] **Automatische Backups**: Cron-Job auf Raspi einrichten
