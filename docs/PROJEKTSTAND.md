@@ -239,11 +239,18 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] `src/Notify.php` mit `create()` und `existsRecent()` (Deduplizierung)
 - [x] Audit-Log-Seiten: `/portal/audit` (Manager) und `/admin/audit` (Platform-Admin)
 - [x] Steuer-Konfiguration POST-Route (`/portal/settings/tax`) ergänzt
+- [x] MQTT-Subscriber auf Dual-Topic erweitert:
+  - `eeg/+/meter/+/live` (ESP32-Legacy: slug + meter_code, bestehend)
+  - `eeg/+/meter/+/power` (Node-RED/neu: RC-Nummer + zaehlpunkt_nr)
+  - Unbekannter Zählpunkt → Postfach-Meldung (manager + platform_admin) + Audit, Dedupe 6 h
+- [x] Node-RED Testflow dokumentiert (`docs/NODERED_TEST.md`)
 
 ### In Arbeit / noch offen
 
 - [ ] **Docker-Images auf Raspi neu bauen**: `git pull && docker compose build --no-cache webapp latex-service && docker compose up -d` — danach `bash scripts/verify.sh`
 - [ ] **Migration einspielen**: `docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260620.sql`
+- [ ] **MQTT-Subscriber neu bauen**: `docker compose build --no-cache mqtt-subscriber && docker compose up -d mqtt-subscriber`
+- [ ] **Node-RED Testflow** einrichten und verifizieren (siehe `docs/NODERED_TEST.md`)
 - [ ] **Abrechnung komplett fertigstellen**: Billing.php → Rechnungen generieren, PDFs erstellen, Status setzen
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
 - [ ] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt noch keine echten Daten
