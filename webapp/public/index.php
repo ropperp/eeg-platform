@@ -812,22 +812,53 @@ $router->post('/portal/eda/upload', function () {
         return;
     }
 
-    $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . $origName;
-    move_uploaded_file($_FILES['xlsx']['tmp_name'], $savePath);
+    $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $origName);
+    if (!move_uploaded_file($_FILES['xlsx']['tmp_name'], $savePath)) {
+        $error = 'Datei konnte nicht gespeichert werden (Verzeichnis beschreibbar?)';
+        require ROOT . '/src/views/pages/eda_upload.php';
+        return;
+    }
 
-    $communitySlug = Auth::activeCommunitySlug();
-    $userId = Auth::userId();
+    $communitySlug = Auth::activeCommunitySlug() ?? '';
+    $userId        = Auth::userId() ?? '';
+
+    if ($communitySlug === '') {
+        $error = 'Keine aktive Gemeinschaft — bitte Seite neu laden oder erneut anmelden.';
+        require ROOT . '/src/views/pages/eda_upload.php';
+        return;
+    }
+
+    // Env-Vars explizit übergeben, da PHP-FPM die Docker-Umgebung nicht immer erbt
+    $env = [
+        'PATH'        => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        'HOME'        => '/var/www',
+        'DB_HOST'     => getenv('DB_HOST')     ?: 'timescaledb',
+        'DB_PORT'     => getenv('DB_PORT')     ?: '5432',
+        'DB_NAME'     => getenv('DB_NAME')     ?: 'eeg_platform',
+        'DB_USER'     => getenv('DB_USER')     ?: 'eeg',
+        'DB_PASSWORD' => getenv('DB_PASSWORD') ?: '',
+    ];
 
     $cmd = sprintf(
-        'python3 /var/www/html/eda-parser/parser.py --file %s --community %s --user-id %s 2>&1',
+        'python3 /var/www/html/eda-parser/parser.py --file %s --community %s --user-id %s',
         escapeshellarg($savePath),
         escapeshellarg($communitySlug),
         escapeshellarg($userId)
     );
-    $output = shell_exec($cmd);
+
+    $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $proc   = proc_open($cmd, $descriptors, $pipes, null, $env);
+    fclose($pipes[0]);
+    $output   = stream_get_contents($pipes[1]);
+    $stderr   = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($proc);
+
     $result = json_decode($output, true);
     if ($result === null) {
-        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($output ?? 'Keine Ausgabe', 0, 500));
+        $raw   = trim($output ?: $stderr ?: 'Keine Ausgabe');
+        $error = 'Parser-Fehler (Exit ' . $exitCode . '): ' . htmlspecialchars(substr($raw, 0, 500));
     }
 
     require ROOT . '/src/views/pages/eda_upload.php';

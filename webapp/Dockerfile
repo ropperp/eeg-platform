@@ -9,9 +9,10 @@ RUN apk add --no-cache nginx libpq-dev python3 py3-pip \
     && apk del .build-deps \
     && pip3 install --break-system-packages pandas openpyxl psycopg2-binary
 
-# nginx Konfiguration
+# nginx + PHP-FPM Konfiguration
 COPY webapp/docker/nginx.conf /etc/nginx/nginx.conf
 COPY webapp/docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+COPY webapp/docker/fpm-pool.conf /usr/local/etc/php-fpm.d/zzz-env.conf
 
 # App-Code + EDA-Parser
 COPY webapp/public/ /var/www/html/public/

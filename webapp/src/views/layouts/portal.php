@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- Theme sofort setzen, bevor CSS geladen wird (verhindert Flash) -->
+  <script>(function(){var t=localStorage.getItem('eeg-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t;})()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – EEG-Plattform</title>
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -14,14 +16,14 @@
                     transition:background .15s,border-color .15s; }
     .profile-btn:hover { background:#dcfce7;border-color:#16a34a; }
     .profile-dropdown { display:none;position:absolute;right:0;top:calc(100% + 6px);
-                        background:#fff;border:1px solid #e5e7eb;border-radius:8px;
+                        background:var(--white,#fff);border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;
                         box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:190px;z-index:200;padding:.4rem; }
     .profile-dropdown a { display:block;padding:.5rem .75rem;border-radius:6px;
-                          font-size:.875rem;color:#374151;white-space:nowrap;text-decoration:none; }
-    .profile-dropdown a:hover { background:#f3f4f6; }
+                          font-size:.875rem;color:var(--gray-800,#374151);white-space:nowrap;text-decoration:none; }
+    .profile-dropdown a:hover { background:var(--gray-100,#f3f4f6); }
     .sidebar-text { transition:opacity .15s; }
-    .sidebar.collapsed .sidebar-text { opacity:0;width:0;overflow:hidden; }
-    .sidebar.collapsed .sidebar-label { opacity:0;height:0;margin:0;overflow:hidden; }
+    .sidebar--collapsed .sidebar-text { opacity:0;width:0;overflow:hidden; }
+    .sidebar--collapsed .sidebar-label { opacity:0;height:0;margin:0;overflow:hidden; }
   </style>
 </head>
 <body>
@@ -76,6 +78,13 @@
           }
         </script>
       <?php endif; ?>
+
+      <!-- Theme-Toggle -->
+      <button id="theme-toggle" onclick="toggleTheme()" title="Farbschema wechseln"
+              style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:.25rem .4rem;
+                     border-radius:6px;color:var(--gray-600,#6b7280);line-height:1">
+        <span id="theme-icon">🌙</span>
+      </button>
 
       <!-- Postfach-Badge -->
       <?php
@@ -184,21 +193,20 @@
 </div>
 
 <script>
-// ─── Sidebar toggle ───────────────────────────────────────────────
+// ─── Sidebar toggle (BEM: sidebar--collapsed) ─────────────────────
 const SIDEBAR_KEY = 'sidebarCollapsed';
 const sidebar = document.getElementById('sidebar');
 
 function toggleSidebar() {
-  const collapsed = sidebar.classList.toggle('collapsed');
+  const collapsed = sidebar.classList.toggle('sidebar--collapsed');
   localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
 }
 
 if (localStorage.getItem(SIDEBAR_KEY) === '1') {
-  sidebar.classList.add('collapsed');
+  sidebar.classList.add('sidebar--collapsed');
 }
 
 // ─── Profil-Dropdown ─────────────────────────────────────────────
-// Nutzt style.display direkt – unabhängig von gecachtem app.css
 const profileDropdown = document.getElementById('profile-dropdown');
 
 function toggleProfile(e) {
@@ -209,6 +217,23 @@ function toggleProfile(e) {
 document.addEventListener('click', function () {
   profileDropdown.style.display = 'none';
 });
+
+// ─── Dark / Light Theme ───────────────────────────────────────────
+const themeIcon = document.getElementById('theme-icon');
+
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  if (themeIcon) themeIcon.textContent = dark ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  localStorage.setItem('eeg-theme', isDark ? 'light' : 'dark');
+  applyTheme(!isDark);
+}
+
+// Initiales Icon setzen (Theme wurde bereits im <head> gesetzt)
+applyTheme(document.documentElement.dataset.theme === 'dark');
 </script>
 
 </body>
