@@ -222,7 +222,7 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] Live-Dashboard (aggregierte Echtzeit-Daten)
 - [x] Mitglieder-Dashboard (eigener Verbrauch, Zählpunkt)
 - [x] Tarif- und Steuerkonfiguration (historisiert)
-- [x] Abrechnungslogik (Grundstruktur in Billing.php)
+- [x] Abrechnungslogik vollständig (`Billing::getOrCreateRun()` + `compute()` + `release()` + `generateInvoicePdf()`)
 - [x] Rechnungstemplate (rechnung.tex)
 - [x] Collapsible Sidebar (Icon-only-Modus, localStorage)
 - [x] Profil-Dropdown (Avatar-Kreis, Daten/Passwort/Abmelden)
@@ -251,11 +251,11 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [ ] **Migration einspielen**: `docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260620.sql`
 - [ ] **MQTT-Subscriber neu bauen**: `docker compose build --no-cache mqtt-subscriber && docker compose up -d mqtt-subscriber`
 - [ ] **Node-RED Testflow** einrichten und verifizieren (siehe `docs/NODERED_TEST.md`)
-- [ ] **Abrechnung komplett fertigstellen**: Billing.php → Rechnungen generieren, PDFs erstellen, Status setzen
+- [x] **Abrechnung komplett fertigstellt**: `Billing::compute()` (idempotent, EDA-only, anteiliger Beitrag) + `Billing::release()` (60-Tage-Check) + PDF-Erzeugung via latex-service (Bugs behoben: `vars`-Key, Binär-Response, `RAW_STEUER_ZEILE` nie leer, `SELECT *` für Community) + neue UI-Routen: Lauf anlegen (`POST /portal/billing`), Berechnen (`POST /portal/billing/compute`)
+- [x] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt echte Rechnungen mit PDF-Download (nach `Billing::compute()`)
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
-- [ ] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt noch keine echten Daten
 - [ ] **EDA-Import UI**: Upload-Formular vorhanden, Parser-Output-Darstellung ausbaubar
-- [ ] **60-Tage-Freigabe-Button**: UI vorhanden, Backend-Check implementiert, End-to-End-Test fehlt
+- [ ] **60-Tage-Freigabe End-to-End-Test**: UI + Backend implementiert, Raspi-Test fehlt
 - [ ] **TLS für MQTT** (Port 8883): Mosquitto-Config vorbereitet, Zertifikate fehlen noch
 - [ ] **SEPA-Lastschrift**: Template-Platzhalter vorhanden, kein Code
 - [ ] **Automatische Backups**: Cron-Job auf Raspi einrichten

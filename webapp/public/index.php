@@ -719,6 +719,52 @@ $router->get('/portal/billing', function () {
     require ROOT . '/src/views/pages/billing.php';
 });
 
+$router->post('/portal/billing', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    $periodFrom  = trim($_POST['period_from'] ?? '');
+    $periodTo    = trim($_POST['period_to']   ?? '');
+    try {
+        if (!$periodFrom || !$periodTo) throw new RuntimeException('Bitte Von- und Bis-Datum angeben');
+        if ($periodFrom >= $periodTo) throw new RuntimeException('Von-Datum muss vor Bis-Datum liegen');
+        $run = Billing::getOrCreateRun($communityId, $periodFrom, $periodTo);
+        Audit::log('billing.create', 'billing_run', $run['id'],
+            ['quartal' => $run['quartal'], 'period_from' => $periodFrom, 'period_to' => $periodTo],
+            $communityId);
+        header('Location: /portal/billing');
+    } catch (Throwable $e) {
+        $error       = $e->getMessage();
+        DB::setCommunity($communityId);
+        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
+        require ROOT . '/src/views/pages/billing.php';
+    }
+    exit;
+});
+
+$router->post('/portal/billing/compute', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $runId = $_POST['billing_run_id'] ?? '';
+    try {
+        $warnings = Billing::compute($runId);
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$runId]);
+        Audit::log('billing.compute', 'billing_run', $runId,
+            ['quartal' => $run['quartal'] ?? null, 'warnings' => count($warnings)],
+            $run['community_id'] ?? Auth::activeCommunityId());
+        $success  = 'Berechnung abgeschlossen. Status: bereit zur Freigabe.';
+        $communityId = $run['community_id'] ?? Auth::activeCommunityId();
+        DB::setCommunity($communityId);
+        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
+        require ROOT . '/src/views/pages/billing.php';
+    } catch (Throwable $e) {
+        $error       = $e->getMessage();
+        $communityId = Auth::activeCommunityId();
+        DB::setCommunity($communityId);
+        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
+        require ROOT . '/src/views/pages/billing.php';
+    }
+    exit;
+});
+
 $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
