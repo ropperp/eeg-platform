@@ -1085,6 +1085,28 @@ $router->get('/admin', function () {
     $roleMap = [];
     foreach ($allRoles as $r) { $roleMap[$r['user_id']][] = $r; }
     $users = array_map(fn($u) => array_merge($u, ['roles' => $roleMap[$u['id']] ?? []]), $rawUsers);
+
+    // ── Backup-Status aus system_status ──────────────────────────────────────
+    $backupRow = [];
+    try {
+        $rows = DB::fetchAll("SELECT key, value, updated_at FROM system_status WHERE key LIKE 'last_backup_%'");
+        foreach ($rows as $r) { $backupRow[$r['key']] = $r; }
+    } catch (Throwable) {}
+    $lastBackupAt   = $backupRow['last_backup_at']['value']   ?? null;
+    $lastBackupOk   = ($backupRow['last_backup_ok']['value']  ?? 'false') === 'true';
+    $lastBackupSize = $backupRow['last_backup_size']['value'] ?? null;
+    $backupStale    = !$lastBackupAt || strtotime($lastBackupAt) < time() - 86400;
+    $backupProblem  = $backupStale || !$lastBackupOk;
+
+    // Postfach-Warnung max. 1x/Tag wenn Backup fehlt oder fehlgeschlagen
+    if ($backupProblem && !Notify::existsRecent('backup_failed', null, 'backup_failed', 24)) {
+        $msg = $backupStale
+            ? 'Kein Backup in den letzten 24 Stunden — bitte Cron-Job prüfen.'
+            : 'Letztes Backup fehlgeschlagen (last_backup_ok = false) — bitte Server-Logs prüfen.';
+        Notify::create('platform_admin', 'backup_failed', '⚠️ Backup-Warnung', $msg,
+            ['dedup_key' => 'backup_failed', 'last_backup_at' => $lastBackupAt]);
+    }
+
     require ROOT . '/src/views/pages/admin.php';
 });
 

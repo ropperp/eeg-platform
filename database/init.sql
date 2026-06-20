@@ -308,6 +308,19 @@ CREATE POLICY community_isolation ON audit_log
 REVOKE UPDATE, DELETE ON audit_log FROM eeg;
 
 -- ─────────────────────────────────────────
+-- PLATTFORM-STATUS (key/value, kein RLS)
+-- ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS system_status (
+    key        TEXT PRIMARY KEY,
+    value      TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE system_status IS
+    'Plattform-weite Key/Value-Statuswerte (Backup-Status u.a.). Kein RLS, kein Mandantenbezug.';
+
+-- ─────────────────────────────────────────
 -- PILOT-DATEN: Strompool Feldkirchen Süd-West
 -- ─────────────────────────────────────────
 
