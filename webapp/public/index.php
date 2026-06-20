@@ -244,7 +244,11 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         if ($it['type'] === 'mitgliedsbeitrag') $beitragItem    = $it;
     }
 
-    $steuerHinweis = 'Gem\\"{a}\\ss{} \\S{} 6 Abs.\\,1 Z 27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+    // RAW_: LaTeX-Befehle direkt übergeben — service.js darf diese NICHT escapen.
+    // Zeile im Tabellenkontext (5 Spalten, braucht \\):
+    $steuerZeile = '\\multicolumn{5}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
+    // Paragraph am Seitenende:
+    $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
 
     streamLatexPdf('rechnung', [
         'EEG_NAME'              => $invoice['eeg_name'],
@@ -265,7 +269,8 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
         'SUMME_NETTO'           => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
         'SUMME_BRUTTO'          => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
-        'STEUER_HINWEIS'        => $steuerHinweis,
+        'RAW_STEUER_ZEILE'      => $steuerZeile,
+        'RAW_STEUER_TEXT'       => $steuerText,
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days')),

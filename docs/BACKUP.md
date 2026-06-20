@@ -110,12 +110,30 @@ docker compose exec -T timescaledb \
 
 ---
 
+## Automatisches Verify-Skript
+
+`scripts/verify.sh` führt alle Checks durch (Stack, Backup, Restore-Probe, Schema, Statistiken, pdflatex) und protokolliert das Ergebnis:
+
+```bash
+bash scripts/verify.sh
+```
+
+Das Skript schreibt automatisch ein Restore-Testprotokoll in dieses Dokument (Abschnitt "Restore-Testprotokoll").
+
+---
+
 ## Makefile-Kurzkommandos
 
 ```bash
 make backup                              # Dump erstellen
 make restore FILE=backups/eeg_....dump  # Restore mit Bestätigung
 ```
+
+---
+
+## Restore-Testprotokoll
+
+Zuletzt getestet am — (noch nicht getestet, verify.sh auf Raspi ausführen)
 
 ---
 

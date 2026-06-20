@@ -220,12 +220,14 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] LaTeX-Injection-Schutz (texEscape + RAW_-Prefix)
 - [x] LaTeX-Log nicht in HTTP-Response (nur server-seitig)
 - [x] Backup-Skripte (scripts/backup.sh + scripts/restore.sh)
+- [x] Verify-Skript (scripts/verify.sh): Stack, Backup, Restore-Probe, Schema, Statistiken, pdflatex-Test
 - [x] Dokumentation: BACKUP.md, DATENBANK.md, schema.sql, ER-Diagramm, STATISTIK.md
 - [x] Demo-Datensatz (database/seed_demo.sql) mit Fantasienamen für Screenshots
+- [x] pdflatex Root-Cause analysiert und alle Template-Bugs behoben (siehe unten)
 
 ### In Arbeit / noch offen
 
-- [ ] **PDF-Fehler debuggen**: pdflatex schlägt fehl — genaue Ursache in `docker compose logs latex-service` nachsehen (nach Rebuild)
+- [ ] **Docker-Images auf Raspi neu bauen**: `git pull && docker compose build --no-cache webapp latex-service && docker compose up -d` — danach `bash scripts/verify.sh`
 - [ ] **Abrechnung komplett fertigstellen**: Billing.php → Rechnungen generieren, PDFs erstellen, Status setzen
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
 - [ ] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt noch keine echten Daten

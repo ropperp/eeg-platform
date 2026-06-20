@@ -1,5 +1,5 @@
 .PHONY: up down build build-clean prod update logs logs-web logs-latex logs-db \
-        ps shell-db shell-web backup restore migrate schema demo-db
+        ps shell-db shell-web backup restore migrate schema demo-db verify
 
 # ─── Starten ──────────────────────────────────────────────────────────────────
 up:
@@ -67,6 +67,10 @@ schema:
 	  pg_dump -U eeg -d eeg_platform --schema-only --no-owner --no-privileges \
 	  > docs/schema.sql
 	@echo "docs/schema.sql aktualisiert"
+
+# ─── Vollständige Verifikation (Stack, Backup, Restore, Schema, PDF-Test) ─────
+verify:
+	bash scripts/verify.sh
 
 # ─── Demo-Daten (für Screenshots, NICHT auf Produktions-DB) ──────────────────
 demo-db:
