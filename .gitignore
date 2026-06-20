@@ -1,38 +1,44 @@
-# Secrets — niemals committen
+# ═══════════════════════════════════════════════════════
+# NIEMALS COMMITTEN — Secrets und personenbezogene Daten
+# ═══════════════════════════════════════════════════════
+
+# Umgebungsvariablen (Passwörter, API-Keys, Domain)
 .env
 
-# Daten (Volumes auf dem Server, kein Git)
-/opt/
+# Datenbank-Dumps (enthalten echte Mitgliederdaten: Namen, IBAN, Verbrauch)
 backups/
 
-# Logs
-*.log
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-
-# Node
-node_modules/
-
-# macOS
-.DS_Store
-.AppleDouble
-
-# Editor
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Uploads und generierte PDFs (Laufzeitdaten)
+# Uploads und generierte PDFs (Laufzeitdaten, personenbezogen)
 /webapp/storage/uploads/*
 /webapp/storage/pdfs/*
 !/webapp/storage/uploads/.gitkeep
 !/webapp/storage/pdfs/.gitkeep
 
-# Traefik ACME-Zertifikate (werden lokal generiert)
+# PostgreSQL-Volume (nie kopieren — nur pg_dump verwenden)
+/opt/
+
+# ═══════════════════════════════════════════════════════
+# Betriebssystem / Editor
+# ═══════════════════════════════════════════════════════
+
+.DS_Store
+.AppleDouble
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ═══════════════════════════════════════════════════════
+# Laufzeit
+# ═══════════════════════════════════════════════════════
+
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+node_modules/
+
+# Traefik ACME-Zertifikate (lokal generiert, nicht versionieren)
 /docker/traefik/letsencrypt/

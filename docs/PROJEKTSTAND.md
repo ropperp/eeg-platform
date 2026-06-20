@@ -1,6 +1,6 @@
 # Projektstand — EEG-Plattform
 
-**Stand:** Juni 2026  
+**Stand:** 20. Juni 2026  
 **Diplomarbeit HTL Kärnten 2026/27**  
 **Autoren:** Patrick Ropper, Fabian (nachbauend), Alexander (nachbauend)
 
@@ -45,11 +45,21 @@ eeg-platform/
 ├── SETUP.md                        # Detaillierte Installationsanleitung
 ├── Makefile                        # Kurzkommandos
 │
+├── scripts/
+│   ├── backup.sh                   # pg_dump custom-Format mit Zeitstempel
+│   └── restore.sh                  # pg_restore --clean --if-exists
+│
 ├── docs/
-│   └── PROJEKTSTAND.md             # Diese Datei
+│   ├── PROJEKTSTAND.md             # Diese Datei
+│   ├── BACKUP.md                   # Backup-Strategie, Cron, externes Storage
+│   ├── DATENBANK.md                # DB-Wahl, Architektur, RLS, TimescaleDB
+│   ├── schema.sql                  # Nur Tabellenstruktur (kein Daten) — via make schema
+│   ├── er-diagramm.md              # ER-Diagramm als Mermaid (versioniert)
+│   └── STATISTIK.md                # Anonyme Kennzahlen (Abfragen + Vorlage)
 │
 ├── database/
-│   ├── init.sql                    # Vollständiges Schema (läuft beim ersten DB-Start)
+│   ├── init.sql                    # Vollständiges Schema inkl. Pilot-Daten (erster DB-Start)
+│   ├── seed_demo.sql               # Fiktive Demo-Daten für Screenshots (NICHT auf Prod)
 │   └── migrate_YYYYMMDD.sql        # Nachträgliche Migrationen für laufende Systeme
 │
 ├── webapp/                         # PHP-Webapplikation
@@ -209,6 +219,9 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] Multi-Tenant IDOR-Schutz auf allen Routen
 - [x] LaTeX-Injection-Schutz (texEscape + RAW_-Prefix)
 - [x] LaTeX-Log nicht in HTTP-Response (nur server-seitig)
+- [x] Backup-Skripte (scripts/backup.sh + scripts/restore.sh)
+- [x] Dokumentation: BACKUP.md, DATENBANK.md, schema.sql, ER-Diagramm, STATISTIK.md
+- [x] Demo-Datensatz (database/seed_demo.sql) mit Fantasienamen für Screenshots
 
 ### In Arbeit / noch offen
 
