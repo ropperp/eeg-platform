@@ -8,11 +8,14 @@ Unterstützte Topic-Formate
    Community-Auflösung: LOWER(marktpartner_id) OR slug
    Metering-Point-Auflösung: metering_points.meter_code
 
-2) eeg/{rc_nummer}/meter/{zaehler_nr}/power              (ESP32/Node-RED, neu)
-   Payload: {"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}
+2) eeg/{rc_nummer}/meter/{zaehler_nr}/power              (ESP32 P1 Smart Meter, Iskraemeco AM550)
+   Payload: {"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}  — ts optional (fehlt ohne NTP)
    Community-Auflösung: LOWER(marktpartner_id) = LOWER(rc_nummer)
-   Metering-Point-Auflösung: metering_points.zaehler_nr  (13-stellige ESP-Zählernummer)
-   NICHT zaehlpunkt_nr (AT...) — dieser bleibt dem EDA-Pfad vorbehalten.
+   Metering-Point-Auflösung: metering_points.zaehler_nr  (aus Topic-Pfad, NICHT aus Payload)
+   power_w signed: positiv = Bezug (OBIS 1.7.0), negativ = Einspeisung (OBIS 2.7.0)
+   meter_reading: Zählerstand P+ Bezug (OBIS 1.8.0) in Wh
+   Einspeisung-Zählerstand (OBIS 2.8.0) aktuell nicht per MQTT → energy_einspeisung_wh = 0
+   Publish-Frequenz: ~10 s (Meter-Frame-Intervall Kärnten Netz)
 
 Unbekannte Zählernummern im /power-Pfad erzeugen eine Meldung im Postfach
 (manager + platform_admin) und einen audit_log-Eintrag. Dedupliziert pro
@@ -23,6 +26,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 import psycopg2
@@ -144,7 +148,10 @@ def get_mp_by_zaehler_nr(community_id: str, zaehler_nr: str) -> str | None:
 # ──────────────────────────────────────────────────────────────────
 
 def insert_measurement(community_id: str, mp_id: str, bezug_w: int, einsp_w: int,
-                       bezug_wh: int, einsp_wh: int, znr: str | None = None) -> None:
+                       bezug_wh: int, einsp_wh: int,
+                       znr: str | None = None,
+                       ts: datetime | None = None) -> None:
+    t = ts if ts is not None else datetime.now(timezone.utc)
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -154,9 +161,9 @@ def insert_measurement(community_id: str, mp_id: str, bezug_w: int, einsp_w: int
                     (time, community_id, metering_point_id,
                      power_bezug_w, power_einspeisung_w,
                      energy_bezug_wh, energy_einspeisung_wh, znr)
-                VALUES (now(), %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (community_id, mp_id, bezug_w, einsp_w, bezug_wh, einsp_wh, znr),
+                (t, community_id, mp_id, bezug_w, einsp_w, bezug_wh, einsp_wh, znr),
             )
         conn.commit()
     except Exception:
@@ -327,12 +334,27 @@ def handle_live(parts: list[str], raw_payload: bytes) -> None:
         log.error("DB-Fehler bei %s: %s", topic, exc)
 
 
+def parse_iso_ts(ts_str: str) -> datetime | None:
+    """ISO8601 UTC-String → datetime. Gibt None zurück bei ungültigem Format."""
+    try:
+        # Python 3.10 versteht kein trailing 'Z' → ersetzen
+        return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
 def handle_power(parts: list[str], raw_payload: bytes) -> None:
     """
-    Neues Format: eeg/{rc_nummer}/meter/{zaehler_nr}/power
-    Payload: {"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}
-    Positives power_w = Bezug, negatives power_w = Einspeisung.
-    Auflösung per metering_points.zaehler_nr (13-stellige ESP-Zählernummer).
+    Format: eeg/{rc_nummer}/meter/{zaehler_nr}/power  (ESP32 P1 Smart Meter)
+    Payload: {"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}  — ts optional
+
+    power_w (signed): positiv = Bezug (OBIS 1.7.0), negativ = Einspeisung (OBIS 2.7.0)
+    meter_reading: Zählerstand P+ Bezug (OBIS 1.8.0) in Wh
+    ts: Geräte-Zeitstempel; fehlt wenn kein NTP → Server-Empfangszeit als Fallback
+    zaehler_nr: aus Topic-Pfad, NICHT aus Payload
+
+    Hinweis: Einspeisung-Zählerstand (P-, OBIS 2.8.0) wird aktuell nicht per MQTT
+    publiziert → energy_einspeisung_wh = 0. Für Abrechnung irrelevant (EDA-Basis).
     """
     rc_nummer  = parts[1]
     zaehler_nr = parts[3]
@@ -350,6 +372,12 @@ def handle_power(parts: list[str], raw_payload: bytes) -> None:
     if abs(power_w) > 100_000:
         log.warning("Unplausibler Wert auf %s: power_w=%s", topic, power_w)
         return
+
+    # ts ist optional (fehlt ohne NTP-Sync); Fallback auf Server-Empfangszeit
+    ts_raw = payload.get("ts")
+    ts = parse_iso_ts(ts_raw) if ts_raw else None
+    if ts_raw and ts is None:
+        log.warning("Ungültiger ts-Wert '%s' auf %s — nutze Server-Zeit", ts_raw, topic)
 
     community_id = get_community_id(rc_nummer)
     if not community_id:
@@ -371,8 +399,10 @@ def handle_power(parts: list[str], raw_payload: bytes) -> None:
             einsp_w=einsp_w,
             bezug_wh=meter_reading,
             einsp_wh=0,
+            ts=ts,
         )
-        log.debug("power gespeichert: %s → %s W Bezug / %s W Einspeisung", topic, bezug_w, einsp_w)
+        src = "ESP-ts" if ts else "Server-ts"
+        log.debug("power gespeichert [%s]: %s → %s W Bezug / %s W Einspeisung", src, topic, bezug_w, einsp_w)
     except Exception as exc:
         log.error("DB-Fehler bei %s: %s", topic, exc)
 
