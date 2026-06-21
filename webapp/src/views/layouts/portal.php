@@ -7,24 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – EEG-Plattform</title>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <!-- Kritisches Layout inline: resistent gegen gecachte app.css auf dem Server -->
-  <style>
-    .profile-menu { position: relative; }
-    .profile-btn  { display:flex;align-items:center;justify-content:center;width:36px;height:36px;
-                    background:#f3f4f6;border:2px solid #e5e7eb;border-radius:9999px;padding:0;
-                    cursor:pointer;font-size:1.2rem;line-height:1;
-                    transition:background .15s,border-color .15s; }
-    .profile-btn:hover { background:#dcfce7;border-color:#16a34a; }
-    .profile-dropdown { display:none;position:absolute;right:0;top:calc(100% + 6px);
-                        background:var(--white,#fff);border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;
-                        box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:190px;z-index:200;padding:.4rem; }
-    .profile-dropdown a { display:block;padding:.5rem .75rem;border-radius:6px;
-                          font-size:.875rem;color:var(--gray-800,#374151);white-space:nowrap;text-decoration:none; }
-    .profile-dropdown a:hover { background:var(--gray-100,#f3f4f6); }
-    .sidebar-text { transition:opacity .15s; }
-    .sidebar--collapsed .sidebar-text { opacity:0;width:0;overflow:hidden; }
-    .sidebar--collapsed .sidebar-label { opacity:0;height:0;margin:0;overflow:hidden; }
-  </style>
+  <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
 </head>
 <body>
 
@@ -79,29 +62,9 @@
         </script>
       <?php endif; ?>
 
-      <!-- Theme-Toggle -->
-      <button id="theme-toggle" onclick="toggleTheme()" title="Farbschema wechseln"
-              style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:.25rem .4rem;
-                     border-radius:6px;color:var(--gray-600,#6b7280);line-height:1">
-        <span id="theme-icon">🌙</span>
-      </button>
-
-      <!-- Postfach-Badge -->
-      <?php
-        $notifyCount = 0;
-        try { $notifyCount = Notify::unreadCount(); } catch (Throwable) {}
-      ?>
-      <a href="/portal/postfach" title="Postfach"
-         style="position:relative;display:flex;align-items:center;text-decoration:none;color:#374151;padding:.25rem .4rem;border-radius:6px">
-        <span style="font-size:1.15rem">📬</span>
-        <?php if ($notifyCount > 0): ?>
-          <span style="position:absolute;top:-2px;right:-2px;background:#dc2626;color:#fff;border-radius:50%;
-                       font-size:.6rem;font-weight:700;min-width:16px;height:16px;display:flex;
-                       align-items:center;justify-content:center;line-height:1;padding:0 2px">
-            <?= $notifyCount > 99 ? '99+' : $notifyCount ?>
-          </span>
-        <?php endif; ?>
-      </a>
+      <!-- Dark-Mode-Toggle -->
+      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
+              style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
 
       <!-- Profil-Dropdown -->
       <div class="profile-menu" id="profile-menu">
@@ -218,22 +181,17 @@ document.addEventListener('click', function () {
   profileDropdown.style.display = 'none';
 });
 
-// ─── Dark / Light Theme ───────────────────────────────────────────
-const themeIcon = document.getElementById('theme-icon');
-
-function applyTheme(dark) {
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  if (themeIcon) themeIcon.textContent = dark ? '☀️' : '🌙';
+// ─── Dark-Mode-Toggle ─────────────────────────────────────────────
+function toggleDark() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('darkMode', next === 'dark' ? '1' : '0');
+  document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️' : '🌙';
 }
-
-function toggleTheme() {
-  const isDark = document.documentElement.dataset.theme === 'dark';
-  localStorage.setItem('eeg-theme', isDark ? 'light' : 'dark');
-  applyTheme(!isDark);
-}
-
-// Initiales Icon setzen (Theme wurde bereits im <head> gesetzt)
-applyTheme(document.documentElement.dataset.theme === 'dark');
+// Initiales Icon setzen
+document.getElementById('theme-toggle').textContent =
+  document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
 </script>
 
 </body>

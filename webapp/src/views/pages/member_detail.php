@@ -5,8 +5,8 @@
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
   <div style="margin-left:auto;display:flex;gap:.5rem">
-    <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => in_array($mp['type'], ['consumer', 'prosumer'], true) && in_array($mp['active'], [true, 't', '1', 1], true))); ?>
-    <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => in_array($mp['type'], ['producer', 'prosumer'], true) && in_array($mp['active'], [true, 't', '1', 1], true))); ?>
+    <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
+    <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php if ($hasConsumer): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
        class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem">📄 Bezugsvereinbarung</a>
@@ -136,51 +136,43 @@
 
 <!-- MQTT-Topics -->
 <?php
-$hasLiveTopics  = array_filter(array_column($metering_points, 'meter_code'));
-$hasPowerTopics = array_filter(array_map(fn($mp) => $mp['zaehler_nr'] ?? null, $metering_points));
+$uniqueMeterCodes = [];
+foreach ($metering_points as $mp) {
+    if ($mp['meter_code'] && !in_array($mp['meter_code'], $uniqueMeterCodes)) {
+        $uniqueMeterCodes[] = $mp['meter_code'];
+    }
+}
 ?>
-<?php if ($hasLiveTopics || $hasPowerTopics): ?>
+<?php if ($uniqueMeterCodes): ?>
 <?php $mqttId = Auth::activeCommunityMqttId() ?? '…'; ?>
 <div class="card" style="font-size:.8rem;color:#6b7280;margin-bottom:1.5rem">
   <strong>MQTT-Topics (Live-Daten):</strong>
-  <?php if ($hasLiveTopics): ?>
-  <div style="margin-top:.5rem">
-    <span style="font-size:.75rem;color:#9ca3af">Legacy /live —
-      Payload: <code>{"pp": W-Bezug, "pm": W-Einspeisung, "ep": Wh-Bezug, "em": Wh-Einspeisung, "znr": "..."}</code></span>
-    <?php foreach ($metering_points as $mp): ?>
-      <?php if ($mp['meter_code']): ?>
-        <div style="margin-top:.3rem">
-          <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mp['meter_code']) ?>/live</code>
-        </div>
-      <?php endif; ?>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-  <?php if ($hasPowerTopics): ?>
-  <div style="margin-top:.5rem">
-    <span style="font-size:.75rem;color:#9ca3af">ESP /power —
-      Payload: <code>{"power_w": W, "meter_reading": Wh, "ts": "ISO8601"}</code></span>
-    <?php foreach ($metering_points as $mp): ?>
-      <?php if ($mp['zaehler_nr'] ?? null): ?>
-        <div style="margin-top:.3rem">
-          <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mp['zaehler_nr']) ?>/power</code>
-        </div>
-      <?php endif; ?>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
+  <?php foreach ($uniqueMeterCodes as $mc): ?>
+    <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #e5e7eb">
+      <div style="margin-bottom:.3rem">
+        <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mc) ?>/live</code>
+        <span style="color:#9ca3af;font-size:.72rem;margin-left:.4rem">Legacy · pp/pm/ep/em/znr</span>
+      </div>
+      <div>
+        <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mc) ?>/power</code>
+        <span style="color:#9ca3af;font-size:.72rem;margin-left:.4rem">ESP · power_w/meter_reading/ts</span>
+      </div>
+    </div>
+  <?php endforeach; ?>
 </div>
 <?php endif; ?>
 
 <!-- Vertragsstatus -->
+<?php
+$contractTypes = [];
+if ($hasConsumer) $contractTypes['bezug']       = ['label' => 'Bezugsvereinbarung',    'color' => '#1d4ed8'];
+if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinbarung', 'color' => '#b45309'];
+?>
+<?php if (!empty($contractTypes)): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">📋 Vertragsstatus</h3>
-  <div class="grid-2">
+  <div class="<?= count($contractTypes) === 1 ? '' : 'grid-2' ?>">
     <?php
-    $contractTypes = [
-      'bezug'       => ['label' => 'Bezugsvereinbarung',     'color' => '#1d4ed8'],
-      'einspeisung' => ['label' => 'Einspeisevereinbarung',  'color' => '#b45309'],
-    ];
     $statusLabels = ['none' => 'Nicht erstellt', 'created' => 'Erstellt', 'signed' => 'Unterschrieben'];
     $statusBadge  = ['none' => 'gray', 'created' => 'yellow', 'signed' => 'green'];
     foreach ($contractTypes as $type => $info):
@@ -204,6 +196,7 @@ $hasPowerTopics = array_filter(array_map(fn($mp) => $mp['zaehler_nr'] ?? null, $
     <?php endforeach; ?>
   </div>
 </div>
+<?php endif; ?>
 
 <!-- Edit-Modal -->
 <dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
