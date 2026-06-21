@@ -454,7 +454,7 @@ def on_connect(client, userdata, flags, rc, properties=None) -> None:
         log.error("MQTT-Verbindung fehlgeschlagen, rc=%s", rc)
 
 
-def on_disconnect(client, userdata, disconnect_flags, rc, properties=None) -> None:
+def on_disconnect(client, userdata, rc) -> None:
     if rc != 0:
         log.warning("MQTT-Verbindung unterbrochen (rc=%s), reconnect...", rc)
 
@@ -473,7 +473,7 @@ def main() -> None:
         raise SystemExit(1)
 
     client = mqtt.Client(
-        mqtt.CallbackAPIVersion.VERSION2,
+        mqtt.CallbackAPIVersion.VERSION1,
         client_id="eeg-mqtt-subscriber",
     )
     client.on_connect    = on_connect
