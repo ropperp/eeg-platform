@@ -48,15 +48,15 @@ ob_start();
     <h3 style="margin-bottom:1rem">⚡ Live-Leistung</h3>
     <div style="display:flex;gap:2rem">
       <div>
-        <div style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
+        <div id="live-bezug-w" style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
         <div style="font-size:.8rem;color:#6b7280">Bezug</div>
       </div>
       <div>
-        <div style="font-size:1.75rem;font-weight:700;color:#16a34a"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
+        <div id="live-einsp-w" style="font-size:1.75rem;font-weight:700;color:#16a34a"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
         <div style="font-size:.8rem;color:#6b7280">Einspeisung</div>
       </div>
     </div>
-    <p style="margin-top:.75rem;font-size:.8rem;color:#9ca3af"><?= $live['active_meters'] ?> Zählpunkte aktiv in den letzten 2 Min.</p>
+    <p style="margin-top:.75rem;font-size:.8rem;color:#9ca3af"><span id="live-active-meters"><?= $live['active_meters'] ?></span> Zählpunkte aktiv in den letzten 2 Min.</p>
   </div>
 
   <div class="card">
@@ -100,6 +100,23 @@ ob_start();
     <a href="/portal/eda/upload" class="btn btn-primary" style="margin-top:.75rem">EDA-Daten importieren</a>
   <?php endif; ?>
 </div>
+
+<script>
+(function () {
+  function fmt(n) { return n.toLocaleString('de-AT') + ' W'; }
+  async function refreshLive() {
+    try {
+      const res = await fetch('/api/portal/live');
+      if (!res.ok) return;
+      const d = await res.json();
+      document.getElementById('live-bezug-w').textContent        = fmt(d.bezug_w);
+      document.getElementById('live-einsp-w').textContent        = fmt(d.einsp_w);
+      document.getElementById('live-active-meters').textContent  = d.active_meters;
+    } catch (_) {}
+  }
+  setInterval(refreshLive, 5000);
+})();
+</script>
 
 <?php
 $content = ob_get_clean();

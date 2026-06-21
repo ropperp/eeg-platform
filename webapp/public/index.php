@@ -182,6 +182,28 @@ $router->post('/portal/forgot-password', function () {
     require ROOT . '/src/views/pages/forgot_password.php';
 });
 
+// ─── Portal: Live-API (AJAX) ────────────────────────────
+$router->get('/api/portal/live', function () {
+    Auth::requireLogin();
+    header('Content-Type: application/json');
+    $communityId = Auth::activeCommunityId();
+    if (!$communityId) { http_response_code(403); echo json_encode(['error' => 'Keine Community']); return; }
+    DB::setCommunity($communityId);
+    $live = DB::fetchOne(
+        "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w,
+                COALESCE(SUM(power_bezug_w),0)       AS bezug_w,
+                COUNT(DISTINCT metering_point_id)     AS active_meters
+         FROM esp_measurements
+         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+        [$communityId]
+    );
+    echo json_encode([
+        'bezug_w'       => (int)($live['bezug_w'] ?? 0),
+        'einsp_w'       => (int)($live['einsp_w'] ?? 0),
+        'active_meters' => (int)($live['active_meters'] ?? 0),
+    ]);
+});
+
 // ─── Portal: Dashboard ──────────────────────────────────
 $router->get('/portal/dashboard', function () {
     Auth::requireLogin();
