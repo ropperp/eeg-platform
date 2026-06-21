@@ -55,8 +55,12 @@ function streamLatexPdf(string $template, array $vars, string $filename): bool
 
     if ($code !== 200 || !$body) {
         http_response_code(500);
-        // Nur generische Fehlermeldung an Browser — kein internes Log/Pfad-Leaking
-        echo "<pre>PDF-Generierung fehlgeschlagen (HTTP $code). Bitte latex-service prüfen.</pre>";
+        $detail = '';
+        if ($body) {
+            $json = json_decode($body, true);
+            $detail = isset($json['error']) ? ': ' . htmlspecialchars($json['error']) : '';
+        }
+        echo "<pre>PDF-Generierung fehlgeschlagen (HTTP {$code}){$detail}. Bitte latex-service prüfen.</pre>";
         return false;
     }
 

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – EEG-Plattform</title>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
 </head>
 <body>
 
@@ -58,6 +59,10 @@
           }
         </script>
       <?php endif; ?>
+
+      <!-- Dark-Mode-Toggle -->
+      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
+              style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
 
       <!-- Profil-Dropdown -->
       <div class="profile-menu" id="profile-menu">
@@ -149,6 +154,18 @@ function toggleProfile(e) {
 document.addEventListener('click', () => {
   document.getElementById('profile-dropdown').classList.remove('open');
 });
+
+// ─── Dark-Mode-Toggle ─────────────────────────────────────────────
+function toggleDark() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('darkMode', next === 'dark' ? '1' : '0');
+  document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️' : '🌙';
+}
+// Initiales Icon setzen
+document.getElementById('theme-toggle').textContent =
+  document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
 </script>
 
 </body>
