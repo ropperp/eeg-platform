@@ -39,6 +39,10 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# paho-mqtt loggt Callback-Exceptions standardmäßig nur auf DEBUG → explizit auf WARNING setzen,
+# damit sie auch ohne unsere try/except-Hülle im Log auftauchen.
+logging.getLogger("paho.mqtt").setLevel(logging.WARNING)
+
 MQTT_HOST = os.environ["MQTT_HOST"]
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 DB_HOST   = os.environ["DB_HOST"]
@@ -80,6 +84,18 @@ def put_conn(conn):
 # Lookup-Helfer
 # ──────────────────────────────────────────────────────────────────
 
+def _db_select_one(conn, query: str, params: tuple):
+    """Führt einen SELECT aus und gibt die erste Zeile zurück (oder None).
+    Rollt bei Fehler zurück, damit die Connection sauber in den Pool geht."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            return cur.fetchone()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def get_community_id(mqtt_id: str) -> str | None:
     """Auflösung per LOWER(marktpartner_id) oder slug."""
     key = mqtt_id.lower()
@@ -87,36 +103,34 @@ def get_community_id(mqtt_id: str) -> str | None:
         return community_cache[key]
     conn = get_conn()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id FROM communities WHERE (LOWER(marktpartner_id) = %s OR slug = %s) AND active = true",
-                (key, key),
-            )
-            row = cur.fetchone()
-            if row:
-                community_cache[key] = str(row[0])
-                return community_cache[key]
+        row = _db_select_one(
+            conn,
+            "SELECT id FROM communities WHERE (LOWER(marktpartner_id) = %s OR slug = %s) AND active = true",
+            (key, key),
+        )
+        if row:
+            community_cache[key] = str(row[0])
+            return community_cache[key]
     finally:
         put_conn(conn)
     return None
 
 
 def get_mp_by_meter_code(community_id: str, meter_code: str) -> str | None:
-    """Metering-Point-UUID via meter_code (13-stellige Zählernummer, /live-Topic)."""
+    """Metering-Point-UUID via meter_code (/live-Topic)."""
     cache_key = f"{community_id}:{meter_code}"
     if cache_key in mp_by_code_cache:
         return mp_by_code_cache[cache_key]
     conn = get_conn()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id FROM metering_points WHERE community_id = %s AND meter_code = %s AND active = true",
-                (community_id, meter_code),
-            )
-            row = cur.fetchone()
-            if row:
-                mp_by_code_cache[cache_key] = str(row[0])
-                return mp_by_code_cache[cache_key]
+        row = _db_select_one(
+            conn,
+            "SELECT id FROM metering_points WHERE community_id = %s AND meter_code = %s AND active = true",
+            (community_id, meter_code),
+        )
+        if row:
+            mp_by_code_cache[cache_key] = str(row[0])
+            return mp_by_code_cache[cache_key]
     finally:
         put_conn(conn)
     return None
@@ -129,15 +143,14 @@ def get_mp_by_zaehler_nr(community_id: str, zaehler_nr: str) -> str | None:
         return mp_by_zaehler_cache[cache_key]
     conn = get_conn()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id FROM metering_points WHERE community_id = %s AND zaehler_nr = %s AND active = true",
-                (community_id, zaehler_nr),
-            )
-            row = cur.fetchone()
-            if row:
-                mp_by_zaehler_cache[cache_key] = str(row[0])
-                return mp_by_zaehler_cache[cache_key]
+        row = _db_select_one(
+            conn,
+            "SELECT id FROM metering_points WHERE community_id = %s AND zaehler_nr = %s AND active = true",
+            (community_id, zaehler_nr),
+        )
+        if row:
+            mp_by_zaehler_cache[cache_key] = str(row[0])
+            return mp_by_zaehler_cache[cache_key]
     finally:
         put_conn(conn)
     return None
@@ -177,19 +190,19 @@ def notify_exists_recent(community_id: str, type_: str, dedup_key: str, within_h
     """Deduplizierung: True wenn gleichartige Meldung im Zeitfenster existiert."""
     conn = get_conn()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id FROM notifications
-                WHERE type = %s
-                  AND community_id = %s
-                  AND payload->>'dedup_key' = %s
-                  AND created_at >= now() - %s * INTERVAL '1 hour'
-                LIMIT 1
-                """,
-                (type_, community_id, dedup_key, within_hours),
-            )
-            return cur.fetchone() is not None
+        row = _db_select_one(
+            conn,
+            """
+            SELECT id FROM notifications
+            WHERE type = %s
+              AND community_id = %s
+              AND payload->>'dedup_key' = %s
+              AND created_at >= now() - %s * INTERVAL '1 hour'
+            LIMIT 1
+            """,
+            (type_, community_id, dedup_key, within_hours),
+        )
+        return row is not None
     finally:
         put_conn(conn)
 
@@ -299,6 +312,7 @@ def handle_live(parts: list[str], raw_payload: bytes) -> None:
     community_slug = parts[1]
     meter_code     = parts[3]
     topic          = "/".join(parts)
+    log.info("live: %s", topic)
 
     try:
         payload = json.loads(raw_payload.decode())
@@ -312,7 +326,7 @@ def handle_live(parts: list[str], raw_payload: bytes) -> None:
 
     community_id = get_community_id(community_slug)
     if not community_id:
-        log.debug("Unbekannte Community-Slug: %s", community_slug)
+        log.warning("Unbekannte Community-Slug: %s", community_slug)
         return
 
     mp_id = get_mp_by_meter_code(community_id, meter_code)
@@ -329,9 +343,9 @@ def handle_live(parts: list[str], raw_payload: bytes) -> None:
             einsp_wh=int(payload.get("em", 0)),
             znr=payload.get("znr"),
         )
-        log.debug("live gespeichert: %s → %s W", topic, payload.get("pp"))
-    except Exception as exc:
-        log.error("DB-Fehler bei %s: %s", topic, exc)
+        log.info("live gespeichert: %s → %s W Bezug", topic, payload.get("pp"))
+    except Exception:
+        log.exception("DB-Fehler bei live %s", topic)
 
 
 def parse_iso_ts(ts_str: str) -> datetime | None:
@@ -359,6 +373,7 @@ def handle_power(parts: list[str], raw_payload: bytes) -> None:
     rc_nummer  = parts[1]
     zaehler_nr = parts[3]
     topic      = "/".join(parts)
+    log.info("power: %s", topic)
 
     try:
         payload = json.loads(raw_payload.decode())
@@ -402,24 +417,31 @@ def handle_power(parts: list[str], raw_payload: bytes) -> None:
             ts=ts,
         )
         src = "ESP-ts" if ts else "Server-ts"
-        log.debug("power gespeichert [%s]: %s → %s W Bezug / %s W Einspeisung", src, topic, bezug_w, einsp_w)
-    except Exception as exc:
-        log.error("DB-Fehler bei %s: %s", topic, exc)
+        log.info("power gespeichert [%s]: %s → %s W Bezug / %s W Einspeisung",
+                 src, topic, bezug_w, einsp_w)
+    except Exception:
+        log.exception("DB-Fehler bei power %s", topic)
 
 
 def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
-    parts = msg.topic.split("/")
-    if len(parts) != 5 or parts[0] != "eeg" or parts[2] != "meter":
-        log.warning("Unbekanntes Topic-Format: %s", msg.topic)
-        return
+    # Top-Level-Handler: Exceptions hier IMMER loggen, bevor paho sie verschluckt.
+    # paho-mqtt v2 fängt Callback-Exceptions intern ab und gibt sie nur auf
+    # paho.mqtt.client/DEBUG aus — ohne diesen try/except wären sie unsichtbar.
+    try:
+        parts = msg.topic.split("/")
+        if len(parts) != 5 or parts[0] != "eeg" or parts[2] != "meter":
+            log.warning("Unbekanntes Topic-Format: %s", msg.topic)
+            return
 
-    suffix = parts[4]
-    if suffix == "live":
-        handle_live(parts, msg.payload)
-    elif suffix == "power":
-        handle_power(parts, msg.payload)
-    else:
-        log.debug("Unbekanntes Topic-Suffix '%s' auf %s — ignoriert", suffix, msg.topic)
+        suffix = parts[4]
+        if suffix == "live":
+            handle_live(parts, msg.payload)
+        elif suffix == "power":
+            handle_power(parts, msg.payload)
+        else:
+            log.debug("Unbekanntes Topic-Suffix '%s' auf %s — ignoriert", suffix, msg.topic)
+    except Exception:
+        log.exception("Unbehandelte Exception in on_message für Topic %s", msg.topic)
 
 
 def on_connect(client, userdata, flags, rc, properties=None) -> None:
