@@ -1,6 +1,6 @@
 # Projektstand — EEG-Plattform
 
-**Stand:** 20. Juni 2026  
+**Stand:** 20. Juni 2026 (aktualisiert nach Notifications/Audit-Migration)  
 **Diplomarbeit HTL Kärnten 2026/27**  
 **Autoren:** Patrick Ropper, Fabian (nachbauend), Alexander (nachbauend)
 
@@ -152,6 +152,13 @@ Alle Services kommunizieren über das interne Docker-Netzwerk `eeg-net`. Nur Tra
 | `tariff_config` | Tarife mit `valid_from`: Bezug (ct/kWh), Einspeisung (ct/kWh), Mitgliedsbeitrag (EUR/Jahr) |
 | `tax_config` | Steuermodell mit `valid_from`: `kleinunternehmer` (§ 6 Abs 1 Z 27 UStG) oder `standard` (20% USt) |
 
+### Benachrichtigungen & Audit (migrate_20260620.sql)
+
+| Tabelle | Beschreibung |
+|---------|--------------|
+| `notifications` | Mandanten-Postfach: audience (`platform_admin`/`manager`/`member`), is_read, payload JSONB. RLS analog zu den anderen Tabellen. |
+| `audit_log` | Append-only Ereignisprotokoll: action, entity_type, entity_id, details JSONB, ip. App-Rolle hat kein UPDATE/DELETE. |
+
 Tarife und Steuern sind **nie hardcodiert** — immer aus DB mit dem zum Abrechnungszeitraum gültigen Eintrag.
 
 ### Abrechnung
@@ -191,6 +198,9 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 | `admin.php` | `/admin` | platform_admin | Alle EEGs verwalten |
 | `admin_community.php` | `/admin/communities/:id` | platform_admin | EEG-Detail |
 | `admin_user.php` | `/admin/users/:id` | platform_admin | Benutzer-Detail |
+| `postfach.php` | `/portal/postfach` | alle | Benachrichtigungs-Postfach mit Badge in der Navbar |
+| `audit.php` | `/portal/audit` | manager | Ereignisprotokoll der eigenen EEG |
+| `audit.php` | `/admin/audit` | platform_admin | Plattformweites Ereignisprotokoll |
 
 ---
 
@@ -212,7 +222,7 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] Live-Dashboard (aggregierte Echtzeit-Daten)
 - [x] Mitglieder-Dashboard (eigener Verbrauch, Zählpunkt)
 - [x] Tarif- und Steuerkonfiguration (historisiert)
-- [x] Abrechnungslogik (Grundstruktur in Billing.php)
+- [x] Abrechnungslogik vollständig (`Billing::getOrCreateRun()` + `compute()` + `release()` + `generateInvoicePdf()`)
 - [x] Rechnungstemplate (rechnung.tex)
 - [x] Collapsible Sidebar (Icon-only-Modus, localStorage)
 - [x] Profil-Dropdown (Avatar-Kreis, Daten/Passwort/Abmelden)
@@ -224,15 +234,38 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 - [x] Dokumentation: BACKUP.md, DATENBANK.md, schema.sql, ER-Diagramm, STATISTIK.md
 - [x] Demo-Datensatz (database/seed_demo.sql) mit Fantasienamen für Screenshots
 - [x] pdflatex Root-Cause analysiert und alle Template-Bugs behoben (siehe unten)
+- [x] Notifications-Tabelle + Postfach-UI (`/portal/postfach`) mit Navbar-Badge
+- [x] Audit-Log-Tabelle (append-only) + `src/Audit.php` + Hooks an allen kritischen Aktionen
+- [x] `src/Notify.php` mit `create()` und `existsRecent()` (Deduplizierung)
+- [x] Audit-Log-Seiten: `/portal/audit` (Manager) und `/admin/audit` (Platform-Admin)
+- [x] Steuer-Konfiguration POST-Route (`/portal/settings/tax`) ergänzt
+- [x] MQTT-Subscriber auf Dual-Topic erweitert:
+  - `eeg/+/meter/+/live` (ESP32-Legacy: slug + meter_code, bestehend)
+  - `eeg/+/meter/+/power` (Node-RED/neu: RC-Nummer + zaehlpunkt_nr)
+  - Unbekannter Zählpunkt → Postfach-Meldung (manager + platform_admin) + Audit, Dedupe 6 h
+- [x] Node-RED Testflow dokumentiert (`docs/NODERED_TEST.md`)
 
 ### In Arbeit / noch offen
 
-- [ ] **Docker-Images auf Raspi neu bauen**: `git pull && docker compose build --no-cache webapp latex-service && docker compose up -d` — danach `bash scripts/verify.sh`
-- [ ] **Abrechnung komplett fertigstellen**: Billing.php → Rechnungen generieren, PDFs erstellen, Status setzen
+- [ ] **Docker-Images auf Raspi neu bauen**: `git pull origin claude/awesome-mendel-otivt9 && docker compose build --no-cache webapp && docker compose up -d` — danach `bash scripts/verify.sh`
+- [ ] **Migration einspielen**: `docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260620.sql`
+- [ ] **MQTT-Subscriber neu bauen**: `docker compose build --no-cache mqtt-subscriber && docker compose up -d mqtt-subscriber`
+- [ ] **Node-RED Testflow** einrichten und verifizieren (siehe `docs/NODERED_TEST.md`)
+- [x] **Abrechnung Paket 2 fertiggestellt** (2026-06-20):
+  - Status-Fluss: `pending → ready → released → done` korrekt implementiert (`release()` setzt jetzt `released`)
+  - Cent-Arithmetik: alle Betragsberechnungen laufen in Integer-Cent (`(int)round(kwh * ct)`), Summierung vor Division durch 100
+  - `RAW_STEUER_TEXT` in `generateInvoicePdf()` ergänzt (Kleinunternehmer-Klausel am Seitenende)
+  - Billing-UI: 60-Tage-Countdown für `ready`-Läufe (⏳ noch X Tage), "Neu berechnen" für `ready`, `released`-Badge grün
+  - `released`-Status als Gating für Mitglieder-Rechnungen: `/portal/invoices` zeigt nur `released`/`done`
+  - Invoice-PDF-Route: gespeichertes PDF wird ausgeliefert (immutable nach Freigabe), Fallback auf latex-service mit korrekte Brutto-Berechnung für Standard-USt; IDOR-Check (Mitglied darf nur eigene Rechnungen laden)
+  - EDA-Upload 500 behoben: null-Guard, proc_open mit explizitem Env-Array, PHP-FPM `clear_env = no`
+  - Hamburger BEM (`sidebar--collapsed`) + Dark-Mode-Umschalter (CSS-Tokens, `[data-theme="dark"]`, prefers-color-scheme)
+- [x] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt Rechnungen erst nach Freigabe (`br.status IN ('released','done')`)
+- [x] **Layout-Regression behoben**: Profil-Dropdown + kritisches CSS in portal.php + Verträge für `prosumer`-Typ
+- [x] **DB-Migration idempotent**: `migrate_20260620.sql` mit `IF NOT EXISTS` + DO-Blöcken; `notifications`/`audit_log` in `init.sql`; `invoice_items` RLS-Policy ergänzt
 - [ ] **E-Mail-Versand**: SMTP-Integration für Passwort-Reset und Rechnungsversand (Brevo/Postmark)
-- [ ] **Mitglieder-Rechnungen**: `/portal/invoices` zeigt noch keine echten Daten
-- [ ] **EDA-Import UI**: Upload-Formular vorhanden, Parser-Output-Darstellung ausbaubar
-- [ ] **60-Tage-Freigabe-Button**: UI vorhanden, Backend-Check implementiert, End-to-End-Test fehlt
+- [ ] **EDA-Import Voraussetzungs-Test auf Demo-DB**: EDA-XLSX hochladen → `eda_measurements` prüfen → Demo-Billing-Lauf anlegen und berechnen
+- [ ] **60-Tage-Freigabe End-to-End-Test**: Für Demo-Zeitraum `freigabe_nach` temporär auf heute setzen, Freigabe testen
 - [ ] **TLS für MQTT** (Port 8883): Mosquitto-Config vorbereitet, Zertifikate fehlen noch
 - [ ] **SEPA-Lastschrift**: Template-Platzhalter vorhanden, kein Code
 - [ ] **Automatische Backups**: Cron-Job auf Raspi einrichten

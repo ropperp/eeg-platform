@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- Theme sofort setzen, bevor CSS geladen wird (verhindert Flash) -->
+  <script>(function(){var t=localStorage.getItem('eeg-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t;})()</script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – EEG-Plattform</title>
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -66,10 +68,12 @@
 
       <!-- Profil-Dropdown -->
       <div class="profile-menu" id="profile-menu">
-        <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
+        <button onclick="toggleProfile(event)" class="profile-btn"
+                title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
           <span class="profile-avatar">👤</span>
         </button>
-        <div class="profile-dropdown" id="profile-dropdown">
+        <!-- style="display:none" inline: verhindert Layout-Fehler bei gecachtem app.css -->
+        <div class="profile-dropdown" id="profile-dropdown" style="display:none">
           <?php if (!$isPlatformAdmin): ?>
           <a href="/portal/profile">✏️ Daten ändern</a>
           <?php endif; ?>
@@ -86,8 +90,18 @@
   <aside class="sidebar" id="sidebar">
     <?php if ($activeRoleName === 'platform_admin'): ?>
       <p class="sidebar-label">Plattform</p>
-      <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">
+      <a href="/admin" class="<?= str_starts_with($_SERVER['REQUEST_URI'], '/admin') && !str_contains($_SERVER['REQUEST_URI'], '/audit') ? 'active' : '' ?>">
         <span class="sidebar-icon">🔧</span><span class="sidebar-text">Administration</span>
+      </a>
+      <a href="/admin/audit" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/audit') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🗂</span><span class="sidebar-text">Protokoll</span>
+      </a>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], '/postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach
+          <?php if ($notifyCount > 0): ?>
+            <span style="background:#dc2626;color:#fff;border-radius:10px;font-size:.7rem;padding:1px 6px;margin-left:4px"><?= $notifyCount ?></span>
+          <?php endif; ?>
+        </span>
       </a>
 
     <?php elseif ($isManager): ?>
@@ -107,13 +121,16 @@
       <a href="/portal/settings" class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">
         <span class="sidebar-icon">⚙️</span><span class="sidebar-text">Einstellungen</span>
       </a>
-
-      <?php if ($isPlatformAdmin): ?>
-        <hr style="margin:1rem 0;border-color:#e5e7eb">
-        <a href="/admin">
-          <span class="sidebar-icon">🔧</span><span class="sidebar-text">Admin</span>
-        </a>
-      <?php endif; ?>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], '/postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach
+          <?php if ($notifyCount > 0): ?>
+            <span style="background:#dc2626;color:#fff;border-radius:10px;font-size:.7rem;padding:1px 6px;margin-left:4px"><?= $notifyCount ?></span>
+          <?php endif; ?>
+        </span>
+      </a>
+      <a href="/portal/audit" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/audit') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🗂</span><span class="sidebar-text">Protokoll</span>
+      </a>
 
     <?php else: ?>
       <p class="sidebar-label">Mitglied</p>
@@ -122,6 +139,13 @@
       </a>
       <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
         <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
+      </a>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], '/postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach
+          <?php if ($notifyCount > 0): ?>
+            <span style="background:#dc2626;color:#fff;border-radius:10px;font-size:.7rem;padding:1px 6px;margin-left:4px"><?= $notifyCount ?></span>
+          <?php endif; ?>
+        </span>
       </a>
     <?php endif; ?>
   </aside>
@@ -132,27 +156,29 @@
 </div>
 
 <script>
-// ─── Sidebar toggle ───────────────────────────────────────────────
+// ─── Sidebar toggle (BEM: sidebar--collapsed) ─────────────────────
 const SIDEBAR_KEY = 'sidebarCollapsed';
 const sidebar = document.getElementById('sidebar');
 
 function toggleSidebar() {
-  const collapsed = sidebar.classList.toggle('collapsed');
+  const collapsed = sidebar.classList.toggle('sidebar--collapsed');
   localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
 }
 
-// Zustand wiederherstellen
 if (localStorage.getItem(SIDEBAR_KEY) === '1') {
-  sidebar.classList.add('collapsed');
+  sidebar.classList.add('sidebar--collapsed');
 }
 
 // ─── Profil-Dropdown ─────────────────────────────────────────────
+const profileDropdown = document.getElementById('profile-dropdown');
+
 function toggleProfile(e) {
   e.stopPropagation();
-  document.getElementById('profile-dropdown').classList.toggle('open');
+  profileDropdown.style.display = profileDropdown.style.display === 'block' ? 'none' : 'block';
 }
-document.addEventListener('click', () => {
-  document.getElementById('profile-dropdown').classList.remove('open');
+
+document.addEventListener('click', function () {
+  profileDropdown.style.display = 'none';
 });
 
 // ─── Dark-Mode-Toggle ─────────────────────────────────────────────

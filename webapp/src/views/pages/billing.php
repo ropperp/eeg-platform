@@ -8,20 +8,50 @@ ob_start();
 <?php if (!empty($error)): ?>
   <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
-<?php if (isset($_GET['success'])): ?>
-  <div class="alert alert-success">Abrechnung erfolgreich freigegeben. PDFs werden generiert und versendet.</div>
+<?php if (!empty($success)): ?>
+  <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+<?php endif; ?>
+<?php if (!empty($warnings)): ?>
+  <div class="alert alert-warning">
+    <strong>Berechnung abgeschlossen – mit Hinweisen:</strong><br>
+    <?php foreach ($warnings as $w): ?>
+      <?= htmlspecialchars($w) ?><br>
+    <?php endforeach; ?>
+  </div>
 <?php endif; ?>
 
-<!-- Suche -->
+<!-- Neuen Abrechnungslauf anlegen -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.75rem">Neuen Abrechnungslauf anlegen</h3>
+  <form method="post" action="/portal/billing" style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
+    <div>
+      <label style="display:block;font-size:.8rem;color:#6b7280;margin-bottom:.25rem">Von</label>
+      <input type="date" name="period_from" required
+             style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    </div>
+    <div>
+      <label style="display:block;font-size:.8rem;color:#6b7280;margin-bottom:.25rem">Bis</label>
+      <input type="date" name="period_to" required
+             style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    </div>
+    <button type="submit" class="btn btn-primary">+ Anlegen</button>
+  </form>
+  <p style="font-size:.8rem;color:#9ca3af;margin-top:.5rem">
+    Standard-Quartale: Q1 = 01.01.–31.03. &nbsp;|&nbsp; Q2 = 01.04.–30.06. &nbsp;|&nbsp; Q3 = 01.07.–30.09. &nbsp;|&nbsp; Q4 = 01.10.–31.12.
+  </p>
+</div>
+
+<!-- Filterzeile -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center">
     <input type="text" id="billing-search" placeholder="Quartal suchen (z.B. 2026-Q1)…"
            style="flex:1;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
            oninput="filterBilling()">
-    <select id="billing-status" onchange="filterBilling()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="billing-status" onchange="filterBilling()"
+            style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
       <option value="pending">Ausstehend</option>
-      <option value="ready">Bereit</option>
+      <option value="ready">Entwurf</option>
       <option value="released">Freigegeben</option>
       <option value="done">Abgeschlossen</option>
     </select>
@@ -42,32 +72,54 @@ ob_start();
     </thead>
     <tbody>
     <?php foreach ($runs as $run): ?>
+      <?php
+        $statusBadge = ['pending' => 'gray', 'ready' => 'yellow', 'released' => 'green', 'done' => 'green'];
+        $statusLabel = ['pending' => 'Ausstehend', 'ready' => 'Entwurf', 'released' => 'Freigegeben', 'done' => 'Abgeschlossen'];
+        $freigabeDt  = new DateTimeImmutable($run['freigabe_nach']);
+        $now         = new DateTimeImmutable();
+        $canRelease  = $run['status'] === 'ready' && $now >= $freigabeDt;
+        $daysLeft    = $run['status'] === 'ready' && !$canRelease
+                       ? max(1, (int)ceil($now->diff($freigabeDt)->days + ($now->diff($freigabeDt)->h > 0 || $now->diff($freigabeDt)->i > 0 ? 1 : 0)))
+                       : 0;
+      ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
         <td><?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?></td>
         <td>
-          <?php $badges = ['pending' => 'gray', 'ready' => 'green', 'released' => 'yellow', 'done' => 'green']; ?>
-          <span class="badge badge-<?= $badges[$run['status']] ?? 'gray' ?>">
-            <?= htmlspecialchars($run['status']) ?>
+          <span class="badge badge-<?= $statusBadge[$run['status']] ?? 'gray' ?>">
+            <?= htmlspecialchars($statusLabel[$run['status']] ?? $run['status']) ?>
           </span>
         </td>
         <td><?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?></td>
         <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
         <td>
-          <?php if ($run['status'] === 'ready'): ?>
-            <form method="post" action="/portal/billing/release"
-                  onsubmit="return confirm('Abrechnung wirklich freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
-              <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-              <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">
-                ✅ Freigeben
-              </button>
-            </form>
+          <?php if ($run['status'] === 'released' || $run['status'] === 'done'): ?>
+            <span style="font-size:.8rem;color:#16a34a">✅ Freigegeben</span>
+          <?php elseif ($run['status'] === 'ready'): ?>
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+              <form method="post" action="/portal/billing/compute"
+                    onsubmit="return confirm('Rechnungen neu berechnen? Bestehende Entwürfe werden überschrieben.')">
+                <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+                <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.8rem">🔄 Neu berechnen</button>
+              </form>
+              <?php if ($canRelease): ?>
+                <form method="post" action="/portal/billing/release"
+                      onsubmit="return confirm('Abrechnung wirklich freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
+                  <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+                  <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">✅ Freigeben</button>
+                </form>
+              <?php else: ?>
+                <span style="font-size:.75rem;color:#6b7280" title="Freigabe erst ab <?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?> möglich">
+                  ⏳ noch <?= $daysLeft ?> Tag<?= $daysLeft !== 1 ? 'e' : '' ?>
+                </span>
+              <?php endif; ?>
+            </div>
           <?php elseif ($run['status'] === 'pending'): ?>
-            <span style="font-size:.8rem;color:#9ca3af">
-              Noch <?= max(0, ceil((strtotime($run['freigabe_nach']) - time()) / 86400)) ?> Tage
-            </span>
-          <?php else: ?>
-            <a href="#" style="font-size:.8rem">Rechnungen ansehen</a>
+            <form method="post" action="/portal/billing/compute"
+                  onsubmit="return confirm('Rechnungen jetzt berechnen?')">
+              <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+              <button class="btn btn-secondary" style="padding:.35rem .75rem;font-size:.8rem">🔄 Berechnen</button>
+            </form>
           <?php endif; ?>
         </td>
       </tr>
@@ -94,9 +146,9 @@ function filterBilling() {
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem">ℹ️ Hinweis zum 60-Tage-Korrekturfenster</h3>
   <p style="font-size:.875rem;color:#6b7280">
-    Gemäß den EDA-Richtlinien und den Vereinsstatuten darf eine Abrechnung erst 60 Tage nach Quartalsende
-    freigegeben werden. In dieser Zeit können Messwerte vom Netzbetreiber noch korrigiert werden (L1 → L2 → L3).
-    Der Freigabe-Button erscheint automatisch sobald das Fenster abgelaufen ist und alle Daten vollständig sind.
+    Gemäß den EDA-Richtlinien darf eine Abrechnung erst 60 Tage nach Periodenende freigegeben werden.
+    In dieser Zeit können Messwerte vom Netzbetreiber noch korrigiert werden (L1 → L2 → L3).
+    Der Button „Berechnen" erstellt Entwurfs-Rechnungen, die bis zur Freigabe neu berechnet werden können.
   </p>
 </div>
 

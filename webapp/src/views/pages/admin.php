@@ -17,6 +17,54 @@
   </div>
 </div>
 
+<!-- Backup-Status -->
+<?php
+$backupAge   = $lastBackupAt ? max(0, (int)floor((time() - strtotime($lastBackupAt)) / 3600)) : null;
+$statusColor = $backupProblem ? '#dc2626' : '#16a34a';
+$statusBg    = $backupProblem ? '#fef2f2'  : '#dcfce7';
+?>
+<div class="card" style="margin-bottom:1.5rem;border-left:4px solid <?= $statusColor ?>">
+  <h3 style="margin-bottom:.75rem">🗄️ Backup-Status</h3>
+  <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap">
+    <div style="background:<?= $statusBg ?>;border-radius:8px;padding:.75rem 1.25rem;min-width:140px;text-align:center">
+      <div style="font-size:1.75rem;font-weight:700;color:<?= $statusColor ?>">
+        <?php if ($backupAge === null): ?>
+          —
+        <?php elseif ($backupAge === 0): ?>
+          &lt;1h
+        <?php elseif ($backupAge < 24): ?>
+          <?= $backupAge ?>h
+        <?php else: ?>
+          <?= (int)floor($backupAge / 24) ?>d
+        <?php endif; ?>
+      </div>
+      <div style="font-size:.75rem;color:#6b7280">seit Backup</div>
+    </div>
+    <div style="padding:.25rem 0;font-size:.875rem;display:flex;flex-direction:column;gap:.3rem">
+      <div>
+        <?php if (!$lastBackupAt): ?>
+          <span style="color:#9ca3af">Noch kein Backup erfasst — Cron einrichten</span>
+        <?php elseif (!$lastBackupOk): ?>
+          <span style="color:#dc2626;font-weight:600">❌ Fehlgeschlagen</span>
+        <?php elseif ($backupStale): ?>
+          <span style="color:#dc2626;font-weight:600">⚠️ Veraltet (&gt;24 h)</span>
+        <?php else: ?>
+          <span style="color:#16a34a;font-weight:600">✅ Aktuell</span>
+        <?php endif; ?>
+      </div>
+      <?php if ($lastBackupAt): ?>
+        <div style="color:#6b7280">📅 <?= date('d.m.Y H:i', strtotime($lastBackupAt)) ?> UTC</div>
+      <?php endif; ?>
+      <?php if ($lastBackupSize): ?>
+        <div style="color:#6b7280">📦 <?= htmlspecialchars($lastBackupSize) ?></div>
+      <?php endif; ?>
+      <div style="color:#9ca3af;font-size:.78rem">
+        Cron: täglich 02:30 → <code>bash scripts/backup.sh</code> → healthchecks.io
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Neue EEG anlegen -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">+ Neue EEG anlegen</h3>

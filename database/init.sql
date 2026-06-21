@@ -86,14 +86,17 @@ CREATE TABLE metering_points (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     community_id    UUID NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
     member_id       UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    zaehlpunkt_nr   TEXT NOT NULL,                 -- AT0070000956010000000000000689442
-    meter_code      TEXT,                          -- MeterCode aus EDA-XLSX
+    zaehlpunkt_nr   TEXT NOT NULL,                 -- AT0070000956010000000000000689442 (EDA-Pfad)
+    zaehler_nr      TEXT,                          -- 13-stellige ESP-Zählernummer (/power-MQTT-Pfad)
+    meter_code      TEXT,                          -- MeterCode aus EDA-XLSX (/live-MQTT-Pfad)
     type            TEXT NOT NULL CHECK (type IN ('consumer', 'producer', 'prosumer')),
     active          BOOLEAN DEFAULT true,
     registered_at   DATE,
     created_at      TIMESTAMPTZ DEFAULT now(),
     UNIQUE (community_id, zaehlpunkt_nr)
 );
+
+CREATE INDEX ON metering_points (community_id, zaehler_nr) WHERE zaehler_nr IS NOT NULL;
 
 -- ─────────────────────────────────────────
 -- ZEITREIHENDATEN (TimescaleDB Hypertables)
@@ -251,6 +254,74 @@ CREATE POLICY community_isolation ON billing_runs
     USING (community_id = current_setting('app.community_id', true)::uuid);
 CREATE POLICY community_isolation ON invoices
     USING (community_id = current_setting('app.community_id', true)::uuid);
+CREATE POLICY community_isolation ON invoice_items
+    USING (invoice_id IN (SELECT id FROM invoices WHERE community_id = current_setting('app.community_id', true)::uuid));
+
+-- ─────────────────────────────────────────
+-- POSTFACH: mandanten-isolierte Benachrichtigungen
+-- ─────────────────────────────────────────
+
+CREATE TABLE notifications (
+    id           UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    community_id UUID        REFERENCES communities(id) ON DELETE CASCADE,
+    audience     TEXT        NOT NULL CHECK (audience IN ('platform_admin','manager','member')),
+    member_id    UUID        REFERENCES members(id) ON DELETE CASCADE,
+    type         TEXT        NOT NULL,
+    title        TEXT        NOT NULL,
+    body         TEXT        NOT NULL DEFAULT '',
+    payload      JSONB,
+    is_read      BOOLEAN     NOT NULL DEFAULT false,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    read_at      TIMESTAMPTZ
+);
+
+CREATE INDEX ON notifications (community_id, audience, is_read, created_at DESC);
+CREATE INDEX ON notifications (member_id)    WHERE member_id IS NOT NULL;
+CREATE INDEX ON notifications (community_id) WHERE community_id IS NULL;
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY community_isolation ON notifications
+    USING (community_id = current_setting('app.community_id', true)::uuid);
+
+-- ─────────────────────────────────────────
+-- AUDIT-LOG: append-only Ereignisprotokoll
+-- ─────────────────────────────────────────
+
+CREATE TABLE audit_log (
+    id           UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    community_id UUID,
+    user_id      UUID        REFERENCES users(id) ON DELETE SET NULL,
+    actor_label  TEXT,
+    action       TEXT        NOT NULL,
+    entity_type  TEXT        NOT NULL,
+    entity_id    TEXT,
+    details      JSONB,
+    ip           TEXT
+);
+
+CREATE INDEX ON audit_log (community_id, created_at DESC);
+CREATE INDEX ON audit_log (action, created_at DESC);
+CREATE INDEX ON audit_log (user_id)       WHERE user_id IS NOT NULL;
+CREATE INDEX ON audit_log (community_id)  WHERE community_id IS NULL;
+
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY community_isolation ON audit_log
+    USING (community_id = current_setting('app.community_id', true)::uuid);
+REVOKE UPDATE, DELETE ON audit_log FROM eeg;
+
+-- ─────────────────────────────────────────
+-- PLATTFORM-STATUS (key/value, kein RLS)
+-- ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS system_status (
+    key        TEXT PRIMARY KEY,
+    value      TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE system_status IS
+    'Plattform-weite Key/Value-Statuswerte (Backup-Status u.a.). Kein RLS, kein Mandantenbezug.';
 
 -- ─────────────────────────────────────────
 -- PILOT-DATEN: Strompool Feldkirchen Süd-West

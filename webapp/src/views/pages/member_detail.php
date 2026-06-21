@@ -62,7 +62,8 @@
         <thead>
           <tr>
             <th>Zählpunktnummer (AT...)</th>
-            <th>Zählernummer</th>
+            <th style="font-size:.75rem">EDA-Nr.</th>
+            <th style="font-size:.75rem">ESP-Nr.</th>
             <th>Typ</th>
             <th>Aktionen</th>
           </tr>
@@ -78,9 +79,16 @@
                 <span style="color:#9ca3af;font-size:.8rem">—</span>
               <?php endif; ?>
             </td>
+            <td>
+              <?php if ($mp['zaehler_nr'] ?? null): ?>
+                <code style="font-size:.75rem;color:#1d4ed8"><?= htmlspecialchars($mp['zaehler_nr']) ?></code>
+              <?php else: ?>
+                <span style="color:#9ca3af;font-size:.8rem">—</span>
+              <?php endif; ?>
+            </td>
             <td><?= $mp['type'] === 'consumer' ? '⬇️ Bezug' : '⬆️ Einspeisung' ?></td>
             <td style="white-space:nowrap">
-              <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>')"
+              <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars($mp['zaehler_nr']??'',ENT_QUOTES) ?>')"
                       style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#6b7280">✏️</button>
               <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">
                 <button type="submit" onclick="return confirm('Zählpunkt wirklich deaktivieren?')"
@@ -95,16 +103,21 @@
 
     <!-- Zählpunkt hinzufügen -->
     <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
         <div class="form-group" style="margin-bottom:0">
           <label style="font-size:.8rem">Zählpunktnummer (AT...) <span style="color:#ef4444">*</span></label>
           <input type="text" name="zaehlpunkt_nr" placeholder="AT001000000000000000..." required
                  style="font-family:monospace;font-size:.78rem">
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label style="font-size:.8rem">Zählernummer (13 Stellen)</label>
+          <label style="font-size:.8rem">EDA-Zählernummer</label>
           <input type="text" name="meter_code" placeholder="1234567890123" maxlength="13" pattern="\d{13}"
-                 style="font-family:monospace;font-size:.78rem">
+                 style="font-family:monospace;font-size:.78rem" title="13-stellige Zählernummer aus EDA-XLSX">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:.8rem">Zählernummer (ESP)</label>
+          <input type="text" name="zaehler_nr" placeholder="1234567890123" maxlength="13" pattern="\d{13}"
+                 style="font-family:monospace;font-size:.78rem" title="13-stellige Zählernummer vom ESP32-Gerät (MQTT /power-Topic)">
         </div>
       </div>
       <div style="display:flex;gap:.5rem;align-items:flex-end">
@@ -186,7 +199,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
 <?php endif; ?>
 
 <!-- Edit-Modal -->
-<dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+<dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
   <h3 style="margin-bottom:1rem">Zählpunkt bearbeiten</h3>
   <form method="post" id="edit-mp-form">
     <div class="form-group">
@@ -194,8 +207,14 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
       <input type="text" name="zaehlpunkt_nr" id="edit-mp-znr" required style="font-family:monospace">
     </div>
     <div class="form-group">
-      <label>Zählernummer (13 Stellen)</label>
-      <input type="text" name="meter_code" id="edit-mp-mc" maxlength="13" style="font-family:monospace">
+      <label>EDA-Zählernummer (13 Stellen)</label>
+      <input type="text" name="meter_code" id="edit-mp-mc" maxlength="13" style="font-family:monospace"
+             title="Zählernummer aus EDA-XLSX (MQTT /live-Topic)">
+    </div>
+    <div class="form-group">
+      <label>Zählernummer (ESP, 13 Stellen)</label>
+      <input type="text" name="zaehler_nr" id="edit-mp-zaehler" maxlength="13" style="font-family:monospace"
+             title="13-stellige Zählernummer vom ESP32-Gerät (MQTT /power-Topic)">
     </div>
     <div class="form-group">
       <label>Typ</label>
@@ -212,11 +231,12 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
 </dialog>
 
 <script>
-function openEditMp(id, znr, mc, type) {
+function openEditMp(id, znr, mc, type, zaehlerNr) {
   document.getElementById('edit-mp-form').action = '/portal/members/<?= $member['id'] ?>/metering-points/' + id + '/edit';
   document.getElementById('edit-mp-znr').value = znr;
   document.getElementById('edit-mp-mc').value = mc;
   document.getElementById('edit-mp-type').value = type;
+  document.getElementById('edit-mp-zaehler').value = zaehlerNr || '';
   document.getElementById('edit-mp-dialog').showModal();
 }
 </script>

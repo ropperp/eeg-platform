@@ -13,6 +13,22 @@
   --white: #fff;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+  /* Semantic theme tokens */
+  --sidebar-bg:   var(--white);
+  --sidebar-text: var(--gray-600);
+}
+
+[data-theme="dark"] {
+  --white:    #1e293b;
+  --gray-50:  #0f172a;
+  --gray-100: #1e293b;
+  --gray-200: #334155;
+  --gray-600: #94a3b8;
+  --gray-800: #f1f5f9;
+  --green-light: #14532d;
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  --sidebar-bg:   #0f172a;
+  --sidebar-text: #cbd5e1;
 }
 
 /* ─── Dark Mode ──────────────────────────────────── */
@@ -161,13 +177,14 @@ tr:hover td { background: var(--gray-50); }
 .portal-layout { display: flex; min-height: calc(100vh - 60px); }
 .sidebar {
   width: 220px; flex-shrink: 0;
-  background: var(--white);
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--gray-200);
   padding: 1.5rem 1rem;
   transition: width .2s ease, padding .2s ease;
   overflow: hidden;
 }
-.sidebar.collapsed {
+.sidebar.collapsed,
+.sidebar--collapsed {
   width: 52px;
   padding: 1.5rem .4rem;
 }
@@ -177,18 +194,20 @@ tr:hover td { background: var(--gray-50); }
   white-space: nowrap; overflow: hidden;
   transition: opacity .15s;
 }
-.sidebar.collapsed .sidebar-label { opacity: 0; height: 0; margin: 0; }
+.sidebar.collapsed .sidebar-label,
+.sidebar--collapsed .sidebar-label { opacity: 0; height: 0; margin: 0; }
 .sidebar a {
   display: flex; align-items: center; gap: .6rem;
   padding: .5rem .55rem;
   border-radius: var(--radius);
-  color: var(--gray-600); font-size: .9rem; margin-bottom: .25rem;
+  color: var(--sidebar-text); font-size: .9rem; margin-bottom: .25rem;
   white-space: nowrap;
 }
 .sidebar a:hover, .sidebar a.active { background: var(--green-light); color: var(--green); }
 .sidebar-icon { flex-shrink: 0; font-size: 1.1rem; line-height: 1; }
 .sidebar-text { transition: opacity .15s; }
-.sidebar.collapsed .sidebar-text { opacity: 0; width: 0; overflow: hidden; }
+.sidebar.collapsed .sidebar-text,
+.sidebar--collapsed .sidebar-text { opacity: 0; width: 0; overflow: hidden; }
 .portal-content { flex: 1; padding: 2rem; min-width: 0; }
 
 /* ─── Profil-Dropdown ────────────────────────────── */

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'Router', 'Billing'] as $class) {
+foreach (['DB', 'Auth', 'Router', 'Billing', 'Notify', 'Audit'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 
@@ -98,11 +98,16 @@ $router->get('/api/live/:slug', function ($params) {
 
     $agg = DB::fetchOne(
         "SELECT
-            COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
-            COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
-            COUNT(DISTINCT metering_point_id)       AS active_meters
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+            COALESCE(SUM(latest.power_bezug_w), 0)       AS total_bezug_w,
+            COALESCE(SUM(latest.power_einspeisung_w), 0) AS total_einspeisung_w,
+            COUNT(*) AS active_meters
+         FROM (
+             SELECT DISTINCT ON (COALESCE(znr, metering_point_id::TEXT))
+                    power_bezug_w, power_einspeisung_w
+             FROM esp_measurements
+             WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+             ORDER BY COALESCE(znr, metering_point_id::TEXT), time DESC
+         ) latest",
         [$community['id']]
     );
 
@@ -158,8 +163,10 @@ $router->post('/portal/login', function () {
     $email    = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     if (Auth::login($email, $password)) {
+        Audit::log('login.success', 'user', Auth::userId());
         header('Location: /portal/dashboard');
     } else {
+        Audit::log('login.failed', 'user', null, ['email' => strtolower(trim($email))]);
         $error = 'E-Mail oder Passwort falsch.';
         require ROOT . '/src/views/pages/login.php';
     }
@@ -182,6 +189,33 @@ $router->post('/portal/forgot-password', function () {
     // TODO: Mail via SMTP
     $success = 'Falls die E-Mail existiert, wurde ein Reset-Link versendet.';
     require ROOT . '/src/views/pages/forgot_password.php';
+});
+
+// ─── Portal: Live-API (AJAX) ────────────────────────────
+$router->get('/api/portal/live', function () {
+    Auth::requireLogin();
+    header('Content-Type: application/json');
+    $communityId = Auth::activeCommunityId();
+    if (!$communityId) { http_response_code(403); echo json_encode(['error' => 'Keine Community']); return; }
+    DB::setCommunity($communityId);
+    $live = DB::fetchOne(
+        "SELECT COALESCE(SUM(latest.power_bezug_w), 0)       AS bezug_w,
+                COALESCE(SUM(latest.power_einspeisung_w), 0) AS einsp_w,
+                COUNT(*) AS active_meters
+         FROM (
+             SELECT DISTINCT ON (COALESCE(znr, metering_point_id::TEXT))
+                    power_bezug_w, power_einspeisung_w
+             FROM esp_measurements
+             WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+             ORDER BY COALESCE(znr, metering_point_id::TEXT), time DESC
+         ) latest",
+        [$communityId]
+    );
+    echo json_encode([
+        'bezug_w'       => (int)($live['bezug_w'] ?? 0),
+        'einsp_w'       => (int)($live['einsp_w'] ?? 0),
+        'active_meters' => (int)($live['active_meters'] ?? 0),
+    ]);
 });
 
 // ─── Portal: Dashboard ──────────────────────────────────
@@ -212,8 +246,10 @@ $router->get('/portal/invoices', function () {
     $member = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$userId, $communityId]);
     if (!$member) { http_response_code(404); echo 'Mitglied nicht gefunden'; return; }
     $invoices = DB::fetchAll(
-        'SELECT i.*, br.quartal FROM invoices i JOIN billing_runs br ON br.id = i.billing_run_id
-         WHERE i.member_id = ? ORDER BY i.created_at DESC',
+        'SELECT i.*, br.quartal FROM invoices i
+         JOIN billing_runs br ON br.id = i.billing_run_id
+         WHERE i.member_id = ? AND br.status IN (\'released\', \'done\')
+         ORDER BY i.created_at DESC',
         [$member['id']]
     );
     require ROOT . '/src/views/pages/invoices.php';
@@ -228,31 +264,63 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
                 br.quartal, br.period_from, br.period_to,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
-                tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur
+                tx.tax_model, tx.tax_rate_percent
          FROM invoices i
          JOIN members m ON m.id = i.member_id
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN communities c ON c.id = br.community_id
-         LEFT JOIN tariff_config tc ON tc.community_id = c.id AND tc.valid_from <= br.period_from
-         WHERE i.id = ?
-         ORDER BY tc.valid_from DESC',
+         LEFT JOIN LATERAL (
+             SELECT tax_model, tax_rate_percent FROM tax_config
+             WHERE community_id = c.id AND valid_from <= br.period_from
+             ORDER BY valid_from DESC LIMIT 1
+         ) tx ON true
+         WHERE i.id = ?',
         [$params['id']]
     );
     if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
 
+    // IDOR-Schutz: Mitglieder dürfen nur eigene Rechnungen abrufen
+    if (!Auth::isManager() && !Auth::isPlatformAdmin()) {
+        $myMember = DB::fetchOne(
+            'SELECT id FROM members WHERE user_id = ? AND community_id = ?',
+            [Auth::userId(), $communityId]
+        );
+        if (!$myMember || $myMember['id'] !== $invoice['member_id']) {
+            http_response_code(403); echo 'Zugriff verweigert'; return;
+        }
+    }
+
+    // Gespeichertes PDF ausliefern (unveränderlich nach Freigabe)
+    if (!empty($invoice['pdf_path']) && file_exists($invoice['pdf_path'])) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . addslashes($invoice['rechnungsnummer'] . '.pdf') . '"');
+        header('Content-Length: ' . filesize($invoice['pdf_path']));
+        readfile($invoice['pdf_path']);
+        return;
+    }
+
+    // Fallback: PDF on-the-fly regenerieren (gespeicherte invoice_items als Quelle)
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
     $bezugItem = null; $einspeisungItem = null; $beitragItem = null;
     foreach ($items as $it) {
-        if ($it['type'] === 'bezug')           $bezugItem       = $it;
-        if ($it['type'] === 'einspeisung')     $einspeisungItem = $it;
-        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem    = $it;
+        if ($it['type'] === 'bezug')            $bezugItem        = $it;
+        if ($it['type'] === 'einspeisung')      $einspeisungItem  = $it;
+        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem      = $it;
     }
 
-    // RAW_: LaTeX-Befehle direkt übergeben — service.js darf diese NICHT escapen.
-    // Zeile im Tabellenkontext (5 Spalten, braucht \\):
-    $steuerZeile = '\\multicolumn{5}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
-    // Paragraph am Seitenende:
-    $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+    $netto = (float)$invoice['saldo_eur'];
+    if ($invoice['tax_model'] === 'standard' && (float)($invoice['tax_rate_percent'] ?? 0) > 0) {
+        $steuerBetrag = (int)round($netto * (float)$invoice['tax_rate_percent']);
+        $brutto       = $netto + $steuerBetrag / 100;
+        $rate         = number_format((float)$invoice['tax_rate_percent'], 0, ',', '.');
+        $betragFmt    = number_format($steuerBetrag / 100, 2, ',', '.');
+        $steuerZeile  = 'Umsatzsteuer ' . $rate . '\,\% & & & & \EUR{' . $betragFmt . '} \\\\';
+        $steuerText   = '';
+    } else {
+        $brutto      = $netto;
+        $steuerZeile = '\multicolumn{5}{l}{\footnotesize Gem.~\S{}~6~Abs.~1~Z~27~UStG~wird~keine~Umsatzsteuer~ausgewiesen.} \\\\';
+        $steuerText  = 'Gem.~\S{}~6~Abs.~1~Z~27~UStG~(Kleinunternehmerregelung)~wird~keine~Umsatzsteuer~in~Rechnung~gestellt.';
+    }
 
     streamLatexPdf('rechnung', [
         'EEG_NAME'              => $invoice['eeg_name'],
@@ -264,15 +332,15 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'RECHNUNGSNUMMER'       => $invoice['rechnungsnummer'],
         'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
         'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
-        'BEZUG_KWH'             => $bezugItem ? number_format((float)$bezugItem['kwh'], 2, ',', '.') : '0,00',
+        'BEZUG_KWH'             => $bezugItem ? number_format((float)$bezugItem['kwh'], 3, ',', '.') : '0,000',
         'BEZUG_TARIF'           => $bezugItem ? number_format((float)$bezugItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
         'BEZUG_BETRAG'          => $bezugItem ? number_format((float)$bezugItem['amount_eur'], 2, ',', '.') : '0,00',
-        'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format((float)$einspeisungItem['kwh'], 2, ',', '.') : '0,00',
+        'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format((float)$einspeisungItem['kwh'], 3, ',', '.') : '0,000',
         'EINSPEISUNG_TARIF'     => $einspeisungItem ? number_format((float)$einspeisungItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
         'EINSPEISUNG_BETRAG'    => $einspeisungItem ? number_format(abs((float)$einspeisungItem['amount_eur']), 2, ',', '.') : '0,00',
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
-        'SUMME_NETTO'           => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
-        'SUMME_BRUTTO'          => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
+        'SUMME_NETTO'           => number_format($netto, 2, ',', '.'),
+        'SUMME_BRUTTO'          => number_format($brutto, 2, ',', '.'),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
@@ -362,6 +430,11 @@ $router->post('/portal/members', function () {
         [$communityId, $user['id'], 'member']
     );
 
+    $newMember = DB::fetchOne('SELECT id FROM members WHERE email = ? AND community_id = ? ORDER BY created_at DESC LIMIT 1', [$email, $communityId]);
+    Audit::log('member.create', 'member', $newMember['id'] ?? null,
+        ['name' => trim($_POST['first_name']) . ' ' . trim($_POST['last_name'])],
+        $communityId);
+
     // Temp-Passwort anzeigen falls neuer User
     if (isset($tempPw)) {
         $successTempPw = $tempPw;
@@ -416,6 +489,9 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
+    Audit::log('member.update', 'member', $params['id'],
+        ['name' => trim($_POST['first_name']) . ' ' . trim($_POST['last_name'])],
+        $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -437,15 +513,20 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); return; }
 
-    $znr = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $znr       = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $zaehlerNr = trim($_POST['zaehler_nr'] ?? '') ?: null;
     if (!$znr) { header('Location: /portal/members/' . $params['id'] . '?error=znr'); exit; }
 
     DB::execute(
-        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, meter_code, registered_at)
-         VALUES (?, ?, ?, ?, ?, CURRENT_DATE)
+        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, zaehler_nr, type, meter_code, registered_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE)
          ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
-        [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
+        [$communityId, $member['id'], $znr, $zaehlerNr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
     );
+    $newMp = DB::fetchOne('SELECT id FROM metering_points WHERE community_id = ? AND zaehlpunkt_nr = ?', [$communityId, $znr]);
+    Audit::log('metering_point.create', 'metering_point', $newMp['id'] ?? null,
+        ['zaehlpunkt_nr' => $znr, 'zaehler_nr' => $zaehlerNr, 'type' => $_POST['type'] ?? 'consumer'],
+        $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -463,8 +544,8 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     $communityId = $member['community_id'];
     DB::setCommunity($communityId);
 
-    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
-    if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Bezugs-Zählpunkt (Typ: Bezug) anlegen.'; return; }
+    $mps = DB::fetchAll("SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type IN ('consumer','prosumer') ORDER BY registered_at", [$params['id']]);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Bezug oder Prosumer) anlegen.'; return; }
 
     $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 
@@ -525,8 +606,8 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     $communityId = $member['community_id'];
     DB::setCommunity($communityId);
 
-    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
-    if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung) anlegen.'; return; }
+    $mps = DB::fetchAll("SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type IN ('producer','prosumer') ORDER BY registered_at", [$params['id']]);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung oder Prosumer) anlegen.'; return; }
 
     $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 
@@ -594,6 +675,11 @@ $router->post('/portal/members/:id/contract-status', function ($params) {
     }
     $col = 'contract_' . $type . '_status';
     DB::execute("UPDATE members SET {$col} = ? WHERE id = ? AND community_id = ?", [$status, $params['id'], $communityId]);
+    if ($status === 'signed') {
+        Audit::log('contract.sign', 'member', $params['id'],
+            ['contract_type' => $type],
+            $communityId);
+    }
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -607,16 +693,22 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
     }
     $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
+    $znrNew       = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $zaehlerNrNew = trim($_POST['zaehler_nr'] ?? '') ?: null;
     DB::execute(
-        'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
+        'UPDATE metering_points SET zaehlpunkt_nr=?, zaehler_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
         [
-            strtoupper(trim($_POST['zaehlpunkt_nr'] ?? '')),
+            $znrNew,
+            $zaehlerNrNew,
             trim($_POST['meter_code'] ?? '') ?: null,
             $_POST['type'] ?? 'consumer',
             $params['mpid'],
             $communityId,
         ]
     );
+    Audit::log('metering_point.update', 'metering_point', $params['mpid'],
+        ['zaehlpunkt_nr' => $znrNew, 'zaehler_nr' => $zaehlerNrNew, 'type' => $_POST['type'] ?? 'consumer'],
+        $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -631,6 +723,7 @@ $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($par
     $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
     DB::execute('UPDATE metering_points SET active=false WHERE id=? AND community_id=?', [$params['mpid'], $communityId]);
+    Audit::log('metering_point.deactivate', 'metering_point', $params['mpid'], null, $communityId);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -700,11 +793,66 @@ $router->get('/portal/billing', function () {
     require ROOT . '/src/views/pages/billing.php';
 });
 
+$router->post('/portal/billing', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    $periodFrom  = trim($_POST['period_from'] ?? '');
+    $periodTo    = trim($_POST['period_to']   ?? '');
+    try {
+        if (!$periodFrom || !$periodTo) throw new RuntimeException('Bitte Von- und Bis-Datum angeben');
+        if ($periodFrom >= $periodTo) throw new RuntimeException('Von-Datum muss vor Bis-Datum liegen');
+        $run = Billing::getOrCreateRun($communityId, $periodFrom, $periodTo);
+        Audit::log('billing.create', 'billing_run', $run['id'],
+            ['quartal' => $run['quartal'], 'period_from' => $periodFrom, 'period_to' => $periodTo],
+            $communityId);
+        header('Location: /portal/billing');
+    } catch (Throwable $e) {
+        $error       = $e->getMessage();
+        DB::setCommunity($communityId);
+        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
+        require ROOT . '/src/views/pages/billing.php';
+    }
+    exit;
+});
+
+$router->post('/portal/billing/compute', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $runId = $_POST['billing_run_id'] ?? '';
+    try {
+        $warnings = Billing::compute($runId);
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$runId]);
+        Audit::log('billing.compute', 'billing_run', $runId,
+            ['quartal' => $run['quartal'] ?? null, 'warnings' => count($warnings)],
+            $run['community_id'] ?? Auth::activeCommunityId());
+        $success  = 'Berechnung abgeschlossen. Status: bereit zur Freigabe.';
+        $communityId = $run['community_id'] ?? Auth::activeCommunityId();
+        DB::setCommunity($communityId);
+        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
+        require ROOT . '/src/views/pages/billing.php';
+    } catch (Throwable $e) {
+        $error       = $e->getMessage();
+        $communityId = Auth::activeCommunityId();
+        DB::setCommunity($communityId);
+        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
+        require ROOT . '/src/views/pages/billing.php';
+    }
+    exit;
+});
+
 $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
     try {
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$runId]);
         Billing::release($runId, Auth::userId());
+        Audit::log('billing.release', 'billing_run', $runId,
+            ['quartal' => $run['quartal'] ?? null],
+            $run['community_id'] ?? Auth::activeCommunityId());
+        Notify::create('manager', 'billing.released',
+            'Abrechnung ' . ($run['quartal'] ?? '') . ' freigegeben',
+            'Die Abrechnung wurde erfolgreich freigegeben und die Rechnungen erstellt.',
+            ['billing_run_id' => $runId],
+            $run['community_id'] ?? Auth::activeCommunityId());
         header('Location: /portal/billing?success=1');
     } catch (Throwable $e) {
         $error = $e->getMessage();
@@ -738,22 +886,53 @@ $router->post('/portal/eda/upload', function () {
         return;
     }
 
-    $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . $origName;
-    move_uploaded_file($_FILES['xlsx']['tmp_name'], $savePath);
+    $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $origName);
+    if (!move_uploaded_file($_FILES['xlsx']['tmp_name'], $savePath)) {
+        $error = 'Datei konnte nicht gespeichert werden (Verzeichnis beschreibbar?)';
+        require ROOT . '/src/views/pages/eda_upload.php';
+        return;
+    }
 
-    $communitySlug = Auth::activeCommunitySlug();
-    $userId = Auth::userId();
+    $communitySlug = Auth::activeCommunitySlug() ?? '';
+    $userId        = Auth::userId() ?? '';
+
+    if ($communitySlug === '') {
+        $error = 'Keine aktive Gemeinschaft — bitte Seite neu laden oder erneut anmelden.';
+        require ROOT . '/src/views/pages/eda_upload.php';
+        return;
+    }
+
+    // Env-Vars explizit übergeben, da PHP-FPM die Docker-Umgebung nicht immer erbt
+    $env = [
+        'PATH'        => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        'HOME'        => '/var/www',
+        'DB_HOST'     => getenv('DB_HOST')     ?: 'timescaledb',
+        'DB_PORT'     => getenv('DB_PORT')     ?: '5432',
+        'DB_NAME'     => getenv('DB_NAME')     ?: 'eeg_platform',
+        'DB_USER'     => getenv('DB_USER')     ?: 'eeg',
+        'DB_PASSWORD' => getenv('DB_PASSWORD') ?: '',
+    ];
 
     $cmd = sprintf(
-        'python3 /var/www/html/eda-parser/parser.py --file %s --community %s --user-id %s 2>&1',
+        'python3 /var/www/html/eda-parser/parser.py --file %s --community %s --user-id %s',
         escapeshellarg($savePath),
         escapeshellarg($communitySlug),
         escapeshellarg($userId)
     );
-    $output = shell_exec($cmd);
+
+    $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $proc   = proc_open($cmd, $descriptors, $pipes, null, $env);
+    fclose($pipes[0]);
+    $output   = stream_get_contents($pipes[1]);
+    $stderr   = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($proc);
+
     $result = json_decode($output, true);
     if ($result === null) {
-        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($output ?? 'Keine Ausgabe', 0, 500));
+        $raw   = trim($output ?: $stderr ?: 'Keine Ausgabe');
+        $error = 'Parser-Fehler (Exit ' . $exitCode . '): ' . htmlspecialchars(substr($raw, 0, 500));
     }
 
     require ROOT . '/src/views/pages/eda_upload.php';
@@ -794,19 +973,145 @@ $router->post('/portal/settings/tariff', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    $bezug      = (float)str_replace(',', '.', $_POST['bezug_ct_kwh'] ?? '0');
+    $einspeis   = (float)str_replace(',', '.', $_POST['einspeisung_ct_kwh'] ?? '0');
+    $beitrag    = (float)str_replace(',', '.', $_POST['mitgliedsbeitrag_eur'] ?? '0');
+    $validFrom  = $_POST['valid_from'] ?? date('Y-m-d');
     DB::execute(
         'INSERT INTO tariff_config (community_id, valid_from, bezug_ct_kwh, einspeisung_ct_kwh, mitgliedsbeitrag_eur)
          VALUES (?, ?, ?, ?, ?)',
-        [
-            $communityId,
-            $_POST['valid_from'] ?? date('Y-m-d'),
-            (float)str_replace(',', '.', $_POST['bezug_ct_kwh'] ?? '0'),
-            (float)str_replace(',', '.', $_POST['einspeisung_ct_kwh'] ?? '0'),
-            (float)str_replace(',', '.', $_POST['mitgliedsbeitrag_eur'] ?? '0'),
-        ]
+        [$communityId, $validFrom, $bezug, $einspeis, $beitrag]
     );
+    Audit::log('tariff.update', 'tariff_config', null,
+        ['valid_from' => $validFrom, 'bezug_ct_kwh' => $bezug, 'einspeisung_ct_kwh' => $einspeis, 'mitgliedsbeitrag_eur' => $beitrag],
+        $communityId);
     header('Location: /portal/settings?success=1');
     exit;
+});
+
+$router->post('/portal/settings/tax', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $taxModel   = in_array($_POST['tax_model'] ?? '', ['kleinunternehmer', 'standard']) ? $_POST['tax_model'] : 'kleinunternehmer';
+    $taxRate    = $taxModel === 'standard' ? (float)str_replace(',', '.', $_POST['tax_rate_percent'] ?? '20') : null;
+    $uid        = trim($_POST['uid_number'] ?? '') ?: null;
+    $validFrom  = $_POST['valid_from'] ?? date('Y-m-d');
+    DB::execute(
+        'INSERT INTO tax_config (community_id, valid_from, tax_model, tax_rate_percent, uid_number)
+         VALUES (?, ?, ?, ?, ?)',
+        [$communityId, $validFrom, $taxModel, $taxRate, $uid]
+    );
+    Audit::log('tax.update', 'tax_config', null,
+        ['valid_from' => $validFrom, 'tax_model' => $taxModel, 'tax_rate_percent' => $taxRate],
+        $communityId);
+    header('Location: /portal/settings?success=1');
+    exit;
+});
+
+// ─── Portal: Postfach ───────────────────────────────────
+$router->get('/portal/postfach', function () {
+    Auth::requireLogin();
+    $cid = Auth::activeCommunityId();
+
+    if (Auth::isPlatformAdmin()) {
+        $notifications = DB::fetchAll(
+            "SELECT * FROM notifications WHERE audience = 'platform_admin' ORDER BY is_read ASC, created_at DESC LIMIT 100"
+        );
+    } elseif (Auth::isManager()) {
+        if ($cid) DB::setCommunity($cid);
+        $notifications = DB::fetchAll(
+            "SELECT * FROM notifications WHERE audience = 'manager' AND community_id = ? ORDER BY is_read ASC, created_at DESC LIMIT 100",
+            [$cid]
+        );
+    } else {
+        if ($cid) DB::setCommunity($cid);
+        $uid = Auth::userId();
+        $memberRec = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$uid, $cid]);
+        $memberId = $memberRec['id'] ?? null;
+        $notifications = $memberId ? DB::fetchAll(
+            "SELECT * FROM notifications WHERE audience = 'member' AND community_id = ? AND member_id = ? ORDER BY is_read ASC, created_at DESC LIMIT 100",
+            [$cid, $memberId]
+        ) : [];
+    }
+
+    $unreadCount = count(array_filter($notifications, fn($n) => !$n['is_read']));
+    require ROOT . '/src/views/pages/postfach.php';
+});
+
+$router->post('/portal/postfach/mark-read', function () {
+    Auth::requireLogin();
+    $id  = $_POST['id'] ?? '';
+    $cid = Auth::activeCommunityId();
+    if ($cid) DB::setCommunity($cid);
+
+    if (Auth::isPlatformAdmin()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE id = ? AND audience = 'platform_admin'", [$id]);
+    } elseif (Auth::isManager()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE id = ? AND community_id = ? AND audience = 'manager'", [$id, $cid]);
+    } else {
+        $uid = Auth::userId();
+        $memberRec = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$uid, $cid]);
+        if ($memberRec) {
+            DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE id = ? AND community_id = ? AND member_id = ? AND audience = 'member'", [$id, $cid, $memberRec['id']]);
+        }
+    }
+    header('Location: /portal/postfach');
+    exit;
+});
+
+$router->post('/portal/postfach/mark-all-read', function () {
+    Auth::requireLogin();
+    $cid = Auth::activeCommunityId();
+    if ($cid) DB::setCommunity($cid);
+
+    if (Auth::isPlatformAdmin()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE audience = 'platform_admin' AND is_read = false");
+    } elseif (Auth::isManager()) {
+        DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE community_id = ? AND audience = 'manager' AND is_read = false", [$cid]);
+    } else {
+        $uid = Auth::userId();
+        $memberRec = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$uid, $cid]);
+        if ($memberRec) {
+            DB::execute("UPDATE notifications SET is_read = true, read_at = now() WHERE community_id = ? AND member_id = ? AND audience = 'member' AND is_read = false", [$cid, $memberRec['id']]);
+        }
+    }
+    header('Location: /portal/postfach');
+    exit;
+});
+
+// ─── Portal: Audit-Log (Manager — nur eigene Community) ─
+$router->get('/portal/audit', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $perPage = 50;
+    $currentPage = max(1, (int)($_GET['page'] ?? 1));
+    $offset = ($currentPage - 1) * $perPage;
+
+    $where  = ['a.community_id = ?'];
+    $params = [$communityId];
+
+    if (!empty($_GET['q'])) {
+        $where[]  = 'a.action ILIKE ?';
+        $params[] = '%' . $_GET['q'] . '%';
+    }
+    if (!empty($_GET['from'])) { $where[] = 'a.created_at >= ?'; $params[] = $_GET['from']; }
+    if (!empty($_GET['to']))   { $where[] = 'a.created_at < (?::date + INTERVAL \'1 day\')'; $params[] = $_GET['to']; }
+
+    $sql = 'FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE ' . implode(' AND ', $where);
+
+    $total      = (int)(DB::fetchOne("SELECT COUNT(*) AS cnt $sql", $params)['cnt'] ?? 0);
+    $totalPages = (int)ceil($total / $perPage);
+
+    $entries = DB::fetchAll(
+        "SELECT a.*, u.first_name || ' ' || u.last_name AS user_name, u.email AS user_email $sql ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset",
+        $params
+    );
+
+    $isAdmin = false;
+    require ROOT . '/src/views/pages/audit.php';
 });
 
 // ─── Admin-Bereich ──────────────────────────────────────
@@ -820,6 +1125,28 @@ $router->get('/admin', function () {
     $roleMap = [];
     foreach ($allRoles as $r) { $roleMap[$r['user_id']][] = $r; }
     $users = array_map(fn($u) => array_merge($u, ['roles' => $roleMap[$u['id']] ?? []]), $rawUsers);
+
+    // ── Backup-Status aus system_status ──────────────────────────────────────
+    $backupRow = [];
+    try {
+        $rows = DB::fetchAll("SELECT key, value, updated_at FROM system_status WHERE key LIKE 'last_backup_%'");
+        foreach ($rows as $r) { $backupRow[$r['key']] = $r; }
+    } catch (Throwable) {}
+    $lastBackupAt   = $backupRow['last_backup_at']['value']   ?? null;
+    $lastBackupOk   = ($backupRow['last_backup_ok']['value']  ?? 'false') === 'true';
+    $lastBackupSize = $backupRow['last_backup_size']['value'] ?? null;
+    $backupStale    = !$lastBackupAt || strtotime($lastBackupAt) < time() - 86400;
+    $backupProblem  = $backupStale || !$lastBackupOk;
+
+    // Postfach-Warnung max. 1x/Tag wenn Backup fehlt oder fehlgeschlagen
+    if ($backupProblem && !Notify::existsRecent('backup_failed', null, 'backup_failed', 24)) {
+        $msg = $backupStale
+            ? 'Kein Backup in den letzten 24 Stunden — bitte Cron-Job prüfen.'
+            : 'Letztes Backup fehlgeschlagen (last_backup_ok = false) — bitte Server-Logs prüfen.';
+        Notify::create('platform_admin', 'backup_failed', '⚠️ Backup-Warnung', $msg,
+            ['dedup_key' => 'backup_failed', 'last_backup_at' => $lastBackupAt]);
+    }
+
     require ROOT . '/src/views/pages/admin.php';
 });
 
@@ -875,6 +1202,42 @@ $router->post('/admin/users/:id/roles/delete', function ($params) {
     DB::execute('DELETE FROM user_roles WHERE id = ?', [$_POST['role_id']]);
     header('Location: /admin/users/' . $params['id'] . '?success=1');
     exit;
+});
+
+$router->get('/admin/audit', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+
+    $perPage = 50;
+    $currentPage = max(1, (int)($_GET['page'] ?? 1));
+    $offset = ($currentPage - 1) * $perPage;
+
+    $where  = ['1=1'];
+    $params = [];
+
+    if (!empty($_GET['q'])) {
+        $where[]  = 'a.action ILIKE ?';
+        $params[] = '%' . $_GET['q'] . '%';
+    }
+    if (!empty($_GET['from'])) { $where[] = 'a.created_at >= ?'; $params[] = $_GET['from']; }
+    if (!empty($_GET['to']))   { $where[] = 'a.created_at < (?::date + INTERVAL \'1 day\')'; $params[] = $_GET['to']; }
+
+    $sql = 'FROM audit_log a
+            LEFT JOIN users u ON u.id = a.user_id
+            LEFT JOIN communities c ON c.id = a.community_id
+            WHERE ' . implode(' AND ', $where);
+
+    $total      = (int)(DB::fetchOne("SELECT COUNT(*) AS cnt $sql", $params)['cnt'] ?? 0);
+    $totalPages = (int)ceil($total / $perPage);
+
+    $entries = DB::fetchAll(
+        "SELECT a.*, u.first_name || ' ' || u.last_name AS user_name, u.email AS user_email, c.name AS community_name
+         $sql ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset",
+        $params
+    );
+
+    $isAdmin = true;
+    require ROOT . '/src/views/pages/audit.php';
 });
 
 $router->post('/admin/communities/:id', function ($params) {

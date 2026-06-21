@@ -45,6 +45,73 @@ ls -lh backups/
 
 ---
 
+## Backup-Monitoring
+
+Zwei unabhängige Ebenen überwachen, ob Backups pünktlich und erfolgreich laufen.
+
+### Ebene 1 — In-App-Status (Admin-Dashboard)
+
+`scripts/backup.sh` schreibt nach jedem Lauf drei Schlüssel in die Tabelle `system_status`:
+
+| Key | Inhalt |
+|-----|--------|
+| `last_backup_at` | ISO-8601 Zeitstempel des letzten erfolgreichen Dumps (UTC) |
+| `last_backup_size` | Dateigröße (z. B. `4,2M`) |
+| `last_backup_ok` | `true` / `false` |
+
+Die Admin-Seite (`/admin`) liest diese Werte beim Laden aus und zeigt eine farbige Statusbox:
+
+- **Grün** — letztes Backup jünger als 24 Stunden und `last_backup_ok = true`
+- **Rot** — Backup älter als 24 Stunden **oder** `last_backup_ok = false`
+
+Zusätzlich erzeugt der Admin-Route-Handler beim Laden automatisch eine Postfach-Benachrichtigung (`audience = platform_admin`, `type = backup_failed`), wenn ein Problem vorliegt — maximal einmal pro 24 Stunden (Dedup-Check).
+
+**Migration auf bestehender Instanz** (falls die Tabelle noch fehlt):
+
+```bash
+docker compose exec -T timescaledb \
+  psql -U eeg -d eeg_platform \
+  < database/migrate_20260621.sql
+```
+
+### Ebene 2 — Externer Dead-Man-Switch (healthchecks.io)
+
+Weil ein stiller Serverausfall auch die In-App-Anzeige zum Schweigen bringt, wird zusätzlich ein serverunabhängiger Dienst eingesetzt.
+
+#### Einrichtung (einmalig, ~5 Minuten)
+
+1. Kostenlosen Account auf **[healthchecks.io](https://healthchecks.io)** anlegen.
+2. Neuen Check erstellen:
+   - **Name**: `EEG Backup Raspi`
+   - **Period**: `1 day`
+   - **Grace time**: `1 hour`
+3. Die generierte **Ping-URL** kopieren (sieht aus wie `https://hc-ping.com/xxxxxxxx-xxxx-...`).
+4. URL in `.env` auf dem Server eintragen (niemals committen!):
+
+```bash
+# .env (auf dem Server, NICHT in Git)
+CHECK_URL=https://hc-ping.com/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+#### Funktionsweise
+
+- `backup.sh` pingt `$CHECK_URL` nach jedem **erfolgreichen** Backup.
+- Bei einem **Fehler** pingt das Skript `$CHECK_URL/fail` — healthchecks.io meldet das sofort.
+- Bleibt der Ping **länger als 25 Stunden aus** (Period + Grace), schickt healthchecks.io eine E-Mail an die hinterlegte Adresse.
+- So wird auch ein stiller Cron-Ausfall, ein Raspi-Absturz oder ein Docker-Fehler erkannt.
+
+#### Manueller Test
+
+```bash
+# Erfolgreichen Ping simulieren
+curl -fsS "$CHECK_URL"
+
+# Fehler-Ping simulieren
+curl -fsS "${CHECK_URL}/fail"
+```
+
+---
+
 ## Externe Kopie (NAS oder Hetzner Storage Box)
 
 Damit ein Raspi-Ausfall keine Daten kostet, Dumps zusätzlich extern kopieren.
