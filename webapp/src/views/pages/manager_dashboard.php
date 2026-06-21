@@ -11,11 +11,19 @@ $mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE commu
 $lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = ? ORDER BY imported_at DESC LIMIT 1', [$communityId]);
 $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? AND status IN ('pending','ready') ORDER BY quartal DESC LIMIT 1", [$communityId]);
 
-// Community-Gesamtleistung live
+// Letzter Messwert pro physischem Zähler (DISTINCT ON znr verhindert Doppelzählung
+// bei zwei AT-Zählpunkten desselben Geräts und liefert Momentanwert statt 2-Min-Summe)
 $live = DB::fetchOne(
-    "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
-            COUNT(DISTINCT metering_point_id) AS active_meters
-     FROM esp_measurements WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+    "SELECT COALESCE(SUM(latest.power_bezug_w), 0)       AS bezug_w,
+            COALESCE(SUM(latest.power_einspeisung_w), 0) AS einsp_w,
+            COUNT(*) AS active_meters
+     FROM (
+         SELECT DISTINCT ON (COALESCE(znr, metering_point_id::TEXT))
+                power_bezug_w, power_einspeisung_w
+         FROM esp_measurements
+         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+         ORDER BY COALESCE(znr, metering_point_id::TEXT), time DESC
+     ) latest",
     [$communityId]
 );
 

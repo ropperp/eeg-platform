@@ -145,7 +145,7 @@ def get_mp_by_zaehler_nr(community_id: str, zaehler_nr: str) -> str | None:
     try:
         row = _db_select_one(
             conn,
-            "SELECT id FROM metering_points WHERE community_id = %s AND zaehler_nr = %s AND active = true",
+            "SELECT id FROM metering_points WHERE community_id = %s AND zaehler_nr = %s AND active = true ORDER BY type LIMIT 1",
             (community_id, zaehler_nr),
         )
         if row:

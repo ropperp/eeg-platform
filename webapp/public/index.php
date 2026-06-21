@@ -94,11 +94,16 @@ $router->get('/api/live/:slug', function ($params) {
 
     $agg = DB::fetchOne(
         "SELECT
-            COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
-            COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
-            COUNT(DISTINCT metering_point_id)       AS active_meters
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+            COALESCE(SUM(latest.power_bezug_w), 0)       AS total_bezug_w,
+            COALESCE(SUM(latest.power_einspeisung_w), 0) AS total_einspeisung_w,
+            COUNT(*) AS active_meters
+         FROM (
+             SELECT DISTINCT ON (COALESCE(znr, metering_point_id::TEXT))
+                    power_bezug_w, power_einspeisung_w
+             FROM esp_measurements
+             WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+             ORDER BY COALESCE(znr, metering_point_id::TEXT), time DESC
+         ) latest",
         [$community['id']]
     );
 
@@ -190,11 +195,16 @@ $router->get('/api/portal/live', function () {
     if (!$communityId) { http_response_code(403); echo json_encode(['error' => 'Keine Community']); return; }
     DB::setCommunity($communityId);
     $live = DB::fetchOne(
-        "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w,
-                COALESCE(SUM(power_bezug_w),0)       AS bezug_w,
-                COUNT(DISTINCT metering_point_id)     AS active_meters
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+        "SELECT COALESCE(SUM(latest.power_bezug_w), 0)       AS bezug_w,
+                COALESCE(SUM(latest.power_einspeisung_w), 0) AS einsp_w,
+                COUNT(*) AS active_meters
+         FROM (
+             SELECT DISTINCT ON (COALESCE(znr, metering_point_id::TEXT))
+                    power_bezug_w, power_einspeisung_w
+             FROM esp_measurements
+             WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+             ORDER BY COALESCE(znr, metering_point_id::TEXT), time DESC
+         ) latest",
         [$communityId]
     );
     echo json_encode([
