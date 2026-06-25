@@ -28,14 +28,12 @@ accessLog:
 
 entryPoints:
   web:
-    address: ":8000"
+    address: ":80"
     proxyProtocol:
       trustedIPs:
-        - "NGINX_IP"          # ← ersetzen, z. B. 172.19.0.1 oder 192.168.x.x
-        - "127.0.0.1/32"      # Fallback falls nginx per loopback verbindet
-        - "172.16.0.0/12"     # gesamter Docker-Subnetz-Bereich
-        - "10.0.0.0/8"
-        - "192.168.0.0/16"
+        - "10.0.0.0/8"        # nginx-Proxy liegt im selben /24-Netz
+        - "127.0.0.1/32"
+        - "172.16.0.0/12"     # Docker-interne Netze
     # HTTP → HTTPS Weiterleitung (greift NICHT für ACME-Challenge,
     # Traefik schützt /.well-known/acme-challenge/ intern davor)
     http:
@@ -46,14 +44,12 @@ entryPoints:
           permanent: true
 
   websecure:
-    address: ":8443"
+    address: ":443"
     proxyProtocol:
       trustedIPs:
-        - "NGINX_IP"          # ← gleiche IP wie oben eintragen
+        - "10.0.0.0/8"        # nginx-Proxy liegt im selben /24-Netz
         - "127.0.0.1/32"
         - "172.16.0.0/12"
-        - "10.0.0.0/8"
-        - "192.168.0.0/16"
 
 # ─── Zertifikate (Let's Encrypt via HTTP-01) ────────────────
 # HTTP-01 funktioniert, weil nginx Port 80 an Traefik weiterleitet.

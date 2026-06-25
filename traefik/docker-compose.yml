@@ -11,9 +11,9 @@ services:
     restart: unless-stopped
 
     ports:
-      # nginx leitet 80 → 8000 und 443 → 8443 per proxy_protocol weiter
-      - "8000:8000"    # Entrypoint "web"  (HTTP + ACME-Challenge)
-      - "8443:8443"    # Entrypoint "websecure" (HTTPS)
+      # nginx (anderer Host) leitet 80→10.0.0.250:80 und 443→10.0.0.250:443
+      - "80:80"      # Entrypoint "web"  (HTTP + ACME-Challenge)
+      - "443:443"    # Entrypoint "websecure" (HTTPS)
 
     environment:
       # Wird für das Dashboard-BasicAuth-Middleware genutzt (aus .env)
