@@ -48,10 +48,8 @@ DB_PASSWORD=HIER_SICHERES_PASSWORT
 DB_NAME=eeg_platform
 
 # Domain (ohne https://, ohne Schrägstrich)
-DOMAIN=eegflow.at
-
-# E-Mail für Let's Encrypt-Zertifikat
-ACME_EMAIL=admin@eegflow.at
+# Wichtig: Muss genau der Hostname sein, den Traefik als Host-Header bekommt
+DOMAIN=stromfueralle.at
 
 # Zufälliger 64-Zeichen-String (Session-Verschlüsselung)
 # Generieren: openssl rand -hex 32
@@ -68,6 +66,7 @@ SMTP_PASSWORD=BREVO_SMTP_PASSWORT
 ```
 
 > **Wichtig:** `.env` niemals in Git committen — steht bereits in `.gitignore`.
+> **Kein `ACME_EMAIL` nötig** — SSL wird vom vorgelagerten nginx-Proxy (10.0.0.144) erledigt, nicht von Traefik.
 
 ### 3. Datenpersistenz vorbereiten (empfohlen)
 
@@ -81,18 +80,31 @@ sudo chmod 755 /opt/eeg
 
 ### 4. Container starten
 
-**Lokale Entwicklung** (kein Traefik, kein SSL, webapp direkt auf Port 80):
+**Produktion** (Traefik auf Port 80, SSL vom nginx-Proxy davor):
 
 ```bash
 docker compose up -d
 ```
 
-**Produktion** (mit Traefik + Let's Encrypt — Domain muss bereits auf die IP zeigen):
+**Lokale Entwicklung** (webapp direkt auf Port 80, kein Traefik):
 
-```bash
-# docker-compose.override.yml löschen/umbenennen, dann:
-docker compose --profile production up -d
+Datei `docker-compose.override.yml` im Projektverzeichnis anlegen:
+
+```yaml
+services:
+  traefik:
+    profiles:
+      - production
+  webapp:
+    ports:
+      - "80:80"
+    labels:
+      - "traefik.enable=false"
 ```
+
+Dann normal `docker compose up -d` — Traefik startet nicht, webapp ist direkt auf Port 80 erreichbar.
+
+> **Achtung Produktion:** Diese Override-Datei darf auf dem Produktivserver **nicht** existieren, sonst blockiert sie Port 80 und deaktiviert Traefik-Routing.
 
 ### 5. Erstes Admin-Passwort setzen
 
