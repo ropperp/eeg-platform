@@ -36,7 +36,7 @@ services:
       - /opt/traefik/logs:/var/log/traefik
 
     networks:
-      - eeg-platform    # bestehendes Netzwerk, in dem webapp läuft
+      - eeg-platform_eeg-net    # bestehendes Netzwerk, in dem webapp läuft
 
     labels:
       - "traefik.enable=true"
@@ -56,5 +56,5 @@ services:
       - "traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
 
 networks:
-  eeg-platform:
+  eeg-platform_eeg-net:
     external: true    # bestehendes Netzwerk — Traefik tritt bei, erstellt es nicht

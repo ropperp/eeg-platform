@@ -71,5 +71,5 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false               # Container müssen opt-in via Label
-    network: eeg-platform                 # Standard-Netzwerk für Routen
+    network: eeg-platform_eeg-net                 # Standard-Netzwerk für Routen
     watch: true                           # Labels live beobachten (kein Restart nötig)
