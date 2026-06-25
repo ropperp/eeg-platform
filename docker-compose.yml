@@ -4,7 +4,7 @@ services:
   # Reverse Proxy + SSL (Let's Encrypt)
   # ─────────────────────────────────────────
   traefik:
-    image: traefik:v3.1
+    image: traefik:latest
     container_name: traefik
     restart: always
     command:
