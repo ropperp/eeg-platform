@@ -1,0 +1,75 @@
+# ============================================================
+# Traefik v3 — Statische Konfiguration
+# Datei auf dem Host ablegen: /opt/traefik/traefik.yml
+# ============================================================
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# ─── API & Dashboard ────────────────────────────────────────
+api:
+  dashboard: true   # UI unter traefik.stromfueralle.at
+  insecure: false   # Dashboard NIE ohne Auth/TLS offen lassen
+
+# ─── Logging ────────────────────────────────────────────────
+log:
+  level: INFO                              # DEBUG nur zur Fehlersuche
+  filePath: /var/log/traefik/traefik.log
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  bufferingSize: 100                       # Puffer vor Write, spart I/O
+
+# ─── Entrypoints ────────────────────────────────────────────
+# WICHTIG: nginx nimmt 80/443 auf dem Host; Traefik lauscht auf
+# 8000/8443 (gemappte Ports im docker-compose). nginx leitet per
+# proxy_protocol weiter – deshalb muss Traefik der nginx-IP vertrauen.
+
+entryPoints:
+  web:
+    address: ":8000"
+    proxyProtocol:
+      trustedIPs:
+        - "NGINX_IP"          # ← ersetzen, z. B. 172.19.0.1 oder 192.168.x.x
+        - "127.0.0.1/32"      # Fallback falls nginx per loopback verbindet
+        - "172.16.0.0/12"     # gesamter Docker-Subnetz-Bereich
+        - "10.0.0.0/8"
+        - "192.168.0.0/16"
+    # HTTP → HTTPS Weiterleitung (greift NICHT für ACME-Challenge,
+    # Traefik schützt /.well-known/acme-challenge/ intern davor)
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":8443"
+    proxyProtocol:
+      trustedIPs:
+        - "NGINX_IP"          # ← gleiche IP wie oben eintragen
+        - "127.0.0.1/32"
+        - "172.16.0.0/12"
+        - "10.0.0.0/8"
+        - "192.168.0.0/16"
+
+# ─── Zertifikate (Let's Encrypt via HTTP-01) ────────────────
+# HTTP-01 funktioniert, weil nginx Port 80 an Traefik weiterleitet.
+# Traefik beantwortet die Challenge intern, bevor der Redirect greift.
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "admin@stromfueralle.at"      # ← deine E-Mail für Ablauf-Warnungen
+      storage: "/etc/traefik/acme/acme.json"
+      httpChallenge:
+        entryPoint: web                    # Challenge läuft über Port 8000
+
+# ─── Docker-Provider ────────────────────────────────────────
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false               # Container müssen opt-in via Label
+    network: eeg-platform                 # Standard-Netzwerk für Routen
+    watch: true                           # Labels live beobachten (kein Restart nötig)

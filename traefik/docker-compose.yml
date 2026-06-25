@@ -1,0 +1,60 @@
+# ============================================================
+# Traefik v3 Stack — als Portainer Stack einfügbar
+# Voraussetzung: traefik.yml + acme.json auf dem Host vorbereiten
+# (siehe README-Abschnitt "Vorbereitung")
+# ============================================================
+
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+
+    ports:
+      # nginx leitet 80 → 8000 und 443 → 8443 per proxy_protocol weiter
+      - "8000:8000"    # Entrypoint "web"  (HTTP + ACME-Challenge)
+      - "8443:8443"    # Entrypoint "websecure" (HTTPS)
+
+    environment:
+      # Wird für das Dashboard-BasicAuth-Middleware genutzt (aus .env)
+      # Format:  user:$$apr1$$...  (htpasswd-Hash, $$ = escaped $ in Compose-YAML)
+      # In Portainer Env-Vars brauchst du NUR ein $, nicht $$
+      - TRAEFIK_DASHBOARD_AUTH=${TRAEFIK_DASHBOARD_AUTH}
+
+    volumes:
+      # Docker-Socket (read-only für Sicherheit)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+      # Statische Konfiguration (auf dem Host anlegen, s. traefik.yml)
+      - /opt/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+
+      # acme.json: MUSS vorher mit chmod 600 angelegt werden!
+      # sudo mkdir -p /opt/traefik/acme && sudo touch /opt/traefik/acme/acme.json && sudo chmod 600 /opt/traefik/acme/acme.json
+      - /opt/traefik/acme:/etc/traefik/acme
+
+      # Logs
+      - /opt/traefik/logs:/var/log/traefik
+
+    networks:
+      - eeg-platform    # bestehendes Netzwerk, in dem webapp läuft
+
+    labels:
+      - "traefik.enable=true"
+
+      # ── Dashboard-Router (traefik.stromfueralle.at) ──────────
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.stromfueralle.at`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=dashboard-auth@docker"
+
+      # ── BasicAuth-Middleware (Passwort-Hash aus Env-Variable) ─
+      # Hash erzeugen: htpasswd -nb admin DEINPASSWORT
+      # In .env eintragen als: TRAEFIK_DASHBOARD_AUTH=admin:$$apr1$$...
+      # In Portainer-Env eintragen als: admin:$apr1$...  (nur ein $)
+      - "traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
+
+networks:
+  eeg-platform:
+    external: true    # bestehendes Netzwerk — Traefik tritt bei, erstellt es nicht
