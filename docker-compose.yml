@@ -156,6 +156,10 @@ services:
       - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
+      # Legacy-URL (webapp.mechtronix.at — Traefik übernimmt TLS via stream)
+      - "traefik.http.routers.webapp-legacy.rule=Host(`webapp.mechtronix.at`)"
+      - "traefik.http.routers.webapp-legacy.entrypoints=websecure"
+      - "traefik.http.routers.webapp-legacy.tls.certresolver=letsencrypt"
       - "traefik.http.services.webapp.loadbalancer.server.port=80"
     depends_on:
       timescaledb:
