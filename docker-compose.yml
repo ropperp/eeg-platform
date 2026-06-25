@@ -12,15 +12,8 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/eeg/traefik/letsencrypt:/letsencrypt
@@ -140,26 +133,18 @@ services:
       DOMAIN: ${DOMAIN}
     labels:
       - "traefik.enable=true"
-      # Landingpage
+      # Alle Routen laufen über web (HTTP) — nginx macht SSL davor
       - "traefik.http.routers.webapp.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.webapp.entrypoints=websecure"
-      - "traefik.http.routers.webapp.tls.certresolver=letsencrypt"
-      # Live-Dashboard
+      - "traefik.http.routers.webapp.entrypoints=web"
       - "traefik.http.routers.live.rule=Host(`live.${DOMAIN}`)"
-      - "traefik.http.routers.live.entrypoints=websecure"
-      - "traefik.http.routers.live.tls.certresolver=letsencrypt"
-      # Portal
+      - "traefik.http.routers.live.entrypoints=web"
       - "traefik.http.routers.portal.rule=Host(`portal.${DOMAIN}`)"
-      - "traefik.http.routers.portal.entrypoints=websecure"
-      - "traefik.http.routers.portal.tls.certresolver=letsencrypt"
-      # Admin
+      - "traefik.http.routers.portal.entrypoints=web"
       - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
-      - "traefik.http.routers.admin.entrypoints=websecure"
-      - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
-      # Legacy-URL (webapp.mechtronix.at — Traefik übernimmt TLS via stream)
+      - "traefik.http.routers.admin.entrypoints=web"
+      # Legacy-URL
       - "traefik.http.routers.webapp-legacy.rule=Host(`webapp.mechtronix.at`)"
-      - "traefik.http.routers.webapp-legacy.entrypoints=websecure"
-      - "traefik.http.routers.webapp-legacy.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.webapp-legacy.entrypoints=web"
       - "traefik.http.services.webapp.loadbalancer.server.port=80"
     depends_on:
       timescaledb:
