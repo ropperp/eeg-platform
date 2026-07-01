@@ -54,7 +54,7 @@ ob_start();
   </p>
 
   <p style="margin-top:2rem">
-    Kontakt: <a href="mailto:office@mechtronix.at">office@mechtronix.at</a>
+    Kontakt: <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a>
   </p>
 </div>
 

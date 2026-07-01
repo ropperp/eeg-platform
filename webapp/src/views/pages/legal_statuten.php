@@ -17,7 +17,7 @@ ob_start();
     „Strompool Feldkirchen Süd-West" auf Anfrage per E-Mail angefordert werden.
   </p>
 
-  <p>Kontakt: <a href="mailto:office@mechtronix.at">office@mechtronix.at</a></p>
+  <p>Kontakt: <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a></p>
 </div>
 
 <?php

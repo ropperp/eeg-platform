@@ -11,7 +11,7 @@ ob_start();
   <p>
     Verantwortlich für die Datenverarbeitung im Rahmen dieser Plattform ist die
     EEG Strompool Feldkirchen Süd-West (ZVR 1778816746). Kontakt:
-    <a href="mailto:office@mechtronix.at">office@mechtronix.at</a>.
+    <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a>.
   </p>
 
   <h2>2. Welche Daten wir verarbeiten</h2>
@@ -68,7 +68,7 @@ ob_start();
     Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung
     Ihrer Daten sowie auf Datenübertragbarkeit. Zudem steht Ihnen ein Beschwerderecht bei der
     österreichischen Datenschutzbehörde zu. Anfragen richten Sie bitte an
-    <a href="mailto:office@mechtronix.at">office@mechtronix.at</a>.
+    <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a>.
   </p>
 </div>
 
