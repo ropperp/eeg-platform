@@ -34,6 +34,7 @@
 <footer>
   <div class="container">
     <div style="margin-bottom:.75rem">
+      <a href="/rc108175/impressum">Impressum</a> ·
       <a href="/rc108175/statuten">Statuten</a> ·
       <a href="/rc108175/datenschutz">Datenschutz</a> ·
       <a href="/rc108175/agb">AGBs</a> ·

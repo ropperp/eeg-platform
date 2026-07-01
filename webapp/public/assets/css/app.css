@@ -294,3 +294,56 @@ footer {
 
 /* ─── Chart Container ────────────────────────────── */
 .chart-container { position: relative; height: 260px; }
+
+/* ─── Mobile ─────────────────────────────────────── */
+@media (max-width: 640px) {
+  .container { padding: 0 1rem; }
+
+  /* Navbar: umbrechen statt überlaufen */
+  .navbar .inner { flex-wrap: wrap; row-gap: .5rem; }
+  .navbar nav { flex-wrap: wrap; justify-content: flex-end; row-gap: .4rem; }
+  .navbar nav a { margin-left: .6rem; font-size: .82rem; }
+  .navbar .logo { font-size: 1.05rem; }
+
+  /* Hero */
+  .hero { padding: 3rem 0; }
+  .hero h1 { font-size: 1.9rem; }
+  .hero p { font-size: 1rem; }
+  .hero .btn-lg { display: inline-block; margin: .4rem .4rem 0 0; }
+  .hero .btn-outline { margin-left: 0; }
+
+  .features { padding: 3rem 0; }
+
+  /* Rechtstexte */
+  .legal { padding: 2rem 1rem 3rem; }
+  .legal h1 { font-size: 1.6rem; }
+  .legal table { font-size: .85rem; }
+  .legal table th, .legal table td { padding: .5rem .6rem; }
+
+  /* Portal: Sidebar wird zur horizontal scrollbaren Iconleiste */
+  .portal-layout { flex-direction: column; min-height: auto; }
+  .sidebar,
+  .sidebar.collapsed {
+    width: 100%;
+    padding: .5rem .75rem;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: .25rem;
+    border-right: none;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .sidebar-label { display: none; }
+  .sidebar a {
+    flex-direction: column;
+    gap: .15rem;
+    font-size: .7rem;
+    padding: .5rem .6rem;
+    white-space: nowrap;
+    margin-bottom: 0;
+  }
+  .sidebar .sidebar-text,
+  .sidebar.collapsed .sidebar-text { opacity: 1; width: auto; height: auto; }
+  #sidebar-toggle { display: none; }
+  .portal-content { padding: 1.25rem 1rem; }
+}

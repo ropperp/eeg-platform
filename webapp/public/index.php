@@ -84,6 +84,10 @@ $router->get('/', function () {
 });
 
 // ─── Rechtliches (rc108175 = Marktpartner-ID Strompool Feldkirchen Süd-West) ──
+$router->get('/rc108175/impressum', function () {
+    require ROOT . '/src/views/pages/legal_impressum.php';
+});
+
 $router->get('/rc108175/statuten', function () {
     require ROOT . '/src/views/pages/legal_statuten.php';
 });
