@@ -170,41 +170,54 @@ webapp-Router sowohl `stromfueralle.at` als auch `www.stromfueralle.at` matcht
 (`docker compose up -d --build` nach `git pull` reicht hier).
 
 Die SSL-Terminierung passiert aber auf dem **separaten nginx-Proxy-Host (10.0.0.144)**,
-der nicht Teil dieses Repos ist. Dort muss zusätzlich:
+der nicht Teil dieses Repos ist. **Nicht** `sudo certbot --nginx --expand -d ... -d www...`
+direkt verwenden — der nginx-Plugin-Modus schreibt dabei automatisch in die vhost-Datei und
+hat in der Praxis den bestehenden `server_name`-Block zerlegt/dupliziert, wodurch parallel
+mehrere Zertifikats-Lineages (`stromfueralle.at`, `stromfueralle.at-0001`,
+`www.stromfueralle.at`) entstanden sind und die Hauptdomain ihr Zertifikat verlor. Stattdessen:
 ```bash
-# 1. www als weiteren Namen ins bestehende Zertifikat aufnehmen (SAN erweitern)
-sudo certbot --nginx --expand -d stromfueralle.at -d www.stromfueralle.at
+# 1. Zertifikat erweitern OHNE dass certbot die nginx-Config anfasst (certonly!)
+sudo certbot certonly --nginx \
+  --cert-name stromfueralle.at --expand \
+  -d stromfueralle.at -d www.stromfueralle.at -d traefik.stromfueralle.at
 
-# 2. server_name in der vhost-Config ergänzen (falls certbot es nicht automatisch tut)
+# 2. vhost-Datei sichern und explizit selbst schreiben (nicht certbot überlassen)
+sudo cp /etc/nginx/sites-available/70_stromfueralle.conf \
+        /etc/nginx/sites-available/70_stromfueralle.conf.bak-$(date +%s)
 sudo nano /etc/nginx/sites-available/70_stromfueralle.conf
 #   server_name stromfueralle.at www.stromfueralle.at;   (in beiden server{}-Blöcken)
+#   ssl_certificate/-_key bleiben auf .../live/stromfueralle.at/... (unverändert)
 
-# 3. Config testen und laden
+# 3. Testen, laden, verifizieren — ERST DANACH ggf. übrige Zertifikate löschen
 sudo nginx -t && sudo systemctl reload nginx
+sudo certbot certificates | grep -A6 "Certificate Name: stromfueralle.at$"
+curl -vI https://stromfueralle.at 2>&1 | grep -i subject
+curl -vI https://www.stromfueralle.at 2>&1 | grep -i subject
 ```
-Wichtig: `certbot --expand` erweitert das **bestehende** Zertifikat (SAN-Liste) statt ein
-neues unter anderem Pfad anzulegen — deshalb bleibt `ssl_certificate .../stromfueralle.at/...`
-unverändert gültig. Ein `certbot certonly -d www.stromfueralle.at` (ohne `--expand` und ohne
-die bestehende Domain) würde stattdessen ein neues, separates Zertifikat unter
-`stromfueralle.at-0001/` anlegen und NICHT das, worauf die vhost-Config zeigt.
+`--cert-name stromfueralle.at --expand` stellt sicher, dass genau die bestehende Lineage unter
+`/etc/letsencrypt/live/stromfueralle.at/` erweitert wird (Pfad in der vhost-Config bleibt gültig)
+statt eine neue `-0001`-Lineage anzulegen.
 
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
 ```bash
-sudo certbot certificates                              # Status, Ablaufdatum, SAN-Liste prüfen
+sudo certbot certificates                              # Alle Lineages + SAN-Listen prüfen —
+                                                         # auf Duplikate wie stromfueralle.at-0001 achten!
 ls -la /etc/letsencrypt/live/stromfueralle.at/          # Dateien noch vorhanden?
 sudo nginx -t                                           # Config-Syntaxfehler?
 sudo journalctl -u certbot.timer --since "-2d"          # Auto-Renewal fehlgeschlagen?
 sudo tail -50 /var/log/nginx/error.log
 ```
 Häufigste Ursachen:
+- **Mehrere Zertifikats-Lineages für dieselbe Domain** (z.B. durch `certbot --nginx --expand`,
+  siehe oben) — die vhost-Config zeigt dann evtl. nicht mehr auf die Lineage, die tatsächlich
+  alle benötigten Domains enthält, oder `certbot --nginx` hat beim Schreiben den
+  `server_name`-Block der Hauptdomain verändert. Fix: siehe "www-Subdomain hinzufügen" oben
+  (Konsolidierung auf eine Lineage, vhost-Datei explizit selbst schreiben, danach überzählige
+  Lineages mit `sudo certbot delete --cert-name <name>` entfernen — erst nach Verifikation!).
 - **Auto-Renewal fehlgeschlagen** (Rate-Limit, DNS/Port-80-Problem während Renewal) →
   `sudo certbot renew --dry-run` zum Testen, danach `sudo certbot renew`.
-- **`--expand` hat ein neues Zertifikat unter `stromfueralle.at-0001/` angelegt**, während
-  die vhost-Config weiterhin auf `stromfueralle.at/` zeigt (siehe oben) → entweder die
-  vhost-Config auf den `-0001`-Pfad umbiegen oder das alte Zertifikat löschen und sauber neu
-  mit `--expand` erweitern.
-- **nginx wurde nach Renewal nicht neu geladen** → `sudo systemctl reload nginx`.
+- **nginx wurde nach Renewal/Änderung nicht neu geladen** → `sudo systemctl reload nginx`.
 Nach jeder Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
 
 ---
