@@ -249,3 +249,11 @@ Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
 ```
+
+---
+
+## Obsidian-Sync
+
+`/obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks lokalen Obsidian-Vault
+(Sync-Workflow: `/obsidian/README.md`). **Bei jeder inhaltlichen Änderung an diesem `CLAUDE.md`
+auch `/obsidian/Infrastruktur.md` entsprechend aktualisieren.**

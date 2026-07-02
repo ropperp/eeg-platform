@@ -42,3 +42,10 @@ node_modules/
 
 # Traefik ACME-Zertifikate (lokal generiert, nicht versionieren)
 /docker/traefik/letsencrypt/
+
+# ═══════════════════════════════════════════════════════
+# Obsidian (geräte-/personenspezifische Vault-Metadaten)
+# ═══════════════════════════════════════════════════════
+
+/obsidian/.obsidian/workspace*.json
+/obsidian/.trash/
