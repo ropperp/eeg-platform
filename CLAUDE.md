@@ -28,7 +28,7 @@ Datei: `/etc/nginx/sites-available/70_stromfueralle.conf`
 ```nginx
 server {
     listen 443 ssl;
-    server_name stromfueralle.at;
+    server_name stromfueralle.at www.stromfueralle.at;
     ssl_certificate     /etc/letsencrypt/live/stromfueralle.at/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/stromfueralle.at/privkey.pem;
     include             /etc/letsencrypt/options-ssl-nginx.conf;
@@ -43,10 +43,12 @@ server {
 }
 server {
     listen 80;
-    server_name stromfueralle.at;
+    server_name stromfueralle.at www.stromfueralle.at;
     return 301 https://$host$request_uri;
 }
 ```
+
+> `www.stromfueralle.at` muss als SAN im Zertifikat enthalten sein (siehe "www-Subdomain hinzufügen" unten), sonst liefert nginx für www das Default-Zertifikat aus und Browser zeigen einen SSL-Fehler.
 
 ---
 
@@ -78,7 +80,7 @@ server {
 ### Webapp-Router-Labels
 ```yaml
 traefik.enable=true
-traefik.http.routers.webapp.rule=Host(`stromfueralle.at`)
+traefik.http.routers.webapp.rule=Host(`stromfueralle.at`, `www.stromfueralle.at`)
 traefik.http.routers.webapp.entrypoints=web
 traefik.http.routers.live.rule=Host(`live.stromfueralle.at`)
 traefik.http.routers.portal.rule=Host(`portal.stromfueralle.at`)
@@ -161,6 +163,49 @@ Entweder override-Datei vorhanden (siehe oben) oder Traefik läuft nicht:
 docker ps | grep traefik
 docker compose up -d traefik
 ```
+
+### www-Subdomain hinzufügen (z.B. www.stromfueralle.at)
+Traefik-Seite (10.0.0.250, dieses Repo) ist bereits so konfiguriert, dass der
+webapp-Router sowohl `stromfueralle.at` als auch `www.stromfueralle.at` matcht
+(`docker compose up -d --build` nach `git pull` reicht hier).
+
+Die SSL-Terminierung passiert aber auf dem **separaten nginx-Proxy-Host (10.0.0.144)**,
+der nicht Teil dieses Repos ist. Dort muss zusätzlich:
+```bash
+# 1. www als weiteren Namen ins bestehende Zertifikat aufnehmen (SAN erweitern)
+sudo certbot --nginx --expand -d stromfueralle.at -d www.stromfueralle.at
+
+# 2. server_name in der vhost-Config ergänzen (falls certbot es nicht automatisch tut)
+sudo nano /etc/nginx/sites-available/70_stromfueralle.conf
+#   server_name stromfueralle.at www.stromfueralle.at;   (in beiden server{}-Blöcken)
+
+# 3. Config testen und laden
+sudo nginx -t && sudo systemctl reload nginx
+```
+Wichtig: `certbot --expand` erweitert das **bestehende** Zertifikat (SAN-Liste) statt ein
+neues unter anderem Pfad anzulegen — deshalb bleibt `ssl_certificate .../stromfueralle.at/...`
+unverändert gültig. Ein `certbot certonly -d www.stromfueralle.at` (ohne `--expand` und ohne
+die bestehende Domain) würde stattdessen ein neues, separates Zertifikat unter
+`stromfueralle.at-0001/` anlegen und NICHT das, worauf die vhost-Config zeigt.
+
+### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
+Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
+```bash
+sudo certbot certificates                              # Status, Ablaufdatum, SAN-Liste prüfen
+ls -la /etc/letsencrypt/live/stromfueralle.at/          # Dateien noch vorhanden?
+sudo nginx -t                                           # Config-Syntaxfehler?
+sudo journalctl -u certbot.timer --since "-2d"          # Auto-Renewal fehlgeschlagen?
+sudo tail -50 /var/log/nginx/error.log
+```
+Häufigste Ursachen:
+- **Auto-Renewal fehlgeschlagen** (Rate-Limit, DNS/Port-80-Problem während Renewal) →
+  `sudo certbot renew --dry-run` zum Testen, danach `sudo certbot renew`.
+- **`--expand` hat ein neues Zertifikat unter `stromfueralle.at-0001/` angelegt**, während
+  die vhost-Config weiterhin auf `stromfueralle.at/` zeigt (siehe oben) → entweder die
+  vhost-Config auf den `-0001`-Pfad umbiegen oder das alte Zertifikat löschen und sauber neu
+  mit `--expand` erweitern.
+- **nginx wurde nach Renewal nicht neu geladen** → `sudo systemctl reload nginx`.
+Nach jeder Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
 
 ---
 
