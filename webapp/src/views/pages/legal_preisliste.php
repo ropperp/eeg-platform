@@ -20,8 +20,17 @@ ob_start();
         <td>Einspeisevergütung an einspeisende Mitglieder</td>
         <td class="price">8,00 ct/kWh</td>
       </tr>
+      <tr>
+        <td>Mitgliedsbeitrag</td>
+        <td class="price">2,00 € / Monat</td>
+      </tr>
     </tbody>
   </table>
+
+  <p>
+    Der Mitgliedsbeitrag wird gemeinsam mit der Energieabrechnung in Rechnung gestellt
+    (24,00 € pro Kalenderjahr).
+  </p>
 
   <p>
     Die Abrechnung erfolgt quartalsweise auf Basis der vom Netzbetreiber übermittelten

@@ -23,6 +23,7 @@
         <?php endif; ?>
         <a href="/portal/logout">Abmelden (<?= htmlspecialchars(Auth::userName()) ?>)</a>
       <?php else: ?>
+        <a href="/rc108175/beitreten" class="btn btn-secondary" style="padding:.4rem .9rem">Beitreten</a>
         <a href="/portal/login" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
       <?php endif; ?>
     </nav>
