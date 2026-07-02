@@ -80,7 +80,7 @@ server {
 ### Webapp-Router-Labels
 ```yaml
 traefik.enable=true
-traefik.http.routers.webapp.rule=Host(`stromfueralle.at`, `www.stromfueralle.at`)
+traefik.http.routers.webapp.rule=Host(`stromfueralle.at`) || Host(`www.stromfueralle.at`)
 traefik.http.routers.webapp.entrypoints=web
 traefik.http.routers.live.rule=Host(`live.stromfueralle.at`)
 traefik.http.routers.portal.rule=Host(`portal.stromfueralle.at`)
@@ -143,7 +143,22 @@ curl -H "Host: stromfueralle.at" http://localhost/
 Docker Engine 29.x unterstützt nur API ≥ 1.40. Traefik:latest behebt das, zusätzlich ist `DOCKER_API_VERSION=1.40` in der compose-Datei gesetzt.
 
 ### 404 von Traefik trotz laufendem webapp
-Häufigste Ursache: `docker-compose.override.yml` vorhanden mit `traefik.enable=false`.
+Mögliche Ursachen, in dieser Reihenfolge prüfen:
+
+**a) Ungültige Router-Regel (Traefik v3-Syntax!)** — wir laufen auf `traefik:latest` = v3.x.
+In v3 akzeptiert `Host()` nur noch **einen** Wert pro Aufruf; die alte v2-Syntax
+`Host(\`a\`, \`b\`)` für mehrere Domains ist ungültig und lässt den Router fehlschlagen
+(genau das hat schon einmal alles auf 404 gesetzt). Für mehrere Hosts immer:
+```
+Host(`a`) || Host(`b`)
+```
+Prüfen mit:
+```bash
+docker logs traefik --tail 100 | grep -i error   # Rule-Parse-Fehler auftauchen lassen
+docker compose config | grep "routers.*rule"     # gerenderte Labels ansehen
+```
+
+**b) `docker-compose.override.yml` vorhanden mit `traefik.enable=false`.**
 ```bash
 ls /opt/eeg-platform/docker-compose.override.yml   # sollte nicht existieren
 rm /opt/eeg-platform/docker-compose.override.yml   # falls vorhanden

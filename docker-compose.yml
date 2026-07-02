@@ -136,7 +136,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Alle Routen laufen über web (HTTP) — nginx macht SSL davor
-      - "traefik.http.routers.webapp.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`)"
+      - "traefik.http.routers.webapp.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
       - "traefik.http.routers.webapp.entrypoints=web"
       - "traefik.http.routers.live.rule=Host(`live.${DOMAIN}`)"
       - "traefik.http.routers.live.entrypoints=web"
