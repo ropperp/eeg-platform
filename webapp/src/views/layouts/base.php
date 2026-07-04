@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= htmlspecialchars($pageTitle ?? 'EEG-Plattform') ?></title>
+  <title><?= htmlspecialchars($pageTitle ?? 'Strom für alle') ?></title>
   <link rel="stylesheet" href="/assets/css/app.css">
   <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
 </head>
@@ -11,7 +11,7 @@
 
 <header class="navbar">
   <div class="container inner">
-    <a href="/" class="logo">⚡ EEG-Plattform</a>
+    <a href="/" class="logo">⚡ Strom für alle</a>
     <nav>
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
               style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
@@ -43,7 +43,7 @@
       <a href="/rc108175/preisliste">Preisliste</a> ·
       <a href="/rc108175/kontakt">Kontakt</a>
     </div>
-    EEG-Plattform · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner
+    Strom für alle · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner
   </div>
 </footer>
 

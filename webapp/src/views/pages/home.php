@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'EEG-Plattform — Gemeinschaftlich Energie erzeugen & teilen';
+$pageTitle = 'Strom für alle — Gemeinschaftlich Energie erzeugen & teilen';
 ob_start();
 ?>
 
@@ -85,7 +85,7 @@ ob_start();
     <p style="color:#6b7280;margin-bottom:1.5rem">
       Sie möchten Ihre EEG auf unserer Plattform verwalten? Kontaktieren Sie uns.
     </p>
-    <a href="mailto:patrick.ropper@gmail.com" class="btn btn-secondary btn-lg">Kontakt aufnehmen</a>
+    <a href="/rc108175/kontakt" class="btn btn-secondary btn-lg">Kontakt aufnehmen</a>
   </div>
 </section>
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – EEG-Plattform</title>
+  <title><?= htmlspecialchars($pageTitle ?? 'Portal') ?> – Strom für alle</title>
   <link rel="stylesheet" href="/assets/css/app.css">
   <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
 </head>
@@ -14,7 +14,7 @@
     <div style="display:flex;align-items:center;gap:1rem">
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
               style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;font-size:1.2rem;color:#6b7280;line-height:1">☰</button>
-      <a href="/" class="logo">⚡ EEG-Plattform</a>
+      <a href="/" class="logo">⚡ Strom für alle</a>
     </div>
 
     <nav style="display:flex;align-items:center;gap:1rem">
