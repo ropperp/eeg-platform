@@ -42,6 +42,7 @@
 [data-theme="dark"] textarea { background: #0f172a; color: #f1f5f9; border-color: #334155; }
 [data-theme="dark"] code { background: #0f172a; color: #86efac; }
 [data-theme="dark"] dialog { background: #1e293b; color: #f1f5f9; border-color: #334155; }
+[data-theme="dark"] .navbar .btn-primary { background: var(--green-dark); color: #000; }
 [data-theme="dark"] #theme-toggle { color: #f1f5f9; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
