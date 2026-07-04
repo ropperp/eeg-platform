@@ -74,6 +74,7 @@ ob_start();
       auf dieser Plattform und liefert live Daten aus Kärnten.
     </p>
     <a href="/live?eeg=strompool-feldkirchen" class="btn btn-primary btn-lg">Echtzeit-Daten ansehen</a>
+    <a href="/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">Infoblatt (PDF)</a>
   </div>
 </section>
 

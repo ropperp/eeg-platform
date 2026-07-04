@@ -15,9 +15,12 @@ ob_start();
     Vereinssitz. Über die Aufnahme entscheidet der Vorstand.
   </p>
 
-  <div style="margin:1.5rem 0 2.5rem">
+  <div style="margin:1.5rem 0 2.5rem;display:flex;flex-wrap:wrap;gap:1rem">
     <a href="/assets/docs/beitrittserklaerung-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-primary" download>
       Beitrittserklärung als PDF herunterladen
+    </a>
+    <a href="/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-secondary" target="_blank" rel="noopener">
+      Infoblatt ansehen (PDF)
     </a>
   </div>
 
