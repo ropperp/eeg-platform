@@ -88,6 +88,10 @@ $router->get('/rc108175/beitreten', function () {
     require ROOT . '/src/views/pages/legal_beitreten.php';
 });
 
+$router->get('/rc108175/kontakt', function () {
+    require ROOT . '/src/views/pages/legal_kontakt.php';
+});
+
 $router->get('/rc108175/impressum', function () {
     require ROOT . '/src/views/pages/legal_impressum.php';
 });

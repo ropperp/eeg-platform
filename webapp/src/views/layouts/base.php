@@ -16,6 +16,7 @@
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
               style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
       <a href="/live">Live-Anzeige</a>
+      <a href="/rc108175/kontakt">Kontakt</a>
       <?php if (Auth::check()): ?>
         <a href="/portal/dashboard">Portal</a>
         <?php if (Auth::isPlatformAdmin()): ?>
@@ -39,7 +40,8 @@
       <a href="/rc108175/statuten">Statuten</a> ·
       <a href="/rc108175/datenschutz">Datenschutz</a> ·
       <a href="/rc108175/agb">AGBs</a> ·
-      <a href="/rc108175/preisliste">Preisliste</a>
+      <a href="/rc108175/preisliste">Preisliste</a> ·
+      <a href="/rc108175/kontakt">Kontakt</a>
     </div>
     EEG-Plattform · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner
   </div>
