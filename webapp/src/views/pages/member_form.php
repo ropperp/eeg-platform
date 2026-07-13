@@ -59,7 +59,7 @@ ob_start();
         <input type="tel" name="phone" value="<?= htmlspecialchars($m['phone'] ?? $_POST['phone'] ?? '') ?>">
       </div>
       <div class="form-group">
-        <label>Bisheriger Stromlieferant</label>
+        <label>Stromlieferant</label>
         <input type="text" name="stromlieferant" value="<?= htmlspecialchars($m['stromlieferant'] ?? $_POST['stromlieferant'] ?? '') ?>">
       </div>
     </div>
@@ -151,6 +151,16 @@ ob_start();
         <input type="text" name="member_bic" placeholder="OPSKATWW"
                value="<?= htmlspecialchars($m['member_bic'] ?? $_POST['member_bic'] ?? '') ?>">
       </div>
+      <div class="form-group">
+        <label>Kontoinhaber:in</label>
+        <input type="text" name="kontoinhaber" placeholder="falls abweichend vom Mitgliedsnamen"
+               value="<?= htmlspecialchars($m['kontoinhaber'] ?? $_POST['kontoinhaber'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Adresse Kontoinhaber:in</label>
+        <input type="text" name="konto_adresse" placeholder="falls abweichend von obiger Adresse"
+               value="<?= htmlspecialchars($m['konto_adresse'] ?? $_POST['konto_adresse'] ?? '') ?>">
+      </div>
       <?php if (isset($member) && !empty($m['mandatsreferenz'])): ?>
       <div class="form-group">
         <label>Mandatsreferenz</label>
@@ -168,6 +178,36 @@ ob_start();
              value="<?= htmlspecialchars($m['invoice_uid'] ?? $_POST['invoice_uid'] ?? '') ?>">
     </div>
   </div>
+
+  <?php if (!isset($member)): ?>
+  <div class="card" style="margin-bottom:1.5rem">
+    <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen &amp; Erklärungen</h3>
+    <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
+      Bitte erst anhaken, wenn das Mitglied die Beitrittserklärung unterschrieben hat.
+      Alle sechs Punkte sind Pflicht, bevor das Mitglied angelegt werden kann.
+    </p>
+    <?php
+    $consents = [
+      'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Das Mitglied beantragt die Mitgliedschaft im Verein und nimmt die Vereinsstatuten zur Kenntnis.',
+      'zustimmung_vollmacht'           => 'Vollmacht: Das Mitglied bevollmächtigt den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
+      'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Das Mitglied stimmt zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt.',
+      'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Das Mitglied stimmt der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
+      'zustimmung_datenschutz'         => 'Datenschutz: Das Mitglied willigt in die Verarbeitung seiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
+      'zustimmung_agb'                 => 'AGB &amp; Tarif-/Preisblatt: Das Mitglied bestätigt, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
+    ];
+    foreach ($consents as $field => $label):
+    ?>
+      <div class="form-group" style="margin-bottom:.6rem">
+        <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400">
+          <input type="checkbox" name="<?= $field ?>" value="1" required
+                 style="width:auto;margin-top:.2rem"
+                 <?= !empty($_POST[$field] ?? false) ? 'checked' : '' ?>>
+          <span style="font-size:.85rem"><?= $label ?></span>
+        </label>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 
   <div style="display:flex;gap:1rem">
     <button type="submit" class="btn btn-primary"><?= isset($member) ? 'Speichern' : 'Mitglied anlegen' ?></button>

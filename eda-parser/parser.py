@@ -58,11 +58,16 @@ class XlsxDataSource:
         log.info("Lese XLSX: %s", filepath)
         xl = pd.ExcelFile(filepath)
 
-        if "Übersicht" not in xl.sheet_names or "Energiedaten" not in xl.sheet_names:
-            raise ValueError("XLSX hat nicht die erwarteten Sheets 'Übersicht' und 'Energiedaten'")
+        sheet_uebersicht = self._find_sheet(xl, "Übersicht")
+        sheet_energiedaten = self._find_sheet(xl, "Energiedaten")
+        if not sheet_uebersicht or not sheet_energiedaten:
+            raise ValueError(
+                "XLSX hat nicht die erwarteten Sheets 'Übersicht' und 'Energiedaten'. "
+                f"Tatsächlich vorhandene Sheets: {xl.sheet_names}"
+            )
 
-        overview = self._parse_overview(xl)
-        energy = self._parse_energy(xl)
+        overview = self._parse_overview(xl, sheet_uebersicht)
+        energy = self._parse_energy(xl, sheet_energiedaten)
 
         result = []
         for zaehlpunkt_nr, meta in overview.items():
@@ -79,8 +84,17 @@ class XlsxDataSource:
             ))
         return result
 
-    def _parse_overview(self, xl: pd.ExcelFile) -> dict:
-        df = pd.read_excel(xl, sheet_name="Übersicht", header=0)
+    @staticmethod
+    def _find_sheet(xl: pd.ExcelFile, expected_name: str) -> str | None:
+        """Findet ein Sheet unabhängig von Groß-/Kleinschreibung und Leerzeichen."""
+        target = expected_name.strip().lower()
+        for name in xl.sheet_names:
+            if name.strip().lower() == target:
+                return name
+        return None
+
+    def _parse_overview(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
+        df = pd.read_excel(xl, sheet_name=sheet_name, header=0)
         result = {}
         for _, row in df.iterrows():
             # Spaltennamen variieren je nach Export — flexibel per Substring suchen
@@ -96,8 +110,8 @@ class XlsxDataSource:
                 }
         return result
 
-    def _parse_energy(self, xl: pd.ExcelFile) -> dict:
-        df = pd.read_excel(xl, sheet_name="Energiedaten", header=None)
+    def _parse_energy(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
+        df = pd.read_excel(xl, sheet_name=sheet_name, header=None)
 
         # Zeilenpositionen der Zählpunktnummern und MeterCodes aus Header ermitteln
         # Erste Spalte = Zeitstempel, danach je Zählpunkt 4 Spaltengruppen

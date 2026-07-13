@@ -389,6 +389,18 @@ $router->post('/portal/members', function () {
         return;
     }
 
+    $consentFields = [
+        'zustimmung_mitgliedschaft', 'zustimmung_vollmacht', 'zustimmung_widerrufsfrist',
+        'zustimmung_email_kommunikation', 'zustimmung_datenschutz', 'zustimmung_agb',
+    ];
+    foreach ($consentFields as $cf) {
+        if (empty($_POST[$cf])) {
+            $error = 'Bitte alle sechs rechtlichen Zustimmungen bestätigen, bevor das Mitglied angelegt wird.';
+            require ROOT . '/src/views/pages/member_form.php';
+            return;
+        }
+    }
+
     // User-Account anlegen falls E-Mail neu
     $email = strtolower(trim($_POST['email']));
     $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
@@ -402,10 +414,15 @@ $router->post('/portal/members', function () {
         $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
     }
 
-    // KdNr fortlaufend je Community vergeben; Mandatsreferenz nur wenn IBAN vorhanden
+    // KdNr: kleinste freie Nummer je Community vergeben (Lücken von gelöschten Mitgliedern auffüllen)
     $kundennummer = (int)DB::fetchOne(
-        'SELECT COALESCE(MAX(kundennummer), 0) + 1 AS next FROM members WHERE community_id = ?',
-        [$communityId]
+        "SELECT MIN(candidate) AS next FROM generate_series(
+            1, (SELECT COALESCE(MAX(kundennummer), 0) + 1 FROM members WHERE community_id = ?)
+         ) AS candidate
+         WHERE candidate NOT IN (
+            SELECT kundennummer FROM members WHERE community_id = ? AND kundennummer IS NOT NULL
+         )",
+        [$communityId, $communityId]
     )['next'];
     $mandatsreferenz = $iban !== '' ? 'S00000F' . date('Y') . 'A' . $kundennummer : null;
 
@@ -414,10 +431,13 @@ $router->post('/portal/members', function () {
         'INSERT INTO members (
             community_id, user_id, salutation, titel, first_name, last_name, company_name,
             address, zip, city, email, phone, invoice_uid, member_iban, member_bic,
+            kontoinhaber, konto_adresse,
             member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
-            geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name
+            geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
+            zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
@@ -434,6 +454,8 @@ $router->post('/portal/members', function () {
             trim($_POST['invoice_uid'] ?? '') ?: null,
             $iban ?: null,
             trim($_POST['member_bic'] ?? '') ?: null,
+            trim($_POST['kontoinhaber'] ?? '') ?: null,
+            trim($_POST['konto_adresse'] ?? '') ?: null,
             $_POST['member_since'] ?: date('Y-m-d'),
             ($_POST['member_until'] ?? '') ?: '2099-12-31',
             $kundennummer,
@@ -445,6 +467,7 @@ $router->post('/portal/members', function () {
             ($_POST['speicher_kwh'] ?? '') !== '' ? (float)$_POST['speicher_kwh'] : null,
             isset($_POST['andere_eeg']) ? 'true' : 'false',
             trim($_POST['andere_eeg_name'] ?? '') ?: null,
+            'true', 'true', 'true', 'true', 'true', 'true',
         ]
     );
 
@@ -508,7 +531,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
 
     DB::execute(
         'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
-         phone=?, invoice_uid=?, member_iban=?, member_bic=?, mandatsreferenz=?, member_since=?, member_until=?,
+         phone=?, invoice_uid=?, member_iban=?, member_bic=?, kontoinhaber=?, konto_adresse=?, mandatsreferenz=?,
+         member_since=?, member_until=?,
          geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?
          WHERE id=?',
         [
@@ -524,6 +548,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
             trim($_POST['invoice_uid'] ?? '') ?: null,
             $iban ?: null,
             trim($_POST['member_bic'] ?? '') ?: null,
+            trim($_POST['kontoinhaber'] ?? '') ?: null,
+            trim($_POST['konto_adresse'] ?? '') ?: null,
             $mandatsreferenz,
             $_POST['member_since'] ?: date('Y-m-d'),
             ($_POST['member_until'] ?? '') ?: '2099-12-31',
@@ -537,6 +563,22 @@ $router->post('/portal/members/:id/edit', function ($params) {
         ]
     );
     header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+$router->post('/portal/members/:id/delete', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+
+    // Löscht kaskadierend Verträge, Dateien, Zählpunkte, Rechnungen (siehe migrate_20260715.sql).
+    // KdNr wird dadurch wieder frei und beim nächsten neuen Mitglied automatisch wiederverwendet.
+    DB::execute('DELETE FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+
+    header('Location: /portal/members?success=1');
     exit;
 });
 
@@ -896,6 +938,17 @@ $router->post('/portal/billing/release', function () {
     exit;
 });
 
+$router->post('/portal/billing/:id/delete', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    // Löscht kaskadierend die zugehörigen Rechnungen/Rechnungspositionen (siehe migrate_20260715.sql).
+    DB::execute('DELETE FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    header('Location: /portal/billing?success=1');
+    exit;
+});
+
 // ─── Portal: EDA-Import ─────────────────────────────────
 $router->get('/portal/eda/upload', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
@@ -1054,6 +1107,20 @@ $router->post('/admin/users/:id/roles/delete', function ($params) {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     DB::execute('DELETE FROM user_roles WHERE id = ?', [$_POST['role_id']]);
     header('Location: /admin/users/' . $params['id'] . '?success=1');
+    exit;
+});
+
+$router->post('/admin/users/:id/delete', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    if ($params['id'] === Auth::userId()) { http_response_code(400); echo 'Der eigene Account kann nicht gelöscht werden.'; return; }
+    $user = DB::fetchOne('SELECT id FROM users WHERE id = ?', [$params['id']]);
+    if (!$user) { http_response_code(404); return; }
+
+    // Löscht kaskadierend Rollenzuweisungen (user_roles); verknüpfte Mitglieder bleiben erhalten,
+    // verlieren nur die Login-Verknüpfung (siehe migrate_20260715.sql).
+    DB::execute('DELETE FROM users WHERE id = ?', [$params['id']]);
+    header('Location: /admin?success=1');
     exit;
 });
 

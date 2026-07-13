@@ -155,6 +155,17 @@ document.addEventListener('click', () => {
   document.getElementById('profile-dropdown').classList.remove('open');
 });
 
+// ─── Löschbestätigung (Superadmin-Aktionen) ───────────────────────
+function confirmDangerDelete(itemLabel) {
+  const input = prompt('ACHTUNG: ' + itemLabel + ' wird unwiderruflich gelöscht.\nBitte zur Bestätigung "LOESCHEN" eingeben:');
+  if (input === null) return false;
+  if (input !== 'LOESCHEN') {
+    alert('Löschung abgebrochen — Eingabe stimmte nicht mit "LOESCHEN" überein.');
+    return false;
+  }
+  return true;
+}
+
 // ─── Dark-Mode-Toggle ─────────────────────────────────────────────
 function toggleDark() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';

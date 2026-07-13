@@ -92,12 +92,14 @@ class Auth
         }
     }
 
+    /**
+     * Prüft NUR die aktuell aktive Rolle, nicht alle jemals zugewiesenen Rollen.
+     * Wer platform_admin ist, aber gerade auf eine Manager-Rolle umgeschaltet hat,
+     * soll währenddessen keinen Admin-Zugriff haben (erst nach Zurückwechseln).
+     */
     public static function isPlatformAdmin(): bool
     {
-        foreach ($_SESSION['roles'] ?? [] as $r) {
-            if ($r['role'] === 'platform_admin') return true;
-        }
-        return false;
+        return ($_SESSION['active_role']['role'] ?? null) === 'platform_admin';
     }
 
     public static function isManager(): bool
