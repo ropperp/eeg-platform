@@ -1,0 +1,229 @@
+\documentclass[11pt]{article}
+% ---------- Pakete ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman,provide=*]{babel}
+\usepackage[a4paper,top=0.0cm,bottom=0.55cm,left=1.3cm,right=1.3cm]{geometry}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{xcolor}
+\usepackage{amssymb}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+\usepackage[most]{tcolorbox}
+\usepackage{enumitem}
+\usepackage{pifont}
+\usepackage{setspace}
+\setstretch{1.03}
+\setlist{nosep,leftmargin=1.1em}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+% ---------- Farben ----------
+\definecolor{egreen}{RGB}{27,128,77}
+\definecolor{egreendark}{RGB}{18,92,55}
+\definecolor{egreenlight}{RGB}{233,245,238}
+\definecolor{amber}{RGB}{214,158,46}
+\definecolor{boxgray}{RGB}{110,110,110}
+\definecolor{greenverlauf}{RGB}{25 195 125}
+\definecolor{turkisverlauf}{RGB}{14 140 158}
+\definecolor{cardgray}{RGB}{244,246,245}
+\definecolor{turkislight}{RGB}{230,242,245}
+% ---------- Hilfsbefehle ----------
+\newsavebox\imgbox
+% Grüne Abschnitts-Überschrift (wie im Mockup)
+\newcommand{\secheading}[1]{%
+  \par{\large\bfseries\color{egreendark}#1}\par\vspace{4pt}}
+% Icon-Chip: kleines gerundetes Quadrat mit Symbol
+\newcommand{\chip}[1]{%
+  \tikz[baseline=-4pt]\node[rounded corners=2.5pt, fill=white,
+        inner sep=3.5pt]{\color{turkisverlauf}#1};}
+% Vorteils-Box (in tcbraster verwenden)
+\newcommand{\vorteil}[3]{%
+  \begin{tcolorbox}[colback=turkislight, colframe=turkislight, boxrule=0pt, arc=6pt,
+                    left=5pt, right=5pt, top=4pt, bottom=4pt, valign=top]
+    \raggedright
+    \chip{#1}~{\bfseries #2}\par\vspace{2.5pt}
+    {\small #3}
+  \end{tcolorbox}}
+% Nummern-Kreis für Schritte
+\newcommand{\stepnum}[1]{%
+  \tikz[baseline=-4pt]\node[circle, fill=egreendark, text=white,
+        inner sep=1.5pt, minimum size=15pt, font=\bfseries\small]{#1};}
+\begin{document}
+% =====================================================
+% KOPF (volle Breite, Farbverlauf)
+% =====================================================
+\begin{tcolorbox}[enhanced, interior style={left color=greenverlauf, right color=turkisverlauf},
+                  colframe=egreendark, sharp corners, boxrule=0pt,
+                  left=10pt, right=10pt, top=8pt, bottom=8pt,
+                  grow to left by=1.3cm, grow to right by=1.3cm]
+\begin{minipage}[c]{2.6cm}
+  \includegraphics[width=2.2cm]{icon-white.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{\dimexpr\linewidth-3.0cm\relax}
+  \color{white}
+  \vspace{5pt}
+  {\fontsize{21}{24}\selectfont\bfseries Sonnenstrom aus deiner Nachbarschaft}\\[6pt]
+  {\normalsize Der \textbf{Strompool Feldkirchen Süd-West} teilt Sonnenstrom in der
+  Region \\ fair, günstig und ohne Risiko. Mach mit, mit oder ohne eigene PV-Anlage.}
+\end{minipage}
+\end{tcolorbox}
+\vspace{9pt}
+% =====================================================
+% WAS IST EINE EEG? (Text links, Diagramm rechts)
+% =====================================================
+\begin{minipage}[t]{0.55\linewidth}
+\secheading{Was ist eine Erneuerbare Energiegemeinschaft?}
+Eine Erneuerbare Energiegemeinschaft (\textbf{EEG}) ist ein Verein von Nachbarn.
+Haushalte und Betriebe aus der Region teilen selbst erzeugten Sonnenstrom.
+Der Strom fließt über das \textbf{bestehende Stromnetz} -- ganz ohne neue
+Leitungen.\par\vspace{6pt}
+\begin{tcolorbox}[enhanced, colback=egreenlight, colframe=egreenlight, boxrule=0pt, arc=3pt,
+                  borderline west={2.5pt}{0pt}{egreen},
+                  left=8pt, right=6pt, top=5pt, bottom=5pt]
+\small \textbf{Wie ein Gemeinschaftsgarten -- nur für Strom:} \\Wer zu viel
+erntet, gibt günstig an die Nachbarn ab.
+\end{tcolorbox}
+\vspace{6pt}
+Möglich macht das ein Gesetz: das Erneuerbaren-Ausbau-Gesetz (seit 2021).
+Mitmachen kann jeder -- \textbf{mit PV-Anlage} (verkauft den Überschuss)
+oder \textbf{ohne} (bezieht günstigen Regionalstrom).
+\end{minipage}\hfill
+\begin{minipage}[t]{0.41\linewidth}
+\vspace{2pt}
+
+\centering
+
+\sbox\imgbox{\includegraphics[width=\linewidth]{EEG Grafik.png}}%
+\begin{tikzpicture}
+  \clip[rounded corners=6pt] (0,0) rectangle (\wd\imgbox,\ht\imgbox);
+  \node[anchor=south west, inner sep=0pt] at (0,0) {\usebox\imgbox};
+\end{tikzpicture}
+
+{\footnotesize\color{boxgray} Überschuss-Strom wandert \\ übers normale Netz zu den Nachbarn.}
+
+\end{minipage}
+\vspace{9pt}
+% =====================================================
+% TARIF-KACHELN
+% =====================================================
+\begin{tcbraster}[raster columns=3, raster equal height, raster column skip=9pt,
+                  raster before skip=0pt, raster after skip=0pt]
+\begin{tcolorbox}[colback=greenverlauf, colframe=greenverlauf, boxrule=0pt, arc=6pt,
+                  left=4pt, right=4pt, top=6pt, bottom=6pt, valign=top]
+\centering\color{white}{\huge\bfseries 12 ct}{\small\bfseries /kWh}\\[2pt]
+{\small Strombezug aus der \\Gemeinschaft}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=turkisverlauf, colframe=turkisverlauf, boxrule=0pt, arc=6pt,
+                  left=4pt, right=4pt, top=6pt, bottom=6pt, valign=top]
+\centering\color{white}{\huge\bfseries 8 ct}{\small\bfseries /kWh}\\[2pt]
+{\small Vergütung für deinen PV-Überschuss}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=white, colframe=egreen, boxrule=1.2pt, arc=6pt,
+                  left=4pt, right=4pt, top=6pt, bottom=6pt, valign=top]
+\centering\color{egreendark}{\huge\bfseries 2 \texteuro}{\small\bfseries /Monat}\\[2pt]
+{\small Mitgliedsbeitrag \\ kein Eintrittsgeld}
+\end{tcolorbox}
+\end{tcbraster}
+\vspace{9pt}
+% =====================================================
+% VORTEILE
+% =====================================================
+\secheading{Deine Vorteile}
+\vspace{4pt}
+
+\begin{tcbraster}[raster columns=3, raster equal height, raster column skip=7pt,
+                  raster row skip=7pt, raster before skip=0pt, raster after skip=0pt]
+\vorteil{\bfseries\texteuro}{Günstiger Strom}{12 ct/kWh -- meist deutlich unter dem
+normalen Liefertarif.}
+\vorteil{\ding{72}}{Faire Vergütung}{8 ct/kWh für deinen \\ PV-Überschuss... 
+\\oft mehr als üblich.}
+\vorteil{\ding{34}}{Weniger Abgaben}{Rund 28\,\% weniger Netzgebühr
+und keine Stromsteuer auf EEG-Strom.}
+\vorteil{\ding{170}}{Regional \& transparent}{Verein ohne Gewinnabsicht. 
+\\Die Wertschöpfung bleibt in Feldkirchen.}
+\vorteil{\ding{96}}{Klimaschutz}{100\,\% Sonnenstrom \\aus der Region.}
+\vorteil{\ding{52}}{Kein Risiko}{Dein Stromvertrag bleibt aufrecht.
+Ausstieg jederzeit möglich.}
+\end{tcbraster}
+\vspace{9pt}
+% =====================================================
+% SO MACHST DU MIT (4 Karten)
+% =====================================================
+\secheading{So machst du mit}
+\vspace{4pt}
+
+\begin{tcbraster}[raster columns=4, raster equal height, raster column skip=7pt,
+                  raster before skip=0pt, raster after skip=0pt]
+\begin{tcolorbox}[colback=cardgray, colframe=cardgray, boxrule=0pt, arc=6pt,
+                  left=6pt, right=6pt, top=4pt, bottom=4pt, valign=top]
+\raggedright\stepnum{1}\par\vspace{4pt}
+{\small \textbf{Online beitreten} \\auf \texttt{stromfueralle.at} unter „Beitreten“.}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=cardgray, colframe=cardgray, boxrule=0pt, arc=6pt,
+                  left=6pt, right=6pt, top=4pt, bottom=4pt, valign=top]
+\raggedright\stepnum{2}\par\vspace{4pt}
+{\small \textbf{Zustimmung beim Netzbetreiber} \\(Kärnten Netz)}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=cardgray, colframe=cardgray, boxrule=0pt, arc=6pt,
+                  left=6pt, right=6pt, top=4pt, bottom=4pt, valign=top]
+\raggedright\stepnum{3}\par\vspace{4pt}
+{\small \textbf{Smart Meter} \\(digitaler Stromzähler) teilt den Strom automatisch zu.}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=cardgray, colframe=cardgray, boxrule=0pt, arc=6pt,
+                  left=6pt, right=6pt, top=4pt, bottom=4pt, valign=top]
+\raggedright\stepnum{4}\par\vspace{4pt}
+{\small \textbf{Abrechnung} \\kommt bequem von \\der EEG pro Quartal oder pro Jahr.}
+\end{tcolorbox}
+\end{tcbraster}
+\vspace{5pt}
+{\small \textbf{Wichtig:} An Leitung, Zähler und Versorgungssicherheit ändert sich nichts.}
+\vspace{9pt}
+% =====================================================
+% FAQ (3 Spalten mit Akzentlinie)
+% =====================================================
+\secheading{Häufige Fragen}
+\vspace{4pt}
+
+\begin{tcbraster}[raster columns=3, raster equal height, raster column skip=9pt,
+                  raster before skip=0pt, raster after skip=0pt]
+\begin{tcolorbox}[enhanced, colback=white, colframe=white, boxrule=0pt, arc=0pt,
+                  borderline west={2.5pt}{0pt}{turkisverlauf},
+                  left=8pt, right=2pt, top=1pt, bottom=1pt, valign=top]
+\raggedright\small
+\textbf{„Brauche ich eine eigene PV-Anlage?“}\par\vspace{2pt}
+Nein. Auch reine Strom-Verbraucher sind herzlich willkommen.
+\end{tcolorbox}
+\begin{tcolorbox}[enhanced, colback=white, colframe=white, boxrule=0pt, arc=0pt,
+                  borderline west={2.5pt}{0pt}{turkisverlauf},
+                  left=8pt, right=2pt, top=1pt, bottom=1pt, valign=top]
+\raggedright\small
+\textbf{„Was, wenn die Sonne nicht scheint?“}\par\vspace{2pt}
+Dein normaler Stromvertrag bleibt bestehen -- es fehlt nie Strom.
+\end{tcolorbox}
+\begin{tcolorbox}[enhanced, colback=white, colframe=white, boxrule=0pt, arc=0pt,
+                  borderline west={2.5pt}{0pt}{turkisverlauf},
+                  left=8pt, right=2pt, top=1pt, bottom=1pt, valign=top]
+\raggedright\small
+\textbf{„Was kostet der Beitritt?“}\par\vspace{2pt}
+2 \texteuro/Monat. Kein Eintrittsgeld, keine versteckten
+Kosten, jederzeit kündbar.
+\end{tcolorbox}
+\end{tcbraster}
+\vfill
+% =====================================================
+% CTA + FUSS
+% =====================================================
+\begin{tcolorbox}[enhanced, interior style={left color=greenverlauf, right color=turkisverlauf},
+                  colframe=egreendark, sharp corners, boxrule=0pt,
+                  left=8pt, right=10pt, top=3pt, bottom=3pt]
+\color{white}
+{\large\bfseries Jetzt Mitglied werden:} \quad
+{\large\texttt{stromfueralle.at/rc108175/beitreten}}\\[4pt]
+\footnotesize EEG Strompool Feldkirchen Süd-West \;$\cdot$\; ZVR 1778816746 \;$\cdot$\;
+RC 108175 \;$\cdot$\; Sitz: Feldkirchen in Kärnten\\
+Kontakt: Patrick Ropper, \mbox{office@stromfueralle.at}, Tel.\ +43\,650\,6044812
+\;$\cdot$\; Angaben ohne Gewähr, Stand Juli 2026
+\end{tcolorbox}
+\end{document}
