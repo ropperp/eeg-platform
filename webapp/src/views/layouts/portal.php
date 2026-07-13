@@ -101,6 +101,22 @@
       <a href="/portal/billing" class="<?= str_contains($_SERVER['REQUEST_URI'], 'billing') ? 'active' : '' ?>">
         <span class="sidebar-icon">💶</span><span class="sidebar-text">Abrechnung</span>
       </a>
+      <?php
+        $pendingApplications = 0;
+        if ($ar['community_id'] ?? null) {
+          DB::setCommunity($ar['community_id']);
+          $pendingApplications = (int)DB::fetchOne(
+              "SELECT COUNT(*) AS cnt FROM membership_applications WHERE community_id = ? AND status = 'pending'",
+              [$ar['community_id']]
+          )['cnt'];
+        }
+      ?>
+      <a href="/portal/applications" class="<?= str_contains($_SERVER['REQUEST_URI'], 'applications') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📥</span><span class="sidebar-text">Neuanmeldungen</span>
+        <?php if ($pendingApplications > 0): ?>
+          <span class="badge badge-yellow" style="margin-left:.4rem"><?= $pendingApplications ?></span>
+        <?php endif; ?>
+      </a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
         <span class="sidebar-icon">📂</span><span class="sidebar-text">EDA-Import</span>
       </a>

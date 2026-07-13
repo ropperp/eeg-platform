@@ -103,6 +103,100 @@ function streamLatexPdf(string $template, array $vars, string $filename): bool
     return true;
 }
 
+/**
+ * Legt ein Mitglied inkl. Login-User und Rolle an. Wird sowohl von der manuellen
+ * Mitglieder-Anlage (/portal/members) als auch von der Freigabe einer Online-
+ * Beitrittserklärung (/portal/applications/:id/approve) verwendet, damit KdNr-
+ * Vergabe (Lücken-Auffüllung) und Mandatsreferenz-Logik nicht doppelt gepflegt werden.
+ * Erwartet in $f Schlüssel wie die Spalten der members-Tabelle (salutation, titel, …).
+ * Gibt ['member_id', 'user_id', 'kundennummer', 'temp_password' (oder null)] zurück.
+ */
+function createMemberRecord(string $communityId, array $f): array
+{
+    $email = strtolower(trim($f['email']));
+    $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
+    $tempPw = null;
+    if (!$user) {
+        $tempPw = bin2hex(random_bytes(8));
+        $hash = password_hash($tempPw, PASSWORD_BCRYPT, ['cost' => 12]);
+        DB::execute(
+            'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
+            [$email, $hash, trim($f['first_name']), trim($f['last_name'])]
+        );
+        $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
+    }
+
+    // KdNr: kleinste freie Nummer je Community vergeben (Lücken von gelöschten Mitgliedern auffüllen)
+    $kundennummer = (int)DB::fetchOne(
+        "SELECT MIN(candidate) AS next FROM generate_series(
+            1, (SELECT COALESCE(MAX(kundennummer), 0) + 1 FROM members WHERE community_id = ?)
+         ) AS candidate
+         WHERE candidate NOT IN (
+            SELECT kundennummer FROM members WHERE community_id = ? AND kundennummer IS NOT NULL
+         )",
+        [$communityId, $communityId]
+    )['next'];
+    $iban = trim($f['member_iban'] ?? '');
+    $mandatsreferenz = $iban !== '' ? 'S00000F' . date('Y') . 'A' . $kundennummer : null;
+
+    DB::execute(
+        'INSERT INTO members (
+            community_id, user_id, salutation, titel, first_name, last_name, company_name,
+            address, zip, city, email, phone, invoice_uid, member_iban, member_bic,
+            kontoinhaber, konto_adresse,
+            member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
+            geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
+            zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+            $communityId,
+            $user['id'],
+            $f['salutation'] ?? null,
+            trim($f['titel'] ?? '') ?: null,
+            trim($f['first_name']),
+            trim($f['last_name']),
+            trim($f['company_name'] ?? '') ?: null,
+            trim($f['address'] ?? ''),
+            trim($f['zip'] ?? ''),
+            trim($f['city'] ?? ''),
+            $email,
+            trim($f['phone'] ?? '') ?: null,
+            trim($f['invoice_uid'] ?? '') ?: null,
+            $iban ?: null,
+            trim($f['member_bic'] ?? '') ?: null,
+            trim($f['kontoinhaber'] ?? '') ?: null,
+            trim($f['konto_adresse'] ?? '') ?: null,
+            $f['member_since'] ?: date('Y-m-d'),
+            ($f['member_until'] ?? '') ?: '2099-12-31',
+            $kundennummer,
+            $mandatsreferenz,
+            $f['member_since'] ?: date('Y-m-d'),
+            ($f['geburtsdatum'] ?? '') ?: null,
+            trim($f['stromlieferant'] ?? '') ?: null,
+            ($f['speicher_status'] ?? '') ?: null,
+            ($f['speicher_kwh'] ?? '') !== '' && ($f['speicher_kwh'] ?? null) !== null ? (float)$f['speicher_kwh'] : null,
+            !empty($f['andere_eeg']) ? 'true' : 'false',
+            trim($f['andere_eeg_name'] ?? '') ?: null,
+            'true', 'true', 'true', 'true', 'true', 'true',
+        ]
+    );
+    $member = DB::fetchOne('SELECT id FROM members WHERE community_id = ? AND kundennummer = ?', [$communityId, $kundennummer]);
+
+    DB::execute(
+        'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+        [$communityId, $user['id'], 'member']
+    );
+
+    return [
+        'member_id'     => $member['id'],
+        'user_id'       => $user['id'],
+        'kundennummer'  => $kundennummer,
+        'temp_password' => $tempPw,
+    ];
+}
+
 $router = new Router();
 
 // ─── Gesundheitscheck ───────────────────────────────────
@@ -115,8 +209,19 @@ $router->get('/', function () {
     require ROOT . '/src/views/pages/home.php';
 });
 
+// ─── Informieren und Beitreten: Auswahl der Energiegemeinschaft ─────────
+$router->get('/beitreten', function () {
+    $communities = DB::fetchAll('SELECT * FROM communities WHERE active = true ORDER BY name');
+    // Communities mit bereits veröffentlichten Beitritts-/Rechtsunterlagen (Statuten, AGB, …).
+    // Für neu angelegte EEGs ohne eigene Unterlagen wird "Informationen folgen in Kürze" angezeigt,
+    // statt fälschlich die Texte einer anderen Energiegemeinschaft darzustellen.
+    $communitiesWithLegalPages = ['rc108175'];
+    require ROOT . '/src/views/pages/beitreten_picker.php';
+});
+
 // ─── Rechtliches (rc108175 = Marktpartner-ID Strompool Feldkirchen Süd-West) ──
 $router->get('/rc108175/beitreten', function () {
+    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ?', ['rc108175']);
     require ROOT . '/src/views/pages/legal_beitreten.php';
 });
 
@@ -142,6 +247,125 @@ $router->get('/rc108175/agb', function () {
 
 $router->get('/rc108175/preisliste', function () {
     require ROOT . '/src/views/pages/legal_preisliste.php';
+});
+
+// ─── Online-Beitrittserklärung ──────────────────────────
+$router->get('/:communityid/beitreten/formular', function ($params) {
+    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [strtolower($params['communityid'])]);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    require ROOT . '/src/views/pages/beitreten_formular.php';
+});
+
+$router->post('/:communityid/beitreten/formular', function ($params) {
+    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [strtolower($params['communityid'])]);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    $communityId = $community['id'];
+    DB::setCommunity($communityId);
+
+    $required = ['first_name', 'last_name', 'email', 'address', 'zip', 'city'];
+    foreach ($required as $rf) {
+        if (empty(trim($_POST[$rf] ?? ''))) {
+            $error = 'Bitte alle Pflichtfelder ausfüllen.';
+            require ROOT . '/src/views/pages/beitreten_formular.php';
+            return;
+        }
+    }
+
+    $consentFields = [
+        'zustimmung_mitgliedschaft', 'zustimmung_vollmacht', 'zustimmung_widerrufsfrist',
+        'zustimmung_email_kommunikation', 'zustimmung_datenschutz', 'zustimmung_agb',
+    ];
+    foreach ($consentFields as $cf) {
+        if (empty($_POST[$cf])) {
+            $error = 'Bitte alle sechs rechtlichen Zustimmungen bestätigen.';
+            require ROOT . '/src/views/pages/beitreten_formular.php';
+            return;
+        }
+    }
+
+    $iban = trim($_POST['member_iban'] ?? '');
+    if ($iban !== '' && !validateIban($iban)) {
+        $error = 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
+
+    $signature = $_POST['signature_image'] ?? '';
+    if (!str_starts_with($signature, 'data:image/png;base64,')) {
+        $error = 'Bitte unterschreiben Sie im Unterschriftsfeld, bevor Sie absenden.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
+
+    DB::execute(
+        'INSERT INTO membership_applications (
+            community_id, salutation, titel, first_name, last_name, geburtsdatum,
+            address, zip, city, phone, email, stromlieferant,
+            bezug_gewuenscht, bezug_jahresverbrauch_kwh,
+            einspeisung_gewuenscht, einspeisung_kwp, einspeisung_geplante_kwh,
+            speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
+            iban, bic, kontoinhaber, konto_adresse,
+            zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
+            signature_image, signed_at, signer_ip
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?)',
+        [
+            $communityId,
+            $_POST['salutation'] ?? null,
+            trim($_POST['titel'] ?? '') ?: null,
+            trim($_POST['first_name']),
+            trim($_POST['last_name']),
+            ($_POST['geburtsdatum'] ?? '') ?: null,
+            trim($_POST['address']),
+            trim($_POST['zip']),
+            trim($_POST['city']),
+            trim($_POST['phone'] ?? '') ?: null,
+            strtolower(trim($_POST['email'])),
+            trim($_POST['stromlieferant'] ?? '') ?: null,
+            isset($_POST['bezug_gewuenscht']) ? 'true' : 'false',
+            ($_POST['bezug_jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['bezug_jahresverbrauch_kwh']) : null,
+            isset($_POST['einspeisung_gewuenscht']) ? 'true' : 'false',
+            ($_POST['einspeisung_kwp'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['einspeisung_kwp']) : null,
+            ($_POST['einspeisung_geplante_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['einspeisung_geplante_kwh']) : null,
+            ($_POST['speicher_status'] ?? '') ?: null,
+            ($_POST['speicher_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['speicher_kwh']) : null,
+            isset($_POST['andere_eeg']) ? 'true' : 'false',
+            trim($_POST['andere_eeg_name'] ?? '') ?: null,
+            $iban ?: null,
+            trim($_POST['member_bic'] ?? '') ?: null,
+            trim($_POST['kontoinhaber'] ?? '') ?: null,
+            trim($_POST['konto_adresse'] ?? '') ?: null,
+            'true', 'true', 'true', 'true', 'true', 'true',
+            $signature,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+        ]
+    );
+    $application = DB::fetchOne(
+        'SELECT id FROM membership_applications WHERE community_id = ? AND email = ? ORDER BY created_at DESC LIMIT 1',
+        [$communityId, strtolower(trim($_POST['email']))]
+    );
+
+    DB::execute(
+        'INSERT INTO notifications (community_id, typ, titel, text, referenz_typ, referenz_id)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            $communityId,
+            'beitrittserklaerung',
+            'Neue Beitrittserklärung: ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']),
+            'Online-Beitrittserklärung wurde übermittelt und wartet auf Freigabe.',
+            'membership_application',
+            $application['id'],
+        ]
+    );
+
+    header('Location: /' . strtolower($community['marktpartner_id']) . '/beitreten/danke');
+    exit;
+});
+
+$router->get('/:communityid/beitreten/danke', function ($params) {
+    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [strtolower($params['communityid'])]);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    require ROOT . '/src/views/pages/beitreten_danke.php';
 });
 
 // ─── Live-Dashboard ─────────────────────────────────────
@@ -401,85 +625,12 @@ $router->post('/portal/members', function () {
         }
     }
 
-    // User-Account anlegen falls E-Mail neu
     $email = strtolower(trim($_POST['email']));
-    $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
-    if (!$user) {
-        $tempPw = bin2hex(random_bytes(8));
-        $hash = password_hash($tempPw, PASSWORD_BCRYPT, ['cost' => 12]);
-        DB::execute(
-            'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
-            [$email, $hash, trim($_POST['first_name']), trim($_POST['last_name'])]
-        );
-        $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
-    }
-
-    // KdNr: kleinste freie Nummer je Community vergeben (Lücken von gelöschten Mitgliedern auffüllen)
-    $kundennummer = (int)DB::fetchOne(
-        "SELECT MIN(candidate) AS next FROM generate_series(
-            1, (SELECT COALESCE(MAX(kundennummer), 0) + 1 FROM members WHERE community_id = ?)
-         ) AS candidate
-         WHERE candidate NOT IN (
-            SELECT kundennummer FROM members WHERE community_id = ? AND kundennummer IS NOT NULL
-         )",
-        [$communityId, $communityId]
-    )['next'];
-    $mandatsreferenz = $iban !== '' ? 'S00000F' . date('Y') . 'A' . $kundennummer : null;
-
-    // Mitglied anlegen
-    DB::execute(
-        'INSERT INTO members (
-            community_id, user_id, salutation, titel, first_name, last_name, company_name,
-            address, zip, city, email, phone, invoice_uid, member_iban, member_bic,
-            kontoinhaber, konto_adresse,
-            member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
-            geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
-            zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
-            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb
-         )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-            $communityId,
-            $user['id'],
-            $_POST['salutation'] ?? null,
-            trim($_POST['titel'] ?? '') ?: null,
-            trim($_POST['first_name']),
-            trim($_POST['last_name']),
-            trim($_POST['company_name'] ?? '') ?: null,
-            trim($_POST['address']),
-            trim($_POST['zip']),
-            trim($_POST['city']),
-            $email,
-            trim($_POST['phone'] ?? '') ?: null,
-            trim($_POST['invoice_uid'] ?? '') ?: null,
-            $iban ?: null,
-            trim($_POST['member_bic'] ?? '') ?: null,
-            trim($_POST['kontoinhaber'] ?? '') ?: null,
-            trim($_POST['konto_adresse'] ?? '') ?: null,
-            $_POST['member_since'] ?: date('Y-m-d'),
-            ($_POST['member_until'] ?? '') ?: '2099-12-31',
-            $kundennummer,
-            $mandatsreferenz,
-            $_POST['member_since'] ?: date('Y-m-d'),
-            ($_POST['geburtsdatum'] ?? '') ?: null,
-            trim($_POST['stromlieferant'] ?? '') ?: null,
-            ($_POST['speicher_status'] ?? '') ?: null,
-            ($_POST['speicher_kwh'] ?? '') !== '' ? (float)$_POST['speicher_kwh'] : null,
-            isset($_POST['andere_eeg']) ? 'true' : 'false',
-            trim($_POST['andere_eeg_name'] ?? '') ?: null,
-            'true', 'true', 'true', 'true', 'true', 'true',
-        ]
-    );
-
-    // Rolle in user_roles eintragen
-    DB::execute(
-        'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
-        [$communityId, $user['id'], 'member']
-    );
+    $result = createMemberRecord($communityId, array_merge($_POST, ['andere_eeg' => isset($_POST['andere_eeg'])]));
 
     // Temp-Passwort anzeigen falls neuer User
-    if (isset($tempPw)) {
-        $successTempPw = $tempPw;
+    if ($result['temp_password']) {
+        $successTempPw = $result['temp_password'];
         $successEmail  = $email;
         $members = DB::fetchAll(
             "SELECT m.*,
@@ -946,6 +1097,88 @@ $router->post('/portal/billing/:id/delete', function ($params) {
     // Löscht kaskadierend die zugehörigen Rechnungen/Rechnungspositionen (siehe migrate_20260715.sql).
     DB::execute('DELETE FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     header('Location: /portal/billing?success=1');
+    exit;
+});
+
+// ─── Portal: Online-Beitrittserklärungen (Freigabe) ─────
+$router->get('/portal/applications', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $applications = DB::fetchAll(
+        'SELECT * FROM membership_applications WHERE community_id = ? ORDER BY (status = \'pending\') DESC, created_at DESC',
+        [$communityId]
+    );
+    require ROOT . '/src/views/pages/applications_list.php';
+});
+
+$router->get('/portal/applications/:id', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $application = DB::fetchOne('SELECT * FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$application) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    require ROOT . '/src/views/pages/application_detail.php';
+});
+
+$router->post('/portal/applications/:id/approve', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $application = DB::fetchOne(
+        "SELECT * FROM membership_applications WHERE id = ? AND community_id = ? AND status = 'pending'",
+        [$params['id'], $communityId]
+    );
+    if (!$application) { http_response_code(404); echo 'Nicht gefunden oder bereits bearbeitet'; return; }
+
+    $result = createMemberRecord($communityId, [
+        'salutation' => $application['salutation'], 'titel' => $application['titel'],
+        'first_name' => $application['first_name'], 'last_name' => $application['last_name'],
+        'email' => $application['email'], 'phone' => $application['phone'],
+        'address' => $application['address'], 'zip' => $application['zip'], 'city' => $application['city'],
+        'geburtsdatum' => $application['geburtsdatum'], 'stromlieferant' => $application['stromlieferant'],
+        'speicher_status' => $application['speicher_status'], 'speicher_kwh' => $application['speicher_kwh'],
+        'andere_eeg' => in_array($application['andere_eeg'], [true, 't', '1', 1], true), 'andere_eeg_name' => $application['andere_eeg_name'],
+        'member_iban' => $application['iban'], 'member_bic' => $application['bic'],
+        'kontoinhaber' => $application['kontoinhaber'], 'konto_adresse' => $application['konto_adresse'],
+        'member_since' => date('Y-m-d'),
+    ]);
+
+    DB::execute(
+        "UPDATE membership_applications SET status = 'approved', member_id = ?, bearbeitet_von = ?, bearbeitet_am = now() WHERE id = ?",
+        [$result['member_id'], Auth::userId(), $application['id']]
+    );
+    DB::execute(
+        "UPDATE notifications SET status = 'erledigt', erledigt_am = now(), erledigt_von = ?
+         WHERE community_id = ? AND referenz_typ = 'membership_application' AND referenz_id = ?",
+        [Auth::userId(), $communityId, $application['id']]
+    );
+
+    header('Location: /portal/members/' . $result['member_id'] . '?success=1');
+    exit;
+});
+
+$router->post('/portal/applications/:id/reject', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $application = DB::fetchOne(
+        "SELECT id FROM membership_applications WHERE id = ? AND community_id = ? AND status = 'pending'",
+        [$params['id'], $communityId]
+    );
+    if (!$application) { http_response_code(404); echo 'Nicht gefunden oder bereits bearbeitet'; return; }
+
+    DB::execute(
+        "UPDATE membership_applications SET status = 'rejected', ablehnungsgrund = ?, bearbeitet_von = ?, bearbeitet_am = now() WHERE id = ?",
+        [trim($_POST['ablehnungsgrund'] ?? '') ?: null, Auth::userId(), $application['id']]
+    );
+    DB::execute(
+        "UPDATE notifications SET status = 'erledigt', erledigt_am = now(), erledigt_von = ?
+         WHERE community_id = ? AND referenz_typ = 'membership_application' AND referenz_id = ?",
+        [Auth::userId(), $communityId, $application['id']]
+    );
+
+    header('Location: /portal/applications?success=1');
     exit;
 });
 

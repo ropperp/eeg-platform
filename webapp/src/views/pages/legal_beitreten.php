@@ -9,15 +9,14 @@ ob_start();
 
   <p>
     Sie möchten Mitglied der Erneuerbare-Energie-Gemeinschaft Strompool Feldkirchen Süd-West
-    werden? Laden Sie die Beitrittserklärung herunter, füllen Sie sie aus und senden Sie sie
-    unterschrieben per E-Mail an
-    <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a> oder postalisch an den
-    Vereinssitz. Über die Aufnahme entscheidet der Vorstand.
+    werden? Füllen Sie die Beitrittserklärung direkt online aus und unterschreiben Sie sie mit
+    der Maus oder dem Finger — der Vorstand erhält danach eine Benachrichtigung und schaltet
+    Ihre Mitgliedschaft frei. Über die Aufnahme entscheidet der Vorstand.
   </p>
 
   <div style="margin:1.5rem 0 2.5rem;display:flex;flex-wrap:wrap;gap:1rem">
-    <a href="/assets/docs/beitrittserklaerung-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-primary" download>
-      Beitrittserklärung als PDF herunterladen
+    <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/beitreten/formular" class="btn btn-primary">
+      Online Beitrittserklärung ausfüllen &amp; unterschreiben
     </a>
     <a href="/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-secondary" target="_blank" rel="noopener">
       Infoblatt ansehen (PDF)
