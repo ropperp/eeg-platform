@@ -5,28 +5,32 @@
 \usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
 \usepackage{tabularx}
 \usepackage{booktabs}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage{parskip}
 \usepackage{eurosym}
 \usepackage{array}
 \usepackage{microtype}
 \usepackage{fancyhdr}
 
-\definecolor{blau}{RGB}{29,78,216}
+% Farben passend zur Web-Plattform (Grün + türkis-blauer Akzent)
+\definecolor{gruen}{RGB}{21,128,61}
+\definecolor{tuerkis}{RGB}{5,150,105}
 \definecolor{hellgrau}{RGB}{249,250,251}
 \definecolor{mittelgrau}{RGB}{107,114,128}
 
 \pagestyle{fancy}
 \fancyhf{}
 \renewcommand{\headrulewidth}{0pt}
-\fancyfoot[C]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered{} EEG-Verwaltungsportal \textperiodcentered{} Vorlage: energiegemeinschaften.gv.at}
+\fancyfoot[C]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered{} EEG-Verwaltungsportal \textperiodcentered{} Vorlage: energiegemeinschaften.gv.at, August 2022}
 \fancyfoot[R]{\small\thepage}
+
+\newcommand{\parasec}[1]{\section*{\color{gruen}#1}}
 
 \begin{document}
 
 %% ─── Kopfzeile ────────────────────────────────────────────────────────
 \begin{tabularx}{\textwidth}{Xr}
-  {\large\bfseries\color{blau}<<<EEG_NAME>>>} &
+  {\large\bfseries\color{gruen}<<<EEG_NAME>>>} &
   \begin{tabular}[t]{r}
     \small <<<EEG_ADRESSE>>>\\
     \small ZVR: <<<EEG_ZVR>>>\\
@@ -35,7 +39,7 @@
 \end{tabularx}
 
 \vspace{.8em}
-{\color{blau}\hrule height 1.2pt}
+{\color{tuerkis}\hrule height 1.2pt}
 \vspace{1.5em}
 
 \begin{center}
@@ -49,56 +53,55 @@
 
 \vspace{.5em}
 \noindent
-\begin{tabularx}{\textwidth}{|X|X|}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{7.6cm}|>{\raggedright\arraybackslash}X|}
 \hline
-\vspace{2pt}
-\textbf{Erneuerbare-Energie-Gemeinschaft (EEG)}\par
-\smallskip
-<<<EEG_NAME>>>\par
-<<<EEG_ADRESSE>>>\par
-ZVR: <<<EEG_ZVR>>>\par
-IBAN: <<<EEG_IBAN>>>\vspace{4pt} &
-\vspace{2pt}
-\textbf{Mitglied / teilnehmende:r Netzbenutzer:in}\par
-\smallskip
-<<<MITGLIED_NAME>>>\par
-<<<MITGLIED_ADRESSE>>>\par
-<<<MITGLIED_UID_ZEILE>>>\vspace{4pt}\\
+\rowcolor{hellgrau}
+\textbf{Erneuerbare-Energie-Gemeinschaft (EEG)} & \textbf{Mitglied / teilnehmende:r Netzbenutzer:in} \\
+\hline
+<<<EEG_NAME>>>\newline
+<<<EEG_ADRESSE>>>\newline
+ZVR: <<<EEG_ZVR>>>\newline
+IBAN: <<<EEG_IBAN>>>
+&
+<<<MITGLIED_NAME>>>\newline
+<<<MITGLIED_ADRESSE>>>\newline
+<<<MITGLIED_UID_ZEILE>>>
+\\[4pt]
 \hline
 \end{tabularx}
 
 \vspace{1em}
 \begin{center}\textbf{wie folgt:}\end{center}
 
-%% §1
-\section*{\S{} 1 \quad Grundlagen der Leistungserbringung}
+\parasec{\S{} 1 \quad Grundlagen und T\"atigkeitsumfang der EEG}
 
-1.1 \quad Die EEG \textit{<<<EEG_NAME>>>} ist eine Erneuerbare-Energie-Gemeinschaft gem\"a\ss{} \S\S{} 79f Erneuerbaren-Ausbau-Gesetz (EAG) iVm \S\S{} 16c ff Elektrizit\"atswirtschafts- und -organisationsgesetz (ElWOG 2010).
+1.1 \quad Die EEG \textit{<<<EEG_NAME>>>} ist eine Erneuerbare-Energie-Gemeinschaft gem\"a\ss{} \S\S{} 79f Erneuerbaren-Ausbau-Gesetz (EAG) iVm \S\S{} 16c ff Elektrizit\"atswirtschafts- und -organisationsgesetz (ElWOG 2010) und verf\"ugt \"uber (eine) Energieerzeugungsanlage(n), mit der sie im Rahmen der gesetzlichen Bestimmungen elektrische Energie erzeugt, die eigenerzeugte Energie verbraucht, speichert oder verkauft sowie f\"ur ihre Mitglieder Energiedienstleistungen erbringt. Der T\"atigkeitsumfang der EEG umfasst somit Energieerzeugung, Verbrauch eigenerzeugter Energie sowie Verkauf von Energie.
 
 1.2 \quad Das Mitglied ist Mitglied der EEG und verf\"ugt \"uber eine Verbrauchsanlage mit folgender Z\"ahlpunktnummer:
 
 \vspace{.5em}
-\begin{tabularx}{\textwidth}{lX}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{>{\ttfamily\small}p{7.2cm}X}
 \toprule
-\textbf{Z\"ahlpunktnummer (AT\ldots)} & \textbf{Z\"ahlernummer} \\
+\normalfont\textbf{Z\"ahlpunktnummer} & \textbf{Z\"ahlernummer} \\
 \midrule
 <<<RAW_ZAEHLPUNKTE_TABELLE>>>
 \bottomrule
 \end{tabularx}
+\renewcommand{\arraystretch}{1}
 
-1.3 \quad Das Mitglied stimmt ausdr\"ucklich zu, dass der zust\"andige Netzbetreiber den Energiebezug der Verbrauchsanlage mit einem geeigneten Messger\"at misst und diese Daten f\"ur die Energieverteilung und Verrechnung innerhalb der EEG verarbeitet (§ 16e Abs 3 ElWOG 2010).
+1.3 \quad Das Mitglied stimmt ausdr\"ucklich zu, dass der zust\"andige Netzbetreiber den Energiebezug der Verbrauchsanlage mit einem geeigneten Messger\"at misst, diese Daten f\"ur die Energieverteilung und Verrechnung innerhalb der EEG verarbeitet und die Viertelstundenwerte gem\"a\ss{} \S{} 84a ElWOG 2010 an die EEG \"ubermittelt (\S{} 16e Abs 3 ElWOG 2010).
 
-%% §2
-\section*{\S{} 2 \quad Energiezuweisung und Aufteilung}
+\parasec{\S{} 2 \quad Energiezuweisung und Anteil}
 
-2.1 \quad Die virtuelle Zuweisung der von der EEG erzeugten Energie erfolgt nach dem tats\"achlichen physikalischen Bezug (Messung am Z\"ahlpunkt) der Verbrauchsanlagen im dynamischen Aufteilungsmodell.
+2.1 \quad Die virtuelle Zuweisung der von der EEG erzeugten Energie erfolgt nach dem tats\"achlichen physikalischen Bezug (Messung am Z\"ahlpunkt) der Verbrauchsanlagen im dynamischen Aufteilungsmodell. Die Zuordnung ist mit dem Energieverbrauch des jeweiligen Mitglieds in der Viertelstunde begrenzt; bei Nullverbrauch wird die Energie den anderen teilnehmenden Netzbenutzenden zugeordnet.
 
-2.2 \quad Die Zuordnung ist mit dem Energieverbrauch des jeweiligen Mitglieds in der Viertelstunde begrenzt. Bei Nullverbrauch wird die Energie den anderen teilnehmenden Netzbenutzenden zugeordnet.
+2.2 \quad Mit dieser Anteilsfestlegung ist keine dingliche Berechtigung des Mitglieds an der Energieerzeugungsanlage verbunden, sondern lediglich eine elektrizit\"atsrechtliche Anteilszuweisung gem\"a\ss{} \S{} 16d Abs 2 Z 3 ElWOG 2010.
 
-%% §3
-\section*{\S{} 3 \quad Energiebezugspreis und Zahlung}
+\parasec{\S{} 3 \quad Energiebezugspreis und Zahlung}
 
-3.1 \quad Das Mitglied verpflichtet sich, der EEG f\"ur den vom Netzbetreiber festgestellten Energiebezug folgende Entgelte zu entrichten (exkl. allenfalls anfallender USt):
+3.1 \quad Das Mitglied verpflichtet sich, der EEG f\"ur den vom Netzbetreiber festgestellten Energiebezug folgende Entgelte zu entrichten (exkl. allenfalls anfallender USt sowie sonstiger von der EEG abzuf\"uhrender \"offentlicher Steuern, Abgaben und Geb\"uhren):
 
 \vspace{.5em}
 \begin{tabularx}{\textwidth}{Xrr}
@@ -106,40 +109,46 @@ IBAN: <<<EEG_IBAN>>>\vspace{4pt} &
 \textbf{Leistung} & \textbf{Preis} & \textbf{G\"ultig ab} \\
 \midrule
 Energiebezugspreis (Bezug aus EEG) & <<<BEZUG_TARIF>>> ct/kWh & <<<TARIF_GUELTIG_AB>>> \\
-Mitgliedsbeitrag & <<<MITGLIEDSBEITRAG>>> EUR/Quartal & <<<TARIF_GUELTIG_AB>>> \\
+Mitgliedsbeitrag & <<<MITGLIEDSBEITRAG>>> EUR/Jahr & <<<TARIF_GUELTIG_AB>>> \\
 \bottomrule
 \end{tabularx}
 
-3.2 \quad Tarife k\"onnen durch Beschluss des Vorstandes der EEG ge\"andert werden. Das Mitglied wird mindestens 6 Wochen im Voraus informiert.
+3.2 \quad Der Energiebezugspreis wird unabh\"angig von der tageszeitlichen Gelegenheit des Energiebezuges durch das Mitglied vereinbart. Tarif\"anderungen k\"onnen durch Beschluss des Vorstandes der EEG erfolgen; das Mitglied wird mindestens 6 Wochen im Voraus informiert.
 
-3.3 \quad Abrechnung und F\"alligkeit erfolgen quartalm\"a\ss{}ig. Bei Zahlungsverzug gelten 4\,\% Verzugszinsen p.\,a.
+3.3 \quad Abrechnung und F\"alligkeit erfolgen quartalsweise auf Basis der vom Netzbetreiber \"ubermittelten Messwerte. Bei Zahlungsverzug gelten 4\,\% Verzugszinsen p.\,a.
 
-%% §4
-\section*{\S{} 4 \quad Betrieb, Haftung und Gew\"ahrleistung}
+\parasec{\S{} 4 \quad Betrieb, Wartung und Netzbetreiber-Zustimmungen}
 
-4.1 \quad Betrieb, Erhaltung und Wartung der Energieerzeugungsanlage liegen in der alleinigen Verantwortung der EEG. Die EEG leistet keine Gew\"ahr f\"ur die Quantit\"at der erzeugten Energie.
+4.1 \quad Betrieb, Erhaltung und Wartung der Energieerzeugungsanlage liegen in der alleinigen Verantwortung und Kostentragung der EEG. Die EEG leistet keine Gew\"ahr f\"ur die Quantit\"at, Art und den Umfang der erzeugten Energie; diesbez\"ugliche Anspr\"uche des Mitglieds aus mangelnder Stromerzeugung sind ausgeschlossen.
 
-4.2 \quad Die EEG haftet f\"ur Sch\"aden aus der Energieerzeugungsanlage und h\"alt das Mitglied gegen Anspr\"uche Dritter schad- und klaglos.
+4.2 \quad Die EEG haftet f\"ur Sch\"aden aus der Energieerzeugungsanlage und h\"alt das Mitglied gegen Anspr\"uche Dritter schad- und klaglos. Der Abschluss allf\"alliger Versicherungen f\"ur die Energieerzeugungsanlage obliegt der EEG.
 
-%% §5
-\section*{\S{} 5 \quad Laufzeit und K\"undigung}
+4.3 \quad Das Mitglied verpflichtet sich, mit dem zust\"andigen Netzbetreiber alle f\"ur die Umsetzung dieser Vereinbarung erforderlichen Vereinbarungen betreffend Datenverwaltung und -bearbeitung abzuschlie\ss{}en, dem Netzbetreiber den erforderlichen Zugang zur Verbrauchsanlage zu gew\"ahren und stimmt dem Austausch aller hierf\"ur erforderlichen Daten zwischen EEG und Netzbetreiber ausdr\"ucklich zu. Die EEG wird ihrerseits die erforderlichen Vereinbarungen mit dem Netzbetreiber abschlie\ss{}en.
 
-5.1 \quad Diese Vereinbarung tritt mit Unterzeichnung in Kraft und wird auf unbestimmte Zeit geschlossen.
+\parasec{\S{} 5 \quad Datenschutz}
 
-5.2 \quad Eine K\"undigung ist unter Einhaltung einer Frist von 3 Monaten zum Quartalsende m\"oglich. Bei schwerwiegenden Verst\"o\ss{}en gegen diese Vereinbarung ist die sofortige K\"undigung vorbehalten.
+5.1 \quad Die EEG verarbeitet personenbezogene Daten des Mitglieds (Name, Geburtsdatum, Adresse), insbesondere die Verbrauchsmesswerte, ausschlie\ss{}lich gem\"a\ss{} Art.\,6 Abs.\,1 lit.\,b DSGVO zur Verwaltung der Gemeinschaft und zur Abrechnung. Die EEG ist Verantwortliche iSd Art.\,4 Abs.\,7 DSGVO.
 
-%% §6
-\section*{\S{} 6 \quad Datenschutz}
+5.2 \quad Dem Mitglied kommt gegen\"uber der EEG das Recht auf Auskunft, Berichtigung sowie -- nach Beendigung des Vertragsverh\"altnisses im gesetzlichen Rahmen -- das Recht auf L\"oschung, Einschr\"ankung der Verarbeitung, Widerspruch und Datenübertragbarkeit sowie das Beschwerderecht bei der Datenschutzbeh\"orde zu.
 
-6.1 \quad Die EEG verarbeitet personenbezogene Daten (Name, Adresse, Z\"ahlpunktdaten, Verbrauchsmesswerte) ausschlie\ss{}lich gem\"a\ss{} Art.\,6 Abs.\,1 lit.\,b DSGVO zur Verwaltung der Gemeinschaft und zur Abrechnung. Auskunfts- und Berichtigungsrechte gem\"a\ss{} Art.\,15--17 DSGVO bleiben unber\"uhrt.
+\parasec{\S{} 6 \quad K\"undigung, Vertragsauflösung und freie Lieferantenwahl}
 
-%% §7
-\section*{\S{} 7 \quad Sonstiges}
+6.1 \quad Das Mitglied kann die Deckung des Verbrauchs aus der Energieerzeugungsanlage mit einer Frist von 4 Wochen zum Monatsletzten k\"undigen. Die EEG kann diese Vereinbarung unter Einhaltung einer Frist von 12 Wochen zum Monatsletzten k\"undigen; bei Zahlungsverzug des Mitglieds von mehr als 8 Wochen trotz qualifizierter Mahnung steht der EEG das Recht zur fristlosen K\"undigung zu.
 
-\"Anderungen dieser Vereinbarung bed\"urfen der Schriftform. Gerichtsstand ist das sachlich zust\"andige Gericht am Sitz der EEG. Es gilt \"osterreichisches Recht.
+6.2 \quad Die Vereinbarung endet automatisch, ohne dass es eines weiteren Rechtsaktes bed\"urfte, sobald das Mitglied aus der EEG ausscheidet. Hinsichtlich der \"uber das \"offentliche Netz bezogenen Energie hat das Mitglied eigenst\"andige Vereinbarungen mit Energielieferant und Netzbetreiber zu treffen; die freie Wahl des Lieferanten bleibt jederzeit gewahrt.
+
+\parasec{\S{} 7 \quad Haftung}
+
+7.1 \quad Die Haftung der EEG f\"ur die vom Netzbetreiber durchgef\"uhrten Messungen, Zuordnungen und Saldierungen wird ausgeschlossen; das Mitglied \"ubernimmt die Pr\"ufung der Vollst\"andigkeit und Richtigkeit dieser Daten und informiert die EEG umgehend bei Abweichungen.
+
+7.2 \quad Mit Ausnahme von Personensch\"aden wird nur bei Vorsatz und grober Fahrl\"assigkeit gehaftet; der Ersatz von Verdienstentgang, entgangenem Gewinn und Folgesch\"aden ist, soweit gesetzlich zul\"assig, ausgeschlossen.
+
+\parasec{\S{} 8 \quad Schlussbestimmungen}
+
+\"Anderungen und Erg\"anzungen dieser Vereinbarung bed\"urfen der Schriftform; dies gilt auch f\"ur ein Abgehen vom Schriftformgebot. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die G\"ultigkeit der \"ubrigen Bestimmungen unber\"uhrt; die Vertragsparteien verpflichten sich, die unwirksame Bestimmung durch eine ihr wirtschaftlich m\"oglichst gleichkommende, wirksame Regelung zu ersetzen. Rechte und Pflichten aus dieser Vereinbarung gehen auf Rechtsnachfolger \"uber. Gerichtsstand ist das sachlich zust\"andige Gericht am Sitz der EEG; es gilt \"osterreichisches Recht.
 
 %% Unterschriften
-\vspace{3em}
+\vspace{2.5em}
 \begin{tabularx}{\textwidth}{XX}
 <<<MITGLIED_ADRESSE_ORT>>>, \rule{3cm}{0.4pt} &
 <<<EEG_ORT>>>, \rule{3cm}{0.4pt} \\[3em]

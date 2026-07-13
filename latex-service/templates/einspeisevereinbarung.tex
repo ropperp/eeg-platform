@@ -5,14 +5,16 @@
 \usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
 \usepackage{tabularx}
 \usepackage{booktabs}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage{parskip}
 \usepackage{eurosym}
 \usepackage{array}
 \usepackage{microtype}
 \usepackage{fancyhdr}
 
-\definecolor{braun}{RGB}{180,83,9}
+% Farben passend zur Web-Plattform (Grün + türkis-blauer Akzent)
+\definecolor{gruen}{RGB}{21,128,61}
+\definecolor{tuerkis}{RGB}{5,150,105}
 \definecolor{hellgrau}{RGB}{249,250,251}
 \definecolor{mittelgrau}{RGB}{107,114,128}
 
@@ -22,11 +24,13 @@
 \fancyfoot[C]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered{} EEG-Verwaltungsportal \textperiodcentered{} Vorlage: energiegemeinschaften.gv.at, August 2022}
 \fancyfoot[R]{\small\thepage}
 
+\newcommand{\parasec}[1]{\section*{\color{gruen}#1}}
+
 \begin{document}
 
 %% ─── Kopfzeile ────────────────────────────────────────────────────────
 \begin{tabularx}{\textwidth}{Xr}
-  {\large\bfseries\color{braun}<<<EEG_NAME>>>} &
+  {\large\bfseries\color{gruen}<<<EEG_NAME>>>} &
   \begin{tabular}[t]{r}
     \small <<<EEG_ADRESSE>>>\\
     \small ZVR: <<<EEG_ZVR>>>\\
@@ -35,7 +39,7 @@
 \end{tabularx}
 
 \vspace{.8em}
-{\color{braun}\hrule height 1.2pt}
+{\color{tuerkis}\hrule height 1.2pt}
 \vspace{1.5em}
 
 \begin{center}
@@ -51,59 +55,61 @@
 
 \vspace{.5em}
 \noindent
-\begin{tabularx}{\textwidth}{|X|X|}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{7.6cm}|>{\raggedright\arraybackslash}X|}
 \hline
-\vspace{2pt}
-\textbf{Erneuerbare-Energie-Gemeinschaft (EEG)}\par
-\smallskip
-<<<EEG_NAME>>>\par
-<<<EEG_ADRESSE>>>\par
-ZVR: <<<EEG_ZVR>>>\par
-IBAN: <<<EEG_IBAN>>>\vspace{4pt} &
-\vspace{2pt}
-\textbf{Eigent\"umer:in der Erzeugungsanlage}\par
-\smallskip
-<<<MITGLIED_NAME>>>\par
-<<<MITGLIED_ADRESSE>>>\par
-<<<MITGLIED_UID_ZEILE>>>\vspace{4pt}\\
+\rowcolor{hellgrau}
+\textbf{Erneuerbare-Energie-Gemeinschaft (EEG)} & \textbf{Eigent\"umer:in der Erzeugungsanlage} \\
+\hline
+<<<EEG_NAME>>>\newline
+<<<EEG_ADRESSE>>>\newline
+ZVR: <<<EEG_ZVR>>>\newline
+IBAN: <<<EEG_IBAN>>>
+&
+<<<MITGLIED_NAME>>>\newline
+<<<MITGLIED_ADRESSE>>>\newline
+<<<MITGLIED_UID_ZEILE>>>
+\\[4pt]
 \hline
 \end{tabularx}
 
 \vspace{1em}
 \begin{center}\textbf{wie folgt:}\end{center}
 
-%% Präambel
-\section*{Pr\"aambel}
+\parasec{Pr\"aambel}
 
-<<<MITGLIED_NAME>>> ist Eigent\"umer:in der nachstehend beschriebenen Energieerzeugungsanlage sowie Mitglied der EEG \textit{<<<EEG_NAME>>>}. Mit der vorliegenden Vereinbarung wird der EEG die Betriebs- und Verf\"ugungsgewalt \"uber die Energieerzeugungsanlage im festgelegten Umfang \"ubertragen.
+<<<MITGLIED_NAME>>> ist Eigent\"umer:in der nachstehend beschriebenen Energieerzeugungsanlage sowie Mitglied der EEG \textit{<<<EEG_NAME>>>} seit <<<MITGLIED_SEIT>>>. Mit der vorliegenden Vereinbarung wird der EEG die Betriebs- und Verf\"ugungsgewalt \"uber die Energieerzeugungsanlage im nachfolgend festgelegten Umfang \"ubertragen, mit der sie im Rahmen der gesetzlichen Bestimmungen elektrische Energie erzeugt, verbraucht, speichert oder verkauft sowie Energiedienstleistungen f\"ur ihre Mitglieder erbringt.
 
-%% §1
-\section*{\S{} 1 \quad Bestandgegenstand -- Energieerzeugungsanlage}
+\parasec{\S{} 1 \quad Bestandgegenstand -- Energieerzeugungsanlage}
 
 1.1 \quad Gegenstand der vorliegenden Vereinbarung ist die im Eigentum des/der Eigent\"umer:in stehende Energieerzeugungsanlage mit folgenden Einspeise-Z\"ahlpunkten:
 
 \vspace{.5em}
-\begin{tabularx}{\textwidth}{clX}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{c>{\ttfamily\small}p{6.4cm}Xr}
 \toprule
-\textbf{Nr.} & \textbf{Z\"ahlpunktnummer (AT\ldots)} & \textbf{Z\"ahlernummer} \\
+\normalfont\textbf{Nr.} & \normalfont\textbf{Z\"ahlpunktnummer} & \textbf{Erzeugungsart} & \textbf{Engpassleistung} \\
 \midrule
 <<<RAW_ZAEHLPUNKTE_TABELLE>>>
 \bottomrule
 \end{tabularx}
+\renewcommand{\arraystretch}{1}
 
-1.2 \quad Der Eigenverbrauch des/der Eigent\"umer:in ist mangels Einspeisung in das \"offentliche Netz von der Verteilung ausgeschlossen. Verbleibende \"Uberschussenergie wird dem Erzeugungsz\"ahlpunkt des/der Eigent\"umer:in zugeordnet.
+1.2 \quad Lage der Anlage(n): <<<ANLAGENBESCHREIBUNG>>>
 
-%% §2
-\section*{\S{} 2 \quad Dauer und K\"undigung}
+1.3 \quad Der Eigenverbrauch des/der Eigent\"umer:in ist mangels Einspeisung in das \"offentliche Netz von der Verteilung ausgeschlossen. Verbleibende \"Uberschussenergie (nach dem von den teilnehmenden Netzbenutzenden verbrauchten Anteil) wird dem/den Erzeugungsz\"ahlpunkt(en) und somit dem/der Eigent\"umer:in zugeordnet.
 
-2.1 \quad Das Bestandverh\"altnis beginnt am \textbf{<<<MITGLIED_SEIT>>>} und wird auf unbestimmte Zeit geschlossen. Eine K\"undigung ist mit einer Frist von 3 Monaten zum Quartalsende m\"oglich.
+\parasec{\S{} 2 \quad Betriebs- und Verf\"ugungsgewalt; Z\"ahlpunktmanagement}
 
-2.2 \quad Das Recht zur sofortigen Aufl\"osung aus wichtigem Grund (\S\S{} 1117, 1118 ABGB) bleibt beiden Seiten vorbehalten.
+2.1 \quad Der/die Eigent\"umer:in \"ubertr\"agt der EEG die Betriebs- und Verf\"ugungsgewalt an der Energieerzeugungsanlage im Umfang der von der EEG und deren teilnehmenden Netzbenutzenden verbrauchten, h\"ochstens jedoch der ins \"offentliche Netz eingespeisten Energie (\"Uberschusseinspeiser). Es ist dem/der Eigent\"umer:in untersagt, die der EEG zugewiesene Energiemenge an Dritte zu verkaufen, zu \"ubertragen oder sonst zur Verf\"ugung zu stellen; der Betrieb der Anlage darf ohne vorherige Zustimmung der EEG nicht eingestellt werden.
 
-%% §3
-\section*{\S{} 3 \quad Bestandzins -- Verg\"utung f\"ur die Einspeisung}
+2.2 \quad Der/die Eigent\"umer:in verbleibt Inhaber:in der mit der Erzeugungsanlage verbundenen Z\"ahlpunkte und Vertragspartner:in des Netzbetreibers, stellt der EEG jedoch alle f\"ur deren Aufgabenerf\"ullung gem\"a\ss{} \S\S{} 16c ff ElWOG und \S\S{} 79f EAG erforderlichen Daten zur Verf\"ugung und erteilt der EEG mit Unterfertigung dieser Vereinbarung Auftrag und Vollmacht f\"ur alle zur Vertragsumsetzung erforderlichen Rechtsgesch\"afte und Verf\"ugungen.
 
-3.1 \quad Der monatliche Bestandzins ist dynamisch von der der EEG zugewiesenen Energiemenge abh\"angig und betr\"agt:
+2.3 \quad Im Rahmen der Betriebs- und Verf\"ugungsgewalt r\"aumt der/die Eigent\"umer:in der EEG sowie von dieser beauftragten Dritten das Recht ein, die Anlage und Liegenschaft f\"ur Zwecke der Wartung, Instandhaltung und des Betriebes im erforderlichen Umfang zu betreten und zu \"uberpr\"ufen, sofern Anweisungen der EEG nicht unverz\"uglich befolgt werden k\"onnen.
+
+\parasec{\S{} 3 \quad Bestandzins -- Verg\"utung f\"ur die Einspeisung}
+
+3.1 \quad Der monatliche Bestandzins ist dynamisch von der der EEG zugewiesenen Energiemenge abh\"angig und betr\"agt (exkl. allenfalls anfallender USt sowie sonstiger vom Eigent\"umer abzuf\"uhrender \"offentlicher Steuern, Abgaben und Geb\"uhren mit Ausnahme von Ertragssteuern):
 
 \vspace{.5em}
 \begin{tabularx}{\textwidth}{Xrr}
@@ -114,39 +120,39 @@ Einspeisung in die EEG & <<<EINSPEISUNG_TARIF>>> ct/kWh & <<<TARIF_GUELTIG_AB>>>
 \bottomrule
 \end{tabularx}
 
-3.2 \quad Auszahlung des Bestandzinses quartalm\"a\ss{}ig bis zum 15. des Folgemonats auf das Konto des/der Eigent\"umer:in:\par
+3.2 \quad Auszahlung des Bestandzinses erfolgt quartalsweise bis zum 15. des Folgemonats auf das Konto des/der Eigent\"umer:in:\par
 IBAN: \textbf{<<<MITGLIED_IBAN>>>}\quad BIC: \textbf{<<<MITGLIED_BIC>>>}
 
-3.3 \quad Bei Zahlungsverzug der EEG gelten 4\,\% Verzugszinsen p.\,a.
+3.3 \quad Bei Zahlungsverzug der EEG gelten 4\,\% Verzugszinsen p.\,a. Tarif\"anderungen k\"onnen durch Beschluss des Vorstandes der EEG erfolgen; der/die Eigent\"umer:in wird mindestens 6 Wochen im Voraus informiert.
 
-%% §4
-\section*{\S{} 4 \quad Betriebs- und Verf\"ugungsgewalt}
+\parasec{\S{} 4 \quad Wartung, Instandhaltung und Haftung}
 
-4.1 \quad Der/die Eigent\"umer:in \"ubertr\"agt der EEG die Betriebs- und Verf\"ugungsgewalt an der Energieerzeugungsanlage im Umfang der von der EEG und deren teilnehmenden Netzbenutzenden verbrauchten, h\"ochstens jedoch der ins \"offentliche Netz eingespeisten Energie (\"Uberschusseinspeiser).
+4.1 \quad Wartung und Instandhaltung der Energieerzeugungsanlage obliegen ausschlie\ss{}lich dem/der Eigent\"umer:in auf eigene Kosten; dieser verpflichtet sich, die Anlage regelm\"a\ss{}ig und fachgerecht instand zu halten, sodass sie den einschl\"agigen technischen Normen entspricht. Der Abschluss von Versicherungen und Wartungsvertr\"agen f\"ur die Erzeugungsanlage obliegt allein dem/der Eigent\"umer:in.
 
-4.2 \quad Es ist dem/der Eigent\"umer:in untersagt, die der EEG zugewiesene Energiemenge an Dritte zu verkaufen oder zu \"ubertragen.
+4.2 \quad F\"ur die Dauer eines Betriebsausfalls aufgrund von M\"angeln sowie der zu deren Behebung notwendigen Zeit ist von der EEG kein Bestandentgelt zu bezahlen.
 
-4.3 \quad Wartung und Instandhaltung der Energieerzeugungsanlage obliegen dem/der Eigent\"umer:in auf eigene Kosten.
+4.3 \quad Der/die Eigent\"umer:in leistet Gew\"ahr daf\"ur, dass sich die Energieerzeugungsanlage in gebrauchsf\"ahigem Zustand befindet und \"uber alle f\"ur Errichtung, Bestand, Betrieb und Einspeisung erforderlichen Bewilligungen verf\"ugt. Die Haftung f\"ur Sch\"aden Dritter aus dem Betrieb der Anlage sowie daf\"ur, dass die Anlage eine bestimmte Energiemenge liefert, trifft ausschlie\ss{}lich den/die Eigent\"umer:in. Die EEG trifft demgegen\"uber die Verantwortung f\"ur die Schaffung aller regulatorisch erforderlichen Voraussetzungen zur Nutzung der Anlage im Rahmen der \"ubertragenen Betriebs- und Verf\"ugungsgewalt.
 
-%% §5
-\section*{\S{} 5 \quad Z\"ahlpunktmanagement}
+\parasec{\S{} 5 \quad Datenschutz}
 
-5.1 \quad Der/die Eigent\"umer:in verbleibt Inhaber:in der mit der Erzeugungsanlage verbundenen Z\"ahlpunkte und Vertragspartner:in des Netzbetreibers.
+5.1 \quad Die EEG verarbeitet personenbezogene Daten des/der Eigent\"umer:in (Name, Geburtsdatum, Adresse), insbesondere Energieverbrauchs- und Erzeugungsdaten, ausschlie\ss{}lich gem\"a\ss{} Art.\,6 Abs.\,1 lit.\,b DSGVO zur Verwaltung der Gemeinschaft und zur Abrechnung. Die EEG ist Verantwortliche iSd Art.\,4 Abs.\,7 DSGVO.
 
-5.2 \quad Der/die Eigent\"umer:in erteilt der EEG mit Unterfertigung dieser Vereinbarung Auftrag und Vollmacht f\"ur alle zur Vertragsumsetzung erforderlichen Rechtsgesch\"afte.
+5.2 \quad Dem/der Eigent\"umer:in kommt gegen\"uber der EEG das Recht auf Auskunft, Berichtigung sowie -- nach Beendigung des Vertragsverh\"altnisses im gesetzlichen Rahmen -- das Recht auf L\"oschung, Einschr\"ankung der Verarbeitung, Widerspruch und Daten\"ubertragbarkeit sowie das Beschwerderecht bei der Datenschutzbeh\"orde zu.
 
-%% §6
-\section*{\S{} 6 \quad Datenschutz}
+\parasec{\S{} 6 \quad Dauer, K\"undigung und Vertragsauflösung}
 
-Die EEG verarbeitet personenbezogene Daten des/der Eigent\"umer:in gem\"a\ss{} Art.\,6 Abs.\,1 lit.\,b DSGVO ausschlie\ss{}lich zur Verwaltung der Gemeinschaft und zur Abrechnung. Auskunfts- und Berichtigungsrechte gem\"a\ss{} Art.\,15--17 DSGVO bleiben unber\"uhrt.
+6.1 \quad Das Bestandverh\"altnis beginnt am <<<MITGLIED_SEIT>>> und wird auf unbestimmte Zeit geschlossen. Eine ordentliche K\"undigung ist beiderseits mit einer Frist von 3 Monaten zum Quartalsende m\"oglich.
 
-%% §7
-\section*{\S{} 7 \quad Sonstiges}
+6.2 \quad Das Recht zur sofortigen Aufl\"osung aus wichtigem Grund (\S\S{} 1117, 1118 ABGB) -- insbesondere bei Zahlungsverzug der EEG trotz schriftlicher Mahnung und mindestens vierw\"ochiger Nachfrist, bei erheblich nachteiligem Gebrauch des Bestandgegenstandes oder bei Wegfall der regulatorischen Voraussetzungen f\"ur den Betrieb der EEG -- bleibt beiden Seiten vorbehalten.
 
-\"Anderungen dieser Vereinbarung bed\"urfen der Schriftform. Gerichtsstand ist das sachlich zust\"andige Gericht am Sitz der EEG. Es gilt \"osterreichisches Recht.
+6.3 \quad Die Vereinbarung endet automatisch, ohne dass es eines weiteren Rechtsaktes bed\"urfte, sobald der/die Eigent\"umer:in aus der EEG ausscheidet, oder wenn die Energieerzeugungsanlage untergeht bzw. nur mit wirtschaftlich nicht vertretbarem Aufwand wieder instand gesetzt werden k\"onnte.
+
+\parasec{\S{} 7 \quad Schlussbestimmungen}
+
+\"Anderungen und Erg\"anzungen dieser Vereinbarung bed\"urfen der Schriftform; dies gilt auch f\"ur ein Abgehen vom Schriftformgebot. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die G\"ultigkeit der \"ubrigen Bestimmungen unber\"uhrt. Rechte und Pflichten aus dieser Vereinbarung gehen auf Rechtsnachfolger \"uber. Gerichtsstand ist das sachlich zust\"andige Gericht am Sitz der EEG; es gilt \"osterreichisches Recht. Der Vertrag wird in zweifacher Ausfertigung erstellt, wovon der/die Eigent\"umer:in ein Exemplar und die EEG das andere erh\"alt.
 
 %% Unterschriften
-\vspace{3em}
+\vspace{2.5em}
 \begin{tabularx}{\textwidth}{XX}
 <<<MITGLIED_ADRESSE_ORT>>>, \rule{3cm}{0.4pt} &
 <<<EEG_ORT>>>, \rule{3cm}{0.4pt} \\[3em]

@@ -43,6 +43,18 @@ function validateZaehlpunkt(string $zp): bool
 }
 
 /**
+ * Extrahiert den Ort aus einer frei eingegebenen Adresse "Straße Nr., PLZ Ort"
+ * (Community-Adresse ist ein einzelnes Freitextfeld ohne getrennte Ort-Spalte).
+ * Nimmt das letzte Komma-Segment und entfernt eine vorangestellte PLZ.
+ */
+function extractOrtFromAddress(?string $address): string
+{
+    $parts = explode(',', $address ?? '');
+    $last = trim(end($parts));
+    return trim(preg_replace('/^\d{3,6}\s*/', '', $last));
+}
+
+/**
  * Escaped einen String für sichere Verwendung in LaTeX-Zellwerten.
  * Nicht für RAW_-Variablen verwenden (die enthalten bereits LaTeX-Syntax).
  */
@@ -126,10 +138,12 @@ function createMemberRecord(string $communityId, array $f): array
         $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
     }
 
-    // KdNr: kleinste freie Nummer je Community vergeben (Lücken von gelöschten Mitgliedern auffüllen)
+    // KdNr: kleinste freie Nummer je Community ab 10001 vergeben (Lücken von gelöschten
+    // Mitgliedern auffüllen). Start bei 10001 statt 1, damit genug Buffer für Wachstum
+    // bleibt und Kundennummern nicht mit anderen kurzen Referenznummern verwechselt werden.
     $kundennummer = (int)DB::fetchOne(
         "SELECT MIN(candidate) AS next FROM generate_series(
-            1, (SELECT COALESCE(MAX(kundennummer), 0) + 1 FROM members WHERE community_id = ?)
+            10001, (SELECT COALESCE(MAX(kundennummer), 10000) + 1 FROM members WHERE community_id = ?)
          ) AS candidate
          WHERE candidate NOT IN (
             SELECT kundennummer FROM members WHERE community_id = ? AND kundennummer IS NOT NULL
@@ -928,7 +942,7 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
         'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
         'EEG_IBAN'                  => $community['iban'] ?? '--',
-        'EEG_ORT'                   => explode(',', $community['address'] ?? '')[0],
+        'EEG_ORT'                   => extractOrtFromAddress($community['address']),
         'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
         'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
         'MITGLIED_ADRESSE_ORT'      => $member['city'],
@@ -982,10 +996,22 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     $i = 1;
     $zpLines = implode("\n", array_map(
         function ($mp) use (&$i) {
-            return ($i++) . ' & ' . texEscape($mp['zaehlpunkt_nr']) . ' & ' . texEscape($mp['meter_code'] ?? '--') . ' \\\\';
+            return ($i++) . ' & ' . texEscape($mp['zaehlpunkt_nr']) . ' & ' . texEscape($mp['erzeugungsart'] ?? 'Photovoltaik')
+                . ' & ' . ($mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '--') . ' \\\\';
         },
         $mps
     ));
+    $anlagenBeschreibung = implode('; ', array_filter(array_map(
+        function ($mp) {
+            $teile = array_filter([
+                $mp['anlagenadresse'] ?? null,
+                $mp['gst_nr'] ? 'Gst.-Nr. ' . $mp['gst_nr'] : null,
+                $mp['katastralgemeinde'] ? 'KG ' . $mp['katastralgemeinde'] : null,
+            ]);
+            return $teile ? implode(', ', $teile) : null;
+        },
+        $mps
+    )));
 
     $ok = streamLatexPdf('einspeisevereinbarung', [
         'EEG_NAME'                  => $community['name'],
@@ -993,7 +1019,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
         'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
         'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
         'EEG_IBAN'                  => $community['iban'] ?? '--',
-        'EEG_ORT'                   => explode(',', $community['address'] ?? '')[0],
+        'EEG_ORT'                   => extractOrtFromAddress($community['address']),
         'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
         'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
         'MITGLIED_ADRESSE_ORT'      => $member['city'],
@@ -1004,6 +1030,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
         'EINSPEISUNG_TARIF'         => $tariff ? number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
         'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'ANLAGENBESCHREIBUNG'       => $anlagenBeschreibung ?: '--',
         'ERSTELLT_AM'               => date('d.m.Y'),
     ], 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf');
 
