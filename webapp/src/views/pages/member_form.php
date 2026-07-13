@@ -28,6 +28,10 @@ ob_start();
         </select>
       </div>
       <div class="form-group">
+        <label>Titel</label>
+        <input type="text" name="titel" placeholder="Dr., Mag., Ing. …" value="<?= htmlspecialchars($m['titel'] ?? $_POST['titel'] ?? '') ?>">
+      </div>
+      <div class="form-group">
         <label>Firma (optional)</label>
         <input type="text" name="company_name" value="<?= htmlspecialchars($m['company_name'] ?? $_POST['company_name'] ?? '') ?>">
       </div>
@@ -40,6 +44,10 @@ ob_start();
         <input type="text" name="last_name" required value="<?= htmlspecialchars($m['last_name'] ?? $_POST['last_name'] ?? '') ?>">
       </div>
       <div class="form-group">
+        <label>Geburtsdatum</label>
+        <input type="date" name="geburtsdatum" value="<?= htmlspecialchars($m['geburtsdatum'] ?? $_POST['geburtsdatum'] ?? '') ?>">
+      </div>
+      <div class="form-group">
         <label>E-Mail <span style="color:#ef4444">*</span></label>
         <input type="email" name="email" required value="<?= htmlspecialchars($m['email'] ?? $_POST['email'] ?? '') ?>">
         <?php if (!isset($member)): ?>
@@ -49,6 +57,10 @@ ob_start();
       <div class="form-group">
         <label>Telefon</label>
         <input type="tel" name="phone" value="<?= htmlspecialchars($m['phone'] ?? $_POST['phone'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Bisheriger Stromlieferant</label>
+        <input type="text" name="stromlieferant" value="<?= htmlspecialchars($m['stromlieferant'] ?? $_POST['stromlieferant'] ?? '') ?>">
       </div>
     </div>
   </div>
@@ -74,6 +86,13 @@ ob_start();
   <div class="card" style="margin-bottom:1.5rem">
     <h3 style="margin-bottom:1rem">Mitgliedschaft</h3>
     <div class="grid-2">
+      <?php if (isset($member)): ?>
+      <div class="form-group">
+        <label>Kundennummer</label>
+        <input type="text" value="<?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?>" disabled
+               style="background:#f3f4f6;font-weight:600;color:#15803d">
+      </div>
+      <?php endif; ?>
       <div class="form-group">
         <label>Mitglied seit <span style="color:#ef4444">*</span></label>
         <input type="date" name="member_since" required
@@ -84,6 +103,37 @@ ob_start();
         <input type="date" name="member_until"
                value="<?= htmlspecialchars($m['member_until'] ?? $_POST['member_until'] ?? '2099-12-31') ?>">
         <small style="color:#6b7280">Leer lassen = aktives Mitglied (wird auf 31.12.2099 gesetzt)</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.5rem">
+    <h3 style="margin-bottom:1rem">Weitere Informationen</h3>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Stromspeicher</label>
+        <select name="speicher_status">
+          <?php $sp = $m['speicher_status'] ?? $_POST['speicher_status'] ?? ''; ?>
+          <option value="">—</option>
+          <option value="ja" <?= $sp === 'ja' ? 'selected' : '' ?>>Ja</option>
+          <option value="nein" <?= $sp === 'nein' ? 'selected' : '' ?>>Nein</option>
+          <option value="geplant" <?= $sp === 'geplant' ? 'selected' : '' ?>>Geplant</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Speichergröße (kWh)</label>
+        <input type="number" step="0.1" name="speicher_kwh" value="<?= htmlspecialchars((string)($m['speicher_kwh'] ?? $_POST['speicher_kwh'] ?? '')) ?>">
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="andere_eeg" value="1" <?= !empty($m['andere_eeg'] ?? $_POST['andere_eeg'] ?? false) ? 'checked' : '' ?>
+                 style="width:auto;display:inline-block;margin-right:.4rem">
+          Bereits Mitglied in einer anderen EEG/BEG
+        </label>
+      </div>
+      <div class="form-group">
+        <label>Name/ID der anderen EEG (falls zutreffend)</label>
+        <input type="text" name="andere_eeg_name" value="<?= htmlspecialchars($m['andere_eeg_name'] ?? $_POST['andere_eeg_name'] ?? '') ?>">
       </div>
     </div>
   </div>
@@ -101,6 +151,12 @@ ob_start();
         <input type="text" name="member_bic" placeholder="OPSKATWW"
                value="<?= htmlspecialchars($m['member_bic'] ?? $_POST['member_bic'] ?? '') ?>">
       </div>
+      <?php if (isset($member) && !empty($m['mandatsreferenz'])): ?>
+      <div class="form-group">
+        <label>Mandatsreferenz</label>
+        <input type="text" value="<?= htmlspecialchars($m['mandatsreferenz']) ?>" disabled style="background:#f3f4f6">
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 

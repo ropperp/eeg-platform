@@ -60,8 +60,12 @@ server {
 ### Verzeichnis
 ```
 /opt/eeg-platform/   ← Git-Repo (branch: main)
-/opt/eeg/            ← Persistente Daten (DB, Redis, Mosquitto, Traefik-Certs)
+/opt/eeg/            ← Persistente Daten (DB, Redis, Mosquitto, Traefik-Certs, Webapp-Storage)
 ```
+
+> `/opt/eeg/webapp-storage` (→ `/var/www/html/storage`) enthält Mitglieder-Uploads,
+> Beitrittserklärungen und generierte PDFs. Vorher nur im Container — ging bei jedem `--build`
+> verloren. Seit 14.07.2026 ein echtes Volume, unbedingt ins Backup aufnehmen.
 
 ### Docker-Stack
 
@@ -117,6 +121,13 @@ cd /opt/eeg-platform
 git pull origin main
 docker compose up -d --build
 ```
+
+> **Einmalig nach dem Update vom 14.07.2026:** Storage-Volume vorher anlegen, sonst
+> Rechteproblem (www-data/UID 82 im Alpine-Image kann sonst nicht schreiben):
+> ```bash
+> sudo mkdir -p /opt/eeg/webapp-storage/{uploads,pdfs}
+> sudo chown -R 82:82 /opt/eeg/webapp-storage
+> ```
 
 Bei neuen DB-Migrations:
 ```bash

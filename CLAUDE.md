@@ -64,8 +64,13 @@ server {
 ### Verzeichnis
 ```
 /opt/eeg-platform/   ← Git-Repo (branch: main)
-/opt/eeg/            ← Persistente Daten (DB, Redis, Mosquitto, Traefik-Certs)
+/opt/eeg/            ← Persistente Daten (DB, Redis, Mosquitto, Traefik-Certs, Webapp-Storage)
 ```
+
+> `/opt/eeg/webapp-storage` (→ `/var/www/html/storage` im Container) enthält Mitglieder-Uploads,
+> Beitrittserklärungen und generierte Vertrags-/Rechnungs-PDFs. Vorher lag das nur im
+> Container-Dateisystem und ging bei jedem `--build` verloren — seit der Verträge/Dateien-Migration
+> (14.07.2026) ist es ein echtes Volume. **Unbedingt ins Server-Backup aufnehmen.**
 
 ### Docker-Stack (`docker-compose.yml`)
 
@@ -130,7 +135,7 @@ cp .env.example .env
 nano .env
 
 # 3. Daten-Verzeichnisse
-sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt}
+sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt,webapp-storage/uploads,webapp-storage/pdfs}
 
 # 4. Starten
 docker compose up -d
@@ -251,6 +256,15 @@ cd /opt/eeg-platform
 git pull origin main
 docker compose up -d --build
 ```
+
+> **Einmalig nach dem Update vom 14.07.2026** (Verträge/Dateien-Migration): Das neue
+> Storage-Volume muss auf dem Host existieren, BEVOR `docker compose up -d --build` läuft,
+> sonst legt Docker es automatisch mit root-Rechten an und PHP (www-data, UID 82 im
+> Alpine-Image) kann nicht mehr in `storage/uploads` schreiben:
+> ```bash
+> sudo mkdir -p /opt/eeg/webapp-storage/{uploads,pdfs}
+> sudo chown -R 82:82 /opt/eeg/webapp-storage
+> ```
 
 Bei neuen DB-Migrations:
 ```bash

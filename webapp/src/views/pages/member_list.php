@@ -38,9 +38,15 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
     </select>
     <select id="filter-contract" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Verträge</option>
-      <option value="none">Keine Verträge</option>
-      <option value="open">Vertrag ausstehend</option>
+      <option value="none">Vertrag noch nicht erstellt</option>
+      <option value="open">Erstellt, noch nicht unterschrieben</option>
       <option value="signed">Alles unterschrieben</option>
+    </select>
+    <select id="filter-art" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+      <option value="">Alle Mitgliedsarten</option>
+      <option value="bezug">Bezug</option>
+      <option value="einspeisung">Einspeisung</option>
+      <option value="beides">Bezug + Einspeisung</option>
     </select>
     <span id="result-count" style="font-size:.8rem;color:#6b7280"></span>
   </div>
@@ -50,6 +56,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
   <table id="member-table" style="min-width:900px">
     <thead>
       <tr>
+        <th>KdNr</th>
         <th>Name</th>
         <th>E-Mail</th>
         <th>Mitglied seit</th>
@@ -65,11 +72,16 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       $bezug = $m['contract_bezug_status'] ?? 'none';
       $einsp = $m['contract_einspeisung_status'] ?? 'none';
       $allSigned = ($bezug === 'signed' && $einsp === 'signed') ? 'signed' : ($bezug === 'none' && $einsp === 'none' ? 'none' : 'open');
+      $hatBezug = in_array($m['hat_bezug'] ?? false, [true, 't', '1', 1], true);
+      $hatEinsp = in_array($m['hat_einspeisung'] ?? false, [true, 't', '1', 1], true);
+      $art = $hatBezug && $hatEinsp ? 'beides' : ($hatEinsp ? 'einspeisung' : ($hatBezug ? 'bezug' : ''));
     ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
           data-status="<?= htmlspecialchars($m['status']) ?>"
-          data-contract="<?= $allSigned ?>">
+          data-contract="<?= $allSigned ?>"
+          data-art="<?= $art ?>">
+        <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
           <?php if ($m['company_name']): ?>
@@ -104,7 +116,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="8" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="9" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
@@ -115,13 +127,15 @@ function filterMembers() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const s = document.getElementById('filter-status').value;
   const c = document.getElementById('filter-contract').value;
+  const a = document.getElementById('filter-art').value;
   const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
   let visible = 0;
   rows.forEach(row => {
     const nm = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q);
     const sm = !s || row.dataset.status === s;
     const cm = !c || row.dataset.contract === c;
-    const show = nm && sm && cm;
+    const am = !a || row.dataset.art === a;
+    const show = nm && sm && cm && am;
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });

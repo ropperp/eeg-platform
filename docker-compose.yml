@@ -133,6 +133,10 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       DOMAIN: ${DOMAIN}
+    volumes:
+      # Persistente Ablage für Mitglieder-Uploads, Verträge, Beitrittserklärungen etc.
+      # (vorher nur im Container — ging bei jedem --build verloren!)
+      - /opt/eeg/webapp-storage:/var/www/html/storage
     labels:
       - "traefik.enable=true"
       # Alle Routen laufen über web (HTTP) — nginx macht SSL davor

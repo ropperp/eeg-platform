@@ -3,6 +3,7 @@
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Mitgliederliste</a>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
+  <span class="badge badge-gray" style="font-weight:700;color:#15803d">KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?></span>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
   <div style="margin-left:auto;display:flex;gap:.5rem">
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
@@ -22,6 +23,8 @@
 
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
+<?php elseif (($_GET['error'] ?? '') === 'upload'): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem">Datei-Upload fehlgeschlagen.</div>
 <?php elseif (isset($_GET['error'])): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
 <?php endif; ?>
@@ -184,6 +187,46 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   </div>
 </div>
 <?php endif; ?>
+
+<!-- Dateien -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:1rem">📎 Dateien</h3>
+
+  <?php if (empty($member_files)): ?>
+    <p style="color:#6b7280;font-size:.875rem;margin-bottom:1rem">Noch keine Dateien hochgeladen.</p>
+  <?php else: ?>
+    <table style="margin-bottom:1.25rem;font-size:.85rem">
+      <thead>
+        <tr><th>Name</th><th>Hochgeladen am</th><th>Aktionen</th></tr>
+      </thead>
+      <tbody>
+      <?php foreach ($member_files as $f): ?>
+        <tr>
+          <td><?= htmlspecialchars($f['name']) ?></td>
+          <td><?= date('d.m.Y H:i', strtotime($f['created_at'])) ?></td>
+          <td>
+            <a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download" style="font-size:.8rem">Herunterladen</a>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
+
+  <form method="post" action="/portal/members/<?= $member['id'] ?>/files" enctype="multipart/form-data">
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:flex-end">
+      <div class="form-group" style="margin-bottom:0">
+        <label style="font-size:.8rem">Bezeichnung (optional)</label>
+        <input type="text" name="name" placeholder="z. B. Ausweis, Beitrittserklärung …">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label style="font-size:.8rem">Datei</label>
+        <input type="file" name="file" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="height:38px">Hochladen</button>
+    </div>
+  </form>
+</div>
 
 <!-- Edit-Modal -->
 <dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">

@@ -33,6 +33,12 @@ class DB
     /**
      * Setzt die Community-ID für Row-Level Security.
      * Muss vor jeder mandantenspezifischen Abfrage aufgerufen werden.
+     *
+     * Bewusst SET (session-scoped), nicht SET LOCAL: SET LOCAL gilt nur bis zum Ende der
+     * aktuellen Transaktion, die App läuft aber ohne explizite Transaktionen (jeder
+     * PDO-Call ist im Autocommit-Modus eine eigene Mini-Transaktion) — SET LOCAL wäre also
+     * schon beim nächsten Query wieder verloren. SET auf Session-Ebene passt korrekt zu
+     * "eine PDO-Connection pro Request".
      */
     public static function setCommunity(string $communityId): void
     {
@@ -43,7 +49,7 @@ class DB
         if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $communityId)) {
             throw new InvalidArgumentException('Ungültige Community-ID');
         }
-        self::get()->exec("SET LOCAL app.community_id = " . self::get()->quote($communityId));
+        self::get()->exec("SET app.community_id = " . self::get()->quote($communityId));
         self::$currentCommunityId = $communityId;
     }
 

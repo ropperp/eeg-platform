@@ -11,6 +11,38 @@ foreach (['DB', 'Auth', 'Router', 'Billing'] as $class) {
 Auth::start();
 
 /**
+ * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
+ * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
+ */
+function validateIban(string $iban): bool
+{
+    $iban = strtoupper(str_replace(' ', '', $iban));
+    if (!preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/', $iban)) {
+        return false;
+    }
+    $rearranged = substr($iban, 4) . substr($iban, 0, 4);
+    $numeric = '';
+    foreach (str_split($rearranged) as $char) {
+        $numeric .= ctype_alpha($char) ? (string)(ord($char) - 55) : $char;
+    }
+    // Mod-97 blockweise ohne bcmath: Rest + max. 7 neue Ziffern bleibt immer < PHP_INT_MAX
+    $remainder = 0;
+    for ($offset = 0; $offset < strlen($numeric); $offset += 7) {
+        $remainder = (int)((string)$remainder . substr($numeric, $offset, 7)) % 97;
+    }
+    return $remainder === 1;
+}
+
+/**
+ * Prüft eine österreichische Zählpunktnummer: "AT" + 31 alphanumerische
+ * Stellen = 33 Zeichen gesamt.
+ */
+function validateZaehlpunkt(string $zp): bool
+{
+    return (bool)preg_match('/^AT[A-Z0-9]{31}$/', strtoupper(trim($zp)));
+}
+
+/**
  * Escaped einen String für sichere Verwendung in LaTeX-Zellwerten.
  * Nicht für RAW_-Variablen verwenden (die enthalten bereits LaTeX-Syntax).
  */
@@ -318,12 +350,14 @@ $router->get('/portal/members', function () {
     $members = DB::fetchAll(
         "SELECT m.*,
                 COUNT(DISTINCT mp.id) AS metering_point_count,
+                bool_or(mp.type IN ('consumer', 'prosumer')) FILTER (WHERE mp.active) AS hat_bezug,
+                bool_or(mp.type IN ('producer', 'prosumer')) FILTER (WHERE mp.active) AS hat_einspeisung,
                 COALESCE(SUM(i.saldo_eur) FILTER (WHERE i.saldo_eur > 0 AND i.sent_at IS NULL), 0) AS open_amount
          FROM members m
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
          LEFT JOIN invoices i ON i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL
          WHERE m.community_id = ?
-         GROUP BY m.id ORDER BY m.last_name, m.first_name",
+         GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
         [$communityId]
     );
     require ROOT . '/src/views/pages/member_list.php';
@@ -348,6 +382,13 @@ $router->post('/portal/members', function () {
         }
     }
 
+    $iban = trim($_POST['member_iban'] ?? '');
+    if ($iban !== '' && !validateIban($iban)) {
+        $error = 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).';
+        require ROOT . '/src/views/pages/member_form.php';
+        return;
+    }
+
     // User-Account anlegen falls E-Mail neu
     $email = strtolower(trim($_POST['email']));
     $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
@@ -361,14 +402,27 @@ $router->post('/portal/members', function () {
         $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
     }
 
+    // KdNr fortlaufend je Community vergeben; Mandatsreferenz nur wenn IBAN vorhanden
+    $kundennummer = (int)DB::fetchOne(
+        'SELECT COALESCE(MAX(kundennummer), 0) + 1 AS next FROM members WHERE community_id = ?',
+        [$communityId]
+    )['next'];
+    $mandatsreferenz = $iban !== '' ? 'S00000F' . date('Y') . 'A' . $kundennummer : null;
+
     // Mitglied anlegen
     DB::execute(
-        'INSERT INTO members (community_id, user_id, salutation, first_name, last_name, company_name, address, zip, city, email, phone, invoice_uid, member_iban, member_bic, member_since, member_until)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO members (
+            community_id, user_id, salutation, titel, first_name, last_name, company_name,
+            address, zip, city, email, phone, invoice_uid, member_iban, member_bic,
+            member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
+            geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
             $_POST['salutation'] ?? null,
+            trim($_POST['titel'] ?? '') ?: null,
             trim($_POST['first_name']),
             trim($_POST['last_name']),
             trim($_POST['company_name'] ?? '') ?: null,
@@ -378,10 +432,19 @@ $router->post('/portal/members', function () {
             $email,
             trim($_POST['phone'] ?? '') ?: null,
             trim($_POST['invoice_uid'] ?? '') ?: null,
-            trim($_POST['member_iban'] ?? '') ?: null,
+            $iban ?: null,
             trim($_POST['member_bic'] ?? '') ?: null,
             $_POST['member_since'] ?: date('Y-m-d'),
-            $_POST['member_until'] ?: '2099-12-31',
+            ($_POST['member_until'] ?? '') ?: '2099-12-31',
+            $kundennummer,
+            $mandatsreferenz,
+            $_POST['member_since'] ?: date('Y-m-d'),
+            ($_POST['geburtsdatum'] ?? '') ?: null,
+            trim($_POST['stromlieferant'] ?? '') ?: null,
+            ($_POST['speicher_status'] ?? '') ?: null,
+            ($_POST['speicher_kwh'] ?? '') !== '' ? (float)$_POST['speicher_kwh'] : null,
+            isset($_POST['andere_eeg']) ? 'true' : 'false',
+            trim($_POST['andere_eeg_name'] ?? '') ?: null,
         ]
     );
 
@@ -396,9 +459,13 @@ $router->post('/portal/members', function () {
         $successTempPw = $tempPw;
         $successEmail  = $email;
         $members = DB::fetchAll(
-            'SELECT m.*, COUNT(mp.id) AS metering_point_count FROM members m
+            "SELECT m.*,
+                    COUNT(DISTINCT mp.id) AS metering_point_count,
+                    bool_or(mp.type IN ('consumer', 'prosumer')) FILTER (WHERE mp.active) AS hat_bezug,
+                    bool_or(mp.type IN ('producer', 'prosumer')) FILTER (WHERE mp.active) AS hat_einspeisung
+             FROM members m
              LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
-             WHERE m.community_id = ? GROUP BY m.id ORDER BY m.last_name, m.first_name',
+             WHERE m.community_id = ? GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
             [$communityId]
         );
         require ROOT . '/src/views/pages/member_list.php';
@@ -422,14 +489,31 @@ $router->post('/portal/members/:id/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); return; }
 
+    $iban = trim($_POST['member_iban'] ?? '');
+    if ($iban !== '' && !validateIban($iban)) {
+        $error = 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).';
+        $member = array_merge($member, $_POST);
+        require ROOT . '/src/views/pages/member_form.php';
+        return;
+    }
+
+    // Mandatsreferenz erstmalig vergeben, sobald erstmals eine IBAN hinterlegt wird — danach unveränderlich
+    $mandatsreferenz = $member['mandatsreferenz'];
+    if ($iban !== '' && empty($mandatsreferenz)) {
+        $mandatsreferenz = 'S00000F' . date('Y') . 'A' . $member['kundennummer'];
+    }
+
     DB::execute(
-        'UPDATE members SET salutation=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
-         phone=?, invoice_uid=?, member_iban=?, member_bic=?, member_since=?, member_until=? WHERE id=?',
+        'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
+         phone=?, invoice_uid=?, member_iban=?, member_bic=?, mandatsreferenz=?, member_since=?, member_until=?,
+         geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?
+         WHERE id=?',
         [
             $_POST['salutation'] ?? null,
+            trim($_POST['titel'] ?? '') ?: null,
             trim($_POST['first_name']),
             trim($_POST['last_name']),
             trim($_POST['company_name'] ?? '') ?: null,
@@ -438,10 +522,17 @@ $router->post('/portal/members/:id/edit', function ($params) {
             trim($_POST['city']),
             trim($_POST['phone'] ?? '') ?: null,
             trim($_POST['invoice_uid'] ?? '') ?: null,
-            trim($_POST['member_iban'] ?? '') ?: null,
+            $iban ?: null,
             trim($_POST['member_bic'] ?? '') ?: null,
+            $mandatsreferenz,
             $_POST['member_since'] ?: date('Y-m-d'),
-            $_POST['member_until'] ?: '2099-12-31',
+            ($_POST['member_until'] ?? '') ?: '2099-12-31',
+            ($_POST['geburtsdatum'] ?? '') ?: null,
+            trim($_POST['stromlieferant'] ?? '') ?: null,
+            ($_POST['speicher_status'] ?? '') ?: null,
+            ($_POST['speicher_kwh'] ?? '') !== '' ? (float)$_POST['speicher_kwh'] : null,
+            isset($_POST['andere_eeg']) ? 'true' : 'false',
+            trim($_POST['andere_eeg_name'] ?? '') ?: null,
             $params['id'],
         ]
     );
@@ -456,7 +547,67 @@ $router->get('/portal/members/:id', function ($params) {
     $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
     $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? ORDER BY registered_at DESC', [$params['id']]);
+    $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     require ROOT . '/src/views/pages/member_detail.php';
+});
+
+$router->post('/portal/members/:id/files', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        header('Location: /portal/members/' . $params['id'] . '?error=upload');
+        exit;
+    }
+
+    $displayName = trim($_POST['name'] ?? '') ?: basename($_FILES['file']['name']);
+    $origExt = pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION);
+    $dir = '/var/www/html/storage/uploads/members/' . $params['id'];
+    if (!is_dir($dir)) { mkdir($dir, 0750, true); }
+    $storedName = bin2hex(random_bytes(16)) . ($origExt ? '.' . strtolower($origExt) : '');
+    $destPath = $dir . '/' . $storedName;
+
+    if (!move_uploaded_file($_FILES['file']['tmp_name'], $destPath)) {
+        header('Location: /portal/members/' . $params['id'] . '?error=upload');
+        exit;
+    }
+
+    DB::execute(
+        'INSERT INTO member_files (community_id, member_id, name, pfad, mime, sha256, hochgeladen_von)
+         VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+            $communityId,
+            $params['id'],
+            $displayName,
+            $destPath,
+            $_FILES['file']['type'] ?: null,
+            hash_file('sha256', $destPath),
+            Auth::userId(),
+        ]
+    );
+
+    header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+$router->get('/portal/members/:id/files/:fileid/download', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $file = DB::fetchOne(
+        'SELECT * FROM member_files WHERE id = ? AND member_id = ? AND community_id = ?',
+        [$params['fileid'], $params['id'], $communityId]
+    );
+    if (!$file || !is_file($file['pfad'])) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
+
+    header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Length: ' . filesize($file['pfad']));
+    readfile($file['pfad']);
+    exit;
 });
 
 $router->post('/portal/members/:id/metering-points', function ($params) {
@@ -918,7 +1069,7 @@ $router->post('/admin/communities/:id', function ($params) {
             trim($_POST['address'] ?? '') ?: null,
             trim($_POST['iban'] ?? '') ?: null,
             trim($_POST['bic'] ?? '') ?: null,
-            isset($_POST['active']) ? true : false,
+            isset($_POST['active']) ? 'true' : 'false',
             $params['id'],
         ]
     );
