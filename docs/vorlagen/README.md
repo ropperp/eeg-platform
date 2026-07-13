@@ -13,5 +13,10 @@ Noch nicht in die Plattform integriert — dient als Basis für kommende Phasen.
 - `Anweisung_Plattform_Gesamt.md` — konsolidiertes Lastenheft für die Gesamterweiterung
   (Verträge, E-Signatur, Online-Beitritt, SEPA, Postfach, E-Mail-Versand, Infrastruktur).
 
-Noch offen (siehe Abschnitt 13 der Anweisung): `send_mail.py`,
-`Anleitung_Mailversand_Azure_GraphAPI.md`, Scan der Obmann-Unterschrift.
+- `send_mail.py`, `Anleitung_Mailversand_Azure_GraphAPI.md` — Referenz für den Graph-API-Mailversand.
+  **Tenant-ID und Client-ID wurden vor dem Commit aus beiden Dateien entfernt** (Platzhalter
+  `<TENANT_ID>`/`<CLIENT_ID>` bzw. Hinweistext) — diese Werte gehören gemäß Abschnitt 9 der
+  Anweisung niemals ins Repo, auch nicht in Referenzmaterial. Echte Werte liegen separat bei
+  Patrick und werden erst zur Laufzeit über `.env`/die `email_settings`-Tabelle eingespielt.
+
+Noch offen (siehe Abschnitt 13 der Anweisung): Scan der Obmann-Unterschrift.
