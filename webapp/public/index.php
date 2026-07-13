@@ -77,14 +77,32 @@ function texEscape(string $s): string
 }
 
 /**
+ * Liefert die RAW_-Variable fürs Unterschriftsbild "Für die EEG" sowie das
+ * zugehörige Bild-Asset für den aktuell eingeloggten User (i.d.R. der
+ * Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte
+ * Unterschrift bleibt die Zeile leer (nur die Unterschriftslinie).
+ */
+function eegSignatureAsset(): array
+{
+    $user = DB::fetchOne('SELECT signature_image FROM users WHERE id = ?', [Auth::userId()]);
+    if (empty($user['signature_image'])) {
+        return ['var' => '', 'assets' => []];
+    }
+    return [
+        'var'    => '\\includegraphics[height=1.4cm]{unterschrift_eeg.png}\\\\[-4pt]',
+        'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
+    ];
+}
+
+/**
  * Ruft den latex-service auf und streamt das PDF direkt an den Browser.
  * Gibt true zurück wenn das PDF erfolgreich gesendet wurde, sonst false.
  */
-function streamLatexPdf(string $template, array $vars, string $filename): bool
+function streamLatexPdf(string $template, array $vars, string $filename, array $assets = []): bool
 {
     $url     = (getenv('LATEX_SERVICE_URL') ?: 'http://latex-service:3210') . '/generate';
     $apiKey  = getenv('LATEX_API_KEY') ?: 'dev-key';
-    $payload = json_encode(['template' => $template, 'vars' => $vars]);
+    $payload = json_encode(['template' => $template, 'vars' => $vars, 'assets' => $assets]);
 
     $ctx = stream_context_create(['http' => [
         'method'  => 'POST',
@@ -936,6 +954,7 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         $mps
     ));
 
+    $signature = eegSignatureAsset();
     $ok = streamLatexPdf('bezugsvereinbarung', [
         'EEG_NAME'                  => $community['name'],
         'EEG_ADRESSE'               => $community['address'] ?? '',
@@ -951,8 +970,9 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
         'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
-    ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf');
+    ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
 
     // DB-Update NUR nach erfolgreichem PDF
     if ($ok) {
@@ -1013,6 +1033,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
         $mps
     )));
 
+    $signature = eegSignatureAsset();
     $ok = streamLatexPdf('einspeisevereinbarung', [
         'EEG_NAME'                  => $community['name'],
         'EEG_ADRESSE'               => $community['address'] ?? '',
@@ -1031,8 +1052,9 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
         'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
         'ANLAGENBESCHREIBUNG'       => $anlagenBeschreibung ?: '--',
+        'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
-    ], 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf');
+    ], 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
 
     if ($ok) {
         DB::execute(
@@ -1361,7 +1383,34 @@ $router->get('/portal/settings', function () {
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
     $tax       = DB::fetchOne('SELECT * FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+    $myUser    = DB::fetchOne('SELECT first_name, last_name, signature_image FROM users WHERE id = ?', [Auth::userId()]);
     require ROOT . '/src/views/pages/settings.php';
+});
+
+$router->post('/portal/settings/signature', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    if (!isset($_FILES['signature']) || $_FILES['signature']['error'] !== UPLOAD_ERR_OK) {
+        header('Location: /portal/settings?error=upload');
+        exit;
+    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $_FILES['signature']['tmp_name']);
+    finfo_close($finfo);
+    if ($mime !== 'image/png') {
+        header('Location: /portal/settings?error=upload');
+        exit;
+    }
+    $data = base64_encode(file_get_contents($_FILES['signature']['tmp_name']));
+    DB::execute('UPDATE users SET signature_image = ? WHERE id = ?', ['data:image/png;base64,' . $data, Auth::userId()]);
+    header('Location: /portal/settings?success=1');
+    exit;
+});
+
+$router->post('/portal/settings/signature/delete', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    DB::execute('UPDATE users SET signature_image = NULL WHERE id = ?', [Auth::userId()]);
+    header('Location: /portal/settings?success=1');
+    exit;
 });
 
 $router->post('/portal/settings/community', function () {

@@ -11,10 +11,11 @@
 \usepackage{array}
 \usepackage{microtype}
 \usepackage{fancyhdr}
+\usepackage{graphicx}
 
 % Farben passend zur Web-Plattform (Grün + türkis-blauer Akzent)
 \definecolor{gruen}{RGB}{21,128,61}
-\definecolor{tuerkis}{RGB}{5,150,105}
+\definecolor{tuerkis}{RGB}{8,145,178}
 \definecolor{hellgrau}{RGB}{249,250,251}
 \definecolor{mittelgrau}{RGB}{107,114,128}
 
@@ -24,7 +25,7 @@
 \fancyfoot[C]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered{} EEG-Verwaltungsportal \textperiodcentered{} Vorlage: energiegemeinschaften.gv.at, August 2022}
 \fancyfoot[R]{\small\thepage}
 
-\newcommand{\parasec}[1]{\section*{\color{gruen}#1}}
+\newcommand{\parasec}[1]{\section*{\color{tuerkis}#1}}
 
 \begin{document}
 
@@ -151,7 +152,8 @@ Mitgliedsbeitrag & <<<MITGLIEDSBEITRAG>>> EUR/Jahr & <<<TARIF_GUELTIG_AB>>> \\
 \vspace{2.5em}
 \begin{tabularx}{\textwidth}{XX}
 <<<MITGLIED_ADRESSE_ORT>>>, \rule{3cm}{0.4pt} &
-<<<EEG_ORT>>>, \rule{3cm}{0.4pt} \\[3em]
+<<<EEG_ORT>>>, \rule{3cm}{0.4pt} \\[1.8em]
+& <<<RAW_EEG_UNTERSCHRIFT_BILD>>> \\
 \rule{6cm}{0.4pt} & \rule{6cm}{0.4pt} \\
 \small Unterschrift Mitglied & \small F\"ur die EEG -- Obmann/Obfrau \\
 \small <<<MITGLIED_NAME>>> & \small <<<EEG_NAME>>>

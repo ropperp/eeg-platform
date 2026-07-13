@@ -52,10 +52,15 @@ app.get('/health', (_req, res) => res.send('OK'));
 // Body: { template: "rechnung", vars: { EEG_NAME: "...", ... } }
 // Returns: PDF binary (application/pdf)
 app.post('/generate', requireApiKey, (req, res) => {
-  const { template, vars = {} } = req.body;
+  const { template, vars = {}, assets = {} } = req.body;
 
   if (!template || !/^[a-z_]+$/.test(template)) {
     return res.status(400).json({ error: 'Invalid template name' });
+  }
+  for (const filename of Object.keys(assets)) {
+    if (!/^[a-z0-9_-]+\.(png|jpg|jpeg)$/i.test(filename)) {
+      return res.status(400).json({ error: `Invalid asset filename '${filename}'` });
+    }
   }
 
   const tplFile = path.join(TEMPLATE_DIR, template + '.tex');
@@ -87,6 +92,11 @@ app.post('/generate', requireApiKey, (req, res) => {
   const pdfPath = path.join(jobDir, 'doc.pdf');
 
   fs.writeFileSync(texPath, tex, 'utf8');
+
+  for (const [filename, content] of Object.entries(assets)) {
+    const base64 = String(content).replace(/^data:image\/\w+;base64,/, '');
+    fs.writeFileSync(path.join(jobDir, filename), Buffer.from(base64, 'base64'));
+  }
 
   // Run pdflatex twice (for correct page refs)
   const run = (cb) => execFile(

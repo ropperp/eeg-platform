@@ -128,4 +128,36 @@
   </form>
 </div>
 
+<!-- Unterschrift für Verträge -->
+<div class="card" style="margin-top:1.5rem">
+  <h3 style="margin-bottom:.5rem">Unterschrift für Verträge</h3>
+  <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
+    Wird beim Erzeugen von Bezugs-/Einspeisevereinbarungen über der Unterschriftslinie
+    "Für die EEG" eingefügt. Bitte ein PNG-Bild mit transparentem Hintergrund hochladen —
+    die Unterschrift wird als <?= htmlspecialchars($myUser['first_name'] . ' ' . $myUser['last_name']) ?>
+    (Ihr Konto) gespeichert.
+  </p>
+
+  <?php if (!empty($myUser['signature_image'])): ?>
+    <p style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">Vorschau im Vertrag:</p>
+    <div style="border:1px dashed #d1d5db;border-radius:8px;padding:1rem 1.5rem;max-width:320px;margin-bottom:1rem">
+      <img src="<?= htmlspecialchars($myUser['signature_image']) ?>" alt="Unterschrift" style="max-height:70px;max-width:100%;display:block;margin-bottom:.3rem">
+      <div style="border-top:1px solid #111827;padding-top:.3rem;font-size:.75rem;color:#374151">
+        Für die EEG – Obmann/Obfrau<br><?= htmlspecialchars($community['name'] ?? '') ?>
+      </div>
+    </div>
+  <?php endif; ?>
+
+  <form method="post" action="/portal/settings/signature" enctype="multipart/form-data">
+    <div class="form-group" style="max-width:400px">
+      <label>Unterschrift hochladen (PNG)</label>
+      <input type="file" name="signature" accept="image/png" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Unterschrift speichern</button>
+    <?php if (!empty($myUser['signature_image'])): ?>
+      <button type="submit" formaction="/portal/settings/signature/delete" class="btn" style="background:#fee2e2;color:#b91c1c">Unterschrift entfernen</button>
+    <?php endif; ?>
+  </form>
+</div>
+
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';
