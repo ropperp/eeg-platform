@@ -89,7 +89,7 @@ function eegSignatureAsset(): array
         return ['var' => '', 'assets' => []];
     }
     return [
-        'var'    => '\\includegraphics[height=1.4cm]{unterschrift_eeg.png}\\\\[-4pt]',
+        'var'    => '\\includegraphics[height=1.4cm]{unterschrift_eeg.png}',
         'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
     ];
 }
@@ -948,9 +948,9 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
 
-    // Zellwerte einzeln escapen, dann als RAW_ übergeben (LaTeX-Tabellenstruktur bleibt erhalten)
+    // Nur noch Zählpunktnummer (keine Zählernummer im Vertrag) als \item-Liste
     $zpLines = implode("\n", array_map(
-        fn($mp) => texEscape($mp['zaehlpunkt_nr']) . ' & ' . texEscape($mp['meter_code'] ?? '--') . ' \\\\',
+        fn($mp) => '\\item ' . texEscape($mp['zaehlpunkt_nr']),
         $mps
     ));
 
@@ -969,7 +969,7 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         'BEZUG_TARIF'               => $tariff ? number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') : '--',
         'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
-        'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
     ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
@@ -1012,12 +1012,12 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
 
-    // Reguläre Closure mit Referenz damit $i korrekt hochzählt (arrow fn würde by-value fangen)
-    $i = 1;
     $zpLines = implode("\n", array_map(
-        function ($mp) use (&$i) {
-            return ($i++) . ' & ' . texEscape($mp['zaehlpunkt_nr']) . ' & ' . texEscape($mp['erzeugungsart'] ?? 'Photovoltaik')
-                . ' & ' . ($mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '--') . ' \\\\';
+        function ($mp) {
+            $engpass = $mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '--';
+            return '\\item Zählpunktnummer ' . texEscape($mp['zaehlpunkt_nr'])
+                . ' --- Erzeugungsart: ' . texEscape($mp['erzeugungsart'] ?? 'Photovoltaik')
+                . ', Engpassleistung: ' . $engpass;
         },
         $mps
     ));
@@ -1050,7 +1050,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
         'MITGLIED_BIC'              => $member['member_bic'] ?? '--',
         'EINSPEISUNG_TARIF'         => $tariff ? number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
-        'RAW_ZAEHLPUNKTE_TABELLE'   => $zpLines,
+        'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
         'ANLAGENBESCHREIBUNG'       => $anlagenBeschreibung ?: '--',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
