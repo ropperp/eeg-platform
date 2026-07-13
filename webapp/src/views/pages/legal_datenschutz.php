@@ -63,7 +63,43 @@ ob_start();
     gespeichert. Es werden keine Tracking- oder Marketing-Cookies eingesetzt.
   </p>
 
-  <h2>9. Ihre Rechte</h2>
+  <h2>9. Echtzeit-Zählerdaten über die Ausleseeinheit</h2>
+  <p>
+    Als Teil der Teilnahme an der EEG Strompool Feldkirchen Süd-West wird bei jedem Mitglied eine
+    Ausleseeinheit betrieben, die über die P1-Kundenschnittstelle des Smart Meters folgende Daten
+    ausliest und an uns übermittelt: Zählerstände (Bezug und ggf. Einspeisung), Momentanleistung
+    sowie zugehörige Zeitstempel. Aus hochauflösenden Verbrauchsdaten können Rückschlüsse auf das
+    Nutzungsverhalten (z. B. Anwesenheitszeiten) möglich sein.
+  </p>
+  <p>
+    <strong>Zwecke:</strong> Ermittlung, wann innerhalb der EEG Energie benötigt wird und wann
+    Überschuss besteht; Visualisierung des eigenen Verbrauchs in Echtzeit; Optimierung der
+    Energienutzung in der Gemeinschaft. Die Abrechnung erfolgt davon unabhängig über die
+    Viertelstundenwerte des Netzbetreibers.
+  </p>
+  <p>
+    <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO (Erfüllung des Teilnahmevertrags —
+    der Betrieb der Ausleseeinheit ist Vertragsbestandteil gemäß unseren AGB) sowie Art. 6 Abs. 1
+    lit. f DSGVO (berechtigtes Interesse an der Optimierung der Energieverteilung in der
+    Gemeinschaft).
+  </p>
+  <p>
+    <strong>Zugriff und Empfänger:</strong> Jedes Mitglied sieht ausschließlich seine eigenen Daten
+    sowie aggregierte Gesamtwerte der Gemeinschaft. Einzeldaten werden anderen Mitgliedern nicht
+    zugänglich gemacht und nicht an Dritte weitergegeben. Die Verarbeitung erfolgt auf denselben
+    Servern in Österreich wie unter Punkt 6 beschrieben.
+  </p>
+  <p>
+    <strong>Speicherdauer:</strong> Es gilt dieselbe Speicherdauer wie unter Punkt 7 beschrieben
+    (Dauer der Mitgliedschaft sowie gesetzliche Aufbewahrungsfristen), danach Löschung bzw.
+    Anonymisierung/Aggregation.
+  </p>
+  <p>
+    Diese Funktion befindet sich in Entwicklung; die Verarbeitung beginnt erst mit Inbetriebnahme
+    der Ausleseeinheit.
+  </p>
+
+  <h2>10. Ihre Rechte</h2>
   <p>
     Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung
     Ihrer Daten sowie auf Datenübertragbarkeit. Zudem steht Ihnen ein Beschwerderecht bei der

@@ -24,12 +24,21 @@ ob_start();
         <td>Mitgliedsbeitrag</td>
         <td class="price">2,00 € / Monat</td>
       </tr>
+      <tr>
+        <td>Ausleseeinheit für Smart Meter (P1-Schnittstelle)</td>
+        <td class="price">in Vorbereitung – voraussichtlich ca. 20,00 €</td>
+      </tr>
     </tbody>
   </table>
 
   <p>
     Der Mitgliedsbeitrag wird gemeinsam mit der Energieabrechnung in Rechnung gestellt
     (24,00 € pro Kalenderjahr).
+  </p>
+
+  <p>
+    Der endgültige Preis der Ausleseeinheit wird dem Mitglied vor Übergabe bekannt gegeben
+    (siehe <a href="/rc108175/agb">AGB</a>).
   </p>
 
   <p>

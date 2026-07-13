@@ -78,6 +78,39 @@ ob_start();
   </div>
 </section>
 
+<!-- Ausleseeinheit -->
+<section style="padding:4rem 0;background:#fff;border-top:1px solid #e5e7eb">
+  <div class="container" style="max-width:720px">
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div class="feature-icon" style="margin:0 auto">📡</div>
+      <h2 style="font-size:1.5rem;margin-top:1rem">Echtzeit-Energie: sehen, wann Strom gebraucht wird</h2>
+    </div>
+    <p style="color:#6b7280;margin-bottom:1rem">
+      Als Mitglied der EEG Strompool Feldkirchen Süd-West erhältst du unsere eigene
+      <strong>Ausleseeinheit</strong> — entwickelt als Diplomarbeitsprojekt an der HTL1 Lastenstraße. Sie liest über
+      die P1-Schnittstelle deines Smart Meters (Kärnten Netz) die Verbrauchsdaten in Echtzeit aus.
+    </p>
+    <p style="color:#6b7280;margin-bottom:.5rem">Damit siehst du live:</p>
+    <ul style="color:#6b7280;margin:0 0 1rem 1.25rem">
+      <li><strong>deinen eigenen</strong> Verbrauch und deine Einspeisung,</li>
+      <li><strong>die Gesamtbilanz der Gemeinschaft</strong> — wann in der EEG Energie benötigt wird
+        und wann Überschuss vorhanden ist.</li>
+    </ul>
+    <p style="color:#6b7280;margin-bottom:1rem">
+      So kannst du z. B. Waschmaschine oder E-Auto genau dann laufen lassen, wenn die Gemeinschaft
+      Überschuss hat — das erhöht die Eigenverbrauchsquote und senkt die Kosten für alle.
+    </p>
+    <p style="color:#6b7280;margin-bottom:1rem">
+      <strong>Deine Privatsphäre:</strong> Du siehst nur deine eigenen Daten und die Summe der
+      Gemeinschaft — niemals die Einzeldaten anderer Mitglieder.
+    </p>
+    <p style="color:#9ca3af;font-size:.85rem;font-style:italic;text-align:center">
+      Die Ausleseeinheit ist derzeit in Entwicklung und wird in den kommenden Monaten an alle
+      Mitglieder ausgegeben (voraussichtlich ca. € 20,–, Preis noch nicht endgültig).
+    </p>
+  </div>
+</section>
+
 <!-- Kontakt -->
 <section style="padding:4rem 0">
   <div class="container" style="text-align:center">
