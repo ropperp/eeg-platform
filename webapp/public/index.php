@@ -1042,6 +1042,36 @@ $router->post('/portal/settings/tariff', function () {
     exit;
 });
 
+$router->post('/portal/settings/tax', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $taxModel = $_POST['tax_model'] ?? '';
+    if (!in_array($taxModel, ['kleinunternehmer', 'standard'], true)) {
+        http_response_code(400);
+        echo 'Ungültiges Steuermodell.';
+        return;
+    }
+    $taxRate = $taxModel === 'standard'
+        ? (float)str_replace(',', '.', $_POST['tax_rate_percent'] ?? '20')
+        : null;
+
+    DB::execute(
+        'INSERT INTO tax_config (community_id, valid_from, tax_model, tax_rate_percent, uid_number)
+         VALUES (?, ?, ?, ?, ?)',
+        [
+            $communityId,
+            $_POST['valid_from'] ?? date('Y-m-d'),
+            $taxModel,
+            $taxRate,
+            trim($_POST['uid_number'] ?? '') ?: null,
+        ]
+    );
+    header('Location: /portal/settings?success=1');
+    exit;
+});
+
 // ─── Admin-Bereich ──────────────────────────────────────
 $router->get('/admin', function () {
     Auth::requireLogin();

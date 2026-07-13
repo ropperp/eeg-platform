@@ -98,10 +98,34 @@
   <?php else: ?>
     <p style="color:#6b7280;font-size:.875rem">Keine Steuerkonfiguration vorhanden.</p>
   <?php endif; ?>
-  <p style="margin-top:1rem;font-size:.8rem;color:#9ca3af">
-    Für Änderungen an der Steuerkonfiguration wenden Sie sich an den Plattform-Administrator.
-    Alle Änderungen werden historisiert damit alte Rechnungen korrekt bleiben.
-  </p>
+  <form method="post" action="/portal/settings/tax" style="margin-top:1rem">
+    <p style="font-size:.8rem;color:#92400e;margin-bottom:1rem">
+      ⚠️ Eine neue Steuerkonfiguration wird ab dem angegebenen Datum gültig und historisiert,
+      damit bereits erstellte Rechnungen korrekt bleiben.
+    </p>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Gültig ab</label>
+        <input type="date" name="valid_from" required value="<?= date('Y-m-d') ?>">
+      </div>
+      <div class="form-group">
+        <label>Steuermodell</label>
+        <select name="tax_model" id="tax-model-select" onchange="document.getElementById('tax-rate-field').style.display = this.value === 'standard' ? 'block' : 'none'">
+          <option value="kleinunternehmer" <?= ($tax['tax_model'] ?? '') === 'kleinunternehmer' ? 'selected' : '' ?>>Kleinunternehmer (§ 6 Abs 1 Z 27 UStG)</option>
+          <option value="standard" <?= ($tax['tax_model'] ?? '') === 'standard' ? 'selected' : '' ?>>Standard (mit USt-Ausweis)</option>
+        </select>
+      </div>
+      <div class="form-group" id="tax-rate-field" style="<?= ($tax['tax_model'] ?? '') === 'standard' ? '' : 'display:none' ?>">
+        <label>USt-Satz (%)</label>
+        <input type="text" name="tax_rate_percent" placeholder="20.00" value="<?= htmlspecialchars($tax['tax_rate_percent'] ?? '20') ?>">
+      </div>
+      <div class="form-group">
+        <label>UID-Nummer (falls USt-pflichtig)</label>
+        <input type="text" name="uid_number" placeholder="ATU12345678" value="<?= htmlspecialchars($tax['uid_number'] ?? '') ?>">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Neue Steuerkonfiguration anlegen</button>
+  </form>
 </div>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';
