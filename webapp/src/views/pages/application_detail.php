@@ -9,6 +9,8 @@ ob_start();
   <h2 style="margin:0"><?= htmlspecialchars($a['first_name'] . ' ' . $a['last_name']) ?></h2>
   <?php $sb = ['pending' => 'yellow', 'approved' => 'green', 'rejected' => 'gray']; ?>
   <span class="badge badge-<?= $sb[$a['status']] ?? 'gray' ?>"><?= htmlspecialchars($a['status']) ?></span>
+  <a href="/portal/applications/<?= $a['id'] ?>/formular" target="_blank"
+     class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem;margin-left:auto">🖨️ Formular ausdrucken (PDF)</a>
 </div>
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem">

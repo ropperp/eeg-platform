@@ -1,0 +1,129 @@
+\documentclass[10pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman,provide=*]{babel}
+\usepackage[a4paper,top=1.2cm,bottom=1.2cm,left=1.5cm,right=1.5cm]{geometry}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[table]{xcolor}
+\usepackage{array}
+\usepackage{tikz}
+\usepackage[most]{tcolorbox}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\setlist{nosep,leftmargin=1.1em}
+\setlength{\parindent}{0pt}
+
+% ---------- Farben ----------
+\definecolor{egreendark}{RGB}{18,92,55}
+\definecolor{egreenlight}{RGB}{233,245,238}
+\definecolor{boxgray}{RGB}{110,110,110}
+\definecolor{greenverlauf}{RGB}{21,128,61}
+\definecolor{turkisverlauf}{RGB}{8,145,178}
+
+\newcommand{\sectionbar}[1]{%
+  \par\vspace{6pt}\noindent
+  \begin{tikzpicture}
+    \node[fill=turkisverlauf, text=white, rounded corners=2.5pt,
+          inner xsep=8pt, inner ysep=3pt, font=\bfseries\small] {#1};
+  \end{tikzpicture}\par\vspace{3pt}}
+
+\begin{document}
+
+% =====================================================
+% KOPF
+% =====================================================
+\begin{tcolorbox}[enhanced, interior style={left color=greenverlauf, right color=turkisverlauf},
+                  colframe=egreendark, sharp corners,
+                  boxrule=0pt, left=10pt, right=10pt, top=6pt, bottom=6pt]
+\color{white}
+{\fontsize{16}{18}\selectfont\bfseries BEITRITTSERKLÄRUNG}\\[1pt]
+{\small <<<EEG_NAME>>> \textperiodcentered\ Online eingereicht am <<<EINGEREICHT_AM>>> \textperiodcentered\ zum Ablegen ausgedruckt}
+\end{tcolorbox}
+
+% =====================================================
+% MITGLIEDS- UND RECHNUNGSDATEN
+% =====================================================
+\sectionbar{Mitglieds- und Rechnungsdaten}
+
+\begin{tabular}{@{}p{6cm}p{5.5cm}p{5.5cm}@{}}
+\textbf{Anrede/Titel:} <<<ANREDE_TITEL>>> &
+\textbf{Vorname:} <<<VORNAME>>> &
+\textbf{Nachname:} <<<NACHNAME>>> \\[4pt]
+\end{tabular}
+
+\textbf{Anschrift:} <<<ADRESSE>>>
+
+\begin{tabular}{@{}p{6cm}p{5.5cm}p{5.5cm}@{}}
+\textbf{Telefon:} <<<TELEFON>>> &
+\textbf{Geb.-Dat.:} <<<GEBURTSDATUM>>> &
+\textbf{Stromlieferant:} <<<STROMLIEFERANT>>> \\[4pt]
+\end{tabular}
+
+\textbf{E-Mail:} <<<EMAIL>>>
+
+% =====================================================
+% STROM BEZIEHEN
+% =====================================================
+\sectionbar{Strom beziehen}
+
+<<<RAW_BEZUG_BLOCK>>>
+
+% =====================================================
+% STROM EINSPEISEN
+% =====================================================
+\sectionbar{Strom einspeisen (nur bei eigener PV-Anlage)}
+
+<<<RAW_EINSPEISUNG_BLOCK>>>
+
+% =====================================================
+% WEITERE INFORMATIONEN
+% =====================================================
+\sectionbar{Weitere Informationen}
+
+\textbf{Stromspeicher:} <<<RAW_SPEICHER_BLOCK>>>
+
+\textbf{Bereits Mitglied in anderer EEG/BEG:} <<<RAW_ANDERE_EEG_BLOCK>>>
+
+% =====================================================
+% ZAHLUNGSMODALITÄTEN
+% =====================================================
+\sectionbar{Zahlungsmodalitäten}
+
+<<<RAW_SEPA_BLOCK>>>
+
+% =====================================================
+% RECHTLICHE ZUSTIMMUNGEN
+% =====================================================
+\sectionbar{Rechtliche Zustimmungen \& Erklärungen}
+
+{\footnotesize
+\begin{itemize}
+<<<RAW_ZUSTIMMUNGEN_LISTE>>>
+\end{itemize}
+}
+
+% =====================================================
+% UNTERSCHRIFT
+% =====================================================
+\sectionbar{Unterschrift}
+
+Unterschrieben am <<<UNTERSCHRIEBEN_AM>>> \textperiodcentered\ IP-Adresse <<<SIGNER_IP>>>
+
+\medskip
+<<<RAW_UNTERSCHRIFT_BILD>>>
+
+\vspace{0.3cm}
+\noindent\rule{6.5cm}{0.4pt}\\[1pt]
+{\small <<<VORNAME>>>\ <<<NACHNAME>>>}
+
+\vspace{0.4cm}
+\begin{tcolorbox}[enhanced, interior style={left color=greenverlauf, right color=turkisverlauf},
+                  colframe=egreendark, sharp corners,
+                  boxrule=0pt, left=10pt, right=10pt, top=3pt, bottom=3pt]
+\color{white}\small
+<<<EEG_NAME>>> \;$\cdot$\; ZVR <<<EEG_ZVR>>> \;$\cdot$\; <<<EEG_ADRESSE>>>
+\end{tcolorbox}
+
+\end{document}

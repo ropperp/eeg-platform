@@ -77,7 +77,6 @@
 % Titelblock
 % =====================================================================
 \begin{center}
-  {\small\color{mittelgrau}\MakeUppercase{Vorschlag für eine}}\\[0.3em]
   {\Large\bfseries VEREINBARUNG ÜBER BESTAND UND NUTZUNG}\\[0.3em]
   {\Large\bfseries EINER ENERGIEERZEUGUNGSANLAGE}\\[0.3em]
   {\normalsize (Typ: Überschusseinspeiser)}\\[0.5em]
@@ -90,7 +89,7 @@
 
 \bigskip
 
-\noindent <<<EEG_NAME>>>, <<<EEG_ADRESSE>>>, ZVR-Zahl <<<EEG_ZVR>>>,
+\noindent \textbf{<<<EEG_NAME>>>}, <<<EEG_ADRESSE>>>, ZVR-Zahl \textbf{<<<EEG_ZVR>>>},
 
 \smallskip
 \noindent als „Erneuerbare-Energie-Gemeinschaft“ („EEG“) gemäß \S\ 7 Abs 1 Z 6a iVm \S\S\ 16c ff ElWOG 2010 iVm \S\ 79f EAG einerseits
@@ -99,7 +98,7 @@
 \noindent sowie
 
 \bigskip
-\noindent <<<MITGLIED_NAME>>>, <<<MITGLIED_ADRESSE>>>\\
+\noindent \textbf{<<<MITGLIED_NAME>>>}, <<<MITGLIED_ADRESSE>>>\\
 <<<MITGLIED_UID_ZEILE>>>
 
 \smallskip
@@ -136,11 +135,7 @@ Gegenstand des vorliegenden Bestandvertrages ist die im Eigentum von <<<MITGLIED
 
 Der Eigenverbrauch des/der Eigentümer:in ist mangels Einspeisung in das öffentliche Netz von der weiteren Verteilung ausgeschlossen. Festgehalten wird zwischen den Vertragspartnern weiters, dass eine sich gegebenenfalls ergebende Überschussenergie (nach der von den teilnehmenden Netzbenutzern verbrauchten Energie) dem/den Erzeugungszählpunkt(en) und somit dem/der Eigentümer:in zugeordnet wird.
 
-% Hinweis: Die Statuten sehen keine fixe Vertragslaufzeit für Bestandverträge vor — die
-% Mitgliedschaft selbst ist auf unbestimmte Zeit angelegt (§ 6 Statuten). Der Bestandvertrag ist
-% daher an die Mitgliedschaft gekoppelt statt auf eine feste Jahresanzahl befristet (siehe dazu
-% auch die automatische Beendigung bei Ausscheiden in § 3.4).
-Das Bestandverhältnis beginnt am <<<MITGLIED_SEIT>>> und wird auf unbestimmte Zeit abgeschlossen.
+Das Bestandverhältnis beginnt am \textbf{<<<MITGLIED_SEIT>>>} und wird auf unbestimmte Zeit abgeschlossen. Es endet gemäß Punkt 3.4 automatisch mit dem Ausscheiden von <<<MITGLIED_NAME>>> aus der EEG, unbeschadet der sonstigen Auflösungsgründe gemäß Punkt 3.
 
 % =====================================================================
 % § 3 Vorzeitige Auflösung
@@ -167,6 +162,8 @@ Der EEG steht demgegenüber die analoge Berechtigung zur sofortigen Auflösung d
   \item der Verteilernetzbetreiber der EEG den Zugang zum Netz verweigert oder die Netzzugangsvereinbarung auflöst oder die EEG sonst nicht mehr über die erforderlichen Berechtigungen zur Einspeisung der Energie in das öffentliche Netz verfügt.
 \end{itemize}
 
+Die EEG ist zur sofortigen Auflösung des Bestandsverhältnisses auch dann berechtigt, wenn der/die Eigentümer:in trotz schriftlicher Mahnung und angemessener Nachfristsetzung seinen/ihren Wartungs- und Instandhaltungspflichten gemäß Punkt 7 nicht nachkommt.
+
 \parasubsec{Sonderkündigungsgrund: Untergang des Bestandsobjekts / Abfall der Energieleistung / Insolvenz}
 
 Ohne dass es einer Erklärung durch eine der beiden Vertragsparteien bedarf, gehen sämtliche Rechte und Pflichten aus dem vorliegenden Vertrag unter, wenn die Energieerzeugungsanlage untergeht oder -- bei Vorliegen von Funktionsuntüchtigkeit -- nur mit einem wirtschaftlich nicht vertretbaren Aufwand instandgesetzt werden kann. Ein wirtschaftlich nicht vertretbarer Aufwand liegt vor, wenn für die Reparatur mehr als ein wesentlicher Anteil der ursprünglichen Anschaffungs- und Instandsetzungskosten anfallen würde.
@@ -180,20 +177,20 @@ Sämtliche Rechte und Pflichten erlöschen auch dann, wenn
 
 \parasubsec{Automatische Beendigung bei Ausscheiden aus der EEG}
 
-Das Bestandverhältnis endet automatisch, ohne dass es einer Kündigung oder eines weiteren Rechtsaktes bedarf, sobald der/die Eigentümer:in als Mitglied aus der EEG ausscheidet.
+Scheidet <<<MITGLIED_NAME>>> als Mitglied aus der EEG aus, gleich aus welchem Grund, endet das gegenständliche Bestandverhältnis automatisch zum selben Zeitpunkt, ohne dass es hierfür einer gesonderten Kündigung oder Erklärung einer der Vertragsparteien bedarf.
 
 % =====================================================================
 % § 4 Bestandzins
 % =====================================================================
 \parasec{Bestandzins}
 
-Der monatlich von der EEG zu bezahlende Bestandzins ist dynamisch von der Energiemenge abhängig, die der EEG pro Monat aus der gegenständlichen Erzeugungsanlage zugewiesen wird, und beträgt Cent <<<EINSPEISUNG_TARIF>>>\,/\,kWh. Der Tarif gilt ab <<<TARIF_GUELTIG_AB>>>.
+Der monatlich von der EEG zu bezahlende Bestandzins ist dynamisch von der Energiemenge abhängig, die der EEG pro Monat aus der gegenständlichen Erzeugungsanlage zugewiesen wird, und beträgt \textbf{Cent <<<EINSPEISUNG_TARIF>>>\,/\,kWh}. Der Tarif gilt ab \textbf{<<<TARIF_GUELTIG_AB>>>}.
 
 Sämtliche genannten Entgelte verstehen sich exkl. allenfalls hierfür anfallender USt sowie sonstiger vom/von der Eigentümer:in für die vertragsgegenständliche Lieferung von elektrischer Energie zu tragenden oder abzuführenden öffentlichen Steuern, Abgaben, Gebühren und Entgelte mit Ausnahme von Ertragssteuern.
 
-Der vereinbarte monatliche Bestandzins ist jeweils bis spätestens zum 05. des zweitfolgenden Monats im Nachhinein zur Zahlung auf das folgende, vom/von der Eigentümer:in bekannt gegebene Konto fällig: IBAN <<<MITGLIED_IBAN>>>, BIC <<<MITGLIED_BIC>>>. Für den Fall des Zahlungsverzuges -- wobei das Datum des Einlangens der Zahlungen am vorbezeichneten Konto ausschlaggebend ist -- gelten 4\,\% Verzugszinsen p.a. als vereinbart.
+Der vereinbarte monatliche Bestandzins ist jeweils bis spätestens zum 05. des zweitfolgenden Monats im Nachhinein zur Zahlung auf das folgende, vom/von der Eigentümer:in bekannt gegebene Konto fällig: IBAN \textbf{<<<MITGLIED_IBAN>>>}, BIC \textbf{<<<MITGLIED_BIC>>>}. Die Abrechnung wird dem/der Eigentümer:in per E-Mail an die von ihm/ihr bekannt gegebene Adresse übermittelt. Für den Fall des Zahlungsverzuges -- wobei das Datum des Einlangens der Zahlungen am vorbezeichneten Konto ausschlaggebend ist -- gelten 4\,\% Verzugszinsen p.a. als vereinbart.
 
-Insofern der Vorstand nachfolgend eine geänderte Festlegung des Bestandzinses vornimmt, ist diese mit der Wirksamkeit zum Tag nach dem Vorstandsbeschluss der vorliegenden Vereinbarung zu Grunde zu legen, ohne dass es hierfür einer gesonderten Vertragsanpassung bedürfte.
+Es wird ausdrücklich Wertbeständigkeit des Bestandzinses vereinbart. Als Berechnungsmaß dient der von der Bundesanstalt Statistik Austria monatlich verlautbarte Verbraucherpreisindex 2020 oder ein an seine Stelle tretender Index. Bezugsgröße ist die zum Zeitpunkt des Vertragsabschlusses zuletzt verlautbarte Indexzahl. Schwankungen der Indexzahl nach oben oder unten bis einschließlich 3\,\% bleiben unberücksichtigt, wobei sich die Berechnung auf den jeweiligen Kalendermonat bezieht. Der Spielraum ist bei jedem Überschreiten nach oben oder unten auf eine Dezimalstelle neu zu berechnen, wobei stets die außerhalb des jeweiligen Spielraumes gelegene Indexzahl die Grundlage sowohl für die neue Berechnung des Bestandzinses als auch des neuen Spielraumes zu bilden hat. Sollte ein derartiger Index nicht mehr verlautbart werden, so ist die Wertsicherung durch einen von den Vertragspartnern einvernehmlich zu bestellenden Sachverständigen nach jenen Grundsätzen zu ermitteln, die den vorangegangenen Vereinbarungen entspricht, sodass die Kaufkraft des ursprünglich vereinbarten Betrages erhalten bleibt.
 
 % =====================================================================
 % § 5 Betriebs- und Verfügungsgewalt; Betriebsführung
@@ -225,6 +222,8 @@ Die Wartung und Instandhaltung der gegenständlichen Energieerzeugungsanlage obl
 Der/die Eigentümer:in verpflichtet sich, für sämtliche Kosten, die für den Betrieb und die Instandhaltung der Energieerzeugungsanlage notwendig sind, aufzukommen und die notwendigen Instandhaltungsarbeiten aus eigenen Stücken zu organisieren und von hierfür befugten Fachunternehmern so rechtzeitig und häufig durchführen zu lassen, dass der Zustand der Energieerzeugungsanlage den einschlägigen technischen Normen und allfälligen gesetzlichen Vorgaben entspricht.
 
 Treten im Rahmen der Wartung oder sonst gravierende Mängel zu Tage, die den weiteren Betrieb, die Sicherheit von Sachen oder die Gesundheit von Personen gefährden, so ist der/die Eigentümer:in verpflichtet, die Behebung derartiger Mängel unverzüglich auf dessen/deren Kosten in Auftrag zu geben. Für die Dauer des Betriebsausfalls aufgrund des Vorliegens von Mängeln sowie der notwendigen Zeit für die Behebung derselben, ist von der EEG kein Bestandentgelt zu bezahlen.
+
+Bei schwerwiegendem oder trotz Mahnung fortgesetztem Verstoß gegen die Wartungs- und Instandhaltungspflichten gemäß diesem Punkt behält sich die EEG zusätzlich zur Auflösung dieser Vereinbarung gemäß Punkt 3.2 auch das Recht vor, die Mitgliedschaft des/der Eigentümer:in in der EEG nach Maßgabe der Vereinsstatuten zu beenden.
 
 % =====================================================================
 % § 8 Haftung
@@ -270,18 +269,18 @@ Der Vertrag wird in zweifacher Ausfertigung erstellt und unterfertigt, wovon der
 % =====================================================================
 \vfill
 
-\noindent <<<EEG_ORT>>>, am \underline{\hspace{4cm}}
-
-\bigskip
-
 \noindent
 \begin{minipage}[t]{0.48\textwidth}
+  Ort, Datum: \underline{\hspace{4cm}}
+  \bigskip\par
   \rule{5cm}{0.4pt}\par
   Unterschrift Eigentümer:in\par
   <<<MITGLIED_NAME>>>
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{0.48\textwidth}
+  Ort, Datum: <<<EEG_ORT>>>, \underline{\hspace{3cm}}
+  \bigskip\par
   <<<RAW_EEG_UNTERSCHRIFT_BILD>>>\par
   \rule{5cm}{0.4pt}\par
   Unterschrift für die EEG\par

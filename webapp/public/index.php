@@ -1262,6 +1262,92 @@ $router->get('/portal/applications/:id', function ($params) {
     require ROOT . '/src/views/pages/application_detail.php';
 });
 
+$router->get('/portal/applications/:id/formular', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $a = DB::fetchOne('SELECT * FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$a) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+
+    $isTrue = fn($v) => in_array($v, [true, 't', '1', 1], true);
+
+    $bezugBlock = $isTrue($a['bezug_gewuenscht'])
+        ? 'Ja. Jahresverbrauch: ' . ($a['bezug_jahresverbrauch_kwh'] ? number_format((float)$a['bezug_jahresverbrauch_kwh'], 0, ',', '.') . ' kWh' : 'nicht angegeben')
+          . '. Zählpunktnummer: ' . ($a['bezug_zaehlpunkt'] ? texEscape($a['bezug_zaehlpunkt']) : 'nicht angegeben')
+        : 'Nein';
+
+    $einspeisungBlock = $isTrue($a['einspeisung_gewuenscht'])
+        ? 'Ja. Anlagenleistung: ' . ($a['einspeisung_kwp'] ? number_format((float)$a['einspeisung_kwp'], 2, ',', '.') . ' kWp' : 'nicht angegeben')
+          . '. Geplante Einspeisung: ' . ($a['einspeisung_geplante_kwh'] ? number_format((float)$a['einspeisung_geplante_kwh'], 0, ',', '.') . ' kWh/Jahr' : 'nicht angegeben')
+          . '. Zählpunktnummer: ' . ($a['einspeisung_zaehlpunkt'] ? texEscape($a['einspeisung_zaehlpunkt']) : 'nicht angegeben')
+        : 'Nein';
+
+    $speicherLabels = ['ja' => 'Ja', 'nein' => 'Nein', 'geplant' => 'Geplant'];
+    $speicherBlock = ($speicherLabels[$a['speicher_status']] ?? 'nicht angegeben')
+        . ($a['speicher_kwh'] ? ' (' . number_format((float)$a['speicher_kwh'], 1, ',', '.') . ' kWh)' : '');
+
+    $andereEegBlock = $isTrue($a['andere_eeg'])
+        ? 'Ja' . ($a['andere_eeg_name'] ? ', bei: ' . texEscape($a['andere_eeg_name']) : '')
+        : 'Nein';
+
+    $sepaAssets = [];
+    if (trim($a['iban'] ?? '') !== '') {
+        $sepaSigVar = '';
+        if (!empty($a['sepa_signature_image'])) {
+            $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
+            $sepaSigVar = '\\includegraphics[height=1.4cm]{sepa_unterschrift.png}\\par';
+        }
+        $sepaBlock = '\\textbf{SEPA-Lastschrift-Mandat:} IBAN ' . texEscape($a['iban'])
+            . ($a['bic'] ? ', BIC ' . texEscape($a['bic']) : '')
+            . '. Kontoinhaber:in: ' . texEscape($a['kontoinhaber'] ?: ($a['first_name'] . ' ' . $a['last_name']))
+            . ($a['konto_adresse'] ? '. Adresse: ' . texEscape($a['konto_adresse']) : '') . '\\par\\medskip{}'
+            . 'Unterschrieben am ' . ($a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--') . '\\par\\medskip{}'
+            . $sepaSigVar;
+    } else {
+        $sepaBlock = 'Es wurde keine SEPA-Lastschrift vereinbart (keine IBAN angegeben).';
+    }
+
+    $consentLabels = [
+        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft',
+        'zustimmung_vollmacht'           => 'Vollmacht',
+        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist',
+        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz',
+        'zustimmung_datenschutz'         => 'Datenschutz',
+        'zustimmung_agb'                 => 'AGB \\& Tarif-/Preisblatt',
+    ];
+    $zustimmungenLines = implode("\n", array_map(
+        fn($field, $label) => '\\item \\textbf{' . ($isTrue($a[$field]) ? 'Ja' : 'Nein') . ':} ' . $label,
+        array_keys($consentLabels), $consentLabels
+    ));
+
+    $assets = ['unterschrift_beitritt.png' => $a['signature_image']] + $sepaAssets;
+
+    streamLatexPdf('beitrittserklaerung_formular', [
+        'EEG_NAME'                  => $community['name'],
+        'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
+        'EEG_ADRESSE'               => $community['address'] ?? '',
+        'EINGEREICHT_AM'            => date('d.m.Y H:i', strtotime($a['created_at'])),
+        'ANREDE_TITEL'              => trim(($a['salutation'] ?? '') . ' ' . ($a['titel'] ?? '')) ?: '--',
+        'VORNAME'                   => $a['first_name'],
+        'NACHNAME'                  => $a['last_name'],
+        'ADRESSE'                   => $a['address'] . ', ' . $a['zip'] . ' ' . $a['city'],
+        'TELEFON'                   => $a['phone'] ?: '--',
+        'GEBURTSDATUM'              => $a['geburtsdatum'] ? date('d.m.Y', strtotime($a['geburtsdatum'])) : '--',
+        'STROMLIEFERANT'            => $a['stromlieferant'] ?: '--',
+        'EMAIL'                     => $a['email'],
+        'RAW_BEZUG_BLOCK'           => $bezugBlock,
+        'RAW_EINSPEISUNG_BLOCK'     => $einspeisungBlock,
+        'RAW_SPEICHER_BLOCK'        => $speicherBlock,
+        'RAW_ANDERE_EEG_BLOCK'      => $andereEegBlock,
+        'RAW_SEPA_BLOCK'            => $sepaBlock,
+        'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
+        'RAW_UNTERSCHRIFT_BILD'     => '\\includegraphics[height=1.4cm]{unterschrift_beitritt.png}',
+        'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
+        'SIGNER_IP'                 => $a['signer_ip'] ?: '--',
+    ], 'Beitrittserklaerung_' . $a['last_name'] . '.pdf', $assets);
+});
+
 $router->post('/portal/applications/:id/approve', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
