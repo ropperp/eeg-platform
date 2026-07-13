@@ -197,6 +197,24 @@ function createMemberRecord(string $communityId, array $f): array
     ];
 }
 
+/**
+ * Schreibt einen Eintrag ins Admin-Aktivitätslog (Abrechnung, Mitglieder, EDA-Import,
+ * Fehlermeldungen, Änderungen an Mitglied/EEG). Absichtlich fehlertolerant: ein Logging-
+ * Fehler darf die eigentliche Aktion nie verhindern.
+ */
+function logAudit(?string $communityId, string $aktion, ?string $entityTyp, ?string $entityId, string $beschreibung, bool $istFehler = false): void
+{
+    try {
+        DB::execute(
+            'INSERT INTO audit_log (community_id, user_id, aktion, entity_typ, entity_id, beschreibung, ist_fehler)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$communityId, Auth::userId(), $aktion, $entityTyp, $entityId, $beschreibung, $istFehler ? 'true' : 'false']
+        );
+    } catch (Throwable $e) {
+        error_log('[audit_log] ' . $e->getMessage());
+    }
+}
+
 $router = new Router();
 
 // ─── Gesundheitscheck ───────────────────────────────────
@@ -289,10 +307,21 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         require ROOT . '/src/views/pages/beitreten_formular.php';
         return;
     }
+    if ($iban !== '' && trim($_POST['kontoinhaber'] ?? '') === '') {
+        $error = 'Bitte bei Bankverbindung den vollen Namen des Kontoinhabers/der Kontoinhaberin angeben.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
 
     $signature = $_POST['signature_image'] ?? '';
     if (!str_starts_with($signature, 'data:image/png;base64,')) {
         $error = 'Bitte unterschreiben Sie im Unterschriftsfeld, bevor Sie absenden.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
+    $sepaSignature = $_POST['sepa_signature_image'] ?? '';
+    if ($iban !== '' && !str_starts_with($sepaSignature, 'data:image/png;base64,')) {
+        $error = 'Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat, da Sie eine IBAN angegeben haben.';
         require ROOT . '/src/views/pages/beitreten_formular.php';
         return;
     }
@@ -301,14 +330,14 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         'INSERT INTO membership_applications (
             community_id, salutation, titel, first_name, last_name, geburtsdatum,
             address, zip, city, phone, email, stromlieferant,
-            bezug_gewuenscht, bezug_jahresverbrauch_kwh,
-            einspeisung_gewuenscht, einspeisung_kwp, einspeisung_geplante_kwh,
+            bezug_gewuenscht, bezug_zaehlpunkt, bezug_jahresverbrauch_kwh,
+            einspeisung_gewuenscht, einspeisung_zaehlpunkt, einspeisung_kwp, einspeisung_geplante_kwh,
             speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
             iban, bic, kontoinhaber, konto_adresse,
             zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
             zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
-            signature_image, signed_at, signer_ip
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?)',
+            signature_image, signed_at, signer_ip, sepa_signature_image, sepa_signed_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?, ?, ?)',
         [
             $communityId,
             $_POST['salutation'] ?? null,
@@ -323,8 +352,10 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             strtolower(trim($_POST['email'])),
             trim($_POST['stromlieferant'] ?? '') ?: null,
             isset($_POST['bezug_gewuenscht']) ? 'true' : 'false',
+            trim($_POST['bezug_zaehlpunkt'] ?? '') ?: null,
             ($_POST['bezug_jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['bezug_jahresverbrauch_kwh']) : null,
             isset($_POST['einspeisung_gewuenscht']) ? 'true' : 'false',
+            trim($_POST['einspeisung_zaehlpunkt'] ?? '') ?: null,
             ($_POST['einspeisung_kwp'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['einspeisung_kwp']) : null,
             ($_POST['einspeisung_geplante_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['einspeisung_geplante_kwh']) : null,
             ($_POST['speicher_status'] ?? '') ?: null,
@@ -338,6 +369,8 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             'true', 'true', 'true', 'true', 'true', 'true',
             $signature,
             $_SERVER['REMOTE_ADDR'] ?? null,
+            $iban !== '' ? $sepaSignature : null,
+            $iban !== '' ? date('Y-m-d H:i:s') : null,
         ]
     );
     $application = DB::fetchOne(
@@ -627,6 +660,8 @@ $router->post('/portal/members', function () {
 
     $email = strtolower(trim($_POST['email']));
     $result = createMemberRecord($communityId, array_merge($_POST, ['andere_eeg' => isset($_POST['andere_eeg'])]));
+    logAudit($communityId, 'member.create', 'member', $result['member_id'],
+        'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' angelegt (KdNr ' . $result['kundennummer'] . ')');
 
     // Temp-Passwort anzeigen falls neuer User
     if ($result['temp_password']) {
@@ -713,6 +748,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
+    logAudit($communityId, 'member.update', 'member', $params['id'],
+        'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' bearbeitet');
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -722,14 +759,41 @@ $router->post('/portal/members/:id/delete', function ($params) {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member = DB::fetchOne('SELECT id, first_name, last_name, kundennummer FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
 
     // Löscht kaskadierend Verträge, Dateien, Zählpunkte, Rechnungen (siehe migrate_20260715.sql).
     // KdNr wird dadurch wieder frei und beim nächsten neuen Mitglied automatisch wiederverwendet.
     DB::execute('DELETE FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    logAudit($communityId, 'member.delete', 'member', $params['id'],
+        'Mitglied ' . $member['first_name'] . ' ' . $member['last_name'] . ' (KdNr ' . ($member['kundennummer'] ?? '—') . ') gelöscht');
 
     header('Location: /portal/members?success=1');
+    exit;
+});
+
+// Manager dürfen (anders als der globale /admin/users-Bereich) NUR das Login-Konto
+// von Mitgliedern der EIGENEN EEG entfernen. Da users.email plattformweit eindeutig ist,
+// wird die users-Zeile nur gelöscht, wenn der Account sonst KEINE Rolle mehr hat — sonst
+// würde man einer Person versehentlich den Zugriff auf eine andere EEG entziehen, in der
+// sie z.B. ebenfalls Mitglied ist.
+$router->post('/portal/members/:id/delete-login', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT id, user_id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member || !$member['user_id']) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $userId = $member['user_id'];
+
+    DB::execute('UPDATE members SET user_id = NULL WHERE id = ?', [$params['id']]);
+    DB::execute('DELETE FROM user_roles WHERE user_id = ? AND community_id = ?', [$userId, $communityId]);
+
+    $remainingRoles = DB::fetchOne('SELECT COUNT(*) AS cnt FROM user_roles WHERE user_id = ?', [$userId])['cnt'];
+    if ((int)$remainingRoles === 0) {
+        DB::execute('DELETE FROM users WHERE id = ?', [$userId]);
+    }
+
+    header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
 
@@ -1076,12 +1140,14 @@ $router->get('/portal/billing', function () {
 $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
+    $communityId = Auth::activeCommunityId();
     try {
         Billing::release($runId, Auth::userId());
+        logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Abrechnungslauf freigegeben');
         header('Location: /portal/billing?success=1');
     } catch (Throwable $e) {
         $error = $e->getMessage();
-        $communityId = Auth::activeCommunityId();
+        logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Freigabe fehlgeschlagen: ' . $e->getMessage(), true);
         DB::setCommunity($communityId);
         $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
         require ROOT . '/src/views/pages/billing.php';
@@ -1091,12 +1157,38 @@ $router->post('/portal/billing/release', function () {
 
 $router->post('/portal/billing/:id/delete', function ($params) {
     Auth::requireLogin();
-    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
+    if (!Auth::isManager()) { http_response_code(403); echo 'Kein Zugriff.'; return; }
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    $run = DB::fetchOne('SELECT quartal FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     // Löscht kaskadierend die zugehörigen Rechnungen/Rechnungspositionen (siehe migrate_20260715.sql).
     DB::execute('DELETE FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    logAudit($communityId, 'billing.delete', 'billing_run', $params['id'], 'Abrechnungslauf ' . ($run['quartal'] ?? '?') . ' gelöscht');
     header('Location: /portal/billing?success=1');
+    exit;
+});
+
+// ─── Portal: Internes Postfach (Benachrichtigungen) ─────
+$router->get('/portal/postfach', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $notifications = DB::fetchAll(
+        "SELECT * FROM notifications WHERE community_id = ? ORDER BY (status = 'offen') DESC, created_at DESC",
+        [$communityId]
+    );
+    require ROOT . '/src/views/pages/postfach.php';
+});
+
+$router->post('/portal/postfach/:id/erledigt', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    DB::execute(
+        "UPDATE notifications SET status = 'erledigt', erledigt_am = now(), erledigt_von = ? WHERE id = ? AND community_id = ?",
+        [Auth::userId(), $params['id'], $communityId]
+    );
+    header('Location: /portal/postfach?success=1');
     exit;
 });
 
@@ -1153,6 +1245,8 @@ $router->post('/portal/applications/:id/approve', function ($params) {
          WHERE community_id = ? AND referenz_typ = 'membership_application' AND referenz_id = ?",
         [Auth::userId(), $communityId, $application['id']]
     );
+    logAudit($communityId, 'application.approve', 'member', $result['member_id'],
+        'Online-Beitrittserklärung von ' . $application['first_name'] . ' ' . $application['last_name'] . ' freigegeben (KdNr ' . $result['kundennummer'] . ')');
 
     header('Location: /portal/members/' . $result['member_id'] . '?success=1');
     exit;
@@ -1163,7 +1257,7 @@ $router->post('/portal/applications/:id/reject', function ($params) {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $application = DB::fetchOne(
-        "SELECT id FROM membership_applications WHERE id = ? AND community_id = ? AND status = 'pending'",
+        "SELECT id, first_name, last_name FROM membership_applications WHERE id = ? AND community_id = ? AND status = 'pending'",
         [$params['id'], $communityId]
     );
     if (!$application) { http_response_code(404); echo 'Nicht gefunden oder bereits bearbeitet'; return; }
@@ -1177,6 +1271,8 @@ $router->post('/portal/applications/:id/reject', function ($params) {
          WHERE community_id = ? AND referenz_typ = 'membership_application' AND referenz_id = ?",
         [Auth::userId(), $communityId, $application['id']]
     );
+    logAudit($communityId, 'application.reject', 'membership_application', $application['id'],
+        'Online-Beitrittserklärung von ' . $application['first_name'] . ' ' . $application['last_name'] . ' abgelehnt');
 
     header('Location: /portal/applications?success=1');
     exit;
@@ -1218,8 +1314,13 @@ $router->post('/portal/eda/upload', function () {
     );
     $output = shell_exec($cmd);
     $result = json_decode($output, true);
+    $communityId = Auth::activeCommunityId();
     if ($result === null) {
         $error = 'Parser-Fehler: ' . htmlspecialchars(substr($output ?? 'Keine Ausgabe', 0, 500));
+        logAudit($communityId, 'eda.import', null, null, 'EDA-Import fehlgeschlagen: ' . substr($output ?? 'Keine Ausgabe', 0, 500), true);
+    } else {
+        logAudit($communityId, 'eda.import', null, null,
+            'EDA-Import: ' . ($result['records'] ?? '?') . ' Datensätze importiert' . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''));
     }
 
     require ROOT . '/src/views/pages/eda_upload.php';
@@ -1403,8 +1504,33 @@ $router->post('/admin/communities/:id', function ($params) {
             $params['id'],
         ]
     );
+    logAudit($params['id'], 'community.update', 'community', $params['id'], 'EEG "' . trim($_POST['name'] ?? '') . '" bearbeitet');
     header('Location: /admin?success=1');
     exit;
+});
+
+// ─── Admin: Aktivitätslog ────────────────────────────────
+$router->get('/admin/log', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $filterCommunity = $_GET['community_id'] ?? '';
+    $params = [];
+    $where = '1=1';
+    if ($filterCommunity !== '') {
+        $where .= ' AND al.community_id = ?';
+        $params[] = $filterCommunity;
+    }
+    $entries = DB::fetchAll(
+        "SELECT al.*, u.first_name, u.last_name, u.email, c.name AS community_name
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+         LEFT JOIN communities c ON c.id = al.community_id
+         WHERE $where
+         ORDER BY al.created_at DESC LIMIT 500",
+        $params
+    );
+    $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
+    require ROOT . '/src/views/pages/admin_log.php';
 });
 
 $router->dispatch();

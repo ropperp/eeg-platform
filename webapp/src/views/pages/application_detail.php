@@ -29,8 +29,10 @@ ob_start();
     <h3 style="margin-bottom:1rem">Teilnahme &amp; Weitere Infos</h3>
     <table>
       <tr><th>Bezug gewünscht</th><td><?= in_array($a['bezug_gewuenscht'], [true, 't', '1', 1], true) ? 'Ja' : 'Nein' ?></td></tr>
+      <tr><th>Zählpunkt (Bezug)</th><td><?= htmlspecialchars($a['bezug_zaehlpunkt'] ?? '—') ?></td></tr>
       <tr><th>Jahresverbrauch</th><td><?= $a['bezug_jahresverbrauch_kwh'] ? number_format((float)$a['bezug_jahresverbrauch_kwh'], 0, ',', '.') . ' kWh' : '—' ?></td></tr>
       <tr><th>Einspeisung gewünscht</th><td><?= in_array($a['einspeisung_gewuenscht'], [true, 't', '1', 1], true) ? 'Ja' : 'Nein' ?></td></tr>
+      <tr><th>Zählpunkt (Einspeisung)</th><td><?= htmlspecialchars($a['einspeisung_zaehlpunkt'] ?? '—') ?></td></tr>
       <tr><th>Anlagenleistung</th><td><?= $a['einspeisung_kwp'] ? number_format((float)$a['einspeisung_kwp'], 2, ',', '.') . ' kWp' : '—' ?></td></tr>
       <tr><th>Speicher</th><td><?= htmlspecialchars($a['speicher_status'] ?? '—') ?><?= $a['speicher_kwh'] ? ' (' . number_format((float)$a['speicher_kwh'], 1, ',', '.') . ' kWh)' : '' ?></td></tr>
       <tr><th>Andere EEG/BEG</th><td><?= in_array($a['andere_eeg'], [true, 't', '1', 1], true) ? htmlspecialchars($a['andere_eeg_name'] ?? 'Ja') : 'Nein' ?></td></tr>
@@ -75,8 +77,18 @@ ob_start();
 
 <?php if (!empty($a['signature_image'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:1rem">Unterschrift</h3>
+  <h3 style="margin-bottom:1rem">Unterschrift Beitrittserklärung</h3>
   <img src="<?= htmlspecialchars($a['signature_image']) ?>" alt="Unterschrift" style="max-width:400px;border:1px solid #e5e7eb;border-radius:8px;background:#fff">
+</div>
+<?php endif; ?>
+
+<?php if (!empty($a['sepa_signature_image'])): ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:1rem">Unterschrift SEPA-Lastschriftmandat</h3>
+  <img src="<?= htmlspecialchars($a['sepa_signature_image']) ?>" alt="SEPA-Unterschrift" style="max-width:400px;border:1px solid #e5e7eb;border-radius:8px;background:#fff">
+  <p style="font-size:.8rem;color:#6b7280;margin-top:.5rem">
+    Unterschrieben am <?= $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '—' ?>
+  </p>
 </div>
 <?php endif; ?>
 

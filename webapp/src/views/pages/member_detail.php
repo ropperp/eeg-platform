@@ -18,6 +18,12 @@
     <?php endif; ?>
     <a href="/portal/members/<?= $member['id'] ?>/edit"
        class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">✏️ Bearbeiten</a>
+    <?php if (!empty($member['user_id'])): ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
+          onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
+      <button type="submit" class="btn" style="background:#fef3c7;color:#92400e;font-size:.8rem">🔒 Login löschen</button>
+    </form>
+    <?php endif; ?>
     <?php if (Auth::isPlatformAdmin()): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/delete" style="display:inline"
           onsubmit="return confirmDangerDelete('Mitglied <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?>) inkl. aller Zählpunkte, Verträge und Rechnungen')">

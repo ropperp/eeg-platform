@@ -86,8 +86,11 @@
   <aside class="sidebar" id="sidebar">
     <?php if ($activeRoleName === 'platform_admin'): ?>
       <p class="sidebar-label">Plattform</p>
-      <a href="/admin" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin') ? 'active' : '' ?>">
+      <a href="/admin" class="<?= $_SERVER['REQUEST_URI'] === '/admin' || str_contains($_SERVER['REQUEST_URI'], '/admin/communities') || str_contains($_SERVER['REQUEST_URI'], '/admin/users') ? 'active' : '' ?>">
         <span class="sidebar-icon">🔧</span><span class="sidebar-text">Administration</span>
+      </a>
+      <a href="/admin/log" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/log') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📋</span><span class="sidebar-text">Aktivitätslog</span>
       </a>
 
     <?php elseif ($isManager): ?>
@@ -103,10 +106,15 @@
       </a>
       <?php
         $pendingApplications = 0;
+        $offeneNotifications = 0;
         if ($ar['community_id'] ?? null) {
           DB::setCommunity($ar['community_id']);
           $pendingApplications = (int)DB::fetchOne(
               "SELECT COUNT(*) AS cnt FROM membership_applications WHERE community_id = ? AND status = 'pending'",
+              [$ar['community_id']]
+          )['cnt'];
+          $offeneNotifications = (int)DB::fetchOne(
+              "SELECT COUNT(*) AS cnt FROM notifications WHERE community_id = ? AND status = 'offen'",
               [$ar['community_id']]
           )['cnt'];
         }
@@ -115,6 +123,12 @@
         <span class="sidebar-icon">📥</span><span class="sidebar-text">Neuanmeldungen</span>
         <?php if ($pendingApplications > 0): ?>
           <span class="badge badge-yellow" style="margin-left:.4rem"><?= $pendingApplications ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], 'postfach') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach</span>
+        <?php if ($offeneNotifications > 0): ?>
+          <span class="badge badge-yellow" style="margin-left:.4rem"><?= $offeneNotifications ?></span>
         <?php endif; ?>
       </a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">

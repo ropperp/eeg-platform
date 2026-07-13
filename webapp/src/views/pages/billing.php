@@ -69,7 +69,7 @@ ob_start();
           <?php else: ?>
             <a href="#" style="font-size:.8rem">Rechnungen ansehen</a>
           <?php endif; ?>
-          <?php if (Auth::isPlatformAdmin()): ?>
+          <?php if (Auth::isManager()): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"
                   onsubmit="return confirmDangerDelete('Abrechnungslauf <?= htmlspecialchars(addslashes($run['quartal'])) ?> inkl. aller zugehörigen Rechnungen')">
               <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c;padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem">🗑️</button>

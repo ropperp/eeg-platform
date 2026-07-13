@@ -17,6 +17,10 @@ ob_start();
   </p>
 </div>
 
+<script>
+try { localStorage.removeItem('beitritt_draft_<?= strtolower($community['marktpartner_id']) ?>'); } catch (e) {}
+</script>
+
 <?php
 $content = ob_get_clean();
 require __DIR__ . '/../layouts/base.php';

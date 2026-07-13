@@ -1,6 +1,9 @@
 <?php
 $pageTitle = 'Online-Beitrittserklärung — ' . $community['name'];
 $d = $_POST ?? [];
+$mpid = strtolower($community['marktpartner_id']);
+$downloadPdf = '/assets/docs/beitrittserklaerung-eeg-strompool-feldkirchen-suedwest.pdf';
+$hasDownloadPdf = $mpid === 'rc108175' && file_exists(ROOT . '/public' . $downloadPdf);
 ob_start();
 ?>
 
@@ -8,11 +11,19 @@ ob_start();
   <h1>Online-Beitrittserklärung</h1>
   <div class="legal-meta"><?= htmlspecialchars($community['name']) ?></div>
 
+  <?php if ($hasDownloadPdf): ?>
+    <p style="margin-bottom:1.5rem">
+      <a href="<?= htmlspecialchars($downloadPdf) ?>" class="btn" style="background:#f3f4f6;color:#374151" download>
+        📄 Beitrittsformular herunterladen (falls Sie es lieber ausdrucken &amp; per Post/E-Mail schicken möchten)
+      </a>
+    </p>
+  <?php endif; ?>
+
   <?php if (!empty($error)): ?>
     <div class="alert alert-error" style="margin-bottom:1.5rem"><?= htmlspecialchars($error) ?></div>
   <?php endif; ?>
 
-  <form method="post" action="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/beitreten/formular" id="beitritt-form">
+  <form method="post" action="/<?= htmlspecialchars($mpid) ?>/beitreten/formular" id="beitritt-form">
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Persönliche Daten</h3>
       <div class="grid-2">
@@ -76,24 +87,36 @@ ob_start();
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Teilnahme an der Energiegemeinschaft</h3>
-      <div class="grid-2">
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="bezug_gewuenscht" id="bezug_gewuenscht" value="1" style="width:auto;display:inline-block;margin-right:.4rem"
+                 <?= !empty($d['bezug_gewuenscht']) ? 'checked' : '' ?>>
+          Ich möchte Strom aus der Energiegemeinschaft beziehen
+        </label>
+      </div>
+      <div class="grid-2" id="bezug-fields" style="display:none;margin-bottom:1rem">
         <div class="form-group">
-          <label>
-            <input type="checkbox" name="bezug_gewuenscht" value="1" style="width:auto;display:inline-block;margin-right:.4rem"
-                   <?= !empty($d['bezug_gewuenscht']) ? 'checked' : '' ?>>
-            Ich möchte Strom aus der Gemeinschaft beziehen
-          </label>
+          <label>Zählpunktnummer (33-stellig)</label>
+          <input type="text" name="bezug_zaehlpunkt" maxlength="33" placeholder="AT..." value="<?= htmlspecialchars($d['bezug_zaehlpunkt'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>Jahresverbrauch (kWh), falls bekannt</label>
           <input type="text" name="bezug_jahresverbrauch_kwh" value="<?= htmlspecialchars($d['bezug_jahresverbrauch_kwh'] ?? '') ?>">
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="einspeisung_gewuenscht" id="einspeisung_gewuenscht" value="1" style="width:auto;display:inline-block;margin-right:.4rem"
+                 <?= !empty($d['einspeisung_gewuenscht']) ? 'checked' : '' ?>>
+          Ich möchte Strom in die Energiegemeinschaft einspeisen
+        </label>
+      </div>
+      <div class="grid-2" id="einspeisung-fields" style="display:none">
         <div class="form-group">
-          <label>
-            <input type="checkbox" name="einspeisung_gewuenscht" value="1" style="width:auto;display:inline-block;margin-right:.4rem"
-                   <?= !empty($d['einspeisung_gewuenscht']) ? 'checked' : '' ?>>
-            Ich möchte Strom in die Gemeinschaft einspeisen
-          </label>
+          <label>Zählpunktnummer (33-stellig)</label>
+          <input type="text" name="einspeisung_zaehlpunkt" maxlength="33" placeholder="AT..." value="<?= htmlspecialchars($d['einspeisung_zaehlpunkt'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>Anlagenleistung (kWp), falls bekannt</label>
@@ -142,15 +165,15 @@ ob_start();
       <div class="grid-2">
         <div class="form-group">
           <label>IBAN</label>
-          <input type="text" name="member_iban" placeholder="AT61 1904 3002 3457 3201" value="<?= htmlspecialchars($d['member_iban'] ?? '') ?>">
+          <input type="text" name="member_iban" id="member_iban" placeholder="AT61 1904 3002 3457 3201" value="<?= htmlspecialchars($d['member_iban'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>BIC</label>
           <input type="text" name="member_bic" placeholder="OPSKATWW" value="<?= htmlspecialchars($d['member_bic'] ?? '') ?>">
         </div>
         <div class="form-group">
-          <label>Kontoinhaber:in</label>
-          <input type="text" name="kontoinhaber" placeholder="falls abweichend vom eigenen Namen" value="<?= htmlspecialchars($d['kontoinhaber'] ?? '') ?>">
+          <label>Kontoinhaber:in (voller Name lt. Bankkonto)</label>
+          <input type="text" name="kontoinhaber" placeholder="z.B. mit zweitem Vornamen, falls am Konto so hinterlegt" value="<?= htmlspecialchars($d['kontoinhaber'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>Adresse Kontoinhaber:in</label>
@@ -183,21 +206,35 @@ ob_start();
       <?php endforeach; ?>
       <p style="font-size:.8rem;margin-top:.75rem">
         Bitte lesen Sie vorab
-        <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/statuten" target="_blank">Statuten</a>,
-        <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/datenschutz" target="_blank">Datenschutzerklärung</a>,
-        <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/agb" target="_blank">AGBs</a> und
-        <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/preisliste" target="_blank">Preisliste</a>.
+        <a href="/<?= htmlspecialchars($mpid) ?>/statuten" target="_blank">Statuten</a>,
+        <a href="/<?= htmlspecialchars($mpid) ?>/datenschutz" target="_blank">Datenschutzerklärung</a>,
+        <a href="/<?= htmlspecialchars($mpid) ?>/agb" target="_blank">AGBs</a> und
+        <a href="/<?= htmlspecialchars($mpid) ?>/preisliste" target="_blank">Preisliste</a>
+        — Ihre Eingaben bleiben dabei in diesem Browser erhalten.
       </p>
     </div>
 
     <div class="card" style="margin-bottom:1.5rem">
-      <h3 style="margin-bottom:1rem">Unterschrift</h3>
+      <h3 style="margin-bottom:1rem">Unterschrift Beitrittserklärung</h3>
       <p style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem">Bitte unterschreiben Sie mit Maus oder Finger im Feld unten.</p>
       <canvas id="sig-pad" width="600" height="180" style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
       <div style="margin-top:.5rem">
-        <button type="button" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem" onclick="clearSignature()">Löschen</button>
+        <button type="button" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem" onclick="clearSignature('sig-pad')">Löschen</button>
       </div>
       <input type="hidden" name="signature_image" id="signature_image">
+    </div>
+
+    <div class="card" id="sepa-card" style="margin-bottom:1.5rem;display:none">
+      <h3 style="margin-bottom:1rem">SEPA-Lastschriftmandat</h3>
+      <p style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem">
+        Da Sie eine IBAN angegeben haben, benötigen wir Ihre gesonderte Unterschrift für das
+        SEPA-Lastschriftmandat (Einzug von Mitgliedsbeitrag und Rechnungsbeträgen).
+      </p>
+      <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+      <div style="margin-top:.5rem">
+        <button type="button" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem" onclick="clearSignature('sepa-sig-pad')">Löschen</button>
+      </div>
+      <input type="hidden" name="sepa_signature_image" id="sepa_signature_image">
     </div>
 
     <div style="display:flex;gap:1rem">
@@ -208,59 +245,117 @@ ob_start();
 
 <script>
 (function() {
-  const canvas = document.getElementById('sig-pad');
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = '#111827';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  let drawing = false;
-  let hasSignature = false;
+  const STORAGE_KEY = 'beitritt_draft_<?= $mpid ?>';
+  const SIGNATURE_FIELDS = ['signature_image', 'sepa_signature_image'];
 
-  function pos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const point = e.touches ? e.touches[0] : e;
-    return { x: (point.clientX - rect.left) * scaleX, y: (point.clientY - rect.top) * scaleY };
+  function makeSignaturePad(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    let drawing = false;
+    const state = { hasSignature: false };
+
+    function pos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const point = e.touches ? e.touches[0] : e;
+      return { x: (point.clientX - rect.left) * scaleX, y: (point.clientY - rect.top) * scaleY };
+    }
+    function start(e) {
+      e.preventDefault();
+      drawing = true;
+      state.hasSignature = true;
+      const p = pos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }
+    function move(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const p = pos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+    function stop() { drawing = false; }
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', stop);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', stop);
+
+    return {
+      canvas, ctx, state,
+      clear() { ctx.clearRect(0, 0, canvas.width, canvas.height); state.hasSignature = false; }
+    };
   }
 
-  function start(e) {
-    e.preventDefault();
-    drawing = true;
-    hasSignature = true;
-    const p = pos(e);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-  }
-  function move(e) {
-    if (!drawing) return;
-    e.preventDefault();
-    const p = pos(e);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-  }
-  function stop() { drawing = false; }
-
-  canvas.addEventListener('mousedown', start);
-  canvas.addEventListener('mousemove', move);
-  window.addEventListener('mouseup', stop);
-  canvas.addEventListener('touchstart', start, { passive: false });
-  canvas.addEventListener('touchmove', move, { passive: false });
-  canvas.addEventListener('touchend', stop);
-
-  window.clearSignature = function() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hasSignature = false;
+  const sigPad = makeSignaturePad('sig-pad');
+  const sepaSigPad = makeSignaturePad('sepa-sig-pad');
+  window.clearSignature = function(id) {
+    (id === 'sepa-sig-pad' ? sepaSigPad : sigPad).clear();
   };
 
-  document.getElementById('beitritt-form').addEventListener('submit', function(e) {
-    if (!hasSignature) {
+  const form = document.getElementById('beitritt-form');
+  const fields = Array.from(form.querySelectorAll('input[name], select[name]'))
+    .filter(f => !SIGNATURE_FIELDS.includes(f.name));
+
+  function saveDraft() {
+    const data = {};
+    fields.forEach(f => { data[f.name] = f.type === 'checkbox' ? f.checked : f.value; });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function restoreDraft() {
+    let raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    let data;
+    try { data = JSON.parse(raw); } catch (e) { return; }
+    fields.forEach(f => {
+      if (!(f.name in data)) return;
+      if (f.type === 'checkbox') f.checked = !!data[f.name];
+      else if (data[f.name]) f.value = data[f.name];
+    });
+  }
+
+  // Nur bei frischem Aufruf aus dem Browser-Speicher wiederherstellen — nach einem
+  // Validierungsfehler zeigt PHP die zuletzt abgeschickten Werte bereits selbst an.
+  const serverHasData = <?= empty($d) ? 'false' : 'true' ?>;
+  if (!serverHasData) restoreDraft();
+  fields.forEach(f => { f.addEventListener('input', saveDraft); f.addEventListener('change', saveDraft); });
+
+  function updateConditional() {
+    document.getElementById('bezug-fields').style.display = document.getElementById('bezug_gewuenscht').checked ? 'grid' : 'none';
+    document.getElementById('einspeisung-fields').style.display = document.getElementById('einspeisung_gewuenscht').checked ? 'grid' : 'none';
+    document.getElementById('sepa-card').style.display = document.getElementById('member_iban').value.trim() !== '' ? 'block' : 'none';
+  }
+  document.getElementById('bezug_gewuenscht').addEventListener('change', updateConditional);
+  document.getElementById('einspeisung_gewuenscht').addEventListener('change', updateConditional);
+  document.getElementById('member_iban').addEventListener('input', updateConditional);
+  updateConditional();
+
+  form.addEventListener('submit', function(e) {
+    if (!sigPad.state.hasSignature) {
       e.preventDefault();
-      alert('Bitte unterschreiben Sie im Unterschriftsfeld, bevor Sie absenden.');
+      alert('Bitte unterschreiben Sie die Beitrittserklärung im Unterschriftsfeld.');
       return;
     }
-    document.getElementById('signature_image').value = canvas.toDataURL('image/png');
+    const sepaVisible = document.getElementById('sepa-card').style.display !== 'none';
+    if (sepaVisible && !sepaSigPad.state.hasSignature) {
+      e.preventDefault();
+      alert('Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat, da Sie eine IBAN angegeben haben.');
+      return;
+    }
+    document.getElementById('signature_image').value = sigPad.canvas.toDataURL('image/png');
+    if (sepaVisible) {
+      document.getElementById('sepa_signature_image').value = sepaSigPad.canvas.toDataURL('image/png');
+    }
   });
 })();
 </script>

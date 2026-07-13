@@ -100,17 +100,27 @@ app.post('/generate', requireApiKey, (req, res) => {
     try { return fs.readFileSync(path.join(jobDir, 'doc.log'), 'utf8').slice(-4000); } catch { return '(no log)'; }
   };
 
+  // LaTeX meldet Fatal Errors mit Zeilen, die mit "!" beginnen — die ersten paar
+  // davon sind meist aussagekräftiger als "pdflatex failed" und ersparen einen
+  // Server-Login zur Diagnose.
+  const extractLatexErrors = (log) => {
+    const lines = log.split('\n').filter((l) => l.startsWith('!'));
+    return lines.slice(0, 3).join(' / ') || null;
+  };
+
   run((err1) => {
     if (err1 && !fs.existsSync(pdfPath)) {
-      console.error('[latex] First pass error:', err1.message, '\n', readLog());
+      const log = readLog();
+      console.error('[latex] First pass error:', err1.message, '\n', log);
       cleanup(jobDir);
-      return res.status(500).json({ error: 'pdflatex failed' });
+      return res.status(500).json({ error: 'pdflatex failed' + (extractLatexErrors(log) ? ': ' + extractLatexErrors(log) : '') });
     }
     run((err2) => {
       if (!fs.existsSync(pdfPath)) {
-        console.error('[latex] Second pass — no PDF\n', readLog());
+        const log = readLog();
+        console.error('[latex] Second pass — no PDF\n', log);
         cleanup(jobDir);
-        return res.status(500).json({ error: 'pdflatex produced no output' });
+        return res.status(500).json({ error: 'pdflatex produced no output' + (extractLatexErrors(log) ? ': ' + extractLatexErrors(log) : '') });
       }
       const pdf = fs.readFileSync(pdfPath);
       cleanup(jobDir);
