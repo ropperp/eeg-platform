@@ -9,16 +9,24 @@
 \usepackage{array}
 \usepackage{microtype}
 \usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{needspace}
 \usepackage{graphicx}
-\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[a4paper,left=2.5cm,right=2.5cm,top=2.2cm,bottom=2.2cm]{geometry}
+
+% Blocksatz-Feinjustierung: verhindert über den Rand ragende Wörter
+\tolerance=2000
+\emergencystretch=2em
 
 % -------------------------------------------------------------------
 % Farben (Vorgabe stromfueralle.at)
 % -------------------------------------------------------------------
-\definecolor{gruen}{RGB}{21,128,61}         % EEG-Name im Briefkopf
-\definecolor{tuerkis}{RGB}{8,145,178}       % Paragraphen-Überschriften, Trennlinie
-\definecolor{hellgrau}{RGB}{249,250,251}    % Vorgabe-Farbe, aktuell ungenutzt (keine Tabellen im Layout)
-\definecolor{mittelgrau}{RGB}{107,114,128}  % Fußzeile, kleine Hinweistexte
+% Farbpalette laut Logo-Assets stromfueralle.at
+\definecolor{gruen}{HTML}{19C37D}       % Grün – Primär (Signal/Energie), Reserve
+\definecolor{tuerkis}{HTML}{0E8C9E}     % Teal – Akzent: EEG-Name, §-Überschriften, Trennlinie
+\definecolor{anthrazit}{HTML}{16232B}   % Anthrazit – Schrift/einfarbig, Reserve
+\definecolor{hellgrau}{HTML}{E6EAEC}    % Hellgrau – ungenutzt (keine Tabellen im Layout)
+\definecolor{mittelgrau}{HTML}{5A6A72}  % Grau – Fußzeile, Sekundärtext
 
 % -------------------------------------------------------------------
 % Kopf-/Fußzeile
@@ -28,7 +36,7 @@
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
 \fancyfoot[L]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered\ EEG-Verwaltungsportal \textperiodcentered\ Vorlage: stromfueralle.at, Juli 2026}
-\fancyfoot[R]{\small\color{mittelgrau}\thepage}
+\fancyfoot[R]{\small\color{mittelgrau}Seite \thepage\ von \pageref{LastPage}}
 
 % -------------------------------------------------------------------
 % Nummerierte Paragraphen "§ n  Titel" (türkis) und Unterpunkte "§ n.m"
@@ -38,15 +46,17 @@
 \newcommand{\parasec}[1]{%
   \stepcounter{parasec}%
   \setcounter{parasubsec}{0}%
+  \par\Needspace*{5\baselineskip}%
   \bigskip
-  {\large\bfseries\color{tuerkis}\S\ \theparasec\quad #1}\par
-  \smallskip
+  {\large\bfseries\color{tuerkis}\S\ \theparasec\quad #1}\par\nopagebreak
+  \smallskip\nopagebreak
 }
 \newcommand{\parasubsec}[1]{%
   \stepcounter{parasubsec}%
+  \par\Needspace*{4\baselineskip}%
   \medskip
-  {\bfseries\color{tuerkis}\theparasec.\theparasubsec\quad #1}\par
-  \smallskip
+  {\bfseries\color{tuerkis}\theparasec.\theparasubsec\quad #1}\par\nopagebreak
+  \smallskip\nopagebreak
 }
 
 \setlength{\parindent}{0pt}
@@ -58,7 +68,8 @@
 % =====================================================================
 \noindent
 \begin{minipage}[t]{0.55\textwidth}
-  {\Large\bfseries\color{gruen}<<<EEG_NAME>>>}
+  \raggedright\hyphenpenalty=10000\exhyphenpenalty=10000
+  {\LARGE\bfseries\color{tuerkis}<<<EEG_NAME>>>\par}
 \end{minipage}%
 \begin{minipage}[t]{0.45\textwidth}
   \raggedleft
@@ -112,7 +123,7 @@
 % =====================================================================
 \parasec{Präambel}
 
-<<<MITGLIED_NAME>>> ist Eigentümer:in der Energieerzeugungsanlage(n), die auf <<<ANLAGENBESCHREIBUNG>>> zu liegen kommt, sowie seit <<<MITGLIED_SEIT>>> Mitglied der EEG.
+<<<MITGLIED_NAME>>> ist Eigentümer:in der am Standort <<<ANLAGENBESCHREIBUNG>>> errichteten Energieerzeugungsanlage(n) und seit <<<MITGLIED_SEIT>>> Mitglied der EEG.
 
 Mit der vorliegenden Vereinbarung wird der EEG die Verfügungs- und Betriebsgewalt über (diese) Energieerzeugungsanlage(n) im unter Punkt 2 normierten Umfang übertragen, mit der sie in der Lage ist, im Rahmen der gesetzlichen Bestimmungen elektrische Energie zu erzeugen, die eigenerzeugte Energie zu verbrauchen, zu speichern oder, sofern technisch und rechtlich zulässig, zu verkaufen sowie für ihre Mitglieder Energiedienstleistungen zu erbringen. Zudem werden die weiterführenden wechselseitigen Rechte und Pflichten zwischen dem/der Eigentümer:in und der EEG geregelt.
 
@@ -123,7 +134,7 @@ Bei der EEG handelt es sich um einen Verein iSd Vereinsgesetzes, der zu ZVR-Zahl
 % =====================================================================
 \parasec{Bestandgegenstand; Dauer des Bestandvertrages}
 
-Gegenstand des vorliegenden Bestandvertrages ist die im Eigentum von <<<MITGLIED_NAME>>> stehende und auf <<<ANLAGENBESCHREIBUNG>>> situierte Energieerzeugungsanlage mit folgender Anlagenbeschreibung (Zählpunktnummer, Erzeugungsart, Engpassleistung):
+Gegenstand des vorliegenden Bestandvertrages ist die im Eigentum von <<<MITGLIED_NAME>>> stehende, am Standort <<<ANLAGENBESCHREIBUNG>>> errichtete Energieerzeugungsanlage mit folgender Anlagenbeschreibung (Zählpunktnummer, Erzeugungsart, Engpassleistung):
 
 \medskip
 \begin{itemize}
@@ -186,7 +197,7 @@ Der monatlich von der EEG zu bezahlende Bestandzins ist dynamisch von der Energi
 
 Sämtliche genannten Entgelte verstehen sich exkl. allenfalls hierfür anfallender USt sowie sonstiger vom/von der Eigentümer:in für die vertragsgegenständliche Lieferung von elektrischer Energie zu tragenden oder abzuführenden öffentlichen Steuern, Abgaben, Gebühren und Entgelte mit Ausnahme von Ertragssteuern.
 
-Der vereinbarte monatliche Bestandzins ist jeweils bis spätestens zum 05. des zweitfolgenden Monats im Nachhinein zur Zahlung auf das folgende, vom/von der Eigentümer:in bekannt gegebene Konto fällig: IBAN \textbf{<<<MITGLIED_IBAN>>>}, BIC \textbf{<<<MITGLIED_BIC>>>}. Die Abrechnung wird dem/der Eigentümer:in per E-Mail an die von ihm/ihr bekannt gegebene Adresse übermittelt. Für den Fall des Zahlungsverzuges -- wobei das Datum des Einlangens der Zahlungen am vorbezeichneten Konto ausschlaggebend ist -- gelten 4\,\% Verzugszinsen p.a. als vereinbart.
+Der vereinbarte monatliche Bestandzins ist jeweils bis spätestens zum 05. des zweitfolgenden Monats im Nachhinein zur Zahlung auf das folgende, vom/von der Eigentümer:in bekannt gegebene Konto fällig: IBAN \textbf{<<<MITGLIED_IBAN>>>}. Die Abrechnung wird dem/der Eigentümer:in per E-Mail an die von ihm/ihr bekannt gegebene Adresse übermittelt. Für den Fall des Zahlungsverzuges -- wobei das Datum des Einlangens der Zahlungen am vorbezeichneten Konto ausschlaggebend ist -- gelten 4\,\% Verzugszinsen p.a. als vereinbart.
 
 Es wird ausdrücklich Wertbeständigkeit des Bestandzinses vereinbart. Als Berechnungsmaß dient der von der Bundesanstalt Statistik Austria monatlich verlautbarte Verbraucherpreisindex 2020 oder ein an seine Stelle tretender Index. Bezugsgröße ist die zum Zeitpunkt des Vertragsabschlusses zuletzt verlautbarte Indexzahl. Schwankungen der Indexzahl nach oben oder unten bis einschließlich 3\,\% bleiben unberücksichtigt, wobei sich die Berechnung auf den jeweiligen Kalendermonat bezieht. Der Spielraum ist bei jedem Überschreiten nach oben oder unten auf eine Dezimalstelle neu zu berechnen, wobei stets die außerhalb des jeweiligen Spielraumes gelegene Indexzahl die Grundlage sowohl für die neue Berechnung des Bestandzinses als auch des neuen Spielraumes zu bilden hat. Sollte ein derartiger Index nicht mehr verlautbart werden, so ist die Wertsicherung durch einen von den Vertragspartnern einvernehmlich zu bestellenden Sachverständigen nach jenen Grundsätzen zu ermitteln, die den vorangegangenen Vereinbarungen entspricht, sodass die Kaufkraft des ursprünglich vereinbarten Betrages erhalten bleibt.
 
@@ -265,20 +276,21 @@ Der Vertrag wird in zweifacher Ausfertigung erstellt und unterfertigt, wovon der
 % =====================================================================
 % Unterschriftenblock
 % =====================================================================
-\vfill
+\par\vspace{1.5\baselineskip}
+\Needspace*{8\baselineskip}
 
 \noindent
 \begin{minipage}[t]{0.48\textwidth}
   Ort, Datum: \underline{\hspace{4cm}}
-  \bigskip\par
+  \par\vspace{3\baselineskip}
   \rule{5cm}{0.4pt}\par
   Unterschrift Eigentümer:in\par
   <<<MITGLIED_NAME>>>
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{0.48\textwidth}
-  Ort, Datum: <<<EEG_ORT>>>, \underline{\hspace{3cm}}
-  \bigskip\par
+  Ort, Datum: <<<EEG_ORT>>>, <<<ERSTELLT_AM>>>
+  \par\vspace{3\baselineskip}
   <<<RAW_EEG_UNTERSCHRIFT_BILD>>>\par
   \rule{5cm}{0.4pt}\par
   Unterschrift für die EEG\par

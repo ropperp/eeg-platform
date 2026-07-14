@@ -9,16 +9,26 @@
 \usepackage{array}
 \usepackage{microtype}
 \usepackage{fancyhdr}
+\usepackage{needspace}
 \usepackage{graphicx}
-\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[a4paper,left=2.5cm,right=2.5cm,top=2.2cm,bottom=2.2cm]{geometry}
+
+% Blocksatz-Feinjustierung: verhindert über den Rand ragende Wörter
+\tolerance=2000
+\emergencystretch=2em
+
+\usepackage[hidelinks]{hyperref} % klickbarer Dashboard-Link
+\usepackage{lastpage}       % nach hyperref laden, sonst stimmt \pageref{LastPage} nicht
 
 % -------------------------------------------------------------------
 % Farben (Vorgabe stromfueralle.at)
 % -------------------------------------------------------------------
-\definecolor{gruen}{RGB}{21,128,61}         % EEG-Name im Briefkopf
-\definecolor{tuerkis}{RGB}{8,145,178}       % Paragraphen-Überschriften, Trennlinie
-\definecolor{hellgrau}{RGB}{249,250,251}    % Vorgabe-Farbe, aktuell ungenutzt (keine Tabellen im Layout)
-\definecolor{mittelgrau}{RGB}{107,114,128}  % Fußzeile, kleine Hinweistexte
+% Farbpalette laut Logo-Assets stromfueralle.at
+\definecolor{gruen}{HTML}{19C37D}       % Grün – Primär (Signal/Energie), Reserve
+\definecolor{tuerkis}{HTML}{0E8C9E}     % Teal – Akzent: EEG-Name, §-Überschriften, Trennlinie
+\definecolor{anthrazit}{HTML}{16232B}   % Anthrazit – Schrift/einfarbig, Reserve
+\definecolor{hellgrau}{HTML}{E6EAEC}    % Hellgrau – ungenutzt (keine Tabellen im Layout)
+\definecolor{mittelgrau}{HTML}{5A6A72}  % Grau – Fußzeile, Sekundärtext
 
 % -------------------------------------------------------------------
 % Kopf-/Fußzeile
@@ -28,7 +38,7 @@
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
 \fancyfoot[L]{\small\color{mittelgrau}Erstellt am <<<ERSTELLT_AM>>> \textperiodcentered\ EEG-Verwaltungsportal \textperiodcentered\ Vorlage: stromfueralle.at, Juli 2026}
-\fancyfoot[R]{\small\color{mittelgrau}\thepage}
+\fancyfoot[R]{\small\color{mittelgrau}Seite \thepage\ von \pageref{LastPage}}
 
 % -------------------------------------------------------------------
 % Nummerierte Paragraphen "§ n  Titel" (türkis)
@@ -36,9 +46,10 @@
 \newcounter{parasec}
 \newcommand{\parasec}[1]{%
   \stepcounter{parasec}%
+  \par\Needspace*{5\baselineskip}%
   \bigskip
-  {\large\bfseries\color{tuerkis}\S\ \theparasec\quad #1}\par
-  \smallskip
+  {\large\bfseries\color{tuerkis}\S\ \theparasec\quad #1}\par\nopagebreak
+  \smallskip\nopagebreak
 }
 
 \setlength{\parindent}{0pt}
@@ -50,7 +61,8 @@
 % =====================================================================
 \noindent
 \begin{minipage}[t]{0.55\textwidth}
-  {\Large\bfseries\color{gruen}<<<EEG_NAME>>>}
+  \raggedright\hyphenpenalty=10000\exhyphenpenalty=10000
+  {\LARGE\bfseries\color{tuerkis}<<<EEG_NAME>>>\par}
 \end{minipage}%
 \begin{minipage}[t]{0.45\textwidth}
   \raggedleft
@@ -108,11 +120,24 @@ Der teilnehmende Netzbenutzer ist jedenfalls Mitglied/Gesellschafter/Genossensch
 
 \medskip
 \begin{itemize}
+% Hinweis Plattform: hier nur "\item <Zählpunktnummer>" der Verbrauchsanlage(n) einsetzen --
+% ohne Erzeugungsart/Engpassleistung (diese stehen in der Erzeugungsanlagen-Liste darunter).
 <<<RAW_ZAEHLPUNKTE_LISTE>>>
 \end{itemize}
 \medskip
 
-Die technische Beschreibung der Energieerzeugungsanlage(n) gemäß \S\ 16d Abs 2 Z 1 ElWOG ergibt sich aus der vorstehenden Zählpunkt-Auflistung. Treten Erzeugungsanlagen hinzu oder scheiden sie aus, wird die Mitgliederseite hierüber durch die EEG per E-Mail informiert.
+Die Energieerzeugungsanlage(n) der EEG wird/werden gemäß \S\ 16d Abs 2 Z 1 ElWOG wie folgt beschrieben (Zählpunktnummer, Erzeugungsart, Engpassleistung):
+
+\medskip
+\begin{itemize}
+<<<RAW_ERZEUGUNGSANLAGEN_LISTE>>>
+\end{itemize}
+\medskip
+
+% Hinweis Plattform: <<<EEG_DASHBOARD_URL>>> mit der Dashboard-URL der jeweiligen EEG befüllen.
+Die jeweils aktuelle Übersicht der Erzeugungsanlagen der EEG einschließlich der maximalen Engpassleistung aller Erzeugungsanlagen dieser EEG ist im Online-Dashboard unter \url{<<<EEG_DASHBOARD_URL>>>} abrufbar.
+
+Treten Erzeugungsanlagen hinzu oder scheiden sie aus, wird die Mitgliederseite hierüber durch die EEG per E-Mail informiert.
 
 % =====================================================================
 % § 2 Tätigkeitsumfang der EEG
@@ -155,9 +180,7 @@ Für die Mitgliedschaft in der EEG ist gemäß Vorstandsbeschluss ein Mitgliedsb
 % mit unterschiedlichen Netzbetreibern verwaltet, bitte stattdessen eine Variable NETZBETREIBER_NAME
 % einführen und im PHP-Code ergänzen.
 
-Die virtuelle Zuweisung der seitens der EEG erzeugten oder dieser zumindest zugewiesenen Energie erfolgt nach dem tatsächlichen physikalischen Bezug (Messung am Zählpunkt) der Verbrauchsanlagen, sohin im Verhältnis zum momentanen Verbrauchsverhalten, der jeweiligen teilnehmenden Netzbenutzer.
-
-Die Zuordnung ist mit dem Energieverbrauch des jeweiligen teilnehmenden Netzbenutzers in der Viertelstunde begrenzt. Bei Nullverbrauch eines teilnehmenden Netzbenutzers ist die Energie den anderen teilnehmenden Netzbenutzern zuzuordnen.
+Die virtuelle Zuweisung der seitens der EEG erzeugten oder dieser zumindest zugewiesenen Energie erfolgt nach dem tatsächlichen physikalischen Bezug (Messung am Zählpunkt) der Verbrauchsanlagen, sohin im Verhältnis zum momentanen Verbrauchsverhalten, der jeweiligen teilnehmenden Netzbenutzer. Die Zuordnung ist mit dem Energieverbrauch des jeweiligen teilnehmenden Netzbenutzers in der Viertelstunde begrenzt. Bei Nullverbrauch eines teilnehmenden Netzbenutzers ist die Energie den anderen teilnehmenden Netzbenutzern zuzuordnen.
 
 Für Zwecke der energierechtlichen und zuweisungs- sowie rechnungstechnischen Behandlung des gegenständlichen Energiebezuges im Zusammenhang mit der Energieerzeugungsanlage der EEG vereinbaren die Vertragspartner gegenüber dem Netzbetreiber die rechnerische Zuordnung nach dem dynamischen Modell (vgl Punkt 3) der erzeugten Energie an die jeweiligen Verbrauchsanlagen der teilnehmenden Netzbenutzer. Hinsichtlich der Ermittlung der viertelstündlich zugeordneten Werte ist seitens des Netzbetreibers \S\ 16e Abs 3 ElWOG 2010 zur Anwendung zu bringen.
 
@@ -165,11 +188,7 @@ Der teilnehmende Netzbenutzer stimmt ausdrücklich zu, dass der Netzbetreiber K�
 
 Der teilnehmende Netzbenutzer verpflichtet sich, der EEG für den vom Netzbetreiber festgestellten, der Verbrauchsanlage des teilnehmenden Netzbenutzers zugewiesenen Energiebezug aus der Energieerzeugungsanlage einen Pauschalbetrag von \textbf{Cent <<<BEZUG_TARIF>>>\,/\,kWh} zzgl allenfalls hierfür anfallender USt sowie sonstiger von der EEG für die vertragsgegenständliche Lieferung von elektrischer Energie zu tragenden oder abzuführenden öffentlichen Steuern, Abgaben, Gebühren und Entgelten zu entrichten (\emph{„Energiebezugspreis“}). Der aktuelle Energiebezugspreis gilt ab \textbf{<<<TARIF_GUELTIG_AB>>>}.
 
-Insofern der Vorstand nachfolgend eine geänderte Festlegung des Energiebezugspreises für die Mitglieder vornimmt, ist diese mit der Wirksamkeit zum Tag nach dem Vorstandsbeschluss der vorliegenden Vereinbarung zu Grunde zu legen, ohne dass es hierfür einer gesonderten Vertragsanpassung bedürfte.
-
-Der Energiebezugspreis wird unabhängig von der tageszeitlichen Gelegenheit des Energiebezuges durch die Mitgliederseite vereinbart.
-
-Insofern die nicht im finanziellen Gewinn begründete wirtschaftliche Disposition der EEG gefährdet wäre, wird eine allfällige Indexierung des Energiebezugspreises für die Dauer dieser Gefährdung ausgesetzt.
+Insofern der Vorstand nachfolgend eine geänderte Festlegung des Energiebezugspreises für die Mitglieder vornimmt, ist diese mit der Wirksamkeit zum Tag nach dem Vorstandsbeschluss der vorliegenden Vereinbarung zu Grunde zu legen, ohne dass es hierfür einer gesonderten Vertragsanpassung bedürfte. Der Energiebezugspreis wird unabhängig von der tageszeitlichen Gelegenheit des Energiebezuges durch die Mitgliederseite vereinbart. Insofern die nicht im finanziellen Gewinn begründete wirtschaftliche Disposition der EEG gefährdet wäre, wird eine allfällige Indexierung des Energiebezugspreises für die Dauer dieser Gefährdung ausgesetzt.
 
 Insofern seitens des Vorstandes keine gesonderte Beschlussfassung über die Entgeltgestaltung hinsichtlich der Zahlungsmodalitäten erfolgt, ist der teilnehmende Netzbenutzer ausdrücklich damit einverstanden, dass seitens der EEG zur Deckung des Energiebezugspreises zu jedem Monatsersten ein gleichbleibender Teilbetrag vorgeschrieben wird. Die Bestimmungen des \S\ 21 Abs 3 MRG hinsichtlich der Jahrespauschalverrechnung gelangen hierfür analog zur Anwendung.
 
@@ -184,23 +203,15 @@ Der Mitgliedsbeitrag gemäß Punkt 3 ist unabhängig vom Energiebezugspreis und 
 
 Die EEG fungiert im gesetzlich erforderlichen Umfang als Betriebs- und Verfügungsberechtigte an der Energieerzeugungsanlage. Das Eigentum an der Energieerzeugungsanlage verbleibt stets bei deren Eigentümer:in und geht zu keinem Zeitpunkt auf die EEG über.
 
-Betrieb, Erhaltung und Wartung der Energieerzeugungsanlage liegen gegenüber den teilnehmenden Netzbenutzern in der alleinigen Verantwortung und Kostentragung der EEG.
-
-Ebenso liegt die Haftung für die Energieerzeugungsanlage allein bei der EEG und wird diese die teilnehmenden Netzbenutzer gegen sämtliche Ansprüche Dritter aus Schäden durch die Energieerzeugungsanlage schad- und klaglos halten. Der Abschluss allfälliger Versicherungen für die Energieerzeugungsanlage obliegt alleine der EEG.
+Betrieb, Erhaltung und Wartung der Energieerzeugungsanlage liegen gegenüber den teilnehmenden Netzbenutzern in der alleinigen Verantwortung und Kostentragung der EEG. Ebenso liegt die Haftung für die Energieerzeugungsanlage allein bei der EEG und wird diese die teilnehmenden Netzbenutzer gegen sämtliche Ansprüche Dritter aus Schäden durch die Energieerzeugungsanlage schad- und klaglos halten. Der Abschluss allfälliger Versicherungen für die Energieerzeugungsanlage obliegt alleine der EEG.
 
 Die Verantwortlichkeiten für die angeschlossenen Verbrauchsanlagen der teilnehmenden Netzbenutzer bleiben von den Sonderregelungen hinsichtlich der Energieerzeugungsanlage unberührt und richten sich weiterhin nach den jeweils allgemein anwendbaren Bestimmungen. Der Abschluss allfälliger Versicherungen für die Verbrauchsanlagen obliegt alleine dem jeweiligen teilnehmenden Netzbenutzer.
 
 Festgehalten wird zwischen den Vertragspartnern, dass die EEG keinerlei Gewähr für die Quantität, die Art und den Umfang der über die Energieerzeugungsanlage erzeugten Energie leistet, sodass diesbezüglich sämtliche Ansprüche der teilnehmenden Netzbenutzer gegen die EEG aus mangelnder Stromerzeugung ausgeschlossen werden.
 
-Der teilnehmende Netzbenutzer verpflichtet sich, zum Zwecke der Durchführung des Betriebes der Energieerzeugungs- und Verbrauchsanlage mit dem jeweiligen Netzbetreiber alle erforderlichen Vereinbarungen hinsichtlich Datenverwaltung und Datenbearbeitung der Energiedaten der Energieerzeugungsanlage der EEG und der Anlagen des jeweils teilnehmenden Netzbenutzers abzuschließen, dem Netzbetreiber den erforderlichen Zugang zur Verbrauchsanlage zu gewähren und auch sonst alles zu unternehmen und alle sonst erforderlichen Zustimmungen gegenüber der EEG sowie dem Netzbetreiber zu erteilen, um die Umsetzung der vorliegenden Vereinbarungsinhalte zu fördern.
+Der teilnehmende Netzbenutzer verpflichtet sich, zum Zwecke der Durchführung des Betriebes der Energieerzeugungs- und Verbrauchsanlage mit dem jeweiligen Netzbetreiber alle erforderlichen Vereinbarungen hinsichtlich Datenverwaltung und Datenbearbeitung der Energiedaten der Energieerzeugungsanlage der EEG und der Anlagen des jeweils teilnehmenden Netzbenutzers abzuschließen, dem Netzbetreiber den erforderlichen Zugang zur Verbrauchsanlage zu gewähren und auch sonst alles zu unternehmen und alle sonst erforderlichen Zustimmungen gegenüber der EEG sowie dem Netzbetreiber zu erteilen, um die Umsetzung der vorliegenden Vereinbarungsinhalte zu fördern. Jedenfalls stimmt der teilnehmende Netzbenutzer der Auslesung und Übermittlung der Viertelstundenwerte durch den Netzbetreiber gemäß \S\ 84a ElWOG 2010 zu. Hiervon umfasst ist auch die Zustimmung zum Austausch aller zur Abwicklung dieser Vereinbarung wie auch der Vereinbarungen zwischen der EEG und dem Netzbetreiber erforderlichen Daten zwischen der EEG und dem Netzbetreiber. Gleichzeitig wird auch die EEG die erforderlichen Vereinbarungen mit dem Netzbetreiber abschließen, um die vorliegenden Vertragsinhalte zur Umsetzung zu bringen. Der teilnehmende Netzbenutzer erteilt hierzu mit Unterfertigung der vorliegenden Vereinbarung ausdrücklich seine Zustimmung.
 
-Jedenfalls stimmt der teilnehmende Netzbenutzer der Auslesung und Übermittlung der Viertelstundenwerte durch den Netzbetreiber gemäß \S\ 84a ElWOG 2010 zu. Hiervon umfasst ist auch die Zustimmung zum Austausch aller zur Abwicklung dieser Vereinbarung wie auch der Vereinbarungen zwischen der EEG und dem Netzbetreiber erforderlichen Daten zwischen der EEG und dem Netzbetreiber.
-
-Gleichzeitig wird auch die EEG die erforderlichen Vereinbarungen mit dem Netzbetreiber abschließen, um die vorliegenden Vertragsinhalte zur Umsetzung zu bringen. Der teilnehmende Netzbenutzer erteilt hierzu mit Unterfertigung der vorliegenden Vereinbarung ausdrücklich seine Zustimmung.
-
-Die EEG verpflichtet sich gegenüber dem teilnehmenden Netzbenutzer, die ihr in Ausübung dieses Vertrages zur Kenntnis gelangenden personenbezogenen Daten (Name, Geburtsdatum und Adresse) des teilnehmenden Netzbenutzers, insbesondere aber das Datum „Energieverbrauch“, mit höchster Vertraulichkeit zu behandeln und die erhobenen Daten nur zur Erfüllung der vertraglichen Pflichten zu verarbeiten, worin der ausschließliche Grund für die Rechtmäßigkeit der Verarbeitung liegt (Art 6 Abs 1 lit b DSGVO). Die EEG ist Verantwortliche iSd Art 4 Abs 7 DSGVO.
-
-Dem teilnehmenden Netzbenutzer kommt gegenüber der EEG das Recht auf Auskunft, Berichtigung sowie nach Beendigung des Vertragsverhältnisses innerhalb des gesetzlichen Rahmens das Recht auf Löschung, Einschränkung der Verarbeitung bzw. Widerspruch gegen die Verarbeitung und Datenübertragbarkeit bei der EEG sowie das Beschwerderecht bei der Datenschutzbehörde zu.
+Die EEG verpflichtet sich gegenüber dem teilnehmenden Netzbenutzer, die ihr in Ausübung dieses Vertrages zur Kenntnis gelangenden personenbezogenen Daten (Name, Geburtsdatum und Adresse) des teilnehmenden Netzbenutzers, insbesondere aber das Datum „Energieverbrauch“, mit höchster Vertraulichkeit zu behandeln und die erhobenen Daten nur zur Erfüllung der vertraglichen Pflichten zu verarbeiten, worin der ausschließliche Grund für die Rechtmäßigkeit der Verarbeitung liegt (Art 6 Abs 1 lit b DSGVO). Die EEG ist Verantwortliche iSd Art 4 Abs 7 DSGVO. Dem teilnehmenden Netzbenutzer kommt gegenüber der EEG das Recht auf Auskunft, Berichtigung sowie nach Beendigung des Vertragsverhältnisses innerhalb des gesetzlichen Rahmens das Recht auf Löschung, Einschränkung der Verarbeitung bzw. Widerspruch gegen die Verarbeitung und Datenübertragbarkeit bei der EEG sowie das Beschwerderecht bei der Datenschutzbehörde zu.
 
 Der teilnehmende Netzbenutzer ist im Rahmen der vorliegenden Vereinbarung hinsichtlich der Energieerzeugungsanlage weder an Investitionskosten beteiligt noch nimmt er direkt an den laufenden Kosten und Erträgen, insbesondere im Zusammenhang mit Einspeiseerlösen in das öffentliche Netz, Teil. Insofern stehen dem teilnehmenden Netzbenutzer bei Auflösung der vorliegenden Vereinbarung und unbeschadet hiervon abweichender Vereinbarungen in anderen Verträgen aus dieser heraus keinerlei Kostentragungspflichten oder Rückerstattungs- bzw Ertragsanteilsrechte gegenüber der EEG zu.
 
@@ -244,19 +255,15 @@ Die EEG haftet nicht für die Abführung von Steuern und Abgaben und/oder Entric
 % =====================================================================
 \parasec{Schlussbestimmungen}
 
-Ergänzungen und Abänderungen dieses Vertrages bedürfen der Schriftform. Dies gilt auch für ein Abgehen von diesem Schriftformgebot.
-
-Vom Regelungsinhalt dieser Vereinbarung abweichende Bestimmungen, die in Vereinbarungen zwischen der EEG und teilnehmenden Netzbenutzern, die gleichzeitig Eigentümer von Energieerzeugungsanlagen sind, an denen die EEG entsprechende Betriebs- und Verfügungsgewalt erworben hat, normiert werden, gehen den Bestimmungen der vorliegenden Vereinbarung vor.
+Ergänzungen und Abänderungen dieses Vertrages bedürfen der Schriftform. Dies gilt auch für ein Abgehen von diesem Schriftformgebot. Vom Regelungsinhalt dieser Vereinbarung abweichende Bestimmungen, die in Vereinbarungen zwischen der EEG und teilnehmenden Netzbenutzern, die gleichzeitig Eigentümer von Energieerzeugungsanlagen sind, an denen die EEG entsprechende Betriebs- und Verfügungsgewalt erworben hat, normiert werden, gehen den Bestimmungen der vorliegenden Vereinbarung vor.
 
 Gerichtsstand für Streitigkeiten aus diesem Vertragsverhältnis ist, soweit gesetzlich zulässig oder vereinbar, das am Sitz der EEG sachlich zuständige Gericht. Es gilt österreichisches materielles Recht mit Ausnahme der Verweisungsnormen, die auf ausländisches Privatrecht verweisen.
 
-Sollten einzelne Bestimmungen des gegenständlichen Vertrages oder etwaiger Nachträge rechtsunwirksam sein oder werden, so wird die Gültigkeit der übrigen Vereinbarungen nicht berührt. Die Vertragsparteien verpflichten sich vielmehr, die ungültig gewordene Bestimmung, je nach Notwendigkeit, durch eine ihr im wirtschaftlichen, rechtlichen und technischen Erfolg für beide Vertragspartner gleichkommende, rechtsgültige Bestimmung zu ersetzen. Dies gilt insbesondere, wenn aufgrund einer Gesetzesänderung und/oder einer Änderung der Marktregeln oder der Allgemeinen Verteilernetzbedingungen eine Anpassung des gegenständlichen Vertrages erforderlich ist.
-
-Wenn aufgrund einer Gesetzesänderung und/oder einer sonstigen Änderung der regulatorischen Rahmenbedingungen für die EEG und deren Verhältnis zu teilnehmenden Netzbenutzern eine Anpassung des gegenständlichen Vertrages erforderlich ist, verpflichten sich die Vertragspartner, den Vertrag zeitnah an die neuen Gegebenheiten anzupassen.
+Sollten einzelne Bestimmungen des gegenständlichen Vertrages oder etwaiger Nachträge rechtsunwirksam sein oder werden, so wird die Gültigkeit der übrigen Vereinbarungen nicht berührt. Die Vertragsparteien verpflichten sich vielmehr, die ungültig gewordene Bestimmung, je nach Notwendigkeit, durch eine ihr im wirtschaftlichen, rechtlichen und technischen Erfolg für beide Vertragspartner gleichkommende, rechtsgültige Bestimmung zu ersetzen. Dies gilt insbesondere, wenn aufgrund einer Gesetzesänderung, einer Änderung der Marktregeln oder der Allgemeinen Verteilernetzbedingungen oder sonstiger regulatorischer Rahmenbedingungen eine Anpassung des gegenständlichen Vertrages erforderlich ist; die Vertragspartner verpflichten sich in diesem Fall, den Vertrag zeitnah an die neuen Gegebenheiten anzupassen.
 
 Alle Bestimmungen dieses Vertrages, insbesondere sämtliche sich aus diesem Vertrag ergebenden Rechte und Pflichten, gehen beiderseits auf die Einzel- und Gesamtrechtsnachfolger über. Jeder Vertragspartner ist berechtigt und verpflichtet, diesen Vertrag und die sich daraus ergebenden Rechte und Pflichten auf allfällige Rechtsnachfolger zu überbinden. Über jede Veränderung, die ein Eintreten einer Rechtsnachfolge durch Dritte nach sich zieht, ist der andere Partner umgehend schriftlich in Kenntnis zu setzen.
 
-Zahlungen der EEG im Rahmen dieser Vereinbarung erfolgen, soweit einschlägig, auf das Konto der EEG mit der IBAN \textbf{<<<EEG_IBAN>>>}.
+Zahlungen an die EEG im Rahmen dieser Vereinbarung erfolgen, soweit einschlägig, auf das Konto der EEG mit der IBAN \textbf{<<<EEG_IBAN>>>}.
 
 % =====================================================================
 % § 9 Kommunikation
@@ -268,20 +275,21 @@ Die Kommunikation zwischen der EEG und dem teilnehmenden Netzbenutzer erfolgt au
 % =====================================================================
 % Unterschriftenblock
 % =====================================================================
-\vfill
+\par\vspace{1.5\baselineskip}
+\Needspace*{8\baselineskip}
 
 \noindent
 \begin{minipage}[t]{0.48\textwidth}
   Ort, Datum: \underline{\hspace{4cm}}
-  \bigskip\par
+  \par\vspace{3\baselineskip}
   \rule{5cm}{0.4pt}\par
   Unterschrift Mitglied\par
   <<<MITGLIED_NAME>>>
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{0.48\textwidth}
-  Ort, Datum: <<<EEG_ORT>>>, \underline{\hspace{3cm}}
-  \bigskip\par
+  Ort, Datum: <<<EEG_ORT>>>, <<<ERSTELLT_AM>>>
+  \par\vspace{3\baselineskip}
   <<<RAW_EEG_UNTERSCHRIFT_BILD>>>\par
   \rule{5cm}{0.4pt}\par
   Unterschrift für die EEG\par
