@@ -56,14 +56,14 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
   <table id="member-table" style="min-width:900px">
     <thead>
       <tr>
-        <th>KdNr</th>
-        <th>Name</th>
-        <th>E-Mail</th>
-        <th>Mitglied seit</th>
-        <th>Status</th>
-        <th style="text-align:center">Bezugsvertr.</th>
-        <th style="text-align:center">Einspeisevertr.</th>
-        <th style="text-align:right">Offener Betrag</th>
+        <th class="sortable" data-sort-key="kdnr" data-sort-type="num" onclick="sortMembers(this)">KdNr <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="name" data-sort-type="str" onclick="sortMembers(this)">Name <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="email" data-sort-type="str" onclick="sortMembers(this)">E-Mail <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="since" data-sort-type="str" onclick="sortMembers(this)">Mitglied seit <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="status" data-sort-type="str" onclick="sortMembers(this)">Status <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="bezug" data-sort-type="str" onclick="sortMembers(this)">Bezugsvertr. <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="einsp" data-sort-type="str" onclick="sortMembers(this)">Einspeisevertr. <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" onclick="sortMembers(this)">Offener Betrag <span class="sort-arrow"></span></th>
         <th>Aktionen</th>
       </tr>
     </thead>
@@ -80,7 +80,15 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
           data-status="<?= htmlspecialchars($m['status']) ?>"
           data-contract="<?= $allSigned ?>"
-          data-art="<?= $art ?>">
+          data-art="<?= $art ?>"
+          data-sort-kdnr="<?= (int)($m['kundennummer'] ?? 0) ?>"
+          data-sort-name="<?= htmlspecialchars(strtolower(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name'])))) ?>"
+          data-sort-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
+          data-sort-since="<?= htmlspecialchars($m['member_since'] ?? '') ?>"
+          data-sort-status="<?= htmlspecialchars($m['status']) ?>"
+          data-sort-bezug="<?= htmlspecialchars($bezug) ?>"
+          data-sort-einsp="<?= htmlspecialchars($einsp) ?>"
+          data-sort-offen="<?= (float)($m['open_amount'] ?? 0) ?>">
         <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
@@ -142,6 +150,32 @@ function filterMembers() {
   document.getElementById('result-count').textContent = visible + ' Mitglied' + (visible !== 1 ? 'er' : '') + ' gefunden';
 }
 filterMembers();
+
+let currentSort = { key: null, dir: 1 };
+function sortMembers(th) {
+  const key = th.dataset.sortKey;
+  const type = th.dataset.sortType;
+  currentSort.dir = (currentSort.key === key) ? -currentSort.dir : 1;
+  currentSort.key = key;
+
+  document.querySelectorAll('#member-table thead th.sortable .sort-arrow').forEach(el => el.textContent = '');
+  th.querySelector('.sort-arrow').textContent = currentSort.dir === 1 ? '▲' : '▼';
+
+  const tbody = document.querySelector('#member-table tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr[data-name]'));
+  rows.sort((a, b) => {
+    const va = a.dataset['sort' + key.charAt(0).toUpperCase() + key.slice(1)] ?? '';
+    const vb = b.dataset['sort' + key.charAt(0).toUpperCase() + key.slice(1)] ?? '';
+    let cmp;
+    if (type === 'num') {
+      cmp = parseFloat(va || 0) - parseFloat(vb || 0);
+    } else {
+      cmp = va.localeCompare(vb, 'de');
+    }
+    return cmp * currentSort.dir;
+  });
+  rows.forEach(row => tbody.appendChild(row));
+}
 </script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

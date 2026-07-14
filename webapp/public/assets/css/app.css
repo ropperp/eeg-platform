@@ -143,6 +143,9 @@ table { width: 100%; border-collapse: collapse; }
 th, td { padding: .75rem 1rem; text-align: left; border-bottom: 1px solid var(--gray-200); font-size: .9rem; }
 th { font-weight: 600; background: var(--gray-50); }
 tr:hover td { background: var(--gray-50); }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { background: var(--gray-100, #e5e7eb); }
+th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; color: var(--gray-500, #6b7280); }
 
 /* ─── Badges ─────────────────────────────────────── */
 .badge {
