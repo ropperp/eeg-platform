@@ -1634,19 +1634,12 @@ $router->get('/portal/settings', function () {
 
 $router->post('/portal/settings/signature', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
-    if (!isset($_FILES['signature']) || $_FILES['signature']['error'] !== UPLOAD_ERR_OK) {
+    $signature = $_POST['signature_image'] ?? '';
+    if (!str_starts_with($signature, 'data:image/png;base64,')) {
         header('Location: /portal/settings?error=upload');
         exit;
     }
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $_FILES['signature']['tmp_name']);
-    finfo_close($finfo);
-    if ($mime !== 'image/png') {
-        header('Location: /portal/settings?error=upload');
-        exit;
-    }
-    $data = base64_encode(file_get_contents($_FILES['signature']['tmp_name']));
-    DB::execute('UPDATE users SET signature_image = ? WHERE id = ?', ['data:image/png;base64,' . $data, Auth::userId()]);
+    DB::execute('UPDATE users SET signature_image = ? WHERE id = ?', [$signature, Auth::userId()]);
     header('Location: /portal/settings?success=1');
     exit;
 });

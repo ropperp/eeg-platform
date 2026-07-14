@@ -133,7 +133,7 @@
   <h3 style="margin-bottom:.5rem">Unterschrift für Verträge</h3>
   <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
     Wird beim Erzeugen von Bezugs-/Einspeisevereinbarungen über der Unterschriftslinie
-    "Für die EEG" eingefügt. Bitte ein PNG-Bild mit transparentem Hintergrund hochladen —
+    "Für die EEG" eingefügt. Bitte unten einmalig mit Maus oder Finger unterschreiben —
     die Unterschrift wird als <?= htmlspecialchars($myUser['first_name'] . ' ' . $myUser['last_name']) ?>
     (Ihr Konto) gespeichert.
   </p>
@@ -148,16 +148,77 @@
     </div>
   <?php endif; ?>
 
-  <form method="post" action="/portal/settings/signature" enctype="multipart/form-data">
-    <div class="form-group" style="max-width:400px">
-      <label>Unterschrift hochladen (PNG)</label>
-      <input type="file" name="signature" accept="image/png" required>
+  <form method="post" action="/portal/settings/signature" id="signature-form">
+    <p style="font-size:.8rem;color:#6b7280;margin-bottom:.5rem">Neu unterschreiben:</p>
+    <canvas id="sig-pad-settings" width="600" height="180"
+            style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:400px;height:120px;touch-action:none;background:#fff;display:block;margin-bottom:.5rem"></canvas>
+    <input type="hidden" name="signature_image" id="signature_image_settings">
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      <button type="button" class="btn" style="background:#f3f4f6;color:#374151" onclick="clearSettingsSignature()">Löschen</button>
+      <button type="submit" class="btn btn-primary">Unterschrift speichern</button>
+      <?php if (!empty($myUser['signature_image'])): ?>
+        <button type="submit" formaction="/portal/settings/signature/delete" formnovalidate class="btn" style="background:#fee2e2;color:#b91c1c">Unterschrift entfernen</button>
+      <?php endif; ?>
     </div>
-    <button type="submit" class="btn btn-primary">Unterschrift speichern</button>
-    <?php if (!empty($myUser['signature_image'])): ?>
-      <button type="submit" formaction="/portal/settings/signature/delete" class="btn" style="background:#fee2e2;color:#b91c1c">Unterschrift entfernen</button>
-    <?php endif; ?>
   </form>
 </div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('sig-pad-settings');
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#0b4f6c'; /* dunkles Aquamarinblau */
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  let drawing = false, hasSignature = false;
+
+  function pos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const point = e.touches ? e.touches[0] : e;
+    return { x: (point.clientX - rect.left) * scaleX, y: (point.clientY - rect.top) * scaleY };
+  }
+  function start(e) {
+    e.preventDefault();
+    drawing = true;
+    hasSignature = true;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  function stop() { drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', stop);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', stop);
+
+  window.clearSettingsSignature = function() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasSignature = false;
+  };
+
+  document.getElementById('signature-form').addEventListener('submit', function(e) {
+    if (e.submitter && e.submitter.formAction && e.submitter.formAction.includes('/delete')) return;
+    if (!hasSignature) {
+      e.preventDefault();
+      alert('Bitte unterschreiben Sie im Feld, bevor Sie speichern.');
+      return;
+    }
+    document.getElementById('signature_image_settings').value = canvas.toDataURL('image/png');
+  });
+})();
+</script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';
