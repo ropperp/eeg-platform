@@ -26,7 +26,7 @@
 
 % ---------- Hilfsbefehle ----------
 \newcommand{\cb}{\textcolor{boxgray}{$\square$}\,}                 % leere Checkbox
-\newcommand{\cbon}{\textcolor{egreendark}{$\blacksquare$}\,}       % angehakte Checkbox
+\newcommand{\cbon}{\textcolor{egreendark}{$\boxtimes$}\,}          % angehakte Checkbox (Kreuz statt Vollfarbe)
 \newcommand{\sectionbar}[1]{%
   \par\vspace{6pt}\noindent
   \begin{tikzpicture}
@@ -125,10 +125,10 @@ Sind Sie bereits in einer anderen EEG/BEG? \quad <<<RAW_ANDERE_EEG_JA>>> Ja \qua
 % =====================================================
 % UNTERSCHRIFT
 % =====================================================
-\vspace{0.3cm}
+\vfill
 \noindent
 \begin{minipage}[t]{7.5cm}
-  <<<UNTERSCHRIEBEN_DATUM>>>\\[0.35cm]
+  Online, <<<UNTERSCHRIEBEN_DATUM>>>\\[0.35cm]
   \rule{7cm}{0.4pt}\\[1pt]
   {\small Ort, Datum}
 \end{minipage}\hfill

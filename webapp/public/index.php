@@ -1368,13 +1368,13 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         }
         $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
         $sepaBlock =
-            '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=4pt, bottom=4pt]' . "\n"
+            '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=3pt, bottom=3pt]' . "\n"
             . '\\small\\noindent' . "\n"
             . '\\begin{minipage}[t]{7.6cm}' . "\n"
-            . '\\textbf{SEPA-Lastschrift-Mandat:}\\par\\vspace{8pt}' . "\n"
-            . 'IBAN: ' . texEscape($a['iban']) . '\\\\[8pt]' . "\n"
-            . 'BIC: ' . ($a['bic'] ? texEscape($a['bic']) : '--') . '\\\\[8pt]' . "\n"
-            . 'Kontoinhaber:in: ' . texEscape($a['kontoinhaber'] ?: ($a['first_name'] . ' ' . $a['last_name'])) . '\\\\[8pt]' . "\n"
+            . '\\textbf{SEPA-Lastschrift-Mandat:}\\par\\vspace{6pt}' . "\n"
+            . 'IBAN: ' . texEscape($a['iban']) . '\\\\[6pt]' . "\n"
+            . 'BIC: ' . ($a['bic'] ? texEscape($a['bic']) : '--') . '\\\\[6pt]' . "\n"
+            . 'Kontoinhaber:in: ' . texEscape($a['kontoinhaber'] ?: ($a['first_name'] . ' ' . $a['last_name'])) . '\\\\[6pt]' . "\n"
             . 'Adresse (falls abw.): ' . ($a['konto_adresse'] ? texEscape($a['konto_adresse']) : '--') . "\n"
             . '\\end{minipage}\\hfill' . "\n"
             . '\\begin{minipage}[t]{8.8cm}' . "\n"
@@ -1386,31 +1386,31 @@ $router->get('/portal/applications/:id/formular', function ($params) {
             . ' Erstattung des belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten'
             . ' Bedingungen.' . "\n"
             . '\\end{minipage}' . "\n"
-            . '\\vspace{0.4cm}\\noindent' . "\n"
+            . '\\vspace{0.25cm}\\noindent' . "\n"
             . $sepaSigLine
             . '\\rule{6.5cm}{0.4pt}\\\\[1pt]' . "\n"
             . '{\\scriptsize Unterschrift (Kontoinhaber:in)}\\hfill{\\scriptsize Unterschrieben am ' . $sepaSignedAt . '}' . "\n"
             . '\\end{tcolorbox}';
     } else {
         $sepaBlock =
-            '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=6pt, bottom=6pt]' . "\n"
+            '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=5pt, bottom=5pt]' . "\n"
             . '\\small Es wurde keine SEPA-Lastschrift vereinbart (keine IBAN angegeben).' . "\n"
             . '\\end{tcolorbox}';
     }
 
-    // Rechtliche Zustimmungen: gleicher Wortlaut wie im Online-Formular (das, dem tatsächlich
-    // zugestimmt wurde), aber im Kästchen-Stil des Papierformulars dargestellt
-    $consentTexts = [
-        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
-        'zustimmung_vollmacht'           => 'Vollmacht: Ich bevollmächtige den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
-        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt.',
-        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Ich stimme der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
-        'zustimmung_datenschutz'         => 'Datenschutz: Ich willige in die Verarbeitung meiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
-        'zustimmung_agb'                 => 'AGB \\& Tarif-/Preisblatt: Ich bestätige, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
+    // Rechtliche Zustimmungen: nur die Kurzlabels (wie im Backend/application_detail.php) --
+    // der volle Wortlaut wurde beim Online-Absenden gezeigt, dieser Ausdruck ist nur zum Ablegen.
+    $consentLabels = [
+        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft',
+        'zustimmung_vollmacht'           => 'Vollmacht',
+        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist',
+        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz',
+        'zustimmung_datenschutz'         => 'Datenschutz',
+        'zustimmung_agb'                 => 'AGB \\& Tarif-/Preisblatt',
     ];
     $zustimmungenLines = implode("\n", array_map(
-        fn($field, $text) => '\\item[' . $cb($isTrue($a[$field])) . ']  ' . $text,
-        array_keys($consentTexts), $consentTexts
+        fn($field, $label) => '\\item[' . $cb($isTrue($a[$field])) . ']  ' . $label,
+        array_keys($consentLabels), $consentLabels
     ));
 
     $assets = ['unterschrift_beitritt.png' => $a['signature_image']] + $sepaAssets;
