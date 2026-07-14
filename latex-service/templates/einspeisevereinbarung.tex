@@ -291,8 +291,9 @@ Der Vertrag wird in zweifacher Ausfertigung erstellt und unterfertigt, wovon der
 \begin{minipage}[t]{0.48\textwidth}
   Ort, Datum: <<<EEG_ORT>>>, <<<ERSTELLT_AM>>>
   \par\vspace{3\baselineskip}
-  <<<RAW_EEG_UNTERSCHRIFT_BILD>>>\par
-  \rule{5cm}{0.4pt}\par
+  % Bild mit Höhe/Breite 0 einboxen: schiebt die Unterschriftslinie nicht mehr nach unten,
+  % sondern schwebt über ihr -- linke und rechte Spalte bleiben exakt auf gleicher Höhe
+  \makebox[0pt][l]{\raisebox{0.25\baselineskip}[0pt][0pt]{<<<RAW_EEG_UNTERSCHRIFT_BILD>>>}}\rule{5cm}{0.4pt}\par
   Unterschrift für die EEG\par
   <<<EEG_NAME>>>
 \end{minipage}

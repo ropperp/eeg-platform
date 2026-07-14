@@ -126,18 +126,8 @@ Der teilnehmende Netzbenutzer ist jedenfalls Mitglied/Gesellschafter/Genossensch
 \end{itemize}
 \medskip
 
-Die Energieerzeugungsanlage(n) der EEG wird/werden gemäß \S\ 16d Abs 2 Z 1 ElWOG wie folgt beschrieben (Zählpunktnummer, Erzeugungsart, Engpassleistung):
-
-\medskip
-\begin{itemize}
-<<<RAW_ERZEUGUNGSANLAGEN_LISTE>>>
-\end{itemize}
-\medskip
-
-% Hinweis Plattform: <<<EEG_DASHBOARD_URL>>> mit der Dashboard-URL der jeweiligen EEG befüllen.
-Die jeweils aktuelle Übersicht der Erzeugungsanlagen der EEG einschließlich der maximalen Engpassleistung aller Erzeugungsanlagen dieser EEG ist im Online-Dashboard unter \url{<<<EEG_DASHBOARD_URL>>>} abrufbar.
-
-Treten Erzeugungsanlagen hinzu oder scheiden sie aus, wird die Mitgliederseite hierüber durch die EEG per E-Mail informiert.
+% Hinweis Plattform: <<<EEG_DASHBOARD_URL>>> mit der URL zum Mitgliederportal (Login) der jeweiligen EEG befüllen.
+Die Energieerzeugungsanlage(n) der EEG wird/werden gemäß \S\ 16d Abs 2 Z 1 ElWOG im Mitgliederportal auf stromfueralle.at beschrieben. Dort sind -- nach Anmeldung und ausschließlich für die Mitglieder der jeweiligen EEG einsehbar -- die Zählpunktnummern der Erzeugungsanlagen (aus Datenschutzgründen teilweise maskiert), deren Erzeugungsart und Engpassleistung sowie die maximale Engpassleistung aller Erzeugungsanlagen dieser EEG jeweils aktuell abrufbar: \url{<<<EEG_DASHBOARD_URL>>>}
 
 % =====================================================================
 % § 2 Tätigkeitsumfang der EEG
@@ -290,8 +280,9 @@ Die Kommunikation zwischen der EEG und dem teilnehmenden Netzbenutzer erfolgt au
 \begin{minipage}[t]{0.48\textwidth}
   Ort, Datum: <<<EEG_ORT>>>, <<<ERSTELLT_AM>>>
   \par\vspace{3\baselineskip}
-  <<<RAW_EEG_UNTERSCHRIFT_BILD>>>\par
-  \rule{5cm}{0.4pt}\par
+  % Bild mit Höhe/Breite 0 einboxen: schiebt die Unterschriftslinie nicht mehr nach unten,
+  % sondern schwebt über ihr -- linke und rechte Spalte bleiben exakt auf gleicher Höhe
+  \makebox[0pt][l]{\raisebox{0.25\baselineskip}[0pt][0pt]{<<<RAW_EEG_UNTERSCHRIFT_BILD>>>}}\rule{5cm}{0.4pt}\par
   Unterschrift für die EEG\par
   <<<EEG_NAME>>>
 \end{minipage}

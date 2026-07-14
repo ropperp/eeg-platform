@@ -1031,19 +1031,6 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         $mps
     ));
 
-    // Erzeugungsanlagen der gesamten EEG (nicht nur des Mitglieds) für § 1 -- welche
-    // Anlagen die EEG insgesamt beliefern, wird zusätzlich per Dashboard-Link aktuell gehalten.
-    $producerMps = DB::fetchAll('SELECT * FROM metering_points WHERE community_id = ? AND active = true AND type = ? ORDER BY registered_at', [$communityId, 'producer']);
-    $erzeugungsanlagenLines = implode("\n", array_map(
-        function ($mp) {
-            $engpass = $mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '--';
-            return '\\item Zählpunktnummer ' . texEscape($mp['zaehlpunkt_nr'])
-                . ' --- Erzeugungsart: ' . texEscape($mp['erzeugungsart'] ?? 'Photovoltaik')
-                . ', Engpassleistung: ' . $engpass;
-        },
-        $producerMps
-    )) ?: '\\item Aktuell keine Erzeugungsanlage registriert.';
-
     $signature = eegSignatureAsset();
     $ok = streamLatexPdf('bezugsvereinbarung', [
         'EEG_NAME'                  => $community['name'],
@@ -1062,10 +1049,9 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
         'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
-        'RAW_ERZEUGUNGSANLAGEN_LISTE' => $erzeugungsanlagenLines,
         // Community-spezifisch hardcodiert wie "Kärnten Netz GmbH" -- bei mehreren EEGs mit
         // eigenen Subdomains müsste hier stattdessen eine echte Domain-Konfiguration greifen.
-        'EEG_DASHBOARD_URL'         => 'https://live.stromfueralle.at/live?eeg=' . urlencode($community['slug']),
+        'EEG_DASHBOARD_URL'         => 'https://portal.stromfueralle.at/portal/login',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
     ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
