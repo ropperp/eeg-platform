@@ -1459,6 +1459,27 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         'member_since' => date('Y-m-d'),
     ]);
 
+    // Vom Antragsteller angegebene Zählpunkte übernehmen, damit sie nicht händisch
+    // nachgetragen werden müssen. Zählernummer (Ausleseeinheit) bleibt bewusst leer --
+    // die kennt man erst nach der Vor-Ort-Installation.
+    $isTrue = fn($v) => in_array($v, [true, 't', '1', 1], true);
+    if ($isTrue($application['bezug_gewuenscht']) && trim($application['bezug_zaehlpunkt'] ?? '') !== '') {
+        DB::execute(
+            'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, jahresverbrauch_kwh, registered_at)
+             VALUES (?, ?, ?, ?, ?, CURRENT_DATE)
+             ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
+            [$communityId, $result['member_id'], strtoupper(trim($application['bezug_zaehlpunkt'])), 'consumer', $application['bezug_jahresverbrauch_kwh'] ?: null]
+        );
+    }
+    if ($isTrue($application['einspeisung_gewuenscht']) && trim($application['einspeisung_zaehlpunkt'] ?? '') !== '') {
+        DB::execute(
+            'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, engpassleistung_kw, geplante_einspeisung_kwh, registered_at)
+             VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE)
+             ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
+            [$communityId, $result['member_id'], strtoupper(trim($application['einspeisung_zaehlpunkt'])), 'producer', $application['einspeisung_kwp'] ?: null, $application['einspeisung_geplante_kwh'] ?: null]
+        );
+    }
+
     DB::execute(
         "UPDATE membership_applications SET status = 'approved', member_id = ?, bearbeitet_von = ?, bearbeitet_am = now() WHERE id = ?",
         [$result['member_id'], Auth::userId(), $application['id']]

@@ -37,6 +37,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/stromfueralle.at/privkey.pem;
     include             /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+    client_max_body_size 20M;
     location / {
         proxy_pass         http://10.0.0.250;
         proxy_set_header   Host              $host;
@@ -51,6 +52,11 @@ server {
     return 301 https://$host$request_uri;
 }
 ```
+
+> `client_max_body_size 20M;` muss hier gesetzt sein (Standard-Limit von nginx ist nur 1 MB) — sonst
+> liefert **dieser** nginx-Proxy bei Datei-Uploads (z. B. Ausweis-Scan, Beitrittserklärung-PDF) einen
+> `413 Request Entity Too Large`, obwohl `webapp/docker/nginx.conf` und `php.ini` im Repo bereits
+> korrekt auf 20M stehen. Nach Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
 
 > `www.stromfueralle.at` muss als SAN im Zertifikat enthalten sein, sonst liefert nginx
 > für www das Default-Zertifikat aus und Browser zeigen einen SSL-Fehler.
