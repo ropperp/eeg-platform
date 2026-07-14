@@ -927,11 +927,27 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     $znr = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
     if (!$znr) { header('Location: /portal/members/' . $params['id'] . '?error=znr'); exit; }
 
+    $existing = DB::fetchOne(
+        "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
+         JOIN members m ON m.id = mp.member_id
+         WHERE mp.community_id = ? AND mp.zaehlpunkt_nr = ?",
+        [$communityId, $znr]
+    );
+    if ($existing) {
+        header('Location: /portal/members/' . $params['id'] . '?error=znr_duplicate&znr_owner='
+            . urlencode($existing['first_name'] . ' ' . $existing['last_name'] . ' (KdNr ' . ($existing['kundennummer'] ?? '—') . ')'));
+        exit;
+    }
+
+    $jahresverbrauch = trim($_POST['jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['jahresverbrauch_kwh']) : null;
+    $engpassleistung  = trim($_POST['engpassleistung_kw'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['engpassleistung_kw']) : null;
+    $geplanteEinsp    = trim($_POST['geplante_einspeisung_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['geplante_einspeisung_kwh']) : null;
+
     DB::execute(
-        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, meter_code, registered_at)
-         VALUES (?, ?, ?, ?, ?, CURRENT_DATE)
+        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, meter_code, jahresverbrauch_kwh, engpassleistung_kw, geplante_einspeisung_kwh, registered_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
          ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
-        [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null]
+        [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null, $jahresverbrauch, $engpassleistung, $geplanteEinsp]
     );
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
@@ -1113,12 +1129,33 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
     }
     $communityId = $mp['community_id'];
     DB::setCommunity($communityId);
+
+    $znr = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
+    $existing = DB::fetchOne(
+        "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
+         JOIN members m ON m.id = mp.member_id
+         WHERE mp.community_id = ? AND mp.zaehlpunkt_nr = ? AND mp.id != ?",
+        [$communityId, $znr, $params['mpid']]
+    );
+    if ($existing) {
+        header('Location: /portal/members/' . $params['id'] . '?error=znr_duplicate&znr_owner='
+            . urlencode($existing['first_name'] . ' ' . $existing['last_name'] . ' (KdNr ' . ($existing['kundennummer'] ?? '—') . ')'));
+        exit;
+    }
+
+    $jahresverbrauch = trim($_POST['jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['jahresverbrauch_kwh']) : null;
+    $engpassleistung  = trim($_POST['engpassleistung_kw'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['engpassleistung_kw']) : null;
+    $geplanteEinsp    = trim($_POST['geplante_einspeisung_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['geplante_einspeisung_kwh']) : null;
+
     DB::execute(
-        'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=? WHERE id=? AND community_id=?',
+        'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=?, jahresverbrauch_kwh=?, engpassleistung_kw=?, geplante_einspeisung_kwh=? WHERE id=? AND community_id=?',
         [
-            strtoupper(trim($_POST['zaehlpunkt_nr'] ?? '')),
+            $znr,
             trim($_POST['meter_code'] ?? '') ?: null,
             $_POST['type'] ?? 'consumer',
+            $jahresverbrauch,
+            $engpassleistung,
+            $geplanteEinsp,
             $params['mpid'],
             $communityId,
         ]

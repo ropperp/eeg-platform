@@ -41,6 +41,10 @@
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
 <?php elseif (($_GET['error'] ?? '') === 'upload'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Datei-Upload fehlgeschlagen.</div>
+<?php elseif (($_GET['error'] ?? '') === 'znr_duplicate'): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem">
+    Diese Zählpunktnummer ist bereits vergeben<?php if (!empty($_GET['znr_owner'])): ?> — an <?= htmlspecialchars($_GET['znr_owner']) ?><?php endif; ?>.
+  </div>
 <?php elseif (isset($_GET['error'])): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
 <?php endif; ?>
@@ -83,6 +87,7 @@
             <th>Zählpunktnummer (AT...)</th>
             <th>Zählernummer</th>
             <th>Typ</th>
+            <th>Details</th>
             <th>Aktionen</th>
           </tr>
         </thead>
@@ -98,8 +103,16 @@
               <?php endif; ?>
             </td>
             <td><?= $mp['type'] === 'consumer' ? '⬇️ Bezug' : '⬆️ Einspeisung' ?></td>
+            <td style="font-size:.78rem;color:#6b7280">
+              <?php if ($mp['type'] === 'consumer'): ?>
+                <?= $mp['jahresverbrauch_kwh'] ? number_format((float)$mp['jahresverbrauch_kwh'], 0, ',', '.') . ' kWh/Jahr' : '—' ?>
+              <?php else: ?>
+                <?= $mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '—' ?>
+                <?= $mp['geplante_einspeisung_kwh'] ? ' · ' . number_format((float)$mp['geplante_einspeisung_kwh'], 0, ',', '.') . ' kWh/Jahr geplant' : '' ?>
+              <?php endif; ?>
+            </td>
             <td style="white-space:nowrap">
-              <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>')"
+              <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>')"
                       style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#6b7280">✏️</button>
               <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">
                 <button type="submit" onclick="return confirm('Zählpunkt wirklich deaktivieren?')"
@@ -126,15 +139,31 @@
                  style="font-family:monospace;font-size:.78rem">
         </div>
       </div>
-      <div style="display:flex;gap:.5rem;align-items:flex-end">
+      <div style="display:flex;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
         <div class="form-group" style="margin-bottom:0">
           <label style="font-size:.8rem">Typ</label>
-          <select name="type">
+          <select name="type" id="add-mp-type" onchange="toggleMpTypeFields('add')">
             <option value="consumer">⬇️ Bezug</option>
             <option value="producer">⬆️ Einspeisung</option>
           </select>
         </div>
         <button type="submit" class="btn btn-primary" style="height:38px">+ Hinzufügen</button>
+      </div>
+      <div id="add-mp-consumer-fields" style="display:grid;grid-template-columns:1fr;gap:.5rem;margin-bottom:.5rem">
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:.8rem">Jahresverbrauch (kWh)</label>
+          <input type="text" name="jahresverbrauch_kwh" placeholder="z. B. 3500" style="font-size:.78rem">
+        </div>
+      </div>
+      <div id="add-mp-producer-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:.8rem">Leistung PV-Anlage (kWp)</label>
+          <input type="text" name="engpassleistung_kw" placeholder="z. B. 9,90" style="font-size:.78rem">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:.8rem">Geplante Einspeisung (kWh/Jahr)</label>
+          <input type="text" name="geplante_einspeisung_kwh" placeholder="z. B. 8000" style="font-size:.78rem">
+        </div>
       </div>
     </form>
   </div>
@@ -258,10 +287,24 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     </div>
     <div class="form-group">
       <label>Typ</label>
-      <select name="type" id="edit-mp-type">
+      <select name="type" id="edit-mp-type" onchange="toggleMpTypeFields('edit')">
         <option value="consumer">⬇️ Bezug</option>
         <option value="producer">⬆️ Einspeisung</option>
       </select>
+    </div>
+    <div id="edit-mp-consumer-fields" class="form-group">
+      <label>Jahresverbrauch (kWh)</label>
+      <input type="text" name="jahresverbrauch_kwh" id="edit-mp-jahresverbrauch" placeholder="z. B. 3500">
+    </div>
+    <div id="edit-mp-producer-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+      <div class="form-group">
+        <label>Leistung PV-Anlage (kWp)</label>
+        <input type="text" name="engpassleistung_kw" id="edit-mp-kwp" placeholder="z. B. 9,90">
+      </div>
+      <div class="form-group">
+        <label>Geplante Einspeisung (kWh/Jahr)</label>
+        <input type="text" name="geplante_einspeisung_kwh" id="edit-mp-geplant" placeholder="z. B. 8000">
+      </div>
     </div>
     <div style="display:flex;gap:.75rem">
       <button type="submit" class="btn btn-primary">Speichern</button>
@@ -271,11 +314,22 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
 </dialog>
 
 <script>
-function openEditMp(id, znr, mc, type) {
+function toggleMpTypeFields(prefix) {
+  const isConsumer = document.getElementById(prefix + '-mp-type').value === 'consumer';
+  document.getElementById(prefix + '-mp-consumer-fields').style.display = isConsumer ? '' : 'none';
+  document.getElementById(prefix + '-mp-producer-fields').style.display = isConsumer ? 'none' : '';
+}
+toggleMpTypeFields('add');
+
+function openEditMp(id, znr, mc, type, jahresverbrauch, kwp, geplant) {
   document.getElementById('edit-mp-form').action = '/portal/members/<?= $member['id'] ?>/metering-points/' + id + '/edit';
   document.getElementById('edit-mp-znr').value = znr;
   document.getElementById('edit-mp-mc').value = mc;
   document.getElementById('edit-mp-type').value = type;
+  document.getElementById('edit-mp-jahresverbrauch').value = jahresverbrauch;
+  document.getElementById('edit-mp-kwp').value = kwp;
+  document.getElementById('edit-mp-geplant').value = geplant;
+  toggleMpTypeFields('edit');
   document.getElementById('edit-mp-dialog').showModal();
 }
 </script>
