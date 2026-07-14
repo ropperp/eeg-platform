@@ -77,6 +77,23 @@ function texEscape(string $s): string
 }
 
 /**
+ * Baut ein 33-Kästchen-Raster (wie am Papier-Beitrittsformular) und trägt die
+ * Zeichen einer Zählpunktnummer einzeln ein. Ohne Wert bleibt das Raster leer.
+ */
+function zpGridTikz(?string $zp): string
+{
+    $chars = array_slice(str_split(preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($zp ?? '')))), 0, 33);
+    $nodes = '';
+    foreach ($chars as $i => $c) {
+        $nodes .= '\\node at (' . sprintf('%.2f', 0.24 + $i * 0.5) . ',0.29){\\small ' . $c . '};' . "\n";
+    }
+    return '\\begin{tikzpicture}[baseline=-3pt]' . "\n"
+        . '\\foreach \\i in {0,...,32}{\\draw[boxgray] (\\i*0.5,0) rectangle ++(0.48,0.58);}' . "\n"
+        . $nodes
+        . '\\end{tikzpicture}';
+}
+
+/**
  * Liefert die RAW_-Variable fürs Unterschriftsbild "Für die EEG" sowie das
  * zugehörige Bild-Asset für den aktuell eingeloggten User (i.d.R. der
  * Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte
@@ -837,6 +854,7 @@ $router->get('/portal/members/:id', function ($params) {
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
     $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? ORDER BY registered_at DESC', [$params['id']]);
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
+    $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
     require ROOT . '/src/views/pages/member_detail.php';
 });
 
@@ -1273,54 +1291,72 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
 
     $isTrue = fn($v) => in_array($v, [true, 't', '1', 1], true);
+    $cb = fn(bool $checked) => $checked ? '\\cbon' : '\\cb';
 
-    $bezugBlock = $isTrue($a['bezug_gewuenscht'])
-        ? 'Ja. Jahresverbrauch: ' . ($a['bezug_jahresverbrauch_kwh'] ? number_format((float)$a['bezug_jahresverbrauch_kwh'], 0, ',', '.') . ' kWh' : 'nicht angegeben')
-          . '. Zählpunktnummer: ' . ($a['bezug_zaehlpunkt'] ? texEscape($a['bezug_zaehlpunkt']) : 'nicht angegeben')
-        : 'Nein';
+    $eegNameEsc = texEscape($community['name']);
+    $eegZvrEsc  = texEscape($community['zvr_number'] ?? '--');
+    $eegOrtEsc  = texEscape(extractOrtFromAddress($community['address']));
 
-    $einspeisungBlock = $isTrue($a['einspeisung_gewuenscht'])
-        ? 'Ja. Anlagenleistung: ' . ($a['einspeisung_kwp'] ? number_format((float)$a['einspeisung_kwp'], 2, ',', '.') . ' kWp' : 'nicht angegeben')
-          . '. Geplante Einspeisung: ' . ($a['einspeisung_geplante_kwh'] ? number_format((float)$a['einspeisung_geplante_kwh'], 0, ',', '.') . ' kWh/Jahr' : 'nicht angegeben')
-          . '. Zählpunktnummer: ' . ($a['einspeisung_zaehlpunkt'] ? texEscape($a['einspeisung_zaehlpunkt']) : 'nicht angegeben')
-        : 'Nein';
+    // Anrede-Checkboxen (Divers hat am Papierformular kein eigenes Kästchen,
+    // wird stattdessen im Titel-Feld vermerkt)
+    $salutation = $a['salutation'] ?? '';
+    $titelDisplay = trim(($a['titel'] ?? '') . ($salutation === 'Divers' ? ' · Divers' : ''));
 
-    $speicherLabels = ['ja' => 'Ja', 'nein' => 'Nein', 'geplant' => 'Geplant'];
-    $speicherBlock = ($speicherLabels[$a['speicher_status']] ?? 'nicht angegeben')
-        . ($a['speicher_kwh'] ? ' (' . number_format((float)$a['speicher_kwh'], 1, ',', '.') . ' kWh)' : '');
+    $speicherStatus = $a['speicher_status'] ?? '';
 
-    $andereEegBlock = $isTrue($a['andere_eeg'])
-        ? 'Ja' . ($a['andere_eeg_name'] ? ', bei: ' . texEscape($a['andere_eeg_name']) : '')
-        : 'Nein';
-
+    // SEPA-Block: exakt im Kasten-Layout des Papierformulars, mit echten Werten
     $sepaAssets = [];
     if (trim($a['iban'] ?? '') !== '') {
-        $sepaSigVar = '';
+        $sepaSigLine = '';
         if (!empty($a['sepa_signature_image'])) {
             $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
-            $sepaSigVar = '\\includegraphics[height=1.4cm]{sepa_unterschrift.png}\\par';
+            $sepaSigLine = '\\includegraphics[height=1.2cm]{sepa_unterschrift.png}\\\\[0.1cm]' . "\n";
         }
-        $sepaBlock = '\\textbf{SEPA-Lastschrift-Mandat:} IBAN ' . texEscape($a['iban'])
-            . ($a['bic'] ? ', BIC ' . texEscape($a['bic']) : '')
-            . '. Kontoinhaber:in: ' . texEscape($a['kontoinhaber'] ?: ($a['first_name'] . ' ' . $a['last_name']))
-            . ($a['konto_adresse'] ? '. Adresse: ' . texEscape($a['konto_adresse']) : '') . '\\par\\medskip{}'
-            . 'Unterschrieben am ' . ($a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--') . '\\par\\medskip{}'
-            . $sepaSigVar;
+        $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
+        $sepaBlock =
+            '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=4pt, bottom=4pt]' . "\n"
+            . '\\small\\noindent' . "\n"
+            . '\\begin{minipage}[t]{7.6cm}' . "\n"
+            . '\\textbf{SEPA-Lastschrift-Mandat:}\\par\\vspace{8pt}' . "\n"
+            . 'IBAN: ' . texEscape($a['iban']) . '\\\\[8pt]' . "\n"
+            . 'BIC: ' . ($a['bic'] ? texEscape($a['bic']) : '--') . '\\\\[8pt]' . "\n"
+            . 'Kontoinhaber:in: ' . texEscape($a['kontoinhaber'] ?: ($a['first_name'] . ' ' . $a['last_name'])) . '\\\\[8pt]' . "\n"
+            . 'Adresse (falls abw.): ' . ($a['konto_adresse'] ? texEscape($a['konto_adresse']) : '--') . "\n"
+            . '\\end{minipage}\\hfill' . "\n"
+            . '\\begin{minipage}[t]{8.8cm}' . "\n"
+            . '\\scriptsize Hiermit ermächtige ich die Erneuerbare-Energie-Gemeinschaft ' . $eegNameEsc . ', ZVR ' . $eegZvrEsc
+            . ', Sitz ' . $eegOrtEsc . ', Creditor-ID: \\textbf{AT14EEG00000086499}, widerruflich, die von mir zu entrichtenden'
+            . ' Zahlungen bei Fälligkeit zu Lasten meines Kontos mittels wiederkehrender SEPA-Lastschriften einzuziehen.'
+            . ' Zugleich weise ich mein Kreditinstitut an, die von der ' . $eegNameEsc . ' auf mein Konto gezogenen'
+            . ' SEPA-Lastschriften einzulösen. Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die'
+            . ' Erstattung des belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten'
+            . ' Bedingungen.' . "\n"
+            . '\\end{minipage}' . "\n"
+            . '\\vspace{0.4cm}\\noindent' . "\n"
+            . $sepaSigLine
+            . '\\rule{6.5cm}{0.4pt}\\\\[1pt]' . "\n"
+            . '{\\scriptsize Unterschrift (Kontoinhaber:in)}\\hfill{\\scriptsize Unterschrieben am ' . $sepaSignedAt . '}' . "\n"
+            . '\\end{tcolorbox}';
     } else {
-        $sepaBlock = 'Es wurde keine SEPA-Lastschrift vereinbart (keine IBAN angegeben).';
+        $sepaBlock =
+            '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=6pt, bottom=6pt]' . "\n"
+            . '\\small Es wurde keine SEPA-Lastschrift vereinbart (keine IBAN angegeben).' . "\n"
+            . '\\end{tcolorbox}';
     }
 
-    $consentLabels = [
-        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft',
-        'zustimmung_vollmacht'           => 'Vollmacht',
-        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist',
-        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz',
-        'zustimmung_datenschutz'         => 'Datenschutz',
-        'zustimmung_agb'                 => 'AGB \\& Tarif-/Preisblatt',
+    // Rechtliche Zustimmungen: gleicher Wortlaut wie im Online-Formular (das, dem tatsächlich
+    // zugestimmt wurde), aber im Kästchen-Stil des Papierformulars dargestellt
+    $consentTexts = [
+        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
+        'zustimmung_vollmacht'           => 'Vollmacht: Ich bevollmächtige den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
+        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt.',
+        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Ich stimme der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
+        'zustimmung_datenschutz'         => 'Datenschutz: Ich willige in die Verarbeitung meiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
+        'zustimmung_agb'                 => 'AGB \\& Tarif-/Preisblatt: Ich bestätige, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
     ];
     $zustimmungenLines = implode("\n", array_map(
-        fn($field, $label) => '\\item \\textbf{' . ($isTrue($a[$field]) ? 'Ja' : 'Nein') . ':} ' . $label,
-        array_keys($consentLabels), $consentLabels
+        fn($field, $text) => '\\item[' . $cb($isTrue($a[$field])) . ']  ' . $text,
+        array_keys($consentTexts), $consentTexts
     ));
 
     $assets = ['unterschrift_beitritt.png' => $a['signature_image']] + $sepaAssets;
@@ -1330,7 +1366,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
         'EEG_ADRESSE'               => $community['address'] ?? '',
         'EINGEREICHT_AM'            => date('d.m.Y H:i', strtotime($a['created_at'])),
-        'ANREDE_TITEL'              => trim(($a['salutation'] ?? '') . ' ' . ($a['titel'] ?? '')) ?: '--',
+        'TITEL'                     => $titelDisplay ?: '--',
         'VORNAME'                   => $a['first_name'],
         'NACHNAME'                  => $a['last_name'],
         'ADRESSE'                   => $a['address'] . ', ' . $a['zip'] . ' ' . $a['city'],
@@ -1338,13 +1374,26 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'GEBURTSDATUM'              => $a['geburtsdatum'] ? date('d.m.Y', strtotime($a['geburtsdatum'])) : '--',
         'STROMLIEFERANT'            => $a['stromlieferant'] ?: '--',
         'EMAIL'                     => $a['email'],
-        'RAW_BEZUG_BLOCK'           => $bezugBlock,
-        'RAW_EINSPEISUNG_BLOCK'     => $einspeisungBlock,
-        'RAW_SPEICHER_BLOCK'        => $speicherBlock,
-        'RAW_ANDERE_EEG_BLOCK'      => $andereEegBlock,
+        'BEZUG_JAHRESVERBRAUCH'     => $a['bezug_jahresverbrauch_kwh'] ? number_format((float)$a['bezug_jahresverbrauch_kwh'], 0, ',', '.') : '--',
+        'EINSPEISUNG_KWP'           => $a['einspeisung_kwp'] ? number_format((float)$a['einspeisung_kwp'], 2, ',', '.') : '--',
+        'EINSPEISUNG_GEPLANT'       => $a['einspeisung_geplante_kwh'] ? number_format((float)$a['einspeisung_geplante_kwh'], 0, ',', '.') : '--',
+        'SPEICHER_KWH'              => $a['speicher_kwh'] ? number_format((float)$a['speicher_kwh'], 1, ',', '.') : '--',
+        'ANDERE_EEG_NAME'           => $isTrue($a['andere_eeg']) ? ($a['andere_eeg_name'] ?: '--') : '--',
+        'RAW_ANREDE_FRAU'           => $cb($salutation === 'Frau'),
+        'RAW_ANREDE_HERR'           => $cb($salutation === 'Herr'),
+        'RAW_BEZUG_CB'              => $cb($isTrue($a['bezug_gewuenscht'])),
+        'RAW_EINSPEISUNG_CB'        => $cb($isTrue($a['einspeisung_gewuenscht'])),
+        'RAW_SPEICHER_JA'           => $cb($speicherStatus === 'ja'),
+        'RAW_SPEICHER_NEIN'         => $cb($speicherStatus === 'nein'),
+        'RAW_SPEICHER_GEPLANT'      => $cb($speicherStatus === 'geplant'),
+        'RAW_ANDERE_EEG_JA'         => $cb($isTrue($a['andere_eeg'])),
+        'RAW_ANDERE_EEG_NEIN'       => $cb(!$isTrue($a['andere_eeg'])),
+        'RAW_ZP_BEZUG_GRID'         => zpGridTikz($isTrue($a['bezug_gewuenscht']) ? $a['bezug_zaehlpunkt'] : null),
+        'RAW_ZP_EINSPEISUNG_GRID'   => zpGridTikz($isTrue($a['einspeisung_gewuenscht']) ? $a['einspeisung_zaehlpunkt'] : null),
         'RAW_SEPA_BLOCK'            => $sepaBlock,
         'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
-        'RAW_UNTERSCHRIFT_BILD'     => '\\includegraphics[height=1.4cm]{unterschrift_beitritt.png}',
+        'RAW_UNTERSCHRIFT_BILD'     => '\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}',
+        'UNTERSCHRIEBEN_DATUM'      => $a['signed_at'] ? date('d.m.Y', strtotime($a['signed_at'])) : '--',
         'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
         'SIGNER_IP'                 => $a['signer_ip'] ?: '--',
     ], 'Beitrittserklaerung_' . $a['last_name'] . '.pdf', $assets);

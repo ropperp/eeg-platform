@@ -16,6 +16,10 @@
     <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
        class="btn" style="background:#b45309;color:#fff;font-size:.8rem">☀️ Einspeisevereinbarung</a>
     <?php endif; ?>
+    <?php if (!empty($application)): ?>
+    <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank"
+       class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">🖨️ Formular ausdrucken (PDF)</a>
+    <?php endif; ?>
     <a href="/portal/members/<?= $member['id'] ?>/edit"
        class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">✏️ Bearbeiten</a>
     <?php if (!empty($member['user_id'])): ?>

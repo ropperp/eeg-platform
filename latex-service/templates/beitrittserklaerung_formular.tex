@@ -3,10 +3,11 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[ngerman,provide=*]{babel}
-\usepackage[a4paper,top=1.2cm,bottom=1.2cm,left=1.5cm,right=1.5cm]{geometry}
+\usepackage[a4paper,top=0.5cm,bottom=0.5cm,left=1.2cm,right=1.2cm]{geometry}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
 \usepackage[table]{xcolor}
+\usepackage{amssymb}
 \usepackage{array}
 \usepackage{tikz}
 \usepackage[most]{tcolorbox}
@@ -17,11 +18,15 @@
 
 % ---------- Farben ----------
 \definecolor{egreendark}{RGB}{18,92,55}
+\definecolor{egreen}{RGB}{27,128,77}
 \definecolor{egreenlight}{RGB}{233,245,238}
 \definecolor{boxgray}{RGB}{110,110,110}
 \definecolor{greenverlauf}{RGB}{21,128,61}
 \definecolor{turkisverlauf}{RGB}{8,145,178}
 
+% ---------- Hilfsbefehle ----------
+\newcommand{\cb}{\textcolor{boxgray}{$\square$}\,}                 % leere Checkbox
+\newcommand{\cbon}{\textcolor{egreendark}{$\blacksquare$}\,}       % angehakte Checkbox
 \newcommand{\sectionbar}[1]{%
   \par\vspace{6pt}\noindent
   \begin{tikzpicture}
@@ -47,59 +52,72 @@
 % =====================================================
 \sectionbar{Mitglieds- und Rechnungsdaten}
 
-\begin{tabular}{@{}p{6cm}p{5.5cm}p{5.5cm}@{}}
-\textbf{Anrede/Titel:} <<<ANREDE_TITEL>>> &
-\textbf{Vorname:} <<<VORNAME>>> &
-\textbf{Nachname:} <<<NACHNAME>>> \\[4pt]
+\vspace{4pt}
+\renewcommand{\arraystretch}{1}
+\begin{tabular}{|p{6.2cm}|p{5.6cm}|p{5.5cm}|}
+\hline
+\footnotesize <<<RAW_ANREDE_FRAU>>> Frau \quad <<<RAW_ANREDE_HERR>>> Herr \quad Titel: <<<TITEL>>> &
+\footnotesize Vorname: <<<VORNAME>>> &
+\footnotesize Nachname: <<<NACHNAME>>> \\[0.27cm]
+\hline
+\multicolumn{3}{|p{18.1cm}|}{\footnotesize Anschrift: <<<ADRESSE>>>} \\[0.27cm]
+\hline
+\footnotesize Telefon: <<<TELEFON>>> &
+\footnotesize Geb.-Dat.: <<<GEBURTSDATUM>>> &
+\footnotesize Stromlieferant: <<<STROMLIEFERANT>>> \\[0.27cm]
+\hline
+\multicolumn{2}{|p{12.2cm}|}{\footnotesize E-Mail: <<<EMAIL>>>} &
+\footnotesize Netzbetreiber: \textbf{Kärnten Netz GmbH} \\[0.27cm]
+\hline
 \end{tabular}
-
-\textbf{Anschrift:} <<<ADRESSE>>>
-
-\begin{tabular}{@{}p{6cm}p{5.5cm}p{5.5cm}@{}}
-\textbf{Telefon:} <<<TELEFON>>> &
-\textbf{Geb.-Dat.:} <<<GEBURTSDATUM>>> &
-\textbf{Stromlieferant:} <<<STROMLIEFERANT>>> \\[4pt]
-\end{tabular}
-
-\textbf{E-Mail:} <<<EMAIL>>>
 
 % =====================================================
 % STROM BEZIEHEN
 % =====================================================
 \sectionbar{Strom beziehen}
 
-<<<RAW_BEZUG_BLOCK>>>
+<<<RAW_BEZUG_CB>>> \textbf{Ich möchte Strom aus der Energiegemeinschaft beziehen.} \hfill
+Jahresverbrauch (kWh): <<<BEZUG_JAHRESVERBRAUCH>>>\par\vspace{2pt}
+Zählpunktnummer (steht auf Ihrer Stromrechnung):\par\vspace{2pt}
+<<<RAW_ZP_BEZUG_GRID>>>
 
 % =====================================================
 % STROM EINSPEISEN
 % =====================================================
 \sectionbar{Strom einspeisen (nur bei eigener PV-Anlage)}
 
-<<<RAW_EINSPEISUNG_BLOCK>>>
+<<<RAW_EINSPEISUNG_CB>>> \textbf{Ich möchte meinen Überschuss-Strom einspeisen.}\par\vspace{2pt}
+Leistung PV-Anlage (kWp): <<<EINSPEISUNG_KWP>>> \hfill Geplante Einspeisung (kWh): <<<EINSPEISUNG_GEPLANT>>>\par\vspace{2pt}
+Zählpunktnummer der Erzeugungsanlage:\par\vspace{2pt}
+<<<RAW_ZP_EINSPEISUNG_GRID>>>
 
 % =====================================================
 % WEITERE INFORMATIONEN
 % =====================================================
 \sectionbar{Weitere Informationen}
 
-\textbf{Stromspeicher:} <<<RAW_SPEICHER_BLOCK>>>
-
-\textbf{Bereits Mitglied in anderer EEG/BEG:} <<<RAW_ANDERE_EEG_BLOCK>>>
+Haben Sie einen Stromspeicher? \quad <<<RAW_SPEICHER_JA>>> Ja \quad <<<RAW_SPEICHER_NEIN>>> Nein \quad <<<RAW_SPEICHER_GEPLANT>>> Geplant
+\hfill Wenn ja, wie groß (kWh)? <<<SPEICHER_KWH>>>\par\vspace{4pt}
+Sind Sie bereits in einer anderen EEG/BEG? \quad <<<RAW_ANDERE_EEG_JA>>> Ja \quad <<<RAW_ANDERE_EEG_NEIN>>> Nein
+\hfill Wenn ja, Name / ID: <<<ANDERE_EEG_NAME>>>
 
 % =====================================================
 % ZAHLUNGSMODALITÄTEN
 % =====================================================
 \sectionbar{Zahlungsmodalitäten}
 
+\vspace{-4pt}
 <<<RAW_SEPA_BLOCK>>>
 
 % =====================================================
 % RECHTLICHE ZUSTIMMUNGEN
 % =====================================================
+
+\vspace{-2pt}
 \sectionbar{Rechtliche Zustimmungen \& Erklärungen}
 
 {\footnotesize
-\begin{itemize}
+\begin{itemize}[leftmargin=1.5em, labelsep=0.6em, itemsep=1.5pt, topsep=2pt, parsep=0pt]
 <<<RAW_ZUSTIMMUNGEN_LISTE>>>
 \end{itemize}
 }
@@ -107,18 +125,23 @@
 % =====================================================
 % UNTERSCHRIFT
 % =====================================================
-\sectionbar{Unterschrift}
+\vspace{0.3cm}
+\noindent
+\begin{minipage}[t]{7.5cm}
+  <<<UNTERSCHRIEBEN_DATUM>>>\\[0.35cm]
+  \rule{7cm}{0.4pt}\\[1pt]
+  {\small Ort, Datum}
+\end{minipage}\hfill
+\begin{minipage}[t]{7.5cm}
+  <<<RAW_UNTERSCHRIFT_BILD>>>\\[0.1cm]
+  \rule{6.5cm}{0.4pt}\\[1pt]
+  {\small Unterschrift (Kontoinhaber:in / Mitglied)}
+\end{minipage}
 
-Unterschrieben am <<<UNTERSCHRIEBEN_AM>>> \textperiodcentered\ IP-Adresse <<<SIGNER_IP>>>
-
-\medskip
-<<<RAW_UNTERSCHRIFT_BILD>>>
+\vspace{0.25cm}
+{\scriptsize\color{boxgray} Digital unterschrieben am <<<UNTERSCHRIEBEN_AM>>> \textperiodcentered\ IP-Adresse: <<<SIGNER_IP>>>}
 
 \vspace{0.3cm}
-\noindent\rule{6.5cm}{0.4pt}\\[1pt]
-{\small <<<VORNAME>>>\ <<<NACHNAME>>>}
-
-\vspace{0.4cm}
 \begin{tcolorbox}[enhanced, interior style={left color=greenverlauf, right color=turkisverlauf},
                   colframe=egreendark, sharp corners,
                   boxrule=0pt, left=10pt, right=10pt, top=3pt, bottom=3pt]
