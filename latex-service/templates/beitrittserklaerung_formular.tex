@@ -25,8 +25,15 @@
 \definecolor{turkisverlauf}{RGB}{8,145,178}
 
 % ---------- Hilfsbefehle ----------
-\newcommand{\cb}{\textcolor{boxgray}{$\square$}\,}                 % leere Checkbox
-\newcommand{\cbon}{\textcolor{egreendark}{$\boxtimes$}\,}          % angehakte Checkbox (Kreuz statt Vollfarbe)
+% Checkboxen als Tikz-Kästchen gezeichnet (statt amssymb-Glyphen): so lässt sich
+% Strichstärke und Farbe frei wählen -- angehaktes Kästchen zeigt ein dickes
+% schwarzes Kreuz statt eines schwer erkennbaren hellen Symbols.
+\newcommand{\cb}{\begin{tikzpicture}[baseline=-0.15em]\draw[boxgray, line width=0.5pt] (0,0) rectangle (0.32,0.32);\end{tikzpicture}\,}
+\newcommand{\cbon}{\begin{tikzpicture}[baseline=-0.15em]
+  \draw[black, line width=0.8pt] (0,0) rectangle (0.32,0.32);
+  \draw[black, line width=1.4pt] (0.04,0.04) -- (0.28,0.28);
+  \draw[black, line width=1.4pt] (0.04,0.28) -- (0.28,0.04);
+\end{tikzpicture}\,}
 \newcommand{\sectionbar}[1]{%
   \par\vspace{6pt}\noindent
   \begin{tikzpicture}
