@@ -915,19 +915,29 @@ $router->post('/portal/members/:id/files', function ($params) {
         exit;
     }
 
-    DB::execute(
-        'INSERT INTO member_files (community_id, member_id, name, pfad, mime, sha256, hochgeladen_von)
-         VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [
-            $communityId,
-            $params['id'],
-            $displayName,
-            $destPath,
-            $_FILES['file']['type'] ?: null,
-            hash_file('sha256', $destPath),
-            Auth::userId(),
-        ]
-    );
+    // Absichtlich try/catch statt einfach durchbrechen zu lassen: bei einem Schema-Problem
+    // (unbekannte Alt-Spalte, siehe migrate_20260719.sql) landet man sonst in einem rohen
+    // 500 ohne jeden Hinweis, was los ist. So bekommt der Manager wenigstens die konkrete
+    // DB-Fehlermeldung angezeigt und kann sie weitergeben, statt dass wir blind raten müssen.
+    try {
+        DB::execute(
+            'INSERT INTO member_files (community_id, member_id, name, pfad, mime, sha256, hochgeladen_von)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [
+                $communityId,
+                $params['id'],
+                $displayName,
+                $destPath,
+                $_FILES['file']['type'] ?: null,
+                hash_file('sha256', $destPath),
+                Auth::userId(),
+            ]
+        );
+    } catch (\PDOException $e) {
+        unlink($destPath);
+        header('Location: /portal/members/' . $params['id'] . '?error=upload_db&detail=' . urlencode($e->getMessage()));
+        exit;
+    }
 
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;

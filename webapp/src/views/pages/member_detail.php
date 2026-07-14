@@ -41,6 +41,10 @@
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
 <?php elseif (($_GET['error'] ?? '') === 'upload'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Datei-Upload fehlgeschlagen.</div>
+<?php elseif (($_GET['error'] ?? '') === 'upload_db'): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem">
+    Datei-Upload fehlgeschlagen (Datenbankfehler)<?php if (!empty($_GET['detail'])): ?>: <code style="font-size:.78rem"><?= htmlspecialchars($_GET['detail']) ?></code><?php endif; ?>
+  </div>
 <?php elseif (($_GET['error'] ?? '') === 'znr_duplicate'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">
     Diese Zählpunktnummer ist bereits vergeben<?php if (!empty($_GET['znr_owner'])): ?> — an <?= htmlspecialchars($_GET['znr_owner']) ?><?php endif; ?>.
