@@ -669,6 +669,39 @@ $router->get('/portal/members', function () {
     require ROOT . '/src/views/pages/member_list.php';
 });
 
+$router->get('/portal/files', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $members = DB::fetchAll(
+        "SELECT id, first_name, last_name, company_name, email, kundennummer
+         FROM members WHERE community_id = ? ORDER BY kundennummer NULLS LAST, last_name, first_name",
+        [$communityId]
+    );
+    require ROOT . '/src/views/pages/files_search.php';
+});
+
+$router->get('/portal/files/:id', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+
+    $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
+    $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $hasConsumer = (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM metering_points WHERE member_id = ? AND type = 'consumer' AND active = true LIMIT 1",
+        [$params['id']]
+    );
+    $hasProducer = (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM metering_points WHERE member_id = ? AND type = 'producer' AND active = true LIMIT 1",
+        [$params['id']]
+    );
+
+    require ROOT . '/src/views/pages/files_member.php';
+});
+
 $router->get('/portal/members/new', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     require ROOT . '/src/views/pages/member_form.php';

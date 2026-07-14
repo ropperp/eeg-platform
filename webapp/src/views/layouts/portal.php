@@ -101,6 +101,9 @@
       <a href="/portal/members" class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">
         <span class="sidebar-icon">👥</span><span class="sidebar-text">Mitglieder</span>
       </a>
+      <a href="/portal/files" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/files') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📁</span><span class="sidebar-text">Dateien</span>
+      </a>
       <a href="/portal/billing" class="<?= str_contains($_SERVER['REQUEST_URI'], 'billing') ? 'active' : '' ?>">
         <span class="sidebar-icon">💶</span><span class="sidebar-text">Abrechnung</span>
       </a>
