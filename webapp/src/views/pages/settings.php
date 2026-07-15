@@ -35,6 +35,11 @@
         <label>BIC</label>
         <input type="text" name="bic" value="<?= htmlspecialchars($community['bic'] ?? '') ?>">
       </div>
+      <div class="form-group" style="grid-column:1 / -1">
+        <label>Mitgliederportal-Link (im Bezugsvertrag als Verweis auf die Erzeugungsanlagen-Liste)</label>
+        <input type="text" name="dashboard_url" placeholder="https://portal.stromfueralle.at/portal/login" value="<?= htmlspecialchars($community['dashboard_url'] ?? '') ?>">
+        <small style="color:#6b7280">Frei änderbar, falls sich die Verlinkung ändert. Leer lassen für den Standard-Link.</small>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Stammdaten speichern</button>
   </form>

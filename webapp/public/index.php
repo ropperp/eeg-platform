@@ -43,6 +43,28 @@ function validateZaehlpunkt(string $zp): bool
 }
 
 /**
+ * Ordnet eine frei getippte Datei-Bezeichnung einer festen Kategorie zu (Groß-/Kleinschreibung
+ * und Kurzformen wie "Bezugsvertrag" statt "Bezugsvereinbarung" werden toleriert), damit manuell
+ * hochgeladene Dateien trotzdem unter der passenden Zeile in der Dateien-Übersicht auftauchen.
+ */
+function matchFileCategory(string $name): ?string
+{
+    $n = str_replace(['ä', 'ö', 'ü'], ['ae', 'oe', 'ue'], mb_strtolower(trim($name)));
+    $categories = [
+        'beitritt'    => ['beitritt'],
+        'bezug'       => ['bezug'],
+        'einspeisung' => ['einspeisung'],
+        'ausweis'     => ['personalausweis', 'reisepass', 'ausweis'],
+    ];
+    foreach ($categories as $key => $needles) {
+        foreach ($needles as $needle) {
+            if (str_contains($n, $needle)) return $key;
+        }
+    }
+    return null;
+}
+
+/**
  * Extrahiert den Ort aus einer frei eingegebenen Adresse "Straße Nr., PLZ Ort"
  * (Community-Adresse ist ein einzelnes Freitextfeld ohne getrennte Ort-Spalte).
  * Nimmt das letzte Komma-Segment und entfernt eine vorangestellte PLZ.
@@ -658,7 +680,8 @@ $router->get('/portal/members', function () {
                 COUNT(DISTINCT mp.id) AS metering_point_count,
                 bool_or(mp.type IN ('consumer', 'prosumer')) FILTER (WHERE mp.active) AS hat_bezug,
                 bool_or(mp.type IN ('producer', 'prosumer')) FILTER (WHERE mp.active) AS hat_einspeisung,
-                COALESCE(SUM(i.saldo_eur) FILTER (WHERE i.saldo_eur > 0 AND i.sent_at IS NULL), 0) AS open_amount
+                COALESCE(SUM(i.saldo_eur) FILTER (WHERE i.saldo_eur > 0 AND i.sent_at IS NULL), 0) AS open_amount,
+                EXISTS(SELECT 1 FROM membership_applications ma WHERE ma.member_id = m.id) AS via_online
          FROM members m
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
          LEFT JOIN invoices i ON i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL
@@ -698,6 +721,14 @@ $router->get('/portal/files/:id', function ($params) {
         "SELECT 1 AS x FROM metering_points WHERE member_id = ? AND type = 'producer' AND active = true LIMIT 1",
         [$params['id']]
     );
+
+    // Neueste hochgeladene Datei je Kategorie (member_files ist bereits nach created_at DESC
+    // sortiert, das erste Match pro Kategorie ist also automatisch das aktuellste).
+    $filesByCategory = ['beitritt' => null, 'bezug' => null, 'einspeisung' => null, 'ausweis' => null];
+    foreach ($member_files as $f) {
+        $cat = matchFileCategory($f['name']);
+        if ($cat && !$filesByCategory[$cat]) { $filesByCategory[$cat] = $f; }
+    }
 
     require ROOT . '/src/views/pages/files_member.php';
 });
@@ -1049,9 +1080,9 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
         'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
-        // Community-spezifisch hardcodiert wie "Kärnten Netz GmbH" -- bei mehreren EEGs mit
-        // eigenen Subdomains müsste hier stattdessen eine echte Domain-Konfiguration greifen.
-        'EEG_DASHBOARD_URL'         => 'https://portal.stromfueralle.at/portal/login',
+        // Frei in den EEG-Einstellungen konfigurierbar (communities.dashboard_url), da sich die
+        // Verlinkung jederzeit ändern kann -- Standard-Link nur als Fallback, falls nichts gepflegt ist.
+        'EEG_DASHBOARD_URL'         => $community['dashboard_url'] ?: 'https://portal.stromfueralle.at/portal/login',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
     ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
@@ -1349,8 +1380,11 @@ $router->get('/portal/applications', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    // Nur wirklich neue (unbearbeitete) Anfragen -- abgeschlossene (freigegeben/abgelehnt) sind
+    // schon am jeweiligen Mitglied über den Online/Offline-Badge und den Formular-Ausdruck
+    // nachvollziehbar und müssen die Neuanmeldungen-Übersicht nicht mehr zumüllen.
     $applications = DB::fetchAll(
-        'SELECT * FROM membership_applications WHERE community_id = ? ORDER BY (status = \'pending\') DESC, created_at DESC',
+        "SELECT * FROM membership_applications WHERE community_id = ? AND status = 'pending' ORDER BY created_at DESC",
         [$communityId]
     );
     require ROOT . '/src/views/pages/applications_list.php';
@@ -1654,7 +1688,7 @@ $router->post('/portal/settings/community', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     DB::execute(
-        'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=? WHERE id=?',
+        'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -1662,6 +1696,7 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['bic'] ?? '') ?: null,
             trim($_POST['zvr_number'] ?? '') ?: null,
             trim($_POST['marktpartner_id'] ?? '') ?: null,
+            trim($_POST['dashboard_url'] ?? '') ?: null,
             $communityId,
         ]
     );

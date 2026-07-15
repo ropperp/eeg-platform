@@ -37,6 +37,7 @@
 [data-theme="dark"] .badge-yellow { background: #451a03; color: #fcd34d; }
 [data-theme="dark"] .badge-red    { background: #450a0a; color: #fca5a5; }
 [data-theme="dark"] .badge-gray   { background: #1e293b; color: #94a3b8; }
+[data-theme="dark"] .badge-blue   { background: #172554; color: #93c5fd; }
 [data-theme="dark"] input,
 [data-theme="dark"] select,
 [data-theme="dark"] textarea { background: #0f172a; color: #f1f5f9; border-color: #334155; }
@@ -156,6 +157,7 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
 .badge-yellow { background: #fffbeb; color: #92400e; }
 .badge-red    { background: #fef2f2; color: #991b1b; }
 .badge-gray   { background: var(--gray-100); color: var(--gray-600); }
+.badge-blue   { background: #eff6ff; color: #1d4ed8; }
 
 /* ─── Gauge (Autarkie) ───────────────────────────── */
 .gauge-wrap { text-align: center; }

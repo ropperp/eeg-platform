@@ -18,6 +18,7 @@ CREATE TABLE communities (
     zvr_number      TEXT,                          -- 1778816746
     address         TEXT,
     logo_path       TEXT,
+    dashboard_url   TEXT,                          -- Vertrags-Verweis "Mitgliederportal" (frei konfigurierbar je EEG)
     iban            TEXT,
     bic             TEXT,
     payment_days    INTEGER DEFAULT 14,

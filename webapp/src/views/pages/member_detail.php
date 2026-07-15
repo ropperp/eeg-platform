@@ -5,6 +5,11 @@
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-gray" style="font-weight:700;color:#15803d">KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?></span>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
+  <?php if (!empty($application)): ?>
+  <span class="badge badge-blue" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
+  <?php else: ?>
+  <span class="badge badge-gray" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail">✉️ Offline</span>
+  <?php endif; ?>
   <div style="margin-left:auto;display:flex;gap:.5rem">
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
@@ -266,7 +271,14 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:flex-end">
       <div class="form-group" style="margin-bottom:0">
         <label style="font-size:.8rem">Bezeichnung (optional)</label>
-        <input type="text" name="name" placeholder="z. B. Ausweis, Beitrittserklärung …">
+        <input type="text" name="name" list="file-name-suggestions" placeholder="z. B. Ausweis, Beitrittserklärung …">
+        <datalist id="file-name-suggestions">
+          <option value="Beitrittserklärung">
+          <option value="Bezugsvereinbarung">
+          <option value="Einspeisevereinbarung">
+          <option value="Personalausweis">
+          <option value="Reisepass">
+        </datalist>
       </div>
       <div class="form-group" style="margin-bottom:0">
         <label style="font-size:.8rem">Datei</label>

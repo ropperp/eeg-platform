@@ -92,6 +92,11 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
+          <?php if (in_array($m['via_online'] ?? false, [true, 't', '1', 1], true)): ?>
+            <span class="badge badge-blue" style="font-size:.68rem" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
+          <?php else: ?>
+            <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail">✉️ Offline</span>
+          <?php endif; ?>
           <?php if ($m['company_name']): ?>
             <div style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
           <?php endif; ?>
