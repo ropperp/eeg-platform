@@ -325,17 +325,17 @@ function createMemberRecord(string $communityId, array $f): array
         }
     }
 
-    // KdNr: kleinste freie Nummer je Community ab 10001 vergeben (Lücken von gelöschten
-    // Mitgliedern auffüllen). Start bei 10001 statt 1, damit genug Buffer für Wachstum
-    // bleibt und Kundennummern nicht mit anderen kurzen Referenznummern verwechselt werden.
+    // KdNr: kleinste freie Nummer PLATTFORMWEIT (nicht nur je Community) ab 10001 vergeben
+    // (Lücken von gelöschten Mitgliedern auffüllen). Muss über alle EEGs hinweg eindeutig sein,
+    // da stromfueralle als Plattform gemeinsam abrechnet und die Kundennummer auf der Rechnung
+    // steht -- siehe migrate_20260723.sql (UNIQUE-Index dafür jetzt ebenfalls plattformweit).
     $kundennummer = (int)DB::fetchOne(
         "SELECT MIN(candidate) AS next FROM generate_series(
-            10001, (SELECT COALESCE(MAX(kundennummer), 10000) + 1 FROM members WHERE community_id = ?)
+            10001, (SELECT COALESCE(MAX(kundennummer), 10000) + 1 FROM members)
          ) AS candidate
          WHERE candidate NOT IN (
-            SELECT kundennummer FROM members WHERE community_id = ? AND kundennummer IS NOT NULL
-         )",
-        [$communityId, $communityId]
+            SELECT kundennummer FROM members WHERE kundennummer IS NOT NULL
+         )"
     )['next'];
     $iban = trim($f['member_iban'] ?? '');
     $mandatsreferenz = $iban !== '' ? 'S00000F' . date('Y') . 'A' . $kundennummer : null;
@@ -1137,10 +1137,16 @@ $router->post('/portal/members/:id/reset-password', function ($params) {
 
 $router->get('/portal/members/:id', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    // Nicht über die aktive Rolle scopen: Platform-Admins müssen ein Mitglied auch dann ansehen
+    // können, wenn ihre aktuell aktive Rolle gerade eine ANDERE EEG ist (z.B. von der
+    // EEG-Übersicht im Admin-Bereich aus) -- IDOR-Schutz erfolgt danach explizit.
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+    $communityId = $member['community_id'];
+    DB::setCommunity($communityId);
     $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? ORDER BY registered_at DESC', [$params['id']]);
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -2115,7 +2121,16 @@ $router->get('/admin/communities/:id', function ($params) {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$params['id']]);
     if (!$community) { http_response_code(404); return; }
-    $members = DB::fetchAll('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ?', [$params['id']]);
+    // Bewusst ohne DB::setCommunity/RLS-Abhängigkeit: der Platform-Admin muss die Mitglieder
+    // JEDER EEG hier sehen können, nicht nur die seiner aktuell aktiven Rolle.
+    $members = DB::fetchAll(
+        'SELECT m.id, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email, m.status,
+                m.user_id, u.email AS login_email
+         FROM members m LEFT JOIN users u ON u.id = m.user_id
+         WHERE m.community_id = ?
+         ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name',
+        [$params['id']]
+    );
     require ROOT . '/src/views/pages/admin_community.php';
 });
 

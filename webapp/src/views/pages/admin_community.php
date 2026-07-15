@@ -44,4 +44,44 @@
   <button type="submit" class="btn btn-primary">Speichern</button>
 </form>
 
+<div class="card" style="margin-top:1.5rem">
+  <h3 style="margin-bottom:1rem">Mitglieder dieser EEG (<?= count($members) ?>)</h3>
+  <?php if (empty($members)): ?>
+    <p style="color:#6b7280;font-size:.875rem">Noch keine Mitglieder.</p>
+  <?php else: ?>
+    <table style="font-size:.85rem">
+      <thead>
+        <tr><th>KdNr</th><th>Name</th><th>E-Mail</th><th>Status</th><th>Login</th><th>Aktionen</th></tr>
+      </thead>
+      <tbody>
+      <?php foreach ($members as $m): ?>
+        <tr>
+          <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
+          <td><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></td>
+          <td><?= htmlspecialchars($m['email']) ?></td>
+          <td>
+            <?php $sb = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
+            <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= htmlspecialchars($m['status']) ?></span>
+          </td>
+          <td>
+            <?php if ($m['user_id']): ?>
+              <code style="font-size:.78rem"><?= htmlspecialchars($m['login_email']) ?></code>
+            <?php else: ?>
+              <span style="color:#9ca3af">kein Login</span>
+            <?php endif; ?>
+          </td>
+          <td style="white-space:nowrap">
+            <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Mitgliedskonto</a>
+            <?php if ($m['user_id']): ?>
+              &nbsp;·&nbsp;
+              <a href="/admin/users/<?= $m['user_id'] ?>" style="font-size:.8rem">Login verwalten/löschen</a>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
+</div>
+
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

@@ -13,9 +13,20 @@ class Auth
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_name('eeg_session');
+
+            // Cookie-Domain explizit auf .stromfueralle.at setzen, damit sich Hauptdomain und
+            // portal.stromfueralle.at (beide dieselbe App/DB) dieselbe Session teilen -- ohne
+            // das bleibt eine auf einer Domain begonnene Session der jeweils anderen Domain
+            // unbekannt (eigener Cookie pro exaktem Host ist PHPs Default), was nach einem
+            // Domain-Wechsel wie ein ungewolltes Ausloggen wirkt. Für lokale Tests/andere
+            // Domains (Host ohne "stromfueralle.at") bleibt der Default (nur exakter Host).
+            $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
+            $cookieDomain = str_ends_with($host, 'stromfueralle.at') ? '.stromfueralle.at' : '';
+
             session_set_cookie_params([
                 'lifetime' => 0,
                 'path'     => '/',
+                'domain'   => $cookieDomain,
                 'secure'   => isset($_SERVER['HTTPS']),
                 'httponly' => true,
                 'samesite' => 'Lax',
@@ -62,8 +73,19 @@ class Auth
 
     public static function logout(): void
     {
+        // Cookie mit denselben Parametern löschen, mit denen er gesetzt wurde (inkl. Domain) --
+        // sonst bleibt bei geteilter .stromfueralle.at-Domain ein Cookie auf eine bereits
+        // zerstörte Session-ID zurück, den der Browser nie wieder loswird.
+        $params = session_get_cookie_params();
         session_destroy();
-        setcookie('eeg_session', '', time() - 3600, '/');
+        setcookie('eeg_session', '', [
+            'expires'  => time() - 3600,
+            'path'     => $params['path'],
+            'domain'   => $params['domain'],
+            'secure'   => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'],
+        ]);
     }
 
     public static function check(): bool

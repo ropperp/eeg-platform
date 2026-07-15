@@ -53,6 +53,11 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       <option value="einspeisung">Einspeisung</option>
       <option value="beides">Bezug + Einspeisung</option>
     </select>
+    <select id="filter-herkunft" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+      <option value="">Online + Offline</option>
+      <option value="online">Nur Online-Beitritt</option>
+      <option value="offline">Nur Offline angelegt</option>
+    </select>
     <span id="result-count" style="font-size:.8rem;color:#6b7280"></span>
   </div>
 </div>
@@ -69,6 +74,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         <th class="sortable" style="text-align:center" data-sort-key="bezug" data-sort-type="str" onclick="sortMembers(this)">Bezugsvertr. <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:center" data-sort-key="einsp" data-sort-type="str" onclick="sortMembers(this)">Einspeisevertr. <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" onclick="sortMembers(this)">Offener Betrag <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="herkunft" data-sort-type="str" onclick="sortMembers(this)">Herkunft <span class="sort-arrow"></span></th>
         <th>Aktionen</th>
       </tr>
     </thead>
@@ -80,12 +86,15 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       $hatBezug = in_array($m['hat_bezug'] ?? false, [true, 't', '1', 1], true);
       $hatEinsp = in_array($m['hat_einspeisung'] ?? false, [true, 't', '1', 1], true);
       $art = $hatBezug && $hatEinsp ? 'beides' : ($hatEinsp ? 'einspeisung' : ($hatBezug ? 'bezug' : ''));
+      $viaOnline = in_array($m['via_online'] ?? false, [true, 't', '1', 1], true);
+      $herkunft = $viaOnline ? 'online' : 'offline';
     ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
           data-status="<?= htmlspecialchars($m['status']) ?>"
           data-contract="<?= $allSigned ?>"
           data-art="<?= $art ?>"
+          data-herkunft="<?= $herkunft ?>"
           data-sort-kdnr="<?= (int)($m['kundennummer'] ?? 0) ?>"
           data-sort-name="<?= htmlspecialchars(strtolower(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name'])))) ?>"
           data-sort-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
@@ -93,15 +102,11 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
           data-sort-status="<?= htmlspecialchars($m['status']) ?>"
           data-sort-bezug="<?= htmlspecialchars($bezug) ?>"
           data-sort-einsp="<?= htmlspecialchars($einsp) ?>"
-          data-sort-offen="<?= (float)($m['open_amount'] ?? 0) ?>">
+          data-sort-offen="<?= (float)($m['open_amount'] ?? 0) ?>"
+          data-sort-herkunft="<?= $herkunft ?>">
         <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
-          <?php if (in_array($m['via_online'] ?? false, [true, 't', '1', 1], true)): ?>
-            <span class="badge badge-blue" style="font-size:.68rem" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
-          <?php else: ?>
-            <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail">✉️ Offline</span>
-          <?php endif; ?>
           <?php if ($m['company_name']): ?>
             <div style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
           <?php endif; ?>
@@ -126,6 +131,13 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
             <span style="color:#16a34a">—</span>
           <?php endif; ?>
         </td>
+        <td style="text-align:center">
+          <?php if ($viaOnline): ?>
+            <span class="badge badge-blue" style="font-size:.68rem" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
+          <?php else: ?>
+            <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail">✉️ Offline</span>
+          <?php endif; ?>
+        </td>
         <td style="white-space:nowrap">
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
           &nbsp;·&nbsp;
@@ -134,7 +146,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="9" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="10" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
@@ -146,6 +158,7 @@ function filterMembers() {
   const s = document.getElementById('filter-status').value;
   const c = document.getElementById('filter-contract').value;
   const a = document.getElementById('filter-art').value;
+  const h = document.getElementById('filter-herkunft').value;
   const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
   let visible = 0;
   rows.forEach(row => {
@@ -153,7 +166,8 @@ function filterMembers() {
     const sm = !s || row.dataset.status === s;
     const cm = !c || row.dataset.contract === c;
     const am = !a || row.dataset.art === a;
-    const show = nm && sm && cm && am;
+    const hm = !h || row.dataset.herkunft === h;
+    const show = nm && sm && cm && am && hm;
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });
