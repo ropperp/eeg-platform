@@ -84,4 +84,18 @@
   <?php endif; ?>
 </div>
 
+<div class="card" style="margin-top:1.5rem;border:1px solid #fecaca">
+  <h3 style="margin-bottom:1rem;color:#b91c1c">Gefahrenzone</h3>
+  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+    Löscht die EEG endgültig inkl. aller Mitglieder, Zählpunkte, Verträge, Rechnungen und
+    Rollenzuweisungen. Login-Accounts von Mitgliedern/Managern bleiben bestehen, verlieren
+    aber ihre Rolle(n) in dieser EEG. Nicht rückgängig zu machen -- alternativ oben einfach
+    "EEG aktiv" deaktivieren, um die Daten zu behalten.
+  </p>
+  <form method="post" action="/admin/communities/<?= $community['id'] ?>/delete"
+        onsubmit="return confirmDangerDelete('EEG <?= htmlspecialchars(addslashes($community['name'])) ?> inkl. aller <?= count($members) ?> Mitglieder, Verträge und Rechnungen')">
+    <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c">🗑️ EEG endgültig löschen</button>
+  </form>
+</div>
+
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

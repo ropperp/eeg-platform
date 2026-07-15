@@ -1124,7 +1124,7 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
-    logAudit($communityId, 'member.update', 'member', $params['id'],
+    logAudit($member['community_id'], 'member.update', 'member', $params['id'],
         'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' bearbeitet');
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
@@ -2292,6 +2292,25 @@ $router->post('/admin/communities/:id', function ($params) {
         ]
     );
     logAudit($params['id'], 'community.update', 'community', $params['id'], 'EEG "' . trim($_POST['name'] ?? '') . '" bearbeitet');
+    header('Location: /admin?success=1');
+    exit;
+});
+
+$router->post('/admin/communities/:id/delete', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $community = DB::fetchOne('SELECT id, name FROM communities WHERE id = ?', [$params['id']]);
+    if (!$community) { http_response_code(404); return; }
+
+    // Kaskadiert über ON DELETE CASCADE auf ALLE community-gebundenen Daten (Mitglieder,
+    // Zählpunkte, Verträge, Rechnungen, Rollenzuweisungen, ...) -- siehe init.sql/migrate_*.sql,
+    // dort hat jede Referenz auf communities(id) ON DELETE CASCADE. Login-Accounts (users)
+    // bleiben bestehen, verlieren nur ihre Rolle(n) in dieser EEG.
+    // Audit-Log bewusst mit community_id=NULL, sonst würde der Eintrag durch dieselbe Kaskade
+    // sofort wieder mitgelöscht.
+    DB::execute('DELETE FROM communities WHERE id = ?', [$params['id']]);
+    logAudit(null, 'community.delete', 'community', $params['id'],
+        'EEG "' . $community['name'] . '" (ID ' . $community['id'] . ') endgültig gelöscht inkl. aller Mitglieder, Verträge, Zählpunkte und Rechnungen');
     header('Location: /admin?success=1');
     exit;
 });
