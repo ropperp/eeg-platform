@@ -248,8 +248,30 @@ sudo certbot certonly --nginx \
 sudo cp /etc/nginx/sites-available/70_stromfueralle.conf \
         /etc/nginx/sites-available/70_stromfueralle.conf.bak-$(date +%s)
 sudo nano /etc/nginx/sites-available/70_stromfueralle.conf
-#   Neuer server{}-Block, server_name portal.stromfueralle.at; gleiches ssl_certificate/-_key
-#   wie beim Hauptblock (.../live/stromfueralle.at/...), proxy_pass weiterhin http://10.0.0.250;
+#   Am Dateiende die beiden folgenden server{}-Blöcke einfügen (gleiches Zertifikat wie
+#   der Hauptblock, .../live/stromfueralle.at/... bleibt unverändert):
+#
+#   server {
+#       listen 443 ssl;
+#       server_name portal.stromfueralle.at;
+#       ssl_certificate     /etc/letsencrypt/live/stromfueralle.at/fullchain.pem;
+#       ssl_certificate_key /etc/letsencrypt/live/stromfueralle.at/privkey.pem;
+#       include             /etc/letsencrypt/options-ssl-nginx.conf;
+#       ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+#       client_max_body_size 20M;
+#       location / {
+#           proxy_pass         http://10.0.0.250;
+#           proxy_set_header   Host              $host;
+#           proxy_set_header   X-Real-IP         $remote_addr;
+#           proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+#           proxy_set_header   X-Forwarded-Proto https;
+#       }
+#   }
+#   server {
+#       listen 80;
+#       server_name portal.stromfueralle.at;
+#       return 301 https://$host$request_uri;
+#   }
 
 # 3. Testen, laden, verifizieren
 sudo nginx -t && sudo systemctl reload nginx
@@ -258,6 +280,12 @@ curl -vI https://portal.stromfueralle.at/portal/login 2>&1 | grep -i subject
 Vorher zeigt der Anmelden-Button testweise nur relativ auf `/portal/login`, solange man sich
 bereits auf `portal.stromfueralle.at` befindet (schützt vor einer Redirect-Schleife, falls die
 Subdomain noch nicht erreichbar ist) — sobald DNS + SSL stehen, greift der absolute Link.
+
+> Wichtig unabhängig von nginx: seit dem Session-Cookie-Fix (siehe "Update"-Abschnitt,
+> `.stromfueralle.at`-weite Cookie-Domain) muss auch der Webapp-Container mit dem aktuellen
+> Code laufen (`git pull && docker compose up -d --build`), sonst wird eine auf einer Domain
+> begonnene Session auf der anderen weiterhin nicht erkannt (wirkt wie "sofort ausgeloggt"
+> bzw. Admin-Bereich bleibt scheinbar auf der Hauptdomain hängen).
 
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
