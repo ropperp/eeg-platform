@@ -78,15 +78,26 @@ function validateZaehlpunkt(string $zp): bool
 }
 
 /**
- * Link für den "Anmelden"-Button auf den öffentlichen Marketing-Seiten. Zeigt auf die
- * portal-Subdomain, außer man befindet sich (z.B. während lokaler Entwicklung oder solange
- * die Subdomain serverseitig noch nicht per DNS/SSL eingerichtet ist) bereits dort -- dann
- * bleibt der Link relativ, um keinen unnötigen Domain-Wechsel/Redirect-Loop zu erzeugen.
+ * Baut einen Link zu einem /portal- oder /admin-Pfad, der immer auf der portal-Subdomain
+ * landet -- absolut, außer man befindet sich (z.B. lokale Entwicklung oder solange DNS/SSL für
+ * die Subdomain noch nicht steht) bereits dort, dann bleibt der Link relativ. Verhindert einen
+ * unnötigen Redirect-Hop über die Domain-Trennung (index.php schickt Backoffice-Pfade auf der
+ * Hauptdomain sonst ohnehin automatisch auf die portal-Subdomain um).
  */
-function portalLoginUrl(): string
+function portalUrl(string $path): string
 {
-    $host = $_SERVER['HTTP_HOST'] ?? '';
-    return $host === 'portal.stromfueralle.at' ? '/portal/login' : 'https://portal.stromfueralle.at/portal/login';
+    $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
+    return $host === 'portal.stromfueralle.at' ? $path : 'https://portal.stromfueralle.at' . $path;
+}
+
+/**
+ * Baut einen Link zu einer öffentlichen Marketing-Seite, der immer auf der Hauptdomain landet --
+ * Gegenstück zu portalUrl() für Links aus dem Backoffice heraus (Logo, "Startseite"-Links).
+ */
+function marketingUrl(string $path): string
+{
+    $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
+    return $host === 'stromfueralle.at' || $host === 'www.stromfueralle.at' ? $path : 'https://stromfueralle.at' . $path;
 }
 
 /**
@@ -97,6 +108,42 @@ function portalLoginUrl(): string
 function passwordResetLink(string $token): string
 {
     return 'https://portal.stromfueralle.at/portal/reset-password?token=' . urlencode($token);
+}
+
+/**
+ * Lädt eine System-Mail-Vorlage (Betreff + HTML-Body) aus platform_mail_templates und ersetzt
+ * {{platzhalter}} durch $vars. Fällt auf den mitgegebenen Standardtext zurück, falls im
+ * Platform-Admin noch keine eigene Vorlage gespeichert wurde (z.B. direkt nach der Migration).
+ */
+function renderMailTemplate(string $key, array $vars, string $fallbackSubject, string $fallbackBody): array
+{
+    $tpl = DB::fetchOne('SELECT subject, body_html FROM platform_mail_templates WHERE key = ?', [$key]);
+    $subject = $tpl['subject'] ?? $fallbackSubject;
+    $body    = $tpl['body_html'] ?? $fallbackBody;
+    foreach ($vars as $name => $value) {
+        $subject = str_replace('{{' . $name . '}}', $value, $subject);
+        $body    = str_replace('{{' . $name . '}}', $value, $body);
+    }
+    return ['subject' => $subject, 'body' => $body];
+}
+
+/**
+ * Lädt ein Mitglied anhand der ID community-übergreifend und prüft den Zugriff: Platform-Admins
+ * dürfen jedes Mitglied verwalten, Manager nur die der eigenen aktiven Rolle (IDOR-Schutz).
+ * Setzt bei Erfolg gleich die RLS-Community auf die des MITGLIEDS (nicht die der gerade aktiven
+ * Rolle) -- wichtig, damit ein Platform-Admin ein Mitglied einer anderen EEG als der eigenen
+ * aktiven bearbeiten kann, ohne vorher extra die Rolle wechseln zu müssen. Sendet bei fehlendem
+ * Zugriff direkt die passende HTTP-Antwort und gibt null zurück.
+ */
+function requireMemberAccess(string $memberId): ?array
+{
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$memberId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return null; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
+        http_response_code(403); echo 'Kein Zugriff'; return null;
+    }
+    DB::setCommunity($member['community_id']);
+    return $member;
 }
 
 /**
@@ -309,14 +356,19 @@ function createMemberRecord(string $communityId, array $f): array
         $token = Auth::createResetToken($email, 86400);
         if ($token) {
             try {
-                Mailer::send(
-                    $email,
+                $link = htmlspecialchars(passwordResetLink($token));
+                $mail = renderMailTemplate('invite', [
+                    'vorname'     => htmlspecialchars(trim($f['first_name'])),
+                    'link'        => $link,
+                    'gueltigkeit' => '24 Stunden',
+                ],
                     'Willkommen bei Strom für alle – Zugang einrichten',
-                    '<p>Hallo ' . htmlspecialchars(trim($f['first_name'])) . ',</p>'
+                    '<p>Hallo {{vorname}},</p>'
                     . '<p>Ihr Zugang zum Mitgliederportal wurde angelegt. Bitte vergeben Sie über folgenden Link '
-                    . 'innerhalb der nächsten 24 Stunden Ihr persönliches Passwort:</p>'
-                    . '<p><a href="' . htmlspecialchars(passwordResetLink($token)) . '">' . htmlspecialchars(passwordResetLink($token)) . '</a></p>'
+                    . 'innerhalb der nächsten {{gueltigkeit}} Ihr persönliches Passwort:</p>'
+                    . '<p><a href="{{link}}">{{link}}</a></p>'
                 );
+                Mailer::send($email, $mail['subject'], $mail['body']);
                 $inviteSent = true;
             } catch (\Throwable $e) {
                 $inviteError = $e->getMessage();
@@ -416,6 +468,23 @@ function logAudit(?string $communityId, string $aktion, ?string $entityTyp, ?str
     } catch (Throwable $e) {
         error_log('[audit_log] ' . $e->getMessage());
     }
+}
+
+// Domain-Trennung: stromfueralle.at (+ www) zeigt NUR die öffentliche Marketing-Seite,
+// portal.stromfueralle.at NUR Login/Backoffice (/portal/*, /admin/*). Traefik routet beide
+// Hosts auf denselben Container/Code -- die eigentliche Trennung passiert hier per Redirect.
+// Andere Hosts (live.stromfueralle.at, lokale Tests über IP/localhost, ...) bleiben unberührt.
+$requestHost = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$isBackofficePath = str_starts_with($requestPath, '/portal') || str_starts_with($requestPath, '/admin');
+
+if ($requestHost === 'portal.stromfueralle.at' && !$isBackofficePath) {
+    header('Location: https://stromfueralle.at' . $_SERVER['REQUEST_URI']);
+    exit;
+}
+if (in_array($requestHost, ['stromfueralle.at', 'www.stromfueralle.at'], true) && $isBackofficePath) {
+    header('Location: https://portal.stromfueralle.at' . $_SERVER['REQUEST_URI']);
+    exit;
 }
 
 $router = new Router();
@@ -702,14 +771,20 @@ $router->post('/portal/forgot-password', function () {
     $token = Auth::createResetToken($email);
     if ($token) {
         try {
-            Mailer::send(
-                $email,
+            $user = DB::fetchOne('SELECT first_name FROM users WHERE email = ?', [$email]);
+            $link = htmlspecialchars(passwordResetLink($token));
+            $mail = renderMailTemplate('password_reset', [
+                'vorname'     => htmlspecialchars($user['first_name'] ?? ''),
+                'link'        => $link,
+                'gueltigkeit' => 'Stunde',
+            ],
                 'Passwort zurücksetzen – Strom für alle',
-                '<p>Hallo,</p>'
-                . '<p>über folgenden Link können Sie innerhalb der nächsten Stunde ein neues Passwort vergeben:</p>'
-                . '<p><a href="' . htmlspecialchars(passwordResetLink($token)) . '">' . htmlspecialchars(passwordResetLink($token)) . '</a></p>'
+                '<p>Hallo {{vorname}},</p>'
+                . '<p>über folgenden Link können Sie innerhalb der nächsten {{gueltigkeit}} ein neues Passwort vergeben:</p>'
+                . '<p><a href="{{link}}">{{link}}</a></p>'
                 . '<p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>'
             );
+            Mailer::send($email, $mail['subject'], $mail['body']);
         } catch (\Throwable $e) {
             error_log('[forgot_password_mail] ' . $e->getMessage());
         }
@@ -890,10 +965,9 @@ $router->get('/portal/files', function () {
 
 $router->get('/portal/files/:id', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $communityId = $member['community_id'];
 
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -993,19 +1067,15 @@ $router->post('/portal/members', function () {
 
 $router->get('/portal/members/:id/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
     require ROOT . '/src/views/pages/member_form.php';
 });
 
 $router->post('/portal/members/:id/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
 
     $iban = trim($_POST['member_iban'] ?? '');
     if ($iban !== '' && !validateIban($iban)) {
@@ -1063,10 +1133,9 @@ $router->post('/portal/members/:id/edit', function ($params) {
 $router->post('/portal/members/:id/delete', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id, first_name, last_name, kundennummer FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $communityId = $member['community_id'];
 
     // Löscht kaskadierend Verträge, Dateien, Zählpunkte, Rechnungen (siehe migrate_20260715.sql).
     // KdNr wird dadurch wieder frei und beim nächsten neuen Mitglied automatisch wiederverwendet.
@@ -1085,10 +1154,10 @@ $router->post('/portal/members/:id/delete', function ($params) {
 // sie z.B. ebenfalls Mitglied ist.
 $router->post('/portal/members/:id/delete-login', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id, user_id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member || !$member['user_id']) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    if (!$member['user_id']) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $communityId = $member['community_id'];
     $userId = $member['user_id'];
 
     DB::execute('UPDATE members SET user_id = NULL WHERE id = ?', [$params['id']]);
@@ -1105,29 +1174,29 @@ $router->post('/portal/members/:id/delete-login', function ($params) {
 
 $router->post('/portal/members/:id/reset-password', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne(
-        'SELECT m.first_name, u.email AS login_email
-         FROM members m JOIN users u ON u.id = m.user_id
-         WHERE m.id = ? AND m.community_id = ?',
-        [$params['id'], $communityId]
-    );
-    if (!$member) { http_response_code(404); echo 'Kein Login-Konto vorhanden.'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    if (!$member['user_id']) { http_response_code(404); echo 'Kein Login-Konto vorhanden.'; return; }
+    $loginEmail = DB::fetchOne('SELECT email FROM users WHERE id = ?', [$member['user_id']])['email'];
 
     // 10 Minuten statt der 1-Stunden-Standardgültigkeit der Selbstbedienungs-"Passwort
     // vergessen"-Funktion, da dieser Link vom Manager direkt im Beisein/Auftrag des
     // Mitglieds ausgelöst wird und entsprechend kurzlebig sein soll.
-    $token = Auth::createResetToken($member['login_email'], 600);
+    $token = Auth::createResetToken($loginEmail, 600);
     try {
-        Mailer::send(
-            $member['login_email'],
+        $link = htmlspecialchars(passwordResetLink($token));
+        $mail = renderMailTemplate('password_reset', [
+            'vorname'     => htmlspecialchars($member['first_name']),
+            'link'        => $link,
+            'gueltigkeit' => '10 Minuten',
+        ],
             'Passwort zurücksetzen – Strom für alle',
-            '<p>Hallo ' . htmlspecialchars($member['first_name']) . ',</p>'
-            . '<p>über folgenden Link können Sie innerhalb der nächsten 10 Minuten ein neues Passwort vergeben:</p>'
-            . '<p><a href="' . htmlspecialchars(passwordResetLink($token)) . '">' . htmlspecialchars(passwordResetLink($token)) . '</a></p>'
+            '<p>Hallo {{vorname}},</p>'
+            . '<p>über folgenden Link können Sie innerhalb der nächsten {{gueltigkeit}} ein neues Passwort vergeben:</p>'
+            . '<p><a href="{{link}}">{{link}}</a></p>'
             . '<p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>'
         );
+        Mailer::send($loginEmail, $mail['subject'], $mail['body']);
         header('Location: /portal/members/' . $params['id'] . '?success=reset_sent');
     } catch (\Throwable $e) {
         header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
@@ -1155,10 +1224,9 @@ $router->get('/portal/members/:id', function ($params) {
 
 $router->post('/portal/members/:id/files', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $communityId = $member['community_id'];
 
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         header('Location: /portal/members/' . $params['id'] . '?error=upload');
@@ -1214,11 +1282,11 @@ $router->post('/portal/members/:id/files', function ($params) {
 
 $router->get('/portal/members/:id/files/:fileid/download', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
     $file = DB::fetchOne(
         'SELECT * FROM member_files WHERE id = ? AND member_id = ? AND community_id = ?',
-        [$params['fileid'], $params['id'], $communityId]
+        [$params['fileid'], $params['id'], $member['community_id']]
     );
     if (!$file || !is_file($file['pfad'])) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
 
@@ -1239,7 +1307,7 @@ $router->get('/portal/members/:id/avatar', function ($params) {
     $allowed = $member['user_id'] !== null && $member['user_id'] === Auth::userId();
     if (!$allowed) {
         DB::setCommunity($member['community_id']);
-        $allowed = Auth::isManager() && Auth::activeCommunityId() === $member['community_id'];
+        $allowed = Auth::isManager() && (Auth::isPlatformAdmin() || Auth::activeCommunityId() === $member['community_id']);
     }
     if (!$allowed) { http_response_code(403); return; }
     if (!is_file($member['photo_path'])) { http_response_code(404); return; }
@@ -1252,10 +1320,8 @@ $router->get('/portal/members/:id/avatar', function ($params) {
 
 $router->post('/portal/members/:id/photo', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
     if (!isset($_FILES['photo'])) { header('Location: /portal/members/' . $params['id'] . '?error=upload'); exit; }
 
     $err = saveMemberPhoto($params['id'], $_FILES['photo']);
@@ -1273,10 +1339,9 @@ $router->post('/portal/members/:id/photo', function ($params) {
 
 $router->post('/portal/members/:id/metering-points', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$member) { http_response_code(404); return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $communityId = $member['community_id'];
 
     $znr = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
     if (!$znr) { header('Location: /portal/members/' . $params['id'] . '?error=znr'); exit; }
@@ -2154,6 +2219,7 @@ $router->post('/admin/users/:id/roles', function ($params) {
         'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
         [$communityId, $params['id'], $role]
     );
+    if ($params['id'] === Auth::userId()) { Auth::refreshRoles(); }
     header('Location: /admin/users/' . $params['id'] . '?success=1');
     exit;
 });
@@ -2161,7 +2227,22 @@ $router->post('/admin/users/:id/roles', function ($params) {
 $router->post('/admin/users/:id/roles/delete', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+
+    // Es muss immer mindestens eine platform_admin-Rolle übrig bleiben, sonst kann sich
+    // niemand mehr ins Admin-Backoffice einloggen.
+    $isLastPlatformAdminRole = (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM user_roles WHERE id = ? AND role = 'platform_admin'
+         AND (SELECT COUNT(*) FROM user_roles WHERE role = 'platform_admin') = 1",
+        [$_POST['role_id']]
+    );
+    if ($isLastPlatformAdminRole) {
+        http_response_code(400);
+        echo 'Dies ist die letzte verbleibende Plattform-Admin-Rolle und kann nicht entfernt werden.';
+        return;
+    }
+
     DB::execute('DELETE FROM user_roles WHERE id = ?', [$_POST['role_id']]);
+    if ($params['id'] === Auth::userId()) { Auth::refreshRoles(); }
     header('Location: /admin/users/' . $params['id'] . '?success=1');
     exit;
 });
@@ -2172,6 +2253,20 @@ $router->post('/admin/users/:id/delete', function ($params) {
     if ($params['id'] === Auth::userId()) { http_response_code(400); echo 'Der eigene Account kann nicht gelöscht werden.'; return; }
     $user = DB::fetchOne('SELECT id FROM users WHERE id = ?', [$params['id']]);
     if (!$user) { http_response_code(404); return; }
+
+    // Es muss immer mindestens ein platform_admin übrig bleiben, sonst kann sich niemand mehr
+    // ins Admin-Backoffice einloggen -- keine hartkodierte E-Mail, sondern generisch "letzter
+    // verbleibender platform_admin darf nicht gelöscht werden".
+    $isLastPlatformAdmin = (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM user_roles WHERE user_id = ? AND role = 'platform_admin'
+         AND (SELECT COUNT(*) FROM user_roles WHERE role = 'platform_admin') = 1",
+        [$params['id']]
+    );
+    if ($isLastPlatformAdmin) {
+        http_response_code(400);
+        echo 'Dieser Account ist der letzte verbleibende Plattform-Admin und kann nicht gelöscht werden.';
+        return;
+    }
 
     // Löscht kaskadierend Rollenzuweisungen (user_roles); verknüpfte Mitglieder bleiben erhalten,
     // verlieren nur die Login-Verknüpfung (siehe migrate_20260715.sql).
@@ -2230,7 +2325,22 @@ $router->get('/admin/mail-settings', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
     require ROOT . '/src/views/pages/admin_mail_settings.php';
+});
+
+$router->post('/admin/mail-templates', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $key = $_POST['key'] ?? '';
+    if (!in_array($key, ['password_reset', 'invite'], true)) { http_response_code(400); return; }
+    DB::execute(
+        'UPDATE platform_mail_templates SET subject = ?, body_html = ?, updated_at = now() WHERE key = ?',
+        [trim($_POST['subject'] ?? ''), $_POST['body_html'] ?? '', $key]
+    );
+    logAudit(null, 'mail_template.update', 'platform_mail_templates', $key, 'E-Mail-Vorlage "' . $key . '" aktualisiert');
+    header('Location: /admin/mail-settings?success=1');
+    exit;
 });
 
 $router->post('/admin/mail-settings', function () {
@@ -2265,6 +2375,7 @@ $router->post('/admin/mail-settings/test', function () {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $to = trim($_POST['test_to'] ?? '');
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
         $testError = 'Bitte eine gültige E-Mail-Adresse angeben.';
         require ROOT . '/src/views/pages/admin_mail_settings.php';

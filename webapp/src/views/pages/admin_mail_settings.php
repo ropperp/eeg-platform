@@ -45,6 +45,30 @@
   </form>
 </div>
 
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">E-Mail-Vorlagen</h3>
+  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+    Verfügbare Platzhalter: <code>{{vorname}}</code>, <code>{{link}}</code>, <code>{{gueltigkeit}}</code>
+    (werden beim Versand automatisch ersetzt). Der Body darf einfaches HTML enthalten (z. B. <code>&lt;p&gt;</code>).
+  </p>
+  <?php $templateLabel = ['password_reset' => 'Passwort zurücksetzen', 'invite' => 'Erstlogin-Einladung']; ?>
+  <?php foreach ($mailTemplates as $t): ?>
+    <form method="post" action="/admin/mail-templates" style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #e5e7eb">
+      <input type="hidden" name="key" value="<?= htmlspecialchars($t['key']) ?>">
+      <h4 style="margin-bottom:.5rem;font-size:.95rem"><?= htmlspecialchars($templateLabel[$t['key']] ?? $t['key']) ?></h4>
+      <div class="form-group">
+        <label>Betreff</label>
+        <input type="text" name="subject" value="<?= htmlspecialchars($t['subject']) ?>" required>
+      </div>
+      <div class="form-group">
+        <label>Text (HTML)</label>
+        <textarea name="body_html" rows="5" style="width:100%;font-family:monospace;font-size:.85rem" required><?= htmlspecialchars($t['body_html']) ?></textarea>
+      </div>
+      <button type="submit" class="btn" style="background:#f3f4f6;color:#374151">Vorlage speichern</button>
+    </form>
+  <?php endforeach; ?>
+</div>
+
 <div class="card">
   <h3 style="margin-bottom:1rem">Test-E-Mail senden</h3>
   <form method="post" action="/admin/mail-settings/test" style="display:flex;gap:.5rem;align-items:flex-end">

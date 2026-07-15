@@ -11,21 +11,21 @@
 
 <header class="navbar">
   <div class="container inner">
-    <a href="/" class="logo">⚡ Strom für alle</a>
+    <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">⚡ Strom für alle</a>
     <nav>
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
               style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
-      <a href="/live">Live-Anzeige</a>
-      <a href="/rc108175/kontakt">Kontakt</a>
+      <a href="<?= htmlspecialchars(marketingUrl('/live')) ?>">Live-Anzeige</a>
+      <a href="<?= htmlspecialchars(marketingUrl('/rc108175/kontakt')) ?>">Kontakt</a>
       <?php if (Auth::check()): ?>
-        <a href="/portal/dashboard">Portal</a>
+        <a href="<?= htmlspecialchars(portalUrl('/portal/dashboard')) ?>">Portal</a>
         <?php if (Auth::isPlatformAdmin()): ?>
-          <a href="/admin">Admin</a>
+          <a href="<?= htmlspecialchars(portalUrl('/admin')) ?>">Admin</a>
         <?php endif; ?>
-        <a href="/portal/logout">Abmelden (<?= htmlspecialchars(Auth::userName()) ?>)</a>
+        <a href="<?= htmlspecialchars(portalUrl('/portal/logout')) ?>">Abmelden (<?= htmlspecialchars(Auth::userName()) ?>)</a>
       <?php else: ?>
-        <a href="/beitreten" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
-        <a href="<?= htmlspecialchars(portalLoginUrl()) ?>" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
+        <a href="<?= htmlspecialchars(marketingUrl('/beitreten')) ?>" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
+        <a href="<?= htmlspecialchars(portalUrl('/portal/login')) ?>" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
       <?php endif; ?>
     </nav>
   </div>

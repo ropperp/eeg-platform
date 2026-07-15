@@ -137,6 +137,38 @@ class Auth
     public static function activeCommunityMqttId(): ?string { return $_SESSION['active_role']['community_mqtt_id'] ?? null; }
     public static function activeRole(): ?array { return $_SESSION['active_role'] ?? null; }
 
+    /**
+     * Lädt die Rollen des eingeloggten Users aus der DB neu in die Session. Nötig, wenn im
+     * Admin-Bereich (ggf. an der eigenen laufenden Session) Rollen hinzugefügt/entfernt werden
+     * -- sonst zeigt das Rollen-Dropdown weiterhin den Stand vom Login-Zeitpunkt, selbst wenn
+     * eine Rolle längst gelöscht wurde. Springt auf eine verbleibende Rolle um, falls die
+     * gerade aktive dabei weggefallen ist.
+     */
+    public static function refreshRoles(): void
+    {
+        if (!self::check()) { return; }
+        $roles = DB::fetchAll(
+            'SELECT ur.community_id, ur.role,
+                    c.name AS community_name,
+                    c.slug AS community_slug,
+                    COALESCE(LOWER(c.marktpartner_id), c.slug) AS community_mqtt_id
+             FROM user_roles ur
+             LEFT JOIN communities c ON c.id = ur.community_id
+             WHERE ur.user_id = ?',
+            [self::userId()]
+        );
+        $_SESSION['roles'] = $roles;
+
+        $active = $_SESSION['active_role'] ?? null;
+        $stillValid = $active && !empty(array_filter(
+            $roles,
+            fn($r) => $r['community_id'] === $active['community_id'] && $r['role'] === $active['role']
+        ));
+        if (!$stillValid) {
+            $_SESSION['active_role'] = self::pickDefaultRole($roles);
+        }
+    }
+
     /** Wechselt aktive Community/Rolle */
     public static function switchRole(string $communityId, string $role): bool
     {
