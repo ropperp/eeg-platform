@@ -51,6 +51,19 @@ CREATE TABLE user_roles (
     UNIQUE (community_id, user_id, role)
 );
 
+-- Singleton (id=1): Zugangsdaten für den E-Mail-Versand über Microsoft Graph
+-- (Tenant-ID/Client-ID/Client-Secret/Absenderadresse), nur über Platform-Admin gepflegt.
+-- Werte dürfen NIE im Repo landen (siehe CLAUDE.md).
+CREATE TABLE platform_mail_config (
+    id             INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    tenant_id      TEXT,
+    client_id      TEXT,
+    client_secret  TEXT,
+    sender_address TEXT,
+    updated_at     TIMESTAMPTZ DEFAULT now()
+);
+INSERT INTO platform_mail_config (id) VALUES (1);
+
 CREATE TABLE members (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     community_id    UUID NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
@@ -80,6 +93,7 @@ CREATE TABLE members (
     contract_bezug_generated_at     TIMESTAMPTZ,
     contract_einspeisung_status     TEXT NOT NULL DEFAULT 'none' CHECK (contract_einspeisung_status IN ('none','created','signed')),
     contract_einspeisung_generated_at TIMESTAMPTZ,
+    photo_path      TEXT,                          -- eigenes Profilbild; NULL = Default-Avatar nach Anrede
     created_at      TIMESTAMPTZ DEFAULT now()
 );
 

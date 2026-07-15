@@ -4,11 +4,46 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'Router', 'Billing'] as $class) {
+foreach (['DB', 'Auth', 'Router', 'Billing', 'Mailer'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 
 Auth::start();
+
+/**
+ * Sicherheitsnetz gegen rohe 500er ohne jede Auskunft: bisher fing z.B. der Datei-Upload
+ * nur PDOException gezielt ab -- ein TypeError/Error o.ä. (etwa durch eine unerwartete
+ * Alt-Spalte oder einen Tippfehler) lief unkontrolliert durch und endete als nichtssagender
+ * nginx-Standard-500er. Jetzt wird jeder unbehandelte Fehler serverseitig geloggt (docker
+ * compose logs webapp) und angemeldeten Nutzern wenigstens die Fehlermeldung angezeigt,
+ * damit der Fehler überhaupt reproduzier-/meldbar wird.
+ */
+function renderFatalErrorPage(string $message): void
+{
+    if (headers_sent()) { return; }
+    http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><meta charset="utf-8"><title>Fehler</title>';
+    echo '<div style="font-family:sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem">';
+    echo '<h2>Es ist ein unerwarteter Fehler aufgetreten.</h2>';
+    if (Auth::check()) {
+        echo '<p style="color:#6b7280;font-size:.9rem">Technische Details: <code>' . htmlspecialchars($message) . '</code></p>';
+    }
+    echo '<p><a href="/">Zur Startseite</a></p></div>';
+}
+
+set_exception_handler(function (\Throwable $e) {
+    error_log('[unhandled] ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    renderFatalErrorPage($e->getMessage());
+});
+
+register_shutdown_function(function () {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        error_log('[fatal] ' . $err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
+        renderFatalErrorPage($err['message']);
+    }
+});
 
 /**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
@@ -40,6 +75,76 @@ function validateIban(string $iban): bool
 function validateZaehlpunkt(string $zp): bool
 {
     return (bool)preg_match('/^AT[A-Z0-9]{31}$/', strtoupper(trim($zp)));
+}
+
+/**
+ * Link für den "Anmelden"-Button auf den öffentlichen Marketing-Seiten. Zeigt auf die
+ * portal-Subdomain, außer man befindet sich (z.B. während lokaler Entwicklung oder solange
+ * die Subdomain serverseitig noch nicht per DNS/SSL eingerichtet ist) bereits dort -- dann
+ * bleibt der Link relativ, um keinen unnötigen Domain-Wechsel/Redirect-Loop zu erzeugen.
+ */
+function portalLoginUrl(): string
+{
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    return $host === 'portal.stromfueralle.at' ? '/portal/login' : 'https://portal.stromfueralle.at/portal/login';
+}
+
+/**
+ * Baut den absoluten Link für Passwort-Reset-/Erstlogin-E-Mails. Fix auf die portal-Subdomain
+ * verdrahtet (nicht die aufrufende Host-Kopfzeile), weil E-Mails immer denselben Link liefern
+ * sollen, unabhängig davon von welcher Domain aus der Manager die Aktion auslöst.
+ */
+function passwordResetLink(string $token): string
+{
+    return 'https://portal.stromfueralle.at/portal/reset-password?token=' . urlencode($token);
+}
+
+/**
+ * Liefert die anzuzeigende Avatar-URL für ein Mitglied: das eigene hochgeladene Foto,
+ * falls vorhanden, sonst ein generischer Default-Avatar passend zur Anrede (statt eines
+ * einzigen unpassenden "Männchens" für alle).
+ */
+function memberAvatarUrl(?string $memberId, ?string $photoPath, ?string $salutation): string
+{
+    if ($memberId && $photoPath) {
+        return '/portal/members/' . $memberId . '/avatar';
+    }
+    return match ($salutation) {
+        'Frau'  => '/assets/avatars/female.svg',
+        'Herr'  => '/assets/avatars/male.svg',
+        default => '/assets/avatars/neutral.svg',
+    };
+}
+
+/**
+ * Speichert ein hochgeladenes Profilbild für ein Mitglied (manager-seitig oder
+ * Selbstbedienung im eigenen Profil). Gibt bei Erfolg null zurück, sonst einen kurzen
+ * Fehler-Code (ggf. mit ":Detail" für DB-Fehler) für die Location-Weiterleitung.
+ */
+function saveMemberPhoto(string $memberId, array $file): ?string
+{
+    if ($file['error'] !== UPLOAD_ERR_OK) { return 'upload'; }
+    $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExt, true)) { return 'phototype'; }
+
+    $dir = '/var/www/html/storage/uploads/avatars';
+    if (!is_dir($dir)) { mkdir($dir, 0750, true); }
+    $destPath = $dir . '/' . $memberId . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $destPath)) { return 'upload'; }
+
+    // Altes Bild mit anderer Dateiendung entfernen, falls beim Ändern ein anderer Typ hochgeladen wurde.
+    foreach ($allowedExt as $oldExt) {
+        if ($oldExt !== $ext) { @unlink($dir . '/' . $memberId . '.' . $oldExt); }
+    }
+
+    try {
+        DB::execute('UPDATE members SET photo_path = ? WHERE id = ?', [$destPath, $memberId]);
+    } catch (\Throwable $e) {
+        unlink($destPath);
+        return 'upload_db:' . $e->getMessage();
+    }
+    return null;
 }
 
 /**
@@ -178,13 +283,16 @@ function streamLatexPdf(string $template, array $vars, string $filename, array $
  * Beitrittserklärung (/portal/applications/:id/approve) verwendet, damit KdNr-
  * Vergabe (Lücken-Auffüllung) und Mandatsreferenz-Logik nicht doppelt gepflegt werden.
  * Erwartet in $f Schlüssel wie die Spalten der members-Tabelle (salutation, titel, …).
- * Gibt ['member_id', 'user_id', 'kundennummer', 'temp_password' (oder null)] zurück.
+ * Gibt ['member_id', 'user_id', 'kundennummer', 'temp_password' (oder null),
+ * 'invite_sent' (bool), 'invite_error' (string oder null)] zurück.
  */
 function createMemberRecord(string $communityId, array $f): array
 {
     $email = strtolower(trim($f['email']));
     $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
     $tempPw = null;
+    $inviteSent = false;
+    $inviteError = null;
     if (!$user) {
         $tempPw = bin2hex(random_bytes(8));
         $hash = password_hash($tempPw, PASSWORD_BCRYPT, ['cost' => 12]);
@@ -193,6 +301,28 @@ function createMemberRecord(string $communityId, array $f): array
             [$email, $hash, trim($f['first_name']), trim($f['last_name'])]
         );
         $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
+
+        // Erstlogin-Einladung statt (nur) Temp-Passwort am Bildschirm: 24h gültiger Reset-Link,
+        // der den ersten Login direkt mit einer selbst gewählten Passwortvergabe verbindet.
+        // Schlägt der Mailversand fehl (z.B. Graph noch nicht konfiguriert), bleibt das
+        // Temp-Passwort als Fallback nutzbar -- deshalb wird es trotzdem immer erzeugt.
+        $token = Auth::createResetToken($email, 86400);
+        if ($token) {
+            try {
+                Mailer::send(
+                    $email,
+                    'Willkommen bei Strom für alle – Zugang einrichten',
+                    '<p>Hallo ' . htmlspecialchars(trim($f['first_name'])) . ',</p>'
+                    . '<p>Ihr Zugang zum Mitgliederportal wurde angelegt. Bitte vergeben Sie über folgenden Link '
+                    . 'innerhalb der nächsten 24 Stunden Ihr persönliches Passwort:</p>'
+                    . '<p><a href="' . htmlspecialchars(passwordResetLink($token)) . '">' . htmlspecialchars(passwordResetLink($token)) . '</a></p>'
+                );
+                $inviteSent = true;
+            } catch (\Throwable $e) {
+                $inviteError = $e->getMessage();
+                error_log('[invite_mail] ' . $e->getMessage());
+            }
+        }
     }
 
     // KdNr: kleinste freie Nummer je Community ab 10001 vergeben (Lücken von gelöschten
@@ -265,6 +395,8 @@ function createMemberRecord(string $communityId, array $f): array
         'user_id'       => $user['id'],
         'kundennummer'  => $kundennummer,
         'temp_password' => $tempPw,
+        'invite_sent'   => $inviteSent,
+        'invite_error'  => $inviteError,
     ];
 }
 
@@ -566,11 +698,63 @@ $router->get('/portal/forgot-password', function () {
 });
 
 $router->post('/portal/forgot-password', function () {
-    $email = $_POST['email'] ?? '';
+    $email = strtolower(trim($_POST['email'] ?? ''));
     $token = Auth::createResetToken($email);
-    // TODO: Mail via SMTP
+    if ($token) {
+        try {
+            Mailer::send(
+                $email,
+                'Passwort zurücksetzen – Strom für alle',
+                '<p>Hallo,</p>'
+                . '<p>über folgenden Link können Sie innerhalb der nächsten Stunde ein neues Passwort vergeben:</p>'
+                . '<p><a href="' . htmlspecialchars(passwordResetLink($token)) . '">' . htmlspecialchars(passwordResetLink($token)) . '</a></p>'
+                . '<p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>'
+            );
+        } catch (\Throwable $e) {
+            error_log('[forgot_password_mail] ' . $e->getMessage());
+        }
+    }
+    // Bewusst immer dieselbe Meldung, unabhängig davon ob die E-Mail existiert oder der
+    // Mailversand geklappt hat -- sonst ließe sich über die Fehlermeldung erraten, welche
+    // Adressen als Login registriert sind.
     $success = 'Falls die E-Mail existiert, wurde ein Reset-Link versendet.';
     require ROOT . '/src/views/pages/forgot_password.php';
+});
+
+$router->get('/portal/reset-password', function () {
+    $token = $_GET['token'] ?? '';
+    $valid = $token !== '' && (bool)DB::fetchOne(
+        'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > now()',
+        [$token]
+    );
+    require ROOT . '/src/views/pages/reset_password.php';
+});
+
+$router->post('/portal/reset-password', function () {
+    $token = $_POST['token'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $password2 = $_POST['password2'] ?? '';
+    $valid = $token !== '' && (bool)DB::fetchOne(
+        'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > now()',
+        [$token]
+    );
+    if (!$valid) {
+        require ROOT . '/src/views/pages/reset_password.php';
+        return;
+    }
+    if (strlen($password) < 8) {
+        $error = 'Das Passwort muss mindestens 8 Zeichen haben.';
+        require ROOT . '/src/views/pages/reset_password.php';
+        return;
+    }
+    if ($password !== $password2) {
+        $error = 'Die beiden Passwörter stimmen nicht überein.';
+        require ROOT . '/src/views/pages/reset_password.php';
+        return;
+    }
+    Auth::resetPassword($token, $password);
+    header('Location: /portal/login?success=password_reset');
+    exit;
 });
 
 // ─── Portal: Dashboard ──────────────────────────────────
@@ -776,10 +960,19 @@ $router->post('/portal/members', function () {
     logAudit($communityId, 'member.create', 'member', $result['member_id'],
         'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' angelegt (KdNr ' . $result['kundennummer'] . ')');
 
-    // Temp-Passwort anzeigen falls neuer User
+    // Erstlogin-Einladung wurde per E-Mail verschickt -> kein Temp-Passwort am Bildschirm nötig.
+    if ($result['invite_sent']) {
+        header('Location: /portal/members?success=invite_sent');
+        exit;
+    }
+
+    // Fallback: Mailversand nicht konfiguriert/fehlgeschlagen (oder E-Mail existierte schon,
+    // dann gibt's ohnehin kein Temp-Passwort) -- Temp-Passwort anzeigen, falls ein neuer User
+    // angelegt wurde, damit der Manager die Zugangsdaten notfalls selbst weitergeben kann.
     if ($result['temp_password']) {
         $successTempPw = $result['temp_password'];
         $successEmail  = $email;
+        $successInviteError = $result['invite_error'];
         $members = DB::fetchAll(
             "SELECT m.*,
                     COUNT(DISTINCT mp.id) AS metering_point_count,
@@ -910,6 +1103,38 @@ $router->post('/portal/members/:id/delete-login', function ($params) {
     exit;
 });
 
+$router->post('/portal/members/:id/reset-password', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne(
+        'SELECT m.first_name, u.email AS login_email
+         FROM members m JOIN users u ON u.id = m.user_id
+         WHERE m.id = ? AND m.community_id = ?',
+        [$params['id'], $communityId]
+    );
+    if (!$member) { http_response_code(404); echo 'Kein Login-Konto vorhanden.'; return; }
+
+    // 10 Minuten statt der 1-Stunden-Standardgültigkeit der Selbstbedienungs-"Passwort
+    // vergessen"-Funktion, da dieser Link vom Manager direkt im Beisein/Auftrag des
+    // Mitglieds ausgelöst wird und entsprechend kurzlebig sein soll.
+    $token = Auth::createResetToken($member['login_email'], 600);
+    try {
+        Mailer::send(
+            $member['login_email'],
+            'Passwort zurücksetzen – Strom für alle',
+            '<p>Hallo ' . htmlspecialchars($member['first_name']) . ',</p>'
+            . '<p>über folgenden Link können Sie innerhalb der nächsten 10 Minuten ein neues Passwort vergeben:</p>'
+            . '<p><a href="' . htmlspecialchars(passwordResetLink($token)) . '">' . htmlspecialchars(passwordResetLink($token)) . '</a></p>'
+            . '<p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>'
+        );
+        header('Location: /portal/members/' . $params['id'] . '?success=reset_sent');
+    } catch (\Throwable $e) {
+        header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
 $router->get('/portal/members/:id', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
@@ -948,9 +1173,16 @@ $router->post('/portal/members/:id/files', function ($params) {
 
     // Absichtlich try/catch statt einfach durchbrechen zu lassen: bei einem Schema-Problem
     // (unbekannte Alt-Spalte, siehe migrate_20260719.sql) landet man sonst in einem rohen
-    // 500 ohne jeden Hinweis, was los ist. So bekommt der Manager wenigstens die konkrete
-    // DB-Fehlermeldung angezeigt und kann sie weitergeben, statt dass wir blind raten müssen.
+    // 500 ohne jeden Hinweis, was los ist. \Throwable statt nur \PDOException, weil auch ein
+    // TypeError/Error (z.B. hash_file() liefert false bei nicht lesbarer Datei) sonst am
+    // globalen Handler vorbei unkontrolliert durchläuft. So bekommt der Manager wenigstens
+    // die konkrete Fehlermeldung angezeigt und kann sie weitergeben, statt dass wir blind
+    // raten müssen.
     try {
+        $sha256 = hash_file('sha256', $destPath);
+        if ($sha256 === false) {
+            throw new \RuntimeException('Datei konnte nach dem Upload nicht gelesen werden (sha256 fehlgeschlagen).');
+        }
         DB::execute(
             'INSERT INTO member_files (community_id, member_id, name, pfad, mime, sha256, hochgeladen_von)
              VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -960,11 +1192,11 @@ $router->post('/portal/members/:id/files', function ($params) {
                 $displayName,
                 $destPath,
                 $_FILES['file']['type'] ?: null,
-                hash_file('sha256', $destPath),
+                $sha256,
                 Auth::userId(),
             ]
         );
-    } catch (\PDOException $e) {
+    } catch (\Throwable $e) {
         unlink($destPath);
         header('Location: /portal/members/' . $params['id'] . '?error=upload_db&detail=' . urlencode($e->getMessage()));
         exit;
@@ -988,6 +1220,48 @@ $router->get('/portal/members/:id/files/:fileid/download', function ($params) {
     header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
     header('Content-Length: ' . filesize($file['pfad']));
     readfile($file['pfad']);
+    exit;
+});
+
+// Profilbild eines Mitglieds ansehen -- entweder das Mitglied selbst oder ein Manager der
+// gleichen Community (keine Community-Prüfung nötig, wenn es das eigene Konto ist).
+$router->get('/portal/members/:id/avatar', function ($params) {
+    Auth::requireLogin();
+    $member = DB::fetchOne('SELECT id, community_id, user_id, photo_path FROM members WHERE id = ?', [$params['id']]);
+    if (!$member || !$member['photo_path']) { http_response_code(404); return; }
+
+    $allowed = $member['user_id'] !== null && $member['user_id'] === Auth::userId();
+    if (!$allowed) {
+        DB::setCommunity($member['community_id']);
+        $allowed = Auth::isManager() && Auth::activeCommunityId() === $member['community_id'];
+    }
+    if (!$allowed) { http_response_code(403); return; }
+    if (!is_file($member['photo_path'])) { http_response_code(404); return; }
+
+    header('Content-Type: ' . (mime_content_type($member['photo_path']) ?: 'application/octet-stream'));
+    header('Cache-Control: private, max-age=3600');
+    readfile($member['photo_path']);
+    exit;
+});
+
+$router->post('/portal/members/:id/photo', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    if (!isset($_FILES['photo'])) { header('Location: /portal/members/' . $params['id'] . '?error=upload'); exit; }
+
+    $err = saveMemberPhoto($params['id'], $_FILES['photo']);
+    if ($err === null) {
+        header('Location: /portal/members/' . $params['id'] . '?success=1');
+    } elseif (str_starts_with($err, 'upload_db:')) {
+        header('Location: /portal/members/' . $params['id'] . '?error=upload_db&detail=' . urlencode(substr($err, 10)));
+    } elseif ($err === 'phototype') {
+        header('Location: /portal/members/' . $params['id'] . '?error=phototype');
+    } else {
+        header('Location: /portal/members/' . $params['id'] . '?error=upload');
+    }
     exit;
 });
 
@@ -1256,9 +1530,28 @@ $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($par
 });
 
 // ─── Portal: Passwort ändern ────────────────────────────
+/**
+ * Mitgliedsdatensatz des eingeloggten Users in der aktuell aktiven Community (falls
+ * vorhanden) -- für das Profilbild in /portal/profile. Manager/Platform-Admins ohne eigenen
+ * Mitgliedsdatensatz bekommen hier null und sehen dort nur den neutralen Default-Avatar.
+ */
+function currentProfileMember(): ?array
+{
+    $communityId = Auth::activeCommunityId();
+    if (!$communityId) { return null; }
+    DB::setCommunity($communityId);
+    return DB::fetchOne(
+        'SELECT id, photo_path, salutation FROM members WHERE user_id = ? AND community_id = ?',
+        [Auth::userId(), $communityId]
+    );
+}
+
 $router->get('/portal/profile', function () {
     Auth::requireLogin();
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    $profileMember = currentProfileMember();
+    if (!empty($_GET['success'])) { $success = $_GET['success']; }
+    if (!empty($_GET['error'])) { $error = $_GET['error']; }
     require ROOT . '/src/views/pages/profile.php';
 });
 
@@ -1278,7 +1571,23 @@ $router->post('/portal/profile', function () {
         $success = 'Daten wurden gespeichert.';
     }
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    $profileMember = currentProfileMember();
     require ROOT . '/src/views/pages/profile.php';
+});
+
+$router->post('/portal/profile/photo', function () {
+    Auth::requireLogin();
+    $profileMember = currentProfileMember();
+    if (!$profileMember) { http_response_code(400); echo 'Kein Mitgliedsdatensatz für dieses Konto in der aktiven Community.'; return; }
+    if (!isset($_FILES['photo'])) { header('Location: /portal/profile?error=upload'); exit; }
+
+    $err = saveMemberPhoto($profileMember['id'], $_FILES['photo']);
+    if ($err === null) {
+        header('Location: /portal/profile?success=' . urlencode('Profilbild gespeichert.'));
+    } else {
+        header('Location: /portal/profile?error=' . urlencode('Profilbild konnte nicht gespeichert werden.'));
+    }
+    exit;
 });
 
 $router->get('/portal/password', function () {
@@ -1574,7 +1883,28 @@ $router->post('/portal/applications/:id/approve', function ($params) {
     logAudit($communityId, 'application.approve', 'member', $result['member_id'],
         'Online-Beitrittserklärung von ' . $application['first_name'] . ' ' . $application['last_name'] . ' freigegeben (KdNr ' . $result['kundennummer'] . ')');
 
-    header('Location: /portal/members/' . $result['member_id'] . '?success=1');
+    if ($result['invite_sent']) {
+        header('Location: /portal/members/' . $result['member_id'] . '?success=invite_sent');
+        exit;
+    }
+
+    // Fallback: Einladungs-Mail nicht verschickt (Mailversand nicht konfiguriert/fehlgeschlagen,
+    // oder es gab schon einen Login für diese E-Mail) -- Temp-Passwort direkt auf der
+    // Mitgliedsseite anzeigen, damit der Manager es notfalls selbst weitergeben kann.
+    $memberIdForRedirect = $result['member_id'];
+    if ($result['temp_password']) {
+        $successTempPw = $result['temp_password'];
+        $successEmail = $application['email'];
+        $successInviteError = $result['invite_error'];
+        $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$memberIdForRedirect, $communityId]);
+        $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? ORDER BY registered_at DESC', [$memberIdForRedirect]);
+        $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$memberIdForRedirect]);
+        $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$memberIdForRedirect, $communityId]);
+        require ROOT . '/src/views/pages/member_detail.php';
+        exit;
+    }
+
+    header('Location: /portal/members/' . $memberIdForRedirect . '?success=1');
     exit;
 });
 
@@ -1878,6 +2208,60 @@ $router->get('/admin/log', function () {
     );
     $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
     require ROOT . '/src/views/pages/admin_log.php';
+});
+
+// ─── Admin: E-Mail-Einstellungen (Microsoft Graph) ──────
+$router->get('/admin/mail-settings', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    require ROOT . '/src/views/pages/admin_mail_settings.php';
+});
+
+$router->post('/admin/mail-settings', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+
+    // Client-Secret nur überschreiben, wenn tatsächlich ein neuer Wert eingegeben wurde --
+    // das Feld wird beim Laden nie im Klartext vorbefüllt, ein leeres Absenden darf das
+    // gespeicherte Secret also nicht versehentlich löschen.
+    $current = DB::fetchOne('SELECT client_secret FROM platform_mail_config WHERE id = 1');
+    $newSecret = trim($_POST['client_secret'] ?? '');
+    $clientSecret = $newSecret !== '' ? $newSecret : ($current['client_secret'] ?? null);
+
+    DB::execute(
+        'UPDATE platform_mail_config
+         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, updated_at = now()
+         WHERE id = 1',
+        [
+            trim($_POST['tenant_id'] ?? '') ?: null,
+            trim($_POST['client_id'] ?? '') ?: null,
+            $clientSecret,
+            trim($_POST['sender_address'] ?? '') ?: null,
+        ]
+    );
+    logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Microsoft-Graph-Mailkonfiguration aktualisiert');
+    header('Location: /admin/mail-settings?success=1');
+    exit;
+});
+
+$router->post('/admin/mail-settings/test', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $to = trim($_POST['test_to'] ?? '');
+    $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        $testError = 'Bitte eine gültige E-Mail-Adresse angeben.';
+        require ROOT . '/src/views/pages/admin_mail_settings.php';
+        return;
+    }
+    try {
+        Mailer::send($to, 'Test-E-Mail von Strom für alle', '<p>Das ist eine Test-E-Mail aus dem Platform-Admin-Bereich von stromfueralle.at.</p><p>Wenn Sie das lesen, funktioniert der Microsoft-Graph-Mailversand.</p>');
+        $testSuccess = 'Test-E-Mail an ' . htmlspecialchars($to) . ' wurde verschickt.';
+    } catch (\Throwable $e) {
+        $testError = $e->getMessage();
+    }
+    require ROOT . '/src/views/pages/admin_mail_settings.php';
 });
 
 $router->dispatch();

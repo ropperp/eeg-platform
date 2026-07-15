@@ -231,6 +231,34 @@ curl -vI https://www.stromfueralle.at 2>&1 | grep -i subject
 `/etc/letsencrypt/live/stromfueralle.at/` erweitert wird (Pfad in der vhost-Config bleibt gültig)
 statt eine neue `-0001`-Lineage anzulegen.
 
+### portal-Subdomain für den Login freischalten (ausstehend, Stand 2026-07-15)
+Ziel: Der "Anmelden"-Button auf der Hauptseite verlinkt jetzt auf
+`https://portal.stromfueralle.at/portal/login` (App-seitig bereits umgesetzt). Traefik
+(10.0.0.250, dieses Repo) hat für `portal.stromfueralle.at` schon einen Router auf dieselbe
+webapp — Code-seitig ist also nichts weiter zu tun. Es fehlt aber noch, genau wie bei
+`www` oben, die SSL-Terminierung auf dem **nginx-Proxy-Host (10.0.0.144)**:
+```bash
+# 1. Zertifikat um die portal-Subdomain erweitern (certonly, NICHT --nginx-Plugin-Modus
+#    die vhost-Datei anfassen lassen -- siehe Warnung bei "www-Subdomain hinzufügen" oben)
+sudo certbot certonly --nginx \
+  --cert-name stromfueralle.at --expand \
+  -d stromfueralle.at -d www.stromfueralle.at -d traefik.stromfueralle.at -d portal.stromfueralle.at
+
+# 2. vhost-Datei sichern und explizit selbst um einen server{}-Block für portal erweitern
+sudo cp /etc/nginx/sites-available/70_stromfueralle.conf \
+        /etc/nginx/sites-available/70_stromfueralle.conf.bak-$(date +%s)
+sudo nano /etc/nginx/sites-available/70_stromfueralle.conf
+#   Neuer server{}-Block, server_name portal.stromfueralle.at; gleiches ssl_certificate/-_key
+#   wie beim Hauptblock (.../live/stromfueralle.at/...), proxy_pass weiterhin http://10.0.0.250;
+
+# 3. Testen, laden, verifizieren
+sudo nginx -t && sudo systemctl reload nginx
+curl -vI https://portal.stromfueralle.at/portal/login 2>&1 | grep -i subject
+```
+Vorher zeigt der Anmelden-Button testweise nur relativ auf `/portal/login`, solange man sich
+bereits auf `portal.stromfueralle.at` befindet (schützt vor einer Redirect-Schleife, falls die
+Subdomain noch nicht erreichbar ist) — sobald DNS + SSL stehen, greift der absolute Link.
+
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
 ```bash

@@ -11,6 +11,9 @@ ob_start();
     <?php if (!empty($error)): ?>
       <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
+    <?php if (($_GET['success'] ?? '') === 'password_reset'): ?>
+      <div class="alert alert-success">Passwort wurde geändert. Bitte melden Sie sich mit dem neuen Passwort an.</div>
+    <?php endif; ?>
 
     <form method="post" action="/portal/login">
       <div class="form-group">

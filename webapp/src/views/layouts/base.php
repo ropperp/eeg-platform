@@ -25,7 +25,7 @@
         <a href="/portal/logout">Abmelden (<?= htmlspecialchars(Auth::userName()) ?>)</a>
       <?php else: ?>
         <a href="/beitreten" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
-        <a href="/portal/login" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
+        <a href="<?= htmlspecialchars(portalLoginUrl()) ?>" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
       <?php endif; ?>
     </nav>
   </div>

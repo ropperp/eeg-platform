@@ -2,6 +2,13 @@
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Mitgliederliste</a>
+  <div style="position:relative">
+    <img src="<?= htmlspecialchars(memberAvatarUrl($member['id'], $member['photo_path'], $member['salutation'])) ?>"
+         alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">
+    <button type="button" onclick="document.getElementById('photo-dialog').showModal()"
+            title="Profilbild ändern"
+            style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#f3f4f6;border:1px solid #e5e7eb;font-size:.6rem;line-height:1;cursor:pointer;padding:0">✏️</button>
+  </div>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-gray" style="font-weight:700;color:#15803d">KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?></span>
   <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
@@ -28,6 +35,9 @@
     <a href="/portal/members/<?= $member['id'] ?>/edit"
        class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">✏️ Bearbeiten</a>
     <?php if (!empty($member['user_id'])): ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
+      <button type="submit" class="btn" style="background:#e0f2fe;color:#0369a1;font-size:.8rem">🔑 Passwort zurücksetzen</button>
+    </form>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
           onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
       <button type="submit" class="btn" style="background:#fef3c7;color:#92400e;font-size:.8rem">🔒 Login löschen</button>
@@ -42,10 +52,20 @@
   </div>
 </div>
 
-<?php if (isset($_GET['success'])): ?>
+<?php if (($_GET['success'] ?? '') === 'reset_sent'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Link zum Passwort-Zurücksetzen wurde per E-Mail verschickt (10 Minuten gültig).</div>
+<?php elseif (($_GET['success'] ?? '') === 'invite_sent'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Freigegeben — Einladung mit Erstlogin-Link wurde per E-Mail verschickt.</div>
+<?php elseif (($_GET['error'] ?? '') === 'mail'): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem">
+    E-Mail-Versand fehlgeschlagen<?php if (!empty($_GET['detail'])): ?>: <code style="font-size:.78rem"><?= htmlspecialchars($_GET['detail']) ?></code><?php endif; ?>
+  </div>
+<?php elseif (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
 <?php elseif (($_GET['error'] ?? '') === 'upload'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Datei-Upload fehlgeschlagen.</div>
+<?php elseif (($_GET['error'] ?? '') === 'phototype'): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem">Profilbild: nur JPG, PNG oder WEBP erlaubt.</div>
 <?php elseif (($_GET['error'] ?? '') === 'upload_db'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">
     Datei-Upload fehlgeschlagen (Datenbankfehler)<?php if (!empty($_GET['detail'])): ?>: <code style="font-size:.78rem"><?= htmlspecialchars($_GET['detail']) ?></code><?php endif; ?>
@@ -56,6 +76,21 @@
   </div>
 <?php elseif (isset($_GET['error'])): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
+<?php endif; ?>
+
+<?php if (!empty($successTempPw)): ?>
+  <div class="card" style="margin-bottom:1.5rem;border:2px solid #16a34a">
+    <h3 style="color:#15803d;margin-bottom:.75rem">✅ Freigegeben — Login-Daten</h3>
+    <?php if (!empty($successInviteError)): ?>
+      <p style="margin-bottom:.5rem;color:#b91c1c;font-size:.85rem">Einladungs-E-Mail konnte nicht verschickt werden: <code style="font-size:.78rem"><?= htmlspecialchars($successInviteError) ?></code></p>
+    <?php endif; ?>
+    <p style="margin-bottom:.5rem">Bitte teilen Sie dem Mitglied folgende Zugangsdaten mit:</p>
+    <table>
+      <tr><th>E-Mail</th><td><code><?= htmlspecialchars($successEmail) ?></code></td></tr>
+      <tr><th>Temporäres Passwort</th><td><code style="font-size:1.1rem;color:#15803d"><?= htmlspecialchars($successTempPw) ?></code></td></tr>
+    </table>
+    <p style="margin-top:.75rem;font-size:.8rem;color:#6b7280">Das Mitglied sollte das Passwort nach dem ersten Login ändern. Diese Anzeige erscheint nur einmal.</p>
+  </div>
 <?php endif; ?>
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem">
@@ -288,6 +323,20 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     </div>
   </form>
 </div>
+
+<!-- Profilbild-Modal -->
+<dialog id="photo-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+  <h3 style="margin-bottom:1rem">Profilbild ändern</h3>
+  <form method="post" action="/portal/members/<?= $member['id'] ?>/photo" enctype="multipart/form-data">
+    <div class="form-group">
+      <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button type="button" onclick="document.getElementById('photo-dialog').close()" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</button>
+      <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Edit-Modal -->
 <dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">

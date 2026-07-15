@@ -135,14 +135,16 @@ class Auth
         return $roles[0] ?? null;
     }
 
-    /** Passwort-Reset: Token erzeugen und in DB speichern */
-    public static function createResetToken(string $email): ?string
+    /** Passwort-Reset: Token erzeugen und in DB speichern. Standard-Gültigkeit 1 Stunde
+     *  (Selbstbedienung "Passwort vergessen"); der Manager-ausgelöste Reset am Mitglied
+     *  übergibt bewusst ein kürzeres Zeitfenster. */
+    public static function createResetToken(string $email, int $ttlSeconds = 3600): ?string
     {
         $user = DB::fetchOne('SELECT id FROM users WHERE email = ? AND active = true', [$email]);
         if (!$user) return null;
 
         $token = bin2hex(random_bytes(32));
-        $expires = date('Y-m-d H:i:s', time() + 3600); // 1 Stunde
+        $expires = date('Y-m-d H:i:s', time() + $ttlSeconds);
 
         DB::execute(
             'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',

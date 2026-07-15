@@ -8,13 +8,18 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
   <a href="/portal/members/new" class="btn btn-primary">+ Mitglied anlegen</a>
 </div>
 
-<?php if (isset($_GET['success'])): ?>
+<?php if (($_GET['success'] ?? '') === 'invite_sent'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde angelegt, Einladung mit Erstlogin-Link wurde per E-Mail verschickt.</div>
+<?php elseif (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde gespeichert.</div>
 <?php endif; ?>
 
 <?php if (!empty($successTempPw)): ?>
   <div class="card" style="margin-bottom:1.5rem;border:2px solid #16a34a">
     <h3 style="color:#15803d;margin-bottom:.75rem">✅ Mitglied angelegt — Login-Daten</h3>
+    <?php if (!empty($successInviteError)): ?>
+      <p style="margin-bottom:.5rem;color:#b91c1c;font-size:.85rem">Einladungs-E-Mail konnte nicht verschickt werden: <code style="font-size:.78rem"><?= htmlspecialchars($successInviteError) ?></code></p>
+    <?php endif; ?>
     <p style="margin-bottom:.5rem">Bitte teilen Sie dem Mitglied folgende Zugangsdaten mit:</p>
     <table>
       <tr><th>E-Mail</th><td><code><?= htmlspecialchars($successEmail) ?></code></td></tr>

@@ -10,7 +10,7 @@ ob_start();
     <p>Die einfachste Plattform zur Verwaltung Ihrer Erneuerbaren-Energie-Gemeinschaft.<br>
        Echtzeit-Daten, automatische Abrechnung, volle Transparenz.</p>
     <a href="/live" class="btn btn-white btn-lg">Live-Anzeige</a>
-    <a href="/portal/login" class="btn btn-outline btn-lg">Anmelden</a>
+    <a href="<?= htmlspecialchars(portalLoginUrl()) ?>" class="btn btn-outline btn-lg">Anmelden</a>
   </div>
 </section>
 

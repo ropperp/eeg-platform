@@ -65,9 +65,19 @@
               style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
 
       <!-- Profil-Dropdown -->
+      <?php
+        $navMember = null;
+        if (!$isPlatformAdmin && Auth::activeCommunityId()) {
+            $navMember = DB::fetchOne(
+                'SELECT id, photo_path, salutation FROM members WHERE user_id = ? AND community_id = ?',
+                [Auth::userId(), Auth::activeCommunityId()]
+            );
+        }
+        $navAvatarUrl = memberAvatarUrl($navMember['id'] ?? null, $navMember['photo_path'] ?? null, $navMember['salutation'] ?? null);
+      ?>
       <div class="profile-menu" id="profile-menu">
         <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
-          <span class="profile-avatar">👤</span>
+          <span class="profile-avatar"><img src="<?= htmlspecialchars($navAvatarUrl) ?>" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;display:block"></span>
         </button>
         <div class="profile-dropdown" id="profile-dropdown">
           <?php if (!$isPlatformAdmin): ?>
@@ -91,6 +101,9 @@
       </a>
       <a href="/admin/log" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/log') ? 'active' : '' ?>">
         <span class="sidebar-icon">📋</span><span class="sidebar-text">Aktivitätslog</span>
+      </a>
+      <a href="/admin/mail-settings" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/mail-settings') ? 'active' : '' ?>">
+        <span class="sidebar-icon">✉️</span><span class="sidebar-text">E-Mail-Einstellungen</span>
       </a>
 
     <?php elseif ($isManager): ?>
