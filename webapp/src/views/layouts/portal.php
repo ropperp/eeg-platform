@@ -14,7 +14,7 @@
     <div style="display:flex;align-items:center;gap:1rem">
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
               style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;font-size:1.2rem;color:#6b7280;line-height:1">☰</button>
-      <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">⚡ Strom für alle</a>
+      <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo"><img src="/assets/images/logo.png" alt="Strom für alle" class="logo-img"></a>
     </div>
 
     <nav style="display:flex;align-items:center;gap:1rem">

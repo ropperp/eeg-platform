@@ -83,7 +83,8 @@ a:hover { text-decoration: underline; }
   box-shadow: var(--shadow);
 }
 .navbar .inner { display: flex; align-items: center; justify-content: space-between; }
-.navbar .logo { font-weight: 700; font-size: 1.25rem; color: var(--green); }
+.navbar .logo { display: flex; align-items: center; }
+.navbar .logo-img { height: 34px; width: auto; display: block; }
 .navbar nav a {
   margin-left: 1.5rem;
   color: var(--gray-600);
@@ -310,7 +311,7 @@ footer {
   .navbar .inner { flex-wrap: wrap; row-gap: .5rem; }
   .navbar nav { flex-wrap: wrap; justify-content: flex-end; row-gap: .4rem; }
   .navbar nav a { margin-left: .6rem; font-size: .82rem; }
-  .navbar .logo { font-size: 1.05rem; }
+  .navbar .logo-img { height: 26px; }
 
   /* Hero */
   .hero { padding: 3rem 0; }

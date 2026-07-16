@@ -1635,6 +1635,13 @@ function bezugZpLines(array $mps): string
     return implode("\n", array_map(fn($mp) => '\\item ' . texEscape($mp['zaehlpunkt_nr']), $mps));
 }
 
+/** Voller Name inkl. Anrede und Titel für die Namensanzeige in den Vertragsvorlagen. */
+function memberFullName(array $member): string
+{
+    $prefix = trim(($member['salutation'] ?? '') . ' ' . ($member['titel'] ?? ''));
+    return ($prefix ? $prefix . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'];
+}
+
 /**
  * Baut die Template-Variablen für die Bezugsvereinbarung. Gemeinsam genutzt von der
  * Ansichts-Route (Browser-Vorschau) und der "Jetzt senden"-Route (E-Mail-Anhang), damit
@@ -1649,7 +1656,7 @@ function bezugsvereinbarungVars(array $member, array $community, ?array $tariff,
         'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
         'EEG_IBAN'                  => $community['iban'] ?? '--',
         'EEG_ORT'                   => extractOrtFromAddress($community['address']),
-        'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_NAME'             => memberFullName($member),
         'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
         'MITGLIED_ADRESSE_ORT'      => $member['city'],
         'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
@@ -1843,7 +1850,7 @@ function einspeisevereinbarungVars(array $member, array $community, ?array $tari
         'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
         'EEG_IBAN'                  => $community['iban'] ?? '--',
         'EEG_ORT'                   => extractOrtFromAddress($community['address']),
-        'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_NAME'             => memberFullName($member),
         'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
         'MITGLIED_ADRESSE_ORT'      => $member['city'],
         'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',

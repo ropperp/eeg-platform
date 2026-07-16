@@ -11,7 +11,7 @@
 
 <header class="navbar">
   <div class="container inner">
-    <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">⚡ Strom für alle</a>
+    <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo"><img src="/assets/images/logo.png" alt="Strom für alle" class="logo-img"></a>
     <nav>
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
               style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
