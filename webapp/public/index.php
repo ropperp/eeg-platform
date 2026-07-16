@@ -1183,30 +1183,18 @@ $router->post('/portal/members/:id/edit', function ($params) {
     exit;
 });
 
-$router->post('/portal/members/:id/delete', function ($params) {
+// Kein echter Hard-Delete für einzelne Mitglieder mehr (Aufbewahrungspflicht für Verträge/
+// Dateien) -- siehe /deactivate weiter unten. Ein Hard-Delete gibt es nur noch komplett auf
+// EEG-Ebene (/admin/communities/:id/delete), wenn die ganze EEG aufgelöst wird.
+
+// Nur Plattform-Admins dürfen ein Mitglied-Login löschen (danach kann der Account kein
+// Passwort mehr anfragen). Da users.email plattformweit eindeutig ist, wird die users-Zeile
+// nur gelöscht, wenn der Account sonst KEINE Rolle mehr hat — sonst würde man einer Person
+// versehentlich den Zugriff auf eine andere EEG entziehen, in der sie z.B. ebenfalls
+// Mitglied ist.
+$router->post('/portal/members/:id/delete-login', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
-    $member = requireMemberAccess($params['id']);
-    if (!$member) { return; }
-    $communityId = $member['community_id'];
-
-    // Löscht kaskadierend Verträge, Dateien, Zählpunkte, Rechnungen (siehe migrate_20260715.sql).
-    // KdNr wird dadurch wieder frei und beim nächsten neuen Mitglied automatisch wiederverwendet.
-    DB::execute('DELETE FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    logAudit($communityId, 'member.delete', 'member', $params['id'],
-        'Mitglied ' . $member['first_name'] . ' ' . $member['last_name'] . ' (KdNr ' . ($member['kundennummer'] ?? '—') . ') gelöscht');
-
-    header('Location: /portal/members?success=1');
-    exit;
-});
-
-// Manager dürfen (anders als der globale /admin/users-Bereich) NUR das Login-Konto
-// von Mitgliedern der EIGENEN EEG entfernen. Da users.email plattformweit eindeutig ist,
-// wird die users-Zeile nur gelöscht, wenn der Account sonst KEINE Rolle mehr hat — sonst
-// würde man einer Person versehentlich den Zugriff auf eine andere EEG entziehen, in der
-// sie z.B. ebenfalls Mitglied ist.
-$router->post('/portal/members/:id/delete-login', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
     if (!$member['user_id']) { http_response_code(404); echo 'Nicht gefunden'; return; }
@@ -1221,7 +1209,68 @@ $router->post('/portal/members/:id/delete-login', function ($params) {
         DB::execute('DELETE FROM users WHERE id = ?', [$userId]);
     }
 
+    logAudit($communityId, 'member.delete_login', 'member', $params['id'],
+        'Login-Konto von ' . $member['first_name'] . ' ' . $member['last_name'] . ' entfernt (Mitglied bleibt bestehen)');
+
     header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+/**
+ * "Wirklich löschen": Soft-Deactivation statt Hard-Delete. Wegen der Aufbewahrungspflicht
+ * bleiben Mitgliedsdaten, Verträge und Dateien vollständig erhalten -- nur der Login wird
+ * gesperrt (users.active=false, falls ein Login existiert) und members.status auf
+ * 'inactive' gesetzt, was auf der Detailseite den "Freigeben"-Button statt der
+ * Löschen-Aktionen anzeigt. Das Mitglied wird per E-Mail informiert.
+ */
+$router->post('/portal/members/:id/deactivate', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+
+    DB::execute("UPDATE members SET status = 'inactive' WHERE id = ?", [$params['id']]);
+    if ($member['user_id']) {
+        DB::execute('UPDATE users SET active = false WHERE id = ?', [$member['user_id']]);
+    }
+    logAudit($member['community_id'], 'member.deactivate', 'member', $params['id'],
+        'Mitglied ' . $member['first_name'] . ' ' . $member['last_name'] . ' deaktiviert (Daten aus Aufbewahrungspflicht erhalten)');
+
+    $mailError = null;
+    try {
+        $mail = renderMailTemplate('member_deactivated', [
+            'vorname' => htmlspecialchars($member['first_name']),
+        ],
+            'Ihre Mitgliedschaft bei Strom für alle wurde deaktiviert',
+            '<p>Hallo {{vorname}},</p><p>Ihr Zugang wurde deaktiviert. Ihre Daten bleiben aus '
+            . 'Aufbewahrungsgründen erhalten. Bitte wenden Sie sich zur Reaktivierung an Ihre EEG-Verwaltung.</p>'
+        );
+        Mailer::send($member['email'], $mail['subject'], $mail['body']);
+    } catch (\Throwable $e) {
+        $mailError = $e->getMessage();
+    }
+
+    header('Location: /portal/members/' . $params['id'] . '?' . ($mailError
+        ? 'error=mail&detail=' . urlencode($mailError)
+        : 'success=' . urlencode('Mitglied deaktiviert — Benachrichtigung wurde per E-Mail verschickt.')));
+    exit;
+});
+
+/** "Freigeben": Hebt eine über /deactivate gesetzte Deaktivierung wieder auf. */
+$router->post('/portal/members/:id/reactivate', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Nur für Plattform-Admins.'; return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+
+    DB::execute("UPDATE members SET status = 'active' WHERE id = ?", [$params['id']]);
+    if ($member['user_id']) {
+        DB::execute('UPDATE users SET active = true WHERE id = ?', [$member['user_id']]);
+    }
+    logAudit($member['community_id'], 'member.reactivate', 'member', $params['id'],
+        'Mitglied ' . $member['first_name'] . ' ' . $member['last_name'] . ' wieder freigegeben');
+
+    header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Mitglied wieder freigegeben.'));
     exit;
 });
 

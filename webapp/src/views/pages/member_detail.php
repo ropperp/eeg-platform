@@ -46,16 +46,23 @@
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
       <button type="submit" class="btn" style="background:#e0f2fe;color:#0369a1;font-size:.8rem">🔑 Passwort zurücksetzen</button>
     </form>
-    <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
-          onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
-      <button type="submit" class="btn" style="background:#fef3c7;color:#92400e;font-size:.8rem">🔒 Login löschen</button>
-    </form>
     <?php endif; ?>
     <?php if (Auth::isPlatformAdmin()): ?>
-    <form method="post" action="/portal/members/<?= $member['id'] ?>/delete" style="display:inline"
-          onsubmit="return confirmDangerDelete('Mitglied <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?>) inkl. aller Zählpunkte, Verträge und Rechnungen')">
-      <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c;font-size:.8rem">🗑️ Löschen</button>
-    </form>
+      <?php if ($member['status'] === 'inactive'): ?>
+      <form method="post" action="/portal/members/<?= $member['id'] ?>/reactivate" style="display:inline"
+            onsubmit="return confirm('Mitgliedschaft von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wieder freigeben?')">
+        <button type="submit" class="btn" style="background:#dcfce7;color:#15803d;font-size:.8rem">✅ Freigeben</button>
+      </form>
+      <?php else: ?>
+      <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
+            onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
+        <button type="submit" class="btn" style="background:#fef3c7;color:#92400e;font-size:.8rem">🔒 Login löschen</button>
+      </form>
+      <form method="post" action="/portal/members/<?= $member['id'] ?>/deactivate" style="display:inline"
+            onsubmit="return confirmDangerDelete('Mitglied <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wirklich — Daten/Verträge/Dateien bleiben aus Aufbewahrungspflicht erhalten, der Login wird gesperrt und eine Benachrichtigung per E-Mail verschickt')">
+        <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c;font-size:.8rem">🗑️ Wirklich löschen</button>
+      </form>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 </div>
