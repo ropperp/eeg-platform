@@ -39,7 +39,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       <option value="">Alle Status</option>
       <option value="active">Aktiv</option>
       <option value="pending">Ausstehend</option>
-      <option value="inactive">Inaktiv</option>
+      <option value="inactive">🗄️ Archiviert</option>
     </select>
     <select id="filter-contract" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Verträge</option>
@@ -115,7 +115,8 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         <td style="font-size:.85rem;white-space:nowrap"><?= $m['member_since'] ? date('d.m.Y', strtotime($m['member_since'])) : '—' ?></td>
         <td>
           <?php $sb = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
-          <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= htmlspecialchars($m['status']) ?></span>
+          <?php $sl = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => '🗄️ Archiviert']; ?>
+          <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= $sl[$m['status']] ?? htmlspecialchars($m['status']) ?></span>
         </td>
         <td style="text-align:center">
           <span class="badge badge-<?= $statusBadge[$bezug] ?>" style="font-size:.75rem"><?= $statusLabel[$bezug] ?></span>

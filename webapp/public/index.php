@@ -1892,7 +1892,7 @@ $router->post('/portal/members/:id/contract/send-both', function ($params) {
 
 $router->post('/portal/members/:id/contract-status', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $member = DB::fetchOne('SELECT community_id FROM members WHERE id = ?', [$params['id']]);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
     if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
         http_response_code(403); echo 'Kein Zugriff'; return;
@@ -1903,6 +1903,13 @@ $router->post('/portal/members/:id/contract-status', function ($params) {
     $status = $_POST['status'] ?? '';
     if (!in_array($type, ['bezug', 'einspeisung']) || !in_array($status, ['none', 'created', 'signed'])) {
         http_response_code(400); return;
+    }
+    // Nach dem Versand ist der Status nur noch über "Zurücksetzen" (setzt sent_at zurück
+    // auf NULL) veränderbar -- schützt davor, dass ein bereits versendeter Vertrag über
+    // dieses Dropdown unbemerkt "manuell" umgestellt wird.
+    if (!empty($member['contract_' . $type . '_sent_at'])) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Bereits versendete Verträge sind nicht mehr über dieses Dropdown änderbar. Bitte zuerst zurücksetzen.'));
+        exit;
     }
     $col = 'contract_' . $type . '_status';
     DB::execute("UPDATE members SET {$col} = ? WHERE id = ? AND community_id = ?", [$status, $params['id'], $communityId]);

@@ -11,7 +11,9 @@
   </div>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-gray" style="font-weight:700;color:#15803d">KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?></span>
-  <span class="badge badge-<?= $member['status'] === 'active' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($member['status']) ?></span>
+  <?php $statusLabelTop = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => '🗄️ Archiviert']; ?>
+  <?php $statusBadgeTop = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
+  <span class="badge badge-<?= $statusBadgeTop[$member['status']] ?? 'yellow' ?>"><?= $statusLabelTop[$member['status']] ?? htmlspecialchars($member['status']) ?></span>
   <?php if (!empty($application)): ?>
   <span class="badge badge-blue" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
   <?php else: ?>
@@ -294,11 +296,18 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     foreach ($contractTypes as $type => $info):
       $cur = $member['contract_' . $type . '_status'] ?? 'none';
     ?>
+    <?php $sentAt = $member['contract_' . $type . '_sent_at'] ?? null; ?>
     <div style="border:1px solid #e5e7eb;border-radius:8px;padding:.75rem 1rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
         <strong style="font-size:.9rem"><?= $info['label'] ?></strong>
         <span class="badge badge-<?= $statusBadge[$cur] ?? 'gray' ?>"><?= $statusLabels[$cur] ?></span>
       </div>
+      <?php if ($sentAt): ?>
+        <p style="font-size:.78rem;color:#6b7280;margin:0">
+          📨 Versendet am <?= date('d.m.Y H:i', strtotime($sentAt)) ?> — nicht mehr änderbar.
+          Für Korrekturen oben bei „Jetzt senden" auf „🔄 Zurücksetzen" klicken.
+        </p>
+      <?php else: ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/contract-status" style="display:flex;gap:.5rem;align-items:center">
         <input type="hidden" name="type" value="<?= $type ?>">
         <select name="status" style="flex:1;padding:.3rem .5rem;border:1px solid #e5e7eb;border-radius:6px;font-size:.8rem">
@@ -308,6 +317,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
         </select>
         <button type="submit" style="padding:.3rem .75rem;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.8rem">Speichern</button>
       </form>
+      <?php endif; ?>
     </div>
     <?php endforeach; ?>
   </div>
