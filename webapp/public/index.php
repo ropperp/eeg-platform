@@ -164,34 +164,71 @@ function memberAvatarUrl(?string $memberId, ?string $photoPath, ?string $salutat
 }
 
 /**
+ * Validiert und speichert eine hochgeladene Profilbild-Datei unter einem eindeutigen Key
+ * (z.B. "member_<id>" oder "user_<id>"). Gibt ['path' => string, 'error' => null] bei Erfolg
+ * zurück, sonst ['path' => null, 'error' => Fehler-Code]. Kümmert sich nur um die
+ * Dateiablage, nicht um die DB-Zeile (die ist je Tabelle unterschiedlich).
+ */
+function storeAvatarFile(string $key, array $file): array
+{
+    if ($file['error'] !== UPLOAD_ERR_OK) { return ['path' => null, 'error' => 'upload']; }
+    $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExt, true)) { return ['path' => null, 'error' => 'phototype']; }
+
+    $dir = '/var/www/html/storage/uploads/avatars';
+    if (!is_dir($dir)) { mkdir($dir, 0750, true); }
+    $destPath = $dir . '/' . $key . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $destPath)) { return ['path' => null, 'error' => 'upload']; }
+
+    // Altes Bild mit anderer Dateiendung entfernen, falls beim Ändern ein anderer Typ hochgeladen wurde.
+    foreach ($allowedExt as $oldExt) {
+        if ($oldExt !== $ext) { @unlink($dir . '/' . $key . '.' . $oldExt); }
+    }
+    return ['path' => $destPath, 'error' => null];
+}
+
+/**
  * Speichert ein hochgeladenes Profilbild für ein Mitglied (manager-seitig oder
  * Selbstbedienung im eigenen Profil). Gibt bei Erfolg null zurück, sonst einen kurzen
  * Fehler-Code (ggf. mit ":Detail" für DB-Fehler) für die Location-Weiterleitung.
  */
 function saveMemberPhoto(string $memberId, array $file): ?string
 {
-    if ($file['error'] !== UPLOAD_ERR_OK) { return 'upload'; }
-    $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, $allowedExt, true)) { return 'phototype'; }
-
-    $dir = '/var/www/html/storage/uploads/avatars';
-    if (!is_dir($dir)) { mkdir($dir, 0750, true); }
-    $destPath = $dir . '/' . $memberId . '.' . $ext;
-    if (!move_uploaded_file($file['tmp_name'], $destPath)) { return 'upload'; }
-
-    // Altes Bild mit anderer Dateiendung entfernen, falls beim Ändern ein anderer Typ hochgeladen wurde.
-    foreach ($allowedExt as $oldExt) {
-        if ($oldExt !== $ext) { @unlink($dir . '/' . $memberId . '.' . $oldExt); }
-    }
-
+    $r = storeAvatarFile('member_' . $memberId, $file);
+    if ($r['error']) { return $r['error']; }
     try {
-        DB::execute('UPDATE members SET photo_path = ? WHERE id = ?', [$destPath, $memberId]);
+        DB::execute('UPDATE members SET photo_path = ? WHERE id = ?', [$r['path'], $memberId]);
     } catch (\Throwable $e) {
-        unlink($destPath);
+        unlink($r['path']);
         return 'upload_db:' . $e->getMessage();
     }
     return null;
+}
+
+/**
+ * Speichert ein hochgeladenes Profilbild für einen Login-Account ohne eigenen
+ * Mitgliedsdatensatz (Manager/Platform-Admin) -- Selbstbedienung im eigenen Profil.
+ */
+function saveUserPhoto(string $userId, array $file): ?string
+{
+    $r = storeAvatarFile('user_' . $userId, $file);
+    if ($r['error']) { return $r['error']; }
+    try {
+        DB::execute('UPDATE users SET photo_path = ? WHERE id = ?', [$r['path'], $userId]);
+    } catch (\Throwable $e) {
+        unlink($r['path']);
+        return 'upload_db:' . $e->getMessage();
+    }
+    return null;
+}
+
+/**
+ * Avatar-URL für einen Login-Account ohne eigenen Mitgliedsdatensatz (Manager/Platform-Admin).
+ */
+function userAvatarUrl(string $userId, ?string $photoPath): string
+{
+    return $photoPath ? '/portal/users/' . $userId . '/avatar' : '/assets/avatars/neutral.svg';
 }
 
 /**
@@ -286,10 +323,11 @@ function eegSignatureAsset(): array
 }
 
 /**
- * Ruft den latex-service auf und streamt das PDF direkt an den Browser.
- * Gibt true zurück wenn das PDF erfolgreich gesendet wurde, sonst false.
+ * Ruft den latex-service auf und liefert die fertigen PDF-Bytes zurück (oder null bei Fehler,
+ * dann steht die Fehlermeldung in $errorOut). Reine Datenbeschaffung ohne jede Ausgabe --
+ * genutzt sowohl zum direkten Anzeigen (streamLatexPdf) als auch zum Mailversand als Anhang.
  */
-function streamLatexPdf(string $template, array $vars, string $filename, array $assets = []): bool
+function generateLatexPdf(string $template, array $vars, array $assets, ?string &$errorOut = null): ?string
 {
     $url     = (getenv('LATEX_SERVICE_URL') ?: 'http://latex-service:3210') . '/generate';
     $apiKey  = getenv('LATEX_API_KEY') ?: 'dev-key';
@@ -307,13 +345,28 @@ function streamLatexPdf(string $template, array $vars, string $filename, array $
     $code = (int)explode(' ', $http_response_header[0] ?? 'HTTP/1.1 500')[1];
 
     if ($code !== 200 || !$body) {
-        http_response_code(500);
         $detail = '';
         if ($body) {
             $json = json_decode($body, true);
-            $detail = isset($json['error']) ? ': ' . htmlspecialchars($json['error']) : '';
+            $detail = isset($json['error']) ? ': ' . $json['error'] : '';
         }
-        echo "<pre>PDF-Generierung fehlgeschlagen (HTTP {$code}){$detail}. Bitte latex-service prüfen.</pre>";
+        $errorOut = "PDF-Generierung fehlgeschlagen (HTTP {$code}){$detail}. Bitte latex-service prüfen.";
+        return null;
+    }
+    return $body;
+}
+
+/**
+ * Ruft den latex-service auf und streamt das PDF direkt an den Browser.
+ * Gibt true zurück wenn das PDF erfolgreich gesendet wurde, sonst false.
+ */
+function streamLatexPdf(string $template, array $vars, string $filename, array $assets = []): bool
+{
+    $error = null;
+    $body = generateLatexPdf($template, $vars, $assets, $error);
+    if ($body === null) {
+        http_response_code(500);
+        echo '<pre>' . htmlspecialchars($error) . '</pre>';
         return false;
     }
 
@@ -1318,6 +1371,20 @@ $router->get('/portal/members/:id/avatar', function ($params) {
     exit;
 });
 
+// Profilbild eines Login-Accounts ohne eigenen Mitgliedsdatensatz (Manager/Platform-Admin) --
+// nur der Account selbst oder ein Platform-Admin darf es sehen.
+$router->get('/portal/users/:id/avatar', function ($params) {
+    Auth::requireLogin();
+    if ($params['id'] !== Auth::userId() && !Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $user = DB::fetchOne('SELECT photo_path FROM users WHERE id = ?', [$params['id']]);
+    if (!$user || !$user['photo_path'] || !is_file($user['photo_path'])) { http_response_code(404); return; }
+
+    header('Content-Type: ' . (mime_content_type($user['photo_path']) ?: 'application/octet-stream'));
+    header('Cache-Control: private, max-age=3600');
+    readfile($user['photo_path']);
+    exit;
+});
+
 $router->post('/portal/members/:id/photo', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $member = requireMemberAccess($params['id']);
@@ -1372,6 +1439,47 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     exit;
 });
 
+/** Baut die \item-Liste der Bezugs-Zählpunkte für den Bezugsvertrag. */
+function bezugZpLines(array $mps): string
+{
+    return implode("\n", array_map(fn($mp) => '\\item ' . texEscape($mp['zaehlpunkt_nr']), $mps));
+}
+
+/**
+ * Baut die Template-Variablen für die Bezugsvereinbarung. Gemeinsam genutzt von der
+ * Ansichts-Route (Browser-Vorschau) und der "Jetzt senden"-Route (E-Mail-Anhang), damit
+ * beide exakt denselben Vertragsinhalt erzeugen.
+ */
+function bezugsvereinbarungVars(array $member, array $community, ?array $tariff, string $zpLines, array $signature): array
+{
+    return [
+        'EEG_NAME'                  => $community['name'],
+        'EEG_ADRESSE'               => $community['address'] ?? '',
+        'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
+        'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
+        'EEG_IBAN'                  => $community['iban'] ?? '--',
+        'EEG_ORT'                   => extractOrtFromAddress($community['address']),
+        'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
+        'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
+        'MITGLIED_ADRESSE_ORT'      => $member['city'],
+        'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
+        'MITGLIED_SEPA_MANDATSREFERENZ' => $member['mandatsreferenz'] ?? '--',
+        'MITGLIED_IBAN'             => $member['member_iban'] ?? '--',
+        'BEZUG_TARIF'               => $tariff ? number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') : '--',
+        'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
+        'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
+        'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
+        // Frei in den EEG-Einstellungen konfigurierbar (communities.dashboard_url), da sich die
+        // Verlinkung jederzeit ändern kann -- Standard-Link nur als Fallback, falls nichts gepflegt ist.
+        // ?? statt ?: -- ein direkter Array-Zugriff auf einen fehlenden Key (z.B. Spalte noch
+        // nicht migriert) erzeugt bei ?: trotzdem eine "Undefined array key"-Warning, die den
+        // PDF-Response zerstört (Output vor den header()-Aufrufen). ?? liest den Key sicher aus.
+        'EEG_DASHBOARD_URL'         => ($community['dashboard_url'] ?? null) ?: 'https://portal.stromfueralle.at/portal/login',
+        'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
+        'ERSTELLT_AM'               => date('d.m.Y'),
+    ];
+}
+
 $router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
@@ -1400,15 +1508,96 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     }
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $signature = eegSignatureAsset();
+    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature);
+    $ok = streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
 
-    // Nur noch Zählpunktnummer (keine Zählernummer im Vertrag) als \item-Liste
-    $zpLines = implode("\n", array_map(
-        fn($mp) => '\\item ' . texEscape($mp['zaehlpunkt_nr']),
+    // DB-Update NUR nach erfolgreichem PDF
+    if ($ok) {
+        DB::execute(
+            "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now() WHERE id = ?",
+            [$params['id']]
+        );
+    }
+});
+
+$router->post('/portal/members/:id/contract/bezug/send', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
+    if (empty($mps)) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Kein Bezugs-Zählpunkt registriert.'));
+        exit;
+    }
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
+    $signature = eegSignatureAsset();
+    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature);
+
+    $error = null;
+    $pdf = generateLatexPdf('bezugsvereinbarung', $vars, $signature['assets'], $error);
+    if ($pdf === null) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
+        exit;
+    }
+    try {
+        Mailer::send(
+            $member['email'],
+            'Ihre Bezugsvereinbarung – ' . $community['name'],
+            '<p>Hallo ' . htmlspecialchars($member['first_name']) . ',</p>'
+            . '<p>im Anhang finden Sie Ihre Bezugsvereinbarung mit ' . htmlspecialchars($community['name']) . '.</p>',
+            [['name' => 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $pdf]]
+        );
+        DB::execute(
+            "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now() WHERE id = ?",
+            [$params['id']]
+        );
+        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Bezugsvereinbarung wurde per E-Mail verschickt.'));
+    } catch (\Throwable $e) {
+        header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
+/** Baut die \item-Liste der Einspeise-Zählpunkte für den Einspeisevertrag. */
+function einspeisungZpLines(array $mps): string
+{
+    return implode("\n", array_map(
+        function ($mp) {
+            $engpass = $mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '--';
+            return '\\item Zählpunktnummer ' . texEscape($mp['zaehlpunkt_nr'])
+                . ' --- Erzeugungsart: ' . texEscape($mp['erzeugungsart'] ?? 'Photovoltaik')
+                . ', Engpassleistung: ' . $engpass;
+        },
         $mps
     ));
+}
 
-    $signature = eegSignatureAsset();
-    $ok = streamLatexPdf('bezugsvereinbarung', [
+/** Baut die Anlagenbeschreibung (Adresse/Gst.-Nr./KG) aus den Einspeise-Zählpunkten. */
+function einspeisungAnlagenBeschreibung(array $mps): string
+{
+    return implode('; ', array_filter(array_map(
+        function ($mp) {
+            $teile = array_filter([
+                $mp['anlagenadresse'] ?? null,
+                $mp['gst_nr'] ? 'Gst.-Nr. ' . $mp['gst_nr'] : null,
+                $mp['katastralgemeinde'] ? 'KG ' . $mp['katastralgemeinde'] : null,
+            ]);
+            return $teile ? implode(', ', $teile) : null;
+        },
+        $mps
+    )));
+}
+
+/**
+ * Baut die Template-Variablen für die Einspeisevereinbarung. Gemeinsam genutzt von der
+ * Ansichts-Route und der "Jetzt senden"-Route.
+ */
+function einspeisevereinbarungVars(array $member, array $community, ?array $tariff, string $zpLines, string $anlagenBeschreibung, array $signature): array
+{
+    return [
         'EEG_NAME'                  => $community['name'],
         'EEG_ADRESSE'               => $community['address'] ?? '',
         'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
@@ -1419,27 +1608,17 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
         'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
         'MITGLIED_ADRESSE_ORT'      => $member['city'],
         'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
-        'MITGLIED_SEPA_MANDATSREFERENZ' => $member['mandatsreferenz'] ?? '--',
+        'MITGLIED_SEIT'             => $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '--',
         'MITGLIED_IBAN'             => $member['member_iban'] ?? '--',
-        'BEZUG_TARIF'               => $tariff ? number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') : '--',
-        'MITGLIEDSBEITRAG'          => $tariff ? number_format((float)$tariff['mitgliedsbeitrag_eur'], 2, ',', '.') : '--',
+        'MITGLIED_BIC'              => $member['member_bic'] ?? '--',
+        'EINSPEISUNG_TARIF'         => $tariff ? number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
         'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
         'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
-        // Frei in den EEG-Einstellungen konfigurierbar (communities.dashboard_url), da sich die
-        // Verlinkung jederzeit ändern kann -- Standard-Link nur als Fallback, falls nichts gepflegt ist.
-        'EEG_DASHBOARD_URL'         => $community['dashboard_url'] ?: 'https://portal.stromfueralle.at/portal/login',
+        'ANLAGENBESCHREIBUNG'       => $anlagenBeschreibung ?: '--',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'ERSTELLT_AM'               => date('d.m.Y'),
-    ], 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
-
-    // DB-Update NUR nach erfolgreichem PDF
-    if ($ok) {
-        DB::execute(
-            "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now() WHERE id = ?",
-            [$params['id']]
-        );
-    }
-});
+    ];
+}
 
 $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
@@ -1469,50 +1648,9 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     }
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
-
-    $zpLines = implode("\n", array_map(
-        function ($mp) {
-            $engpass = $mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '--';
-            return '\\item Zählpunktnummer ' . texEscape($mp['zaehlpunkt_nr'])
-                . ' --- Erzeugungsart: ' . texEscape($mp['erzeugungsart'] ?? 'Photovoltaik')
-                . ', Engpassleistung: ' . $engpass;
-        },
-        $mps
-    ));
-    $anlagenBeschreibung = implode('; ', array_filter(array_map(
-        function ($mp) {
-            $teile = array_filter([
-                $mp['anlagenadresse'] ?? null,
-                $mp['gst_nr'] ? 'Gst.-Nr. ' . $mp['gst_nr'] : null,
-                $mp['katastralgemeinde'] ? 'KG ' . $mp['katastralgemeinde'] : null,
-            ]);
-            return $teile ? implode(', ', $teile) : null;
-        },
-        $mps
-    )));
-
     $signature = eegSignatureAsset();
-    $ok = streamLatexPdf('einspeisevereinbarung', [
-        'EEG_NAME'                  => $community['name'],
-        'EEG_ADRESSE'               => $community['address'] ?? '',
-        'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
-        'EEG_MARKTPARTNER_ID'       => $community['marktpartner_id'] ?? '--',
-        'EEG_IBAN'                  => $community['iban'] ?? '--',
-        'EEG_ORT'                   => extractOrtFromAddress($community['address']),
-        'MITGLIED_NAME'             => ($member['salutation'] ? $member['salutation'] . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'],
-        'MITGLIED_ADRESSE'          => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
-        'MITGLIED_ADRESSE_ORT'      => $member['city'],
-        'MITGLIED_UID_ZEILE'        => $member['invoice_uid'] ? 'UID-Nr.: ' . $member['invoice_uid'] : '',
-        'MITGLIED_SEIT'             => $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '--',
-        'MITGLIED_IBAN'             => $member['member_iban'] ?? '--',
-        'MITGLIED_BIC'              => $member['member_bic'] ?? '--',
-        'EINSPEISUNG_TARIF'         => $tariff ? number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') : '--',
-        'TARIF_GUELTIG_AB'          => $tariff ? date('d.m.Y', strtotime($tariff['valid_from'])) : '--',
-        'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
-        'ANLAGENBESCHREIBUNG'       => $anlagenBeschreibung ?: '--',
-        'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
-        'ERSTELLT_AM'               => date('d.m.Y'),
-    ], 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature);
+    $ok = streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
 
     if ($ok) {
         DB::execute(
@@ -1520,6 +1658,46 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
             [$params['id']]
         );
     }
+});
+
+$router->post('/portal/members/:id/contract/einspeisung/send', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
+    if (empty($mps)) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Kein Einspeise-Zählpunkt registriert.'));
+        exit;
+    }
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
+    $signature = eegSignatureAsset();
+    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature);
+
+    $error = null;
+    $pdf = generateLatexPdf('einspeisevereinbarung', $vars, $signature['assets'], $error);
+    if ($pdf === null) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
+        exit;
+    }
+    try {
+        Mailer::send(
+            $member['email'],
+            'Ihre Einspeisevereinbarung – ' . $community['name'],
+            '<p>Hallo ' . htmlspecialchars($member['first_name']) . ',</p>'
+            . '<p>im Anhang finden Sie Ihre Einspeisevereinbarung mit ' . htmlspecialchars($community['name']) . '.</p>',
+            [['name' => 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $pdf]]
+        );
+        DB::execute(
+            "UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END, contract_einspeisung_generated_at = now() WHERE id = ?",
+            [$params['id']]
+        );
+        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Einspeisevereinbarung wurde per E-Mail verschickt.'));
+    } catch (\Throwable $e) {
+        header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
+    }
+    exit;
 });
 
 $router->post('/portal/members/:id/contract-status', function ($params) {
@@ -1603,8 +1781,9 @@ $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($par
 // ─── Portal: Passwort ändern ────────────────────────────
 /**
  * Mitgliedsdatensatz des eingeloggten Users in der aktuell aktiven Community (falls
- * vorhanden) -- für das Profilbild in /portal/profile. Manager/Platform-Admins ohne eigenen
- * Mitgliedsdatensatz bekommen hier null und sehen dort nur den neutralen Default-Avatar.
+ * vorhanden) -- für das Profilbild in /portal/profile. Gibt null zurück für Accounts ohne
+ * eigenen Mitgliedsdatensatz (reine Manager/Platform-Admins); die haben ihr Profilbild dann
+ * stattdessen direkt am Login-Account (users.photo_path, siehe saveUserPhoto()).
  */
 function currentProfileMember(): ?array
 {
@@ -1619,7 +1798,7 @@ function currentProfileMember(): ?array
 
 $router->get('/portal/profile', function () {
     Auth::requireLogin();
-    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
     if (!empty($_GET['success'])) { $success = $_GET['success']; }
     if (!empty($_GET['error'])) { $error = $_GET['error']; }
@@ -1641,18 +1820,23 @@ $router->post('/portal/profile', function () {
         $_SESSION['user_email'] = $email;
         $success = 'Daten wurden gespeichert.';
     }
-    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
     require ROOT . '/src/views/pages/profile.php';
 });
 
 $router->post('/portal/profile/photo', function () {
     Auth::requireLogin();
-    $profileMember = currentProfileMember();
-    if (!$profileMember) { http_response_code(400); echo 'Kein Mitgliedsdatensatz für dieses Konto in der aktiven Community.'; return; }
     if (!isset($_FILES['photo'])) { header('Location: /portal/profile?error=upload'); exit; }
 
-    $err = saveMemberPhoto($profileMember['id'], $_FILES['photo']);
+    // Mit Community-Mitgliedsdatensatz (Mitglied, ggf. auch Manager mit eigener Mitgliedschaft):
+    // Bild hängt am Mitglied, damit es auch in der Mitgliederliste/-detailseite erscheint.
+    // Ohne Mitgliedsdatensatz (reiner Manager-/Platform-Admin-Account): Bild hängt am Login.
+    $profileMember = currentProfileMember();
+    $err = $profileMember
+        ? saveMemberPhoto($profileMember['id'], $_FILES['photo'])
+        : saveUserPhoto(Auth::userId(), $_FILES['photo']);
+
     if ($err === null) {
         header('Location: /portal/profile?success=' . urlencode('Profilbild gespeichert.'));
     } else {

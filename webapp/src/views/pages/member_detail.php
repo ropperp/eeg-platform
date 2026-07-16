@@ -23,10 +23,18 @@
     <?php if ($hasConsumer): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
        class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem">📄 Bezugsvereinbarung</a>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/send" style="display:inline"
+          onsubmit="return confirm('Bezugsvereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
+      <button type="submit" class="btn" style="background:#eff6ff;color:#1d4ed8;font-size:.8rem">✉️ Jetzt senden</button>
+    </form>
     <?php endif; ?>
     <?php if ($hasProducer): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
        class="btn" style="background:#b45309;color:#fff;font-size:.8rem">☀️ Einspeisevereinbarung</a>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/send" style="display:inline"
+          onsubmit="return confirm('Einspeisevereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
+      <button type="submit" class="btn" style="background:#fffbeb;color:#b45309;font-size:.8rem">✉️ Jetzt senden</button>
+    </form>
     <?php endif; ?>
     <?php if (!empty($application)): ?>
     <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank"
@@ -60,6 +68,8 @@
   <div class="alert alert-error" style="margin-bottom:1rem">
     E-Mail-Versand fehlgeschlagen<?php if (!empty($_GET['detail'])): ?>: <code style="font-size:.78rem"><?= htmlspecialchars($_GET['detail']) ?></code><?php endif; ?>
   </div>
+<?php elseif (!empty($_GET['success']) && $_GET['success'] !== '1'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['success']) ?></div>
 <?php elseif (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
 <?php elseif (($_GET['error'] ?? '') === 'upload'): ?>
@@ -74,8 +84,10 @@
   <div class="alert alert-error" style="margin-bottom:1rem">
     Diese Zählpunktnummer ist bereits vergeben<?php if (!empty($_GET['znr_owner'])): ?> — an <?= htmlspecialchars($_GET['znr_owner']) ?><?php endif; ?>.
   </div>
-<?php elseif (isset($_GET['error'])): ?>
+<?php elseif (($_GET['error'] ?? '') === 'znr'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
+<?php elseif (!empty($_GET['error'])): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
 <?php endif; ?>
 
 <?php if (!empty($successTempPw)): ?>

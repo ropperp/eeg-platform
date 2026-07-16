@@ -8,11 +8,15 @@
   <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
 
-<?php if ($profileMember): ?>
+<?php
+  $profileAvatarUrl = $profileMember
+    ? memberAvatarUrl($profileMember['id'], $profileMember['photo_path'], $profileMember['salutation'])
+    : userAvatarUrl($profileUser['id'], $profileUser['photo_path'] ?? null);
+?>
 <div class="card" style="max-width:480px;margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Profilbild</h3>
   <div style="display:flex;align-items:center;gap:1.25rem">
-    <img src="<?= htmlspecialchars(memberAvatarUrl($profileMember['id'], $profileMember['photo_path'], $profileMember['salutation'])) ?>"
+    <img src="<?= htmlspecialchars($profileAvatarUrl) ?>"
          alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover">
     <form method="post" action="/portal/profile/photo" enctype="multipart/form-data" style="display:flex;gap:.5rem;align-items:center">
       <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
@@ -20,7 +24,6 @@
     </form>
   </div>
 </div>
-<?php endif; ?>
 
 <div class="card" style="max-width:480px">
   <form method="post" action="/portal/profile">

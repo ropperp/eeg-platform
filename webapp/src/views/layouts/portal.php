@@ -67,13 +67,23 @@
       <!-- Profil-Dropdown -->
       <?php
         $navMember = null;
-        if (!$isPlatformAdmin && Auth::activeCommunityId()) {
+        if (Auth::activeCommunityId()) {
             $navMember = DB::fetchOne(
                 'SELECT id, photo_path, salutation FROM members WHERE user_id = ? AND community_id = ?',
                 [Auth::userId(), Auth::activeCommunityId()]
             );
         }
-        $navAvatarUrl = memberAvatarUrl($navMember['id'] ?? null, $navMember['photo_path'] ?? null, $navMember['salutation'] ?? null);
+        if ($navMember && $navMember['photo_path']) {
+            $navAvatarUrl = memberAvatarUrl($navMember['id'], $navMember['photo_path'], $navMember['salutation']);
+        } else {
+            // Kein eigenes Mitglieds-Foto (oder gar kein Mitgliedsdatensatz, z.B. reiner
+            // Manager/Platform-Admin) -- Bild am Login-Account probieren, sonst Default-Avatar
+            // passend zur Anrede (falls als Mitglied bekannt).
+            $navUser = DB::fetchOne('SELECT photo_path FROM users WHERE id = ?', [Auth::userId()]);
+            $navAvatarUrl = !empty($navUser['photo_path'])
+                ? userAvatarUrl(Auth::userId(), $navUser['photo_path'])
+                : memberAvatarUrl(null, null, $navMember['salutation'] ?? null);
+        }
       ?>
       <div class="profile-menu" id="profile-menu">
         <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">

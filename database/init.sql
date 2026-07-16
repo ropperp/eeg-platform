@@ -36,7 +36,8 @@ CREATE TABLE users (
     created_at      TIMESTAMPTZ DEFAULT now(),
     last_login_at   TIMESTAMPTZ,
     reset_token     TEXT,
-    reset_token_expires TIMESTAMPTZ
+    reset_token_expires TIMESTAMPTZ,
+    photo_path      TEXT                            -- Profilbild für Accounts ohne eigenen members-Datensatz (Manager/Platform-Admin)
 );
 
 -- Rollen: platform_admin = Patrick/Fabian/Alexander (über alle EEGs)

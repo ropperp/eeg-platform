@@ -51,8 +51,12 @@ class Mailer
         return $json['access_token'];
     }
 
-    /** Sendet eine HTML-E-Mail über Microsoft Graph. Wirft eine Exception bei jedem Fehler. */
-    public static function send(string $to, string $subject, string $htmlBody): void
+    /**
+     * Sendet eine HTML-E-Mail über Microsoft Graph, optional mit Datei-Anhängen. Wirft eine
+     * Exception bei jedem Fehler. $attachments: Liste von ['name' => string, 'contentType' =>
+     * string, 'content' => Rohbytes (wird hier base64-kodiert, nicht schon vom Aufrufer)].
+     */
+    public static function send(string $to, string $subject, string $htmlBody, array $attachments = []): void
     {
         $cfg = self::config();
         if (!$cfg) {
@@ -60,12 +64,25 @@ class Mailer
         }
         $token = self::getAccessToken($cfg);
 
+        $message = [
+            'subject'      => $subject,
+            'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
+            'toRecipients' => [['emailAddress' => ['address' => $to]]],
+        ];
+        if (!empty($attachments)) {
+            $message['attachments'] = array_map(
+                fn(array $a) => [
+                    '@odata.type'  => '#microsoft.graph.fileAttachment',
+                    'name'         => $a['name'],
+                    'contentType'  => $a['contentType'],
+                    'contentBytes' => base64_encode($a['content']),
+                ],
+                $attachments
+            );
+        }
+
         $payload = json_encode([
-            'message' => [
-                'subject'      => $subject,
-                'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
-                'toRecipients' => [['emailAddress' => ['address' => $to]]],
-            ],
+            'message'          => $message,
             'saveToSentItems' => false,
         ]);
 
