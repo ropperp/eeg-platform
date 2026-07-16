@@ -26,6 +26,10 @@ cp .env.example .env
 docker compose up -d
 ```
 
+> Das allein reicht NICHT für einen funktionierenden ersten Login (Storage-Verzeichnisse,
+> Datenbank-Migrations und Admin-Passwort fehlen dann noch) — unbedingt der vollständigen
+> Anleitung folgen:
+
 Detaillierte Anleitung → [SETUP.md](SETUP.md)
 
 ## Update (laufendes System)

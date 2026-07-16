@@ -68,15 +68,22 @@ SMTP_PASSWORD=BREVO_SMTP_PASSWORT
 > **Wichtig:** `.env` niemals in Git committen — steht bereits in `.gitignore`.
 > **Kein `ACME_EMAIL` nötig** — SSL wird vom vorgelagerten nginx-Proxy (10.0.0.144) erledigt, nicht von Traefik.
 
-### 3. Datenpersistenz vorbereiten (empfohlen)
+### 3. Datenpersistenz vorbereiten (Pflicht, nicht nur empfohlen)
 
-Die Datenbank, Redis und Mosquitto speichern Daten unter `/opt/eeg/`.  
+Die Datenbank, Redis, Mosquitto und alle Mitglieder-Uploads (Ausweis-Scans,
+Beitrittserklärungen, Profilbilder, generierte Vertrags-PDFs) speichern Daten unter `/opt/eeg/`.  
 Auf Raspberry Pi mit NVMe-SSD: sicherstellen, dass `/opt/` auf der SSD liegt.
 
 ```bash
-sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt}
+sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt,webapp-storage/uploads,webapp-storage/pdfs}
 sudo chmod 755 /opt/eeg
+sudo chown -R 82:82 /opt/eeg/webapp-storage
 ```
+
+> **Wichtig:** `webapp-storage` MUSS existieren und bereits `82:82` (www-data im
+> Alpine-PHP-Image) gehören, BEVOR `docker compose up -d --build` zum ersten Mal läuft.
+> Legt Docker das Verzeichnis selbst an (weil es fehlt), gehört es root, und PHP kann dann in
+> keinen Upload/keine Profilbild-Funktion mehr schreiben (500-Fehler bei jedem Upload).
 
 ### 4. Container starten
 
@@ -106,23 +113,45 @@ Dann normal `docker compose up -d` — Traefik startet nicht, webapp ist direkt 
 
 > **Achtung Produktion:** Diese Override-Datei darf auf dem Produktivserver **nicht** existieren, sonst blockiert sie Port 80 und deaktiviert Traefik-Routing.
 
-### 5. Erstes Admin-Passwort setzen
+### 5. Datenbank-Migrations einspielen (Pflicht)
 
-Die Datenbank enthält beim ersten Start einen Platzhalter-Passwort-Hash.  
-Passwort sofort über die Web-Oberfläche ändern:
+`database/init.sql` wird beim allerersten Start des `timescaledb`-Containers automatisch
+ausgeführt (Postgres' `docker-entrypoint-initdb.d`-Mechanismus) — das reicht aber NICHT für den
+vollen Funktionsumfang. Jede Datei `database/migrate_YYYYMMDD.sql` enthält seither
+hinzugekommene Tabellen/Spalten (u. a. E-Mail-Konfiguration/-Vorlagen, Testmodus-Einstellung,
+Vertrags-Versand-Tracking) und muss nach dem ersten Start manuell **in chronologischer
+Reihenfolge** eingespielt werden:
 
-1. `https://DOMAIN/portal/login` aufrufen
-2. Mit `patrick.ropper@gmail.com` einloggen (Platzhalter-Passwort: `ChangeMe2026!`)
-3. Rechts oben auf den Avatar-Kreis → **Passwort ändern**
+```bash
+for f in database/migrate_*.sql; do
+  echo "=== $f ==="
+  docker compose exec -T timescaledb psql -U eeg -d eeg_platform < "$f"
+done
+```
 
-> Das Platzhalter-Passwort ist nur beim allerersten Start gültig.  
-> Alternativ direkt in der DB setzen:
-> ```bash
-> docker compose exec timescaledb psql -U eeg -d eeg_platform -c \
->   "UPDATE users SET password_hash = crypt('NEUES_PASSWORT', gen_salt('bf')) WHERE email = 'patrick.ropper@gmail.com';"
-> ```
+Ohne diesen Schritt fehlen z. B. die Tabellen für die E-Mail-Einstellungen im Platform-Admin,
+und einzelne Seiten liefern `SQLSTATE[42P01]: Undefined table`-Fehler.
 
-### 6. Prüfen, dass alles läuft
+### 6. Erstes Admin-Passwort setzen
+
+Die Datenbank enthält beim ersten Start nur einen **ungültigen Platzhalter-Hash** (kein
+Passwort funktioniert damit) — das Passwort muss direkt in der DB gesetzt werden, bevor der
+erste Login möglich ist. `crypt()`/`gen_salt()` (pgcrypto) ist NICHT installiert, daher den
+Hash stattdessen mit PHP selbst erzeugen:
+
+```bash
+# 1. Bcrypt-Hash erzeugen (im laufenden webapp-Container, kein Extra-Tool nötig)
+docker compose exec webapp php -r "echo password_hash('NEUES_PASSWORT', PASSWORD_BCRYPT), PHP_EOL;"
+
+# 2. Den ausgegebenen Hash (beginnt mit $2y$12$...) hier einsetzen:
+docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c \
+  "UPDATE users SET password_hash = 'HIER_HASH_AUS_SCHRITT_1_EINFUEGEN' WHERE email = 'patrick.ropper@gmail.com';"
+```
+
+Danach ganz normal unter `https://DOMAIN/portal/login` mit `patrick.ropper@gmail.com` und dem
+neuen Passwort einloggen.
+
+### 7. Prüfen, dass alles läuft
 
 ```bash
 # Alle Container sollten "healthy" oder "running" sein
@@ -149,10 +178,13 @@ git pull
 docker compose up -d --build
 ```
 
-Wenn es neue Datenbank-Migrations gibt (Datei `database/migrate_YYYYMMDD.sql`):
+Wenn es neue Datenbank-Migrations gibt (Datei `database/migrate_YYYYMMDD.sql`), die noch nicht
+eingespielten Dateien einzeln oder alle auf einmal nachziehen:
 
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
+# oder: einfach alle (bereits eingespielte werden dank "IF NOT EXISTS" i.d.R. sauber übersprungen)
+for f in database/migrate_*.sql; do docker compose exec -T timescaledb psql -U eeg -d eeg_platform < "$f"; done
 ```
 
 ---
@@ -232,6 +264,15 @@ Die Plattform ist bewusst von der Hardware getrennt:
 
 Der ESP32 am Raspberry Pi sendet weiterhin MQTT-Daten — der Broker-Hostname in der ESP32-Firmware auf den neuen Server zeigen lassen.
 
+> **Achtung bei einer ANDEREN Domain** (nicht `stromfueralle.at`/`portal.stromfueralle.at`,
+> z. B. ein Test-/Zweit-Deployment unter eigenem Domainnamen): Die Domain-Trennung
+> zwischen Marketing-Seite und Backoffice (`webapp/public/index.php`, Funktionen `portalUrl()`,
+> `marketingUrl()`, `passwordResetLink()`) prüft aktuell exakt auf `stromfueralle.at` /
+> `portal.stromfueralle.at`, nicht auf die `DOMAIN`-Variable aus `.env`. Für einen reinen
+> Zweitserver unter demselben Domainnamen (z. B. Failover/Staging mit späterem DNS-Umzug)
+> ist das unproblematisch — für einen dauerhaft ANDERS benannten Deploy müssten diese
+> Stellen erst code-seitig auf `getenv('DOMAIN')` umgestellt werden.
+
 ---
 
 ## Häufige Probleme
@@ -243,3 +284,5 @@ Der ESP32 am Raspberry Pi sendet weiterhin MQTT-Daten — der Broker-Hostname in
 | DB-Verbindungsfehler | `docker compose ps timescaledb` — healthcheck abwarten (ca. 30s) |
 | Port 80 belegt | `sudo lsof -i :80` — anderen Dienst stoppen |
 | Let's Encrypt schlägt fehl | Domain muss via DNS auf die Server-IP zeigen, Port 80 offen |
+| 500-Fehler nur bei Datei-/Profilbild-Upload | `docker compose exec webapp cat /var/log/nginx/error.log` prüfen (NICHT `docker compose logs`, das zeigt nur den Access-Log-Teil) — meist Berechtigungsproblem auf `/var/lib/nginx/tmp` oder `/opt/eeg/webapp-storage`, siehe `CLAUDE.md` |
+| `SQLSTATE[42P01]: Undefined table` | Migration fehlt — Schritt 5 (Datenbank-Migrations einspielen) wiederholen |
