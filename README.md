@@ -44,6 +44,7 @@ docker compose up -d --build
 | Datei | Inhalt |
 |-------|--------|
 | [SETUP.md](SETUP.md) | Schritt-für-Schritt-Installation auf einem neuen Gerät |
+| [docs/BACKUP.md](docs/BACKUP.md) | Backup, NAS-Synchronisation, Restore (inkl. Uploads) |
 | [docs/PROJEKTSTAND.md](docs/PROJEKTSTAND.md) | Architektur, Schema, Fertigstellungsgrad |
 | [database/init.sql](database/init.sql) | Vollständiges Datenbankschema |
 

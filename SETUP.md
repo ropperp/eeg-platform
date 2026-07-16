@@ -191,25 +191,23 @@ for f in database/migrate_*.sql; do docker compose exec -T timescaledb psql -U e
 
 ## Datensicherung (Backups)
 
-**Datenbank-Backup** (täglich empfohlen):
+Vollständige Anleitung (Backup, externe Kopie auf NAS, Restore inkl. Uploads) →
+**[docs/BACKUP.md](docs/BACKUP.md)**
+
+Kurzfassung:
 
 ```bash
-# Backup erstellen
-docker compose exec timescaledb pg_dump -U eeg eeg_platform | gzip > backup_$(date +%Y%m%d).sql.gz
-
-# Backup einspielen
-gunzip -c backup_YYYYMMDD.sql.gz | docker compose exec -T timescaledb psql -U eeg -d eeg_platform
+make backup           # DB-Dump
+make backup-storage   # Uploads (Avatare, Ausweis-Scans, Beitrittserklärungen)
+make backup-all       # beides zusammen
 ```
 
-> Niemals das PostgreSQL-Datenverzeichnis (`/opt/eeg/timescaledb/`) bei laufender DB kopieren — das führt zu Korruption. Immer `pg_dump` verwenden.
+> Niemals das PostgreSQL-Datenverzeichnis (`/opt/eeg/timescaledb/`) bei laufender DB kopieren
+> — das führt zu Korruption. Immer die Skripte (`pg_dump`-basiert) verwenden, nie die Dateien
+> direkt kopieren.
 
-**Automatisch mit Cron** (Raspberry Pi):
-
-```bash
-crontab -e
-# Täglich um 02:00 Uhr:
-0 2 * * * cd /opt/eeg-platform && docker compose exec -T timescaledb pg_dump -U eeg eeg_platform | gzip > /opt/eeg/backups/backup_$(date +\%Y\%m\%d).sql.gz
-```
+Empfohlener Cron-Rhythmus (täglich, DB-Dump → Storage-Archiv → externe Kopie zeitlich
+versetzt) und Details zur NAS-Synchronisation: siehe `docs/BACKUP.md`.
 
 ---
 
