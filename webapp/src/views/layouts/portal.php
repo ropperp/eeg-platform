@@ -90,9 +90,7 @@
           <span class="profile-avatar"><img src="<?= htmlspecialchars($navAvatarUrl) ?>" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;display:block"></span>
         </button>
         <div class="profile-dropdown" id="profile-dropdown">
-          <?php if (!$isPlatformAdmin): ?>
           <a href="/portal/profile">✏️ Daten ändern</a>
-          <?php endif; ?>
           <a href="/portal/password">🔑 Passwort ändern</a>
           <hr style="margin:.3rem 0;border-color:#f3f4f6">
           <a href="/portal/logout" style="color:#dc2626">🚪 Abmelden</a>
