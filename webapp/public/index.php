@@ -2226,6 +2226,30 @@ $router->get('/portal/billing', function () {
     require ROOT . '/src/views/pages/billing.php';
 });
 
+/**
+ * Eigener Reiter "Rechnungen" (getrennt von /portal/billing, das nur die Abrechnungsläufe pro
+ * Quartal zeigt): listet einzelne Rechnungen aller Mitglieder der aktiven Community, filterbar
+ * client-seitig nach Kundennummer/Name (Text), Quartal und Betrag (min/max). $_GET['quartal']
+ * setzt die Quartals-Auswahl serverseitig vor, damit der "Rechnungen ansehen"-Link aus
+ * /portal/billing direkt gefiltert aufmachen kann.
+ */
+$router->get('/portal/billing/invoices', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $invoices = DB::fetchAll(
+        'SELECT i.*, br.quartal, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email
+         FROM invoices i
+         JOIN billing_runs br ON br.id = i.billing_run_id
+         JOIN members m ON m.id = i.member_id
+         WHERE i.community_id = ?
+         ORDER BY i.created_at DESC',
+        [$communityId]
+    );
+    $quartalFilter = $_GET['quartal'] ?? '';
+    require ROOT . '/src/views/pages/billing_invoices.php';
+});
+
 $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';

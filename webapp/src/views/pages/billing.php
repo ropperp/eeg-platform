@@ -67,7 +67,7 @@ ob_start();
               Noch <?= max(0, ceil((strtotime($run['freigabe_nach']) - time()) / 86400)) ?> Tage
             </span>
           <?php else: ?>
-            <a href="#" style="font-size:.8rem">Rechnungen ansehen</a>
+            <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
           <?php endif; ?>
           <?php if (Auth::isManager()): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"

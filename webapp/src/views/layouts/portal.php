@@ -127,8 +127,11 @@
       <a href="/portal/files" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/files') ? 'active' : '' ?>">
         <span class="sidebar-icon">📁</span><span class="sidebar-text">Dateien</span>
       </a>
-      <a href="/portal/billing" class="<?= str_contains($_SERVER['REQUEST_URI'], 'billing') ? 'active' : '' ?>">
+      <a href="/portal/billing" class="<?= $_SERVER['REQUEST_URI'] === '/portal/billing' || str_starts_with($_SERVER['REQUEST_URI'], '/portal/billing?') ? 'active' : '' ?>">
         <span class="sidebar-icon">💶</span><span class="sidebar-text">Abrechnung</span>
+      </a>
+      <a href="/portal/billing/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/billing/invoices') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
       </a>
       <?php
         $pendingApplications = 0;
