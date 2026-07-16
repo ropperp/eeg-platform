@@ -208,6 +208,20 @@ ob_start();
       </div>
     <?php endforeach; ?>
   </div>
+
+  <div class="card" style="margin-bottom:1.5rem">
+    <h3 style="margin-bottom:.5rem">Portal-Zugang</h3>
+    <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400">
+      <input type="checkbox" name="send_invite_now" value="1" style="width:auto;margin-top:.2rem"
+             <?= !empty($_POST['send_invite_now'] ?? false) ? 'checked' : '' ?>>
+      <span style="font-size:.85rem">
+        Portal-Zugang jetzt per E-Mail einrichten lassen.
+        Standardmäßig <strong>nicht</strong> angehakt -- Mitglied, Verträge und Daten können
+        angelegt werden, ohne dass der Kunde schon Zugang zum Portal bekommt. Der Zugang kann
+        später jederzeit über „📧 Portal-Zugang freischalten" am Mitglied nachgeholt werden.
+      </span>
+    </label>
+  </div>
   <?php endif; ?>
 
   <div style="display:flex;gap:1rem">

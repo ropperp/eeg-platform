@@ -63,6 +63,10 @@
     <a href="/portal/members/<?= $member['id'] ?>/edit"
        class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">✏️ Bearbeiten</a>
     <?php if (!empty($member['user_id'])): ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/send-invite" style="display:inline"
+          onsubmit="return confirm('Portal-Zugang jetzt per E-Mail an <?= htmlspecialchars(addslashes($member['email'])) ?> freischalten?')">
+      <button type="submit" class="btn" style="background:#ecfdf5;color:#047857;font-size:.8rem">📧 Portal-Zugang freischalten</button>
+    </form>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
       <button type="submit" class="btn" style="background:#e0f2fe;color:#0369a1;font-size:.8rem">🔑 Passwort zurücksetzen</button>
     </form>
