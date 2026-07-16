@@ -186,6 +186,9 @@
       <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
         <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
       </a>
+      <a href="/portal/my/api-keys" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/api-keys') ? 'active' : '' ?>">
+        <span class="sidebar-icon">🔌</span><span class="sidebar-text">API-Zugänge</span>
+      </a>
     <?php endif; ?>
   </aside>
 

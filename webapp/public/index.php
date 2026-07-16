@@ -1240,6 +1240,66 @@ $router->get('/portal/my/documents/formular', function () {
     exit;
 });
 
+/**
+ * Verwaltung persönlicher API-Keys (Grundlage für die künftige Smart-Home-API mit
+ * Echtzeit-Bezugs-/Einspeiseleistung und Community-Autarkie). Die eigentlichen
+ * Live-Daten-Endpoints, die diese Keys einmal prüfen werden, kommen erst, sobald das
+ * Zählerdaten-Setup fürs Mitglied-Dashboard produktionsreif ist -- Mitglieder können ihre
+ * Zugänge aber schon jetzt anlegen/benennen/mit Ablaufdatum versehen/widerrufen.
+ */
+$router->get('/portal/my/api-keys', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $apiKeys = DB::fetchAll(
+        'SELECT * FROM member_api_keys WHERE member_id = ? ORDER BY created_at DESC',
+        [$member['id']]
+    );
+    // Frisch erzeugter Token wird nur EINMAL direkt nach der Erstellung angezeigt (Flash über
+    // die Session) -- danach ist nur noch der Hash in der DB, der Klartext ist unwiederbringlich weg.
+    $newApiKey = $_SESSION['flash_new_api_key'] ?? null;
+    unset($_SESSION['flash_new_api_key']);
+    require ROOT . '/src/views/pages/my_api_keys.php';
+});
+
+$router->post('/portal/my/api-keys', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $name = trim($_POST['name'] ?? '');
+    if ($name === '') {
+        header('Location: /portal/my/api-keys?error=' . urlencode('Bitte einen Namen für den API-Key vergeben.'));
+        exit;
+    }
+    $validityDays = ['30' => 30, '90' => 90, '365' => 365][$_POST['validity'] ?? ''] ?? null;
+    $expiresAt = $validityDays ? date('Y-m-d H:i:s', strtotime("+{$validityDays} days")) : null;
+
+    // Eigener Zufallstoken statt bcrypt-Passwort: 32 Byte Zufall sind selbst schon die
+    // Sicherheit, ein sha256-Hash reicht zur Speicherung (siehe migrate_20260730.sql).
+    $token = bin2hex(random_bytes(32));
+    DB::execute(
+        'INSERT INTO member_api_keys (community_id, member_id, name, key_prefix, key_hash, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        [$member['community_id'], $member['id'], $name, substr($token, 0, 8), hash('sha256', $token), $expiresAt]
+    );
+    $_SESSION['flash_new_api_key'] = $token;
+    header('Location: /portal/my/api-keys?created=1');
+    exit;
+});
+
+$router->post('/portal/my/api-keys/:id/revoke', function ($params) {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    DB::execute(
+        'UPDATE member_api_keys SET revoked_at = now() WHERE id = ? AND member_id = ? AND revoked_at IS NULL',
+        [$params['id'], $member['id']]
+    );
+    header('Location: /portal/my/api-keys?success=' . urlencode('API-Key wurde widerrufen.'));
+    exit;
+});
+
 // ─── Portal: Mitgliederverwaltung ───────────────────────
 $router->get('/portal/members', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
