@@ -143,8 +143,9 @@ ob_start();
     <div class="grid-2">
       <div class="form-group">
         <label>IBAN</label>
-        <input type="text" name="member_iban" placeholder="AT61 1904 3002 3457 3201"
+        <input type="text" name="member_iban" id="member_iban" placeholder="AT61 1904 3002 3457 3201"
                value="<?= htmlspecialchars($m['member_iban'] ?? $_POST['member_iban'] ?? '') ?>">
+        <div id="iban-feedback" style="font-size:.78rem;margin-top:.35rem;min-height:1.1em"></div>
       </div>
       <div class="form-group">
         <label>BIC</label>
@@ -214,5 +215,42 @@ ob_start();
     <a href="/portal/members" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</a>
   </div>
 </form>
+
+<script>
+  // IBAN: Prüfziffer per Mod-97 (ISO 7064) validieren und in 4er-Blöcken anzeigen,
+  // analog zur serverseitigen Prüfung in validateIban() (webapp/public/index.php).
+  function ibanChecksumValid(rawIban) {
+    const iban = rawIban.replace(/\s+/g, '').toUpperCase();
+    if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) return false;
+    const rearranged = iban.slice(4) + iban.slice(0, 4);
+    let numeric = '';
+    for (const ch of rearranged) {
+      numeric += /[0-9]/.test(ch) ? ch : (ch.charCodeAt(0) - 55).toString();
+    }
+    let remainder = 0;
+    for (const digit of numeric) {
+      remainder = (remainder * 10 + parseInt(digit, 10)) % 97;
+    }
+    return remainder === 1;
+  }
+  function formatIbanGroups(rawIban) {
+    const iban = rawIban.replace(/\s+/g, '').toUpperCase();
+    return iban.match(/.{1,4}/g)?.join(' ') ?? '';
+  }
+  function updateIbanFeedback() {
+    const input = document.getElementById('member_iban');
+    const feedback = document.getElementById('iban-feedback');
+    const raw = input.value.trim();
+    if (raw === '') { feedback.textContent = ''; return; }
+    const grouped = formatIbanGroups(raw);
+    if (ibanChecksumValid(raw)) {
+      feedback.innerHTML = '<span style="color:#16a34a">✓ ' + grouped + ' — IBAN gültig</span>';
+    } else {
+      feedback.innerHTML = '<span style="color:#dc2626">✗ ' + grouped + ' — IBAN ungültig (Prüfsumme stimmt nicht)</span>';
+    }
+  }
+  document.getElementById('member_iban').addEventListener('input', updateIbanFeedback);
+  updateIbanFeedback();
+</script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';
