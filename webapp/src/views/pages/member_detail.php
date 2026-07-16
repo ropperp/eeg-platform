@@ -366,7 +366,17 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   <h3 style="margin-bottom:1rem">Profilbild ändern</h3>
   <form method="post" action="/portal/members/<?= $member['id'] ?>/photo" enctype="multipart/form-data">
     <div class="form-group">
-      <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
+      <input type="file" name="photo" id="member-photo-input" accept="image/png,image/jpeg,image/webp" required>
+    </div>
+    <div id="member-photo-crop-wrapper" style="display:none;flex-direction:column;align-items:center;gap:.5rem;margin-bottom:1rem">
+      <div style="width:220px;height:220px;border-radius:50%;overflow:hidden;border:2px solid #e5e7eb">
+        <canvas id="member-photo-canvas" width="220" height="220" style="cursor:grab"></canvas>
+      </div>
+      <label style="font-size:.78rem;color:#6b7280;display:flex;align-items:center;gap:.5rem">
+        🔍 Zoom
+        <input type="range" id="member-photo-zoom" min="100" max="300" value="100">
+      </label>
+      <small style="color:#6b7280">Zum Verschieben im Bild ziehen.</small>
     </div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
       <button type="button" onclick="document.getElementById('photo-dialog').close()" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</button>
@@ -415,7 +425,15 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   </form>
 </dialog>
 
+<script src="/assets/js/avatar-crop.js"></script>
 <script>
+  initAvatarCropper({
+    fileInputId: 'member-photo-input',
+    wrapperId: 'member-photo-crop-wrapper',
+    canvasId: 'member-photo-canvas',
+    zoomId: 'member-photo-zoom',
+  });
+
 function toggleMpTypeFields(prefix) {
   const isConsumer = document.getElementById(prefix + '-mp-type').value === 'consumer';
   document.getElementById(prefix + '-mp-consumer-fields').style.display = isConsumer ? '' : 'none';

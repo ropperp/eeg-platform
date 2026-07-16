@@ -18,12 +18,32 @@
   <div style="display:flex;align-items:center;gap:1.25rem">
     <img src="<?= htmlspecialchars($profileAvatarUrl) ?>"
          alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover">
-    <form method="post" action="/portal/profile/photo" enctype="multipart/form-data" style="display:flex;gap:.5rem;align-items:center">
-      <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
+    <form method="post" action="/portal/profile/photo" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-start">
+      <input type="file" name="photo" id="profile-photo-input" accept="image/png,image/jpeg,image/webp" required>
+      <div id="profile-photo-crop-wrapper" style="display:none;flex-direction:column;align-items:center;gap:.5rem">
+        <div style="width:220px;height:220px;border-radius:50%;overflow:hidden;border:2px solid #e5e7eb">
+          <canvas id="profile-photo-canvas" width="220" height="220" style="cursor:grab"></canvas>
+        </div>
+        <label style="font-size:.78rem;color:#6b7280;display:flex;align-items:center;gap:.5rem">
+          🔍 Zoom
+          <input type="range" id="profile-photo-zoom" min="100" max="300" value="100">
+        </label>
+        <small style="color:#6b7280">Zum Verschieben im Bild ziehen.</small>
+      </div>
       <button type="submit" class="btn" style="background:#f3f4f6;color:#374151">Ändern</button>
     </form>
   </div>
 </div>
+
+<script src="/assets/js/avatar-crop.js"></script>
+<script>
+  initAvatarCropper({
+    fileInputId: 'profile-photo-input',
+    wrapperId: 'profile-photo-crop-wrapper',
+    canvasId: 'profile-photo-canvas',
+    zoomId: 'profile-photo-zoom',
+  });
+</script>
 
 <div class="card" style="max-width:480px">
   <form method="post" action="/portal/profile">
