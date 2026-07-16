@@ -3107,8 +3107,14 @@ $router->post('/admin/settings/test-mode', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $testMode = !empty($_POST['test_mode']);
-    DB::execute('UPDATE platform_settings SET test_mode = ?, updated_at = now() WHERE id = 1', [$testMode]);
-    logAudit(null, 'platform_settings.update', 'platform_settings', '1',
+    // PDO gibt einen rohen PHP-Bool ohne expliziten Typ standardmäßig als String weiter --
+    // "true" wird von Postgres noch akzeptiert, ein rohes "false" aber als leerer String (''),
+    // was am boolean-Spaltentyp scheitert (SQLSTATE 22P02). Deshalb wie im Rest der Codebase
+    // durchgehend 'true'/'false' als Literal übergeben statt des PHP-Bools direkt.
+    DB::execute('UPDATE platform_settings SET test_mode = ?, updated_at = now() WHERE id = 1', [$testMode ? 'true' : 'false']);
+    // entity_id ist in audit_log als UUID typisiert -- platform_settings.id ist aber ein
+    // simpler Integer (immer 1), passt dort nicht rein.
+    logAudit(null, 'platform_settings.update', 'platform_settings', null,
         'Plattform auf ' . ($testMode ? 'Testmodus' : 'Echtbetrieb') . ' umgestellt');
     header('Location: /admin/mail-settings?success=1');
     exit;
