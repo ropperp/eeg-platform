@@ -18,6 +18,13 @@ COPY webapp/public/ /var/www/html/public/
 COPY webapp/src/ /var/www/html/src/
 COPY eda-parser/ /var/www/html/eda-parser/
 
+# Read-only Rückfallebene für /admin/templates (Platform-Admin: LaTeX-Vorlagen herunter-/
+# hochladen): das persistente Volume /opt/eeg/latex-templates (siehe docker-compose.yml) wird
+# erst beim ersten Start von latex-service befüllt -- bis dahin (oder falls das Volume aus
+# irgendeinem Grund leer ist) zeigt die Admin-Seite ersatzweise diese mitgelieferten
+# Standard-Vorlagen an, statt eine leere/kaputte Seite auszuliefern.
+COPY latex-service/templates/ /var/www/html/latex-templates-default/
+
 WORKDIR /var/www/html
 
 # Uploads-Verzeichnis

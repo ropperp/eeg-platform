@@ -3176,4 +3176,98 @@ $router->post('/admin/mail-settings/test', function () {
     require ROOT . '/src/views/pages/admin_mail_settings.php';
 });
 
+/**
+ * Whitelist der über /admin/templates verwaltbaren LaTeX-Vorlagen (Dateiname => Anzeigename).
+ * Bewusst eine feste Liste statt freier Dateinamen -- verhindert Path-Traversal und stellt
+ * sicher, dass nur Dateien angezeigt werden, die latex-service auch tatsächlich kennt.
+ */
+function latexTemplateLabels(): array
+{
+    return [
+        'bezugsvereinbarung.tex'           => 'Bezugsvereinbarung',
+        'einspeisevereinbarung.tex'        => 'Einspeisevereinbarung',
+        'rechnung.tex'                     => 'Rechnung',
+        'beitrittserklaerung_formular.tex' => 'Beitrittserklärung',
+    ];
+}
+
+/**
+ * Pfad zur aktuell wirksamen Fassung einer Vorlage: das persistente Volume
+ * (/var/www/html/latex-templates, geteilt mit latex-service) hat Vorrang, sonst die im
+ * Image mitgelieferte Standard-Vorlage als Rückfallebene (z.B. direkt nach einem frischen
+ * Deploy, bevor latex-service beim ersten Start das Volume befüllt hat).
+ */
+function latexTemplatePath(string $filename): ?string
+{
+    $live = '/var/www/html/latex-templates/' . $filename;
+    if (is_file($live)) { return $live; }
+    $default = '/var/www/html/latex-templates-default/' . $filename;
+    return is_file($default) ? $default : null;
+}
+
+$router->get('/admin/templates', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    $templates = [];
+    foreach (latexTemplateLabels() as $filename => $label) {
+        $path = latexTemplatePath($filename);
+        $templates[] = [
+            'filename'  => $filename,
+            'label'     => $label,
+            'exists'    => $path !== null,
+            'is_custom' => $path !== null && str_starts_with($path, '/var/www/html/latex-templates/'),
+            'size'      => $path ? filesize($path) : null,
+            'mtime'     => $path ? filemtime($path) : null,
+        ];
+    }
+    require ROOT . '/src/views/pages/admin_templates.php';
+});
+
+$router->get('/admin/templates/:name/download', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    $labels = latexTemplateLabels();
+    if (!array_key_exists($params['name'], $labels)) { http_response_code(404); echo 'Unbekannte Vorlage'; return; }
+    $path = latexTemplatePath($params['name']);
+    if (!$path) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
+
+    header('Content-Type: text/plain; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $params['name'] . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+});
+
+$router->post('/admin/templates/:name/upload', function ($params) {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    $labels = latexTemplateLabels();
+    if (!array_key_exists($params['name'], $labels)) { http_response_code(404); echo 'Unbekannte Vorlage'; return; }
+
+    if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        header('Location: /admin/templates?error=' . urlencode('Datei-Upload fehlgeschlagen.'));
+        exit;
+    }
+    // Grobe Plausibilitätsprüfung -- keine strikte LaTeX-Validierung, ein Syntaxfehler zeigt
+    // sich ohnehin sofort beim nächsten PDF-Versuch (streamLatexPdf() liefert dann die
+    // pdflatex-Fehlermeldung statt eines PDFs).
+    if ($_FILES['file']['size'] > 2 * 1024 * 1024) {
+        header('Location: /admin/templates?error=' . urlencode('Datei zu groß (max. 2 MB).'));
+        exit;
+    }
+
+    @mkdir('/var/www/html/latex-templates', 0775, true);
+    $target = '/var/www/html/latex-templates/' . $params['name'];
+    if (!move_uploaded_file($_FILES['file']['tmp_name'], $target)) {
+        header('Location: /admin/templates?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
+        exit;
+    }
+    // entity_id ist in audit_log als UUID typisiert -- der Dateiname passt dort nicht rein,
+    // steht stattdessen in der Beschreibung.
+    logAudit(null, 'template.upload', 'latex_template', null,
+        'LaTeX-Vorlage "' . $labels[$params['name']] . '" (' . $params['name'] . ') hochgeladen/ersetzt');
+    header('Location: /admin/templates?success=' . urlencode($labels[$params['name']] . ' wurde aktualisiert.'));
+    exit;
+});
+
 $router->dispatch();

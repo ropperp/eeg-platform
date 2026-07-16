@@ -391,6 +391,18 @@ docker compose up -d --build
 > sudo chown -R 82:82 /opt/eeg/webapp-storage
 > ```
 
+> **Einmalig nach dem Update vom 16.07.2026** (Platform-Admin-Dateiverwaltung für
+> LaTeX-Vorlagen, `/admin/templates`): gleiches Muster wie oben, diesmal für
+> `/opt/eeg/latex-templates` (wird sowohl von `webapp` als auch von `latex-service` gemountet):
+> ```bash
+> sudo mkdir -p /opt/eeg/latex-templates
+> sudo chown -R 82:82 /opt/eeg/latex-templates
+> ```
+> `latex-service` läuft als root und darf trotz `82:82`-Eigentümer weiterhin schreiben --
+> `82:82` ist nur nötig, damit `webapp` (www-data) darüber Uploads speichern kann. Bleibt das
+> Verzeichnis beim ersten Start leer, kopiert `latex-service` (siehe
+> `latex-service/docker/entrypoint.sh`) einmalig seine mitgelieferten Standard-Vorlagen hinein.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

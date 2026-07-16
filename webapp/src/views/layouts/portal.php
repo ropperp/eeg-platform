@@ -113,6 +113,9 @@
       <a href="/admin/mail-settings" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/mail-settings') ? 'active' : '' ?>">
         <span class="sidebar-icon">✉️</span><span class="sidebar-text">E-Mail-Einstellungen</span>
       </a>
+      <a href="/admin/templates" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/templates') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📁</span><span class="sidebar-text">Dateien</span>
+      </a>
 
     <?php elseif ($isManager): ?>
       <p class="sidebar-label">Verwaltung</p>

@@ -75,15 +75,23 @@ Beitrittserklärungen, Profilbilder, generierte Vertrags-PDFs) speichern Daten u
 Auf Raspberry Pi mit NVMe-SSD: sicherstellen, dass `/opt/` auf der SSD liegt.
 
 ```bash
-sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt,webapp-storage/uploads,webapp-storage/pdfs}
+sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt,webapp-storage/uploads,webapp-storage/pdfs,latex-templates}
 sudo chmod 755 /opt/eeg
-sudo chown -R 82:82 /opt/eeg/webapp-storage
+sudo chown -R 82:82 /opt/eeg/webapp-storage /opt/eeg/latex-templates
 ```
 
-> **Wichtig:** `webapp-storage` MUSS existieren und bereits `82:82` (www-data im
-> Alpine-PHP-Image) gehören, BEVOR `docker compose up -d --build` zum ersten Mal läuft.
-> Legt Docker das Verzeichnis selbst an (weil es fehlt), gehört es root, und PHP kann dann in
-> keinen Upload/keine Profilbild-Funktion mehr schreiben (500-Fehler bei jedem Upload).
+> **Wichtig:** `webapp-storage` und `latex-templates` MÜSSEN existieren und bereits `82:82`
+> (www-data im Alpine-PHP-Image) gehören, BEVOR `docker compose up -d --build` zum ersten Mal
+> läuft. Legt Docker die Verzeichnisse selbst an (weil sie fehlen), gehören sie root, und PHP
+> kann dann in keine Upload-/Profilbild-/Vorlagen-Funktion mehr schreiben (500-Fehler bei jedem
+> Upload). `latex-templates` wird von latex-service (läuft als root, daher unkritisch) UND von
+> webapp (www-data) gemeinsam beschrieben -- root darf trotz `82:82`-Eigentümer weiterhin
+> schreiben, deshalb reicht dieselbe Eigentümerschaft wie bei webapp-storage.
+>
+> `latex-templates` bleibt beim allerersten Start leer -- latex-service kopiert dann beim
+> Hochfahren einmalig seine mitgelieferten Standard-Vorlagen hinein (siehe
+> `latex-service/docker/entrypoint.sh`), ohne dieses Verzeichnis würden diese Standard-Vorlagen
+> das erste `git pull` überleben aber nicht, da sie sonst nur im Image liegen.
 
 ### 4. Container starten
 

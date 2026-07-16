@@ -21,9 +21,15 @@ WORKDIR /app
 COPY package.json .
 RUN npm install --omit=dev
 COPY service.js .
+# templates-default bleibt unangetastet im Image (Rückfallebene) -- ./templates selbst wird
+# im Produktivbetrieb durch das persistente Volume /opt/eeg/latex-templates überdeckt (siehe
+# docker-compose.yml + entrypoint.sh), damit Platform-Admin-Uploads einen --build überleben.
+COPY templates/ ./templates-default/
 COPY templates/ ./templates/
+COPY docker/entrypoint.sh /entrypoint.sh
 
-RUN mkdir -p /tmp/latex-jobs
+RUN chmod +x /entrypoint.sh && mkdir -p /tmp/latex-jobs
 
 EXPOSE 3210
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "service.js"]
