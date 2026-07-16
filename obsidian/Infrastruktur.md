@@ -174,3 +174,18 @@ Meist: mehrere Zertifikats-Lineages für dieselbe Domain (`stromfueralle.at`,
 `stromfueralle.at-0001`, `www.stromfueralle.at`) — Diagnose mit `sudo certbot certificates`,
 Konsolidierung auf eine Lineage, dann `sudo certbot delete --cert-name <name>` für die
 überzähligen (erst nach Verifikation!).
+
+### Datei-/Profilbild-Upload: 500/505 im Browser (Stand 16.07.2026)
+Jeder Upload bricht ab, obwohl `docker compose logs webapp` nur 200/302 zeigt -- der Fehler
+liegt in der Proxy-Kette, nicht in PHP. Auf 10.0.0.144 in `/var/log/nginx/error.log`: `readv()
+failed (104: Connection reset by peer) while reading upstream` für POSTs mit Datei-Anhang.
+`docker compose logs traefik` ist dabei normalerweise leer (kein Accesslog konfiguriert, kein
+Fehlerhinweis). Ursache: `location /` in `70_stromfueralle.conf` setzt `proxy_pass` ohne
+`proxy_http_version 1.1;`, wodurch die Upstream-Verbindung zu Traefik auf HTTP/1.0 fällt --
+funktioniert für normale POSTs, bricht aber bei multipart/form-data-Uploads zuverlässig ab.
+Fix in JEDEM `location /`-Block ergänzen:
+```nginx
+proxy_http_version 1.1;
+proxy_set_header   Connection "";
+```
+Danach `sudo nginx -t && sudo systemctl reload nginx`. Details: siehe `CLAUDE.md` im Repo.

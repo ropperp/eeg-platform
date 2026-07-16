@@ -287,6 +287,54 @@ Subdomain noch nicht erreichbar ist) — sobald DNS + SSL stehen, greift der abs
 > begonnene Session auf der anderen weiterhin nicht erkannt (wirkt wie "sofort ausgeloggt"
 > bzw. Admin-Bereich bleibt scheinbar auf der Hauptdomain hängen).
 
+### Datei-/Profilbild-Upload: 500/505 im Browser, aber webapp-Logs zeigen nur 200/302
+Stand 16.07.2026, reproduzierbar bei **jedem** Datei- und Profilbild-Upload (nicht nur groß
+oder gelegentlich). `docker compose logs webapp` zeigt für den Request selbst nur saubere
+200/302-Codes — der Fehler passiert also NICHT in PHP, sondern beim Zurückliefern der Antwort
+durch die Proxy-Kette. Auf dem nginx-Proxy-Host (10.0.0.144) taucht dazu in
+`/var/log/nginx/error.log` sowas auf:
+```
+readv() failed (104: Connection reset by peer) while reading upstream ...
+request: "POST /portal/members/.../files HTTP/1.1", upstream: "http://10.0.0.250:80/..."
+```
+`docker compose logs traefik` ist dabei leer — das ist normal und KEIN Hinweis auf einen
+Traefik-Fehler: Traefik loggt ohne `--accesslog=true` (nicht gesetzt in `docker-compose.yml`)
+grundsätzlich keine einzelnen Requests, nur eigene Fehler ab Level ERROR.
+
+**Ursache:** `70_stromfueralle.conf` auf 10.0.0.144 setzt `proxy_pass http://10.0.0.250;` ohne
+`proxy_http_version 1.1;` — nginx spricht die Upstream-Verbindung (zu Traefik) dann standardmäßig
+per HTTP/1.0 statt 1.1. Für normale POSTs mit kleinem, sofort bekanntem Body (Login,
+Formularfelder) macht das keinen Unterschied, aber Datei-Uploads (`multipart/form-data`) laufen
+darüber offenbar zuverlässig in einen Verbindungsabbruch zwischen nginx-Proxy und Traefik/webapp.
+
+**Fix** (auf 10.0.0.144, in JEDEM `location /`-Block der Datei -- Hauptdomain UND
+portal/www-Blöcke):
+```bash
+sudo cp /etc/nginx/sites-available/70_stromfueralle.conf \
+        /etc/nginx/sites-available/70_stromfueralle.conf.bak-$(date +%s)
+sudo nano /etc/nginx/sites-available/70_stromfueralle.conf
+```
+In jedem `location / { ... }`-Block ergänzen:
+```nginx
+location / {
+    proxy_http_version 1.1;
+    proxy_set_header   Connection        "";
+    proxy_pass         http://10.0.0.250;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto https;
+}
+```
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+Danach Datei-/Profilbild-Upload erneut testen. Falls das Problem weiterhin auftritt, als
+Nächstes direkt auf dem EEG-Server (10.0.0.250) prüfen, ob derselbe Upload via
+`docker compose exec webapp curl -F "photo=@test.png" localhost/portal/profile/photo ...`
+(mit gültigem Session-Cookie) funktioniert -- dann läge der Fehler zwischen nginx-Proxy und
+Traefik/webapp, nicht in Traefik/webapp selbst.
+
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
 ```bash
