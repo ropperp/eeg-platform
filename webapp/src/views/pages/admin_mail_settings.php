@@ -16,6 +16,24 @@
 <?php endif; ?>
 
 <div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">🧪 Testmodus / Echtbetrieb</h3>
+  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+    Betrifft nur die Vergabe von Kundennummern. Im <strong>Testmodus</strong> füllt eine neu
+    angelegte Kundennummer Lücken von gelöschten/deaktivierten Mitgliedern wieder auf (praktisch
+    zum Testen). Im <strong>Echtbetrieb</strong> wird eine einmal vergebene Kundennummer nie
+    wieder verwendet -- es wird immer die nächsthöhere freie Nummer vergeben.
+  </p>
+  <form method="post" action="/admin/settings/test-mode">
+    <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;font-weight:600">
+      <input type="checkbox" name="test_mode" value="1" style="width:auto"
+             <?= !empty($platformSettings['test_mode']) ? 'checked' : '' ?>>
+      Testmodus aktiv
+    </label>
+    <button type="submit" class="btn btn-primary">Speichern</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Azure-App-Registrierung</h3>
   <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
     Benötigt eine Azure-AD-App-Registrierung mit Anwendungsberechtigung <code>Mail.Send</code> (Admin-Zustimmung erteilt)

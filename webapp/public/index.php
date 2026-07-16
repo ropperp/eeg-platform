@@ -430,18 +430,28 @@ function createMemberRecord(string $communityId, array $f): array
         }
     }
 
-    // KdNr: kleinste freie Nummer PLATTFORMWEIT (nicht nur je Community) ab 10001 vergeben
-    // (Lücken von gelöschten Mitgliedern auffüllen). Muss über alle EEGs hinweg eindeutig sein,
-    // da stromfueralle als Plattform gemeinsam abrechnet und die Kundennummer auf der Rechnung
-    // steht -- siehe migrate_20260723.sql (UNIQUE-Index dafür jetzt ebenfalls plattformweit).
-    $kundennummer = (int)DB::fetchOne(
-        "SELECT MIN(candidate) AS next FROM generate_series(
-            10001, (SELECT COALESCE(MAX(kundennummer), 10000) + 1 FROM members)
-         ) AS candidate
-         WHERE candidate NOT IN (
-            SELECT kundennummer FROM members WHERE kundennummer IS NOT NULL
-         )"
-    )['next'];
+    // KdNr muss über alle EEGs hinweg eindeutig sein, da stromfueralle als Plattform
+    // gemeinsam abrechnet und die Kundennummer auf der Rechnung steht -- siehe
+    // migrate_20260723.sql (UNIQUE-Index dafür plattformweit).
+    // Im Testmodus wird PLATTFORMWEIT die kleinste freie Nummer ab 10001 vergeben (füllt
+    // Lücken von gelöschten/deaktivierten Mitgliedern auf -- praktisch zum Testen). Im
+    // Echtbetrieb wird eine einmal vergebene Nummer nie wieder verwendet, daher immer
+    // MAX(kundennummer)+1, egal ob dazwischen Lücken bestehen (siehe migrate_20260728.sql).
+    $testMode = (bool)(DB::fetchOne('SELECT test_mode FROM platform_settings WHERE id = 1')['test_mode'] ?? true);
+    if ($testMode) {
+        $kundennummer = (int)DB::fetchOne(
+            "SELECT MIN(candidate) AS next FROM generate_series(
+                10001, (SELECT COALESCE(MAX(kundennummer), 10000) + 1 FROM members)
+             ) AS candidate
+             WHERE candidate NOT IN (
+                SELECT kundennummer FROM members WHERE kundennummer IS NOT NULL
+             )"
+        )['next'];
+    } else {
+        $kundennummer = (int)DB::fetchOne(
+            'SELECT COALESCE(MAX(kundennummer), 10000) + 1 AS next FROM members'
+        )['next'];
+    }
     $iban = trim($f['member_iban'] ?? '');
     $mandatsreferenz = $iban !== '' ? 'S00000F' . date('Y') . 'A' . $kundennummer : null;
 
@@ -2709,14 +2719,31 @@ $router->get('/admin/mail-settings', function () {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
+    $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1');
     require ROOT . '/src/views/pages/admin_mail_settings.php';
+});
+
+/**
+ * Testmodus/Echtbetrieb: steuert nur, ob die Kundennummern-Vergabe Lücken von gelöschten/
+ * deaktivierten Mitgliedern auffüllen darf (siehe createMemberRecord()) -- im Echtbetrieb
+ * wird eine einmal vergebene Nummer nie wieder verwendet.
+ */
+$router->post('/admin/settings/test-mode', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $testMode = !empty($_POST['test_mode']);
+    DB::execute('UPDATE platform_settings SET test_mode = ?, updated_at = now() WHERE id = 1', [$testMode]);
+    logAudit(null, 'platform_settings.update', 'platform_settings', '1',
+        'Plattform auf ' . ($testMode ? 'Testmodus' : 'Echtbetrieb') . ' umgestellt');
+    header('Location: /admin/mail-settings?success=1');
+    exit;
 });
 
 $router->post('/admin/mail-templates', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $key = $_POST['key'] ?? '';
-    if (!in_array($key, ['password_reset', 'invite'], true)) { http_response_code(400); return; }
+    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both'], true)) { http_response_code(400); return; }
     DB::execute(
         'UPDATE platform_mail_templates SET subject = ?, body_html = ?, updated_at = now() WHERE key = ?',
         [trim($_POST['subject'] ?? ''), $_POST['body_html'] ?? '', $key]
@@ -2759,6 +2786,7 @@ $router->post('/admin/mail-settings/test', function () {
     $to = trim($_POST['test_to'] ?? '');
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
+    $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1');
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
         $testError = 'Bitte eine gültige E-Mail-Adresse angeben.';
         require ROOT . '/src/views/pages/admin_mail_settings.php';
