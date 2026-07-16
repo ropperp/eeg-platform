@@ -1,5 +1,5 @@
 .PHONY: up down build build-clean prod update logs logs-web logs-latex logs-db \
-        ps shell-db shell-web backup restore migrate schema demo-db verify
+        ps shell-db shell-web backup backup-storage backup-all sync-nas restore migrate schema demo-db verify
 
 # ─── Starten ──────────────────────────────────────────────────────────────────
 up:
@@ -49,6 +49,19 @@ shell-web:
 # ─── Backup (enthält echte Daten — NICHT in Git) ──────────────────────────────
 backup:
 	bash scripts/backup.sh
+
+# Uploads sichern (Avatare, Ausweis-Scans, Beitrittserklärungen -- NICHT aus der DB
+# wiederherstellbar). Muss auf dem Host laufen, nicht im Container.
+backup-storage:
+	bash scripts/backup-storage.sh
+
+# DB-Dump + Uploads in einem Schritt
+backup-all: backup backup-storage
+
+# Verwendung: make sync-nas NAS_HOST=192.168.1.50 NAS_USER=eeg-backup [NAS_PATH=/volume1/eeg-backup]
+sync-nas:
+	@test -n "$(NAS_HOST)" || (echo "Verwendung: make sync-nas NAS_HOST=... NAS_USER=... [NAS_PATH=...]" && exit 1)
+	NAS_HOST=$(NAS_HOST) NAS_USER=$(NAS_USER) NAS_PATH=$(NAS_PATH) bash scripts/sync-to-nas.sh
 
 # Verwendung: make restore FILE=backups/eeg_20260620_0230.dump
 restore:
