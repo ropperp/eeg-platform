@@ -10,8 +10,6 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
 
 <?php if (($_GET['success'] ?? '') === 'invite_sent'): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde angelegt, Einladung mit Erstlogin-Link wurde per E-Mail verschickt.</div>
-<?php elseif (($_GET['success'] ?? '') === 'created_no_invite'): ?>
-  <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde angelegt. Portal-Zugang wurde noch nicht freigeschaltet -- über „📧 Portal-Zugang freischalten" am Mitglied jederzeit nachholbar.</div>
 <?php elseif (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde gespeichert.</div>
 <?php endif; ?>

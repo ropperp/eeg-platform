@@ -444,53 +444,15 @@ function streamLatexPdf(string $template, array $vars, string $filename, array $
 }
 
 /**
- * Verschickt die Erstlogin-Einladung (24h gültiger Reset-Link) an eine neu angelegte oder
- * später nachträglich freigeschaltete Login-E-Mail. Ausgelagert aus createMemberRecord(),
- * damit dieselbe Einladung auch über /portal/members/:id/send-invite nachträglich ausgelöst
- * werden kann, wenn der Portal-Zugang bei der Anlage bewusst noch nicht freigeschaltet wurde.
- * Gibt ['sent' => bool, 'error' => string|null] zurück.
- */
-function sendInviteMail(string $email, string $firstName): array
-{
-    $token = Auth::createResetToken($email, 86400);
-    if (!$token) {
-        return ['sent' => false, 'error' => null];
-    }
-    try {
-        $link = htmlspecialchars(passwordResetLink($token));
-        $mail = renderMailTemplate('invite', [
-            'vorname'     => htmlspecialchars($firstName),
-            'link'        => $link,
-            'gueltigkeit' => '24 Stunden',
-        ],
-            'Willkommen bei Strom für alle – Zugang einrichten',
-            '<p>Hallo {{vorname}},</p>'
-            . '<p>Ihr Zugang zum Mitgliederportal wurde angelegt. Bitte vergeben Sie über folgenden Link '
-            . 'innerhalb der nächsten {{gueltigkeit}} Ihr persönliches Passwort:</p>'
-            . '<p><a href="{{link}}">{{link}}</a></p>'
-        );
-        Mailer::send($email, $mail['subject'], $mail['body']);
-        return ['sent' => true, 'error' => null];
-    } catch (\Throwable $e) {
-        error_log('[invite_mail] ' . $e->getMessage());
-        return ['sent' => false, 'error' => $e->getMessage()];
-    }
-}
-
-/**
  * Legt ein Mitglied inkl. Login-User und Rolle an. Wird sowohl von der manuellen
  * Mitglieder-Anlage (/portal/members) als auch von der Freigabe einer Online-
  * Beitrittserklärung (/portal/applications/:id/approve) verwendet, damit KdNr-
  * Vergabe (Lücken-Auffüllung) und Mandatsreferenz-Logik nicht doppelt gepflegt werden.
  * Erwartet in $f Schlüssel wie die Spalten der members-Tabelle (salutation, titel, …).
- * $sendInvite steuert, ob die Erstlogin-Einladung sofort verschickt wird -- bei der manuellen
- * Anlage soll der Manager das oft bewusst verzögern (Mitglied/Verträge schon anlegen, Portal-
- * Zugang aber erst später freischalten), bei der Freigabe einer Online-Beitrittserklärung
- * dagegen erwartet der Antragsteller den Zugang sofort (Standardwert bleibt true).
  * Gibt ['member_id', 'user_id', 'kundennummer', 'temp_password' (oder null),
  * 'invite_sent' (bool), 'invite_error' (string oder null)] zurück.
  */
-function createMemberRecord(string $communityId, array $f, bool $sendInvite = true): array
+function createMemberRecord(string $communityId, array $f): array
 {
     $email = strtolower(trim($f['email']));
     $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
@@ -506,12 +468,31 @@ function createMemberRecord(string $communityId, array $f, bool $sendInvite = tr
         );
         $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
 
-        // Temp-Passwort wird immer erzeugt (NOT NULL password_hash), bleibt aber unbekannt/
-        // ungenutzt solange die Einladung nicht verschickt wird -- kein Sicherheitsrisiko.
-        if ($sendInvite) {
-            $inviteResult = sendInviteMail($email, trim($f['first_name']));
-            $inviteSent  = $inviteResult['sent'];
-            $inviteError = $inviteResult['error'];
+        // Erstlogin-Einladung statt (nur) Temp-Passwort am Bildschirm: 24h gültiger Reset-Link,
+        // der den ersten Login direkt mit einer selbst gewählten Passwortvergabe verbindet.
+        // Schlägt der Mailversand fehl (z.B. Graph noch nicht konfiguriert), bleibt das
+        // Temp-Passwort als Fallback nutzbar -- deshalb wird es trotzdem immer erzeugt.
+        $token = Auth::createResetToken($email, 86400);
+        if ($token) {
+            try {
+                $link = htmlspecialchars(passwordResetLink($token));
+                $mail = renderMailTemplate('invite', [
+                    'vorname'     => htmlspecialchars(trim($f['first_name'])),
+                    'link'        => $link,
+                    'gueltigkeit' => '24 Stunden',
+                ],
+                    'Willkommen bei Strom für alle – Zugang einrichten',
+                    '<p>Hallo {{vorname}},</p>'
+                    . '<p>Ihr Zugang zum Mitgliederportal wurde angelegt. Bitte vergeben Sie über folgenden Link '
+                    . 'innerhalb der nächsten {{gueltigkeit}} Ihr persönliches Passwort:</p>'
+                    . '<p><a href="{{link}}">{{link}}</a></p>'
+                );
+                Mailer::send($email, $mail['subject'], $mail['body']);
+                $inviteSent = true;
+            } catch (\Throwable $e) {
+                $inviteError = $e->getMessage();
+                error_log('[invite_mail] ' . $e->getMessage());
+            }
         }
     }
 
@@ -1360,12 +1341,7 @@ $router->post('/portal/members', function () {
     }
 
     $email = strtolower(trim($_POST['email']));
-    // Portal-Zugang bei der manuellen Anlage standardmäßig NICHT sofort freischalten -- viele
-    // Manager legen Mitglied/Verträge/Daten schon an, wollen dem Kunden den Zugang aber erst
-    // später (z.B. nach Vertragsunterschrift) geben. Nur bei explizit gesetzter Checkbox wird
-    // die Einladung sofort verschickt.
-    $sendInviteNow = !empty($_POST['send_invite_now']);
-    $result = createMemberRecord($communityId, array_merge($_POST, ['andere_eeg' => isset($_POST['andere_eeg'])]), $sendInviteNow);
+    $result = createMemberRecord($communityId, array_merge($_POST, ['andere_eeg' => isset($_POST['andere_eeg'])]));
     logAudit($communityId, 'member.create', 'member', $result['member_id'],
         'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' angelegt (KdNr ' . $result['kundennummer'] . ')');
 
@@ -1375,18 +1351,9 @@ $router->post('/portal/members', function () {
         exit;
     }
 
-    // Zugang bewusst noch nicht freigeschaltet -- kein Temp-Passwort anzeigen (das würde den
-    // Sinn unterlaufen), Manager kann die Einladung jederzeit über "Portal-Zugang freischalten"
-    // am Mitglied nachholen.
-    if (!$sendInviteNow) {
-        header('Location: /portal/members?success=created_no_invite');
-        exit;
-    }
-
-    // Fallback: Mailversand angefordert, aber nicht konfiguriert/fehlgeschlagen (oder E-Mail
-    // existierte schon, dann gibt's ohnehin kein Temp-Passwort) -- Temp-Passwort anzeigen,
-    // falls ein neuer User angelegt wurde, damit der Manager die Zugangsdaten notfalls selbst
-    // weitergeben kann.
+    // Fallback: Mailversand nicht konfiguriert/fehlgeschlagen (oder E-Mail existierte schon,
+    // dann gibt's ohnehin kein Temp-Passwort) -- Temp-Passwort anzeigen, falls ein neuer User
+    // angelegt wurde, damit der Manager die Zugangsdaten notfalls selbst weitergeben kann.
     if ($result['temp_password']) {
         $successTempPw = $result['temp_password'];
         $successEmail  = $email;
@@ -1593,28 +1560,6 @@ $router->post('/portal/members/:id/reset-password', function ($params) {
         header('Location: /portal/members/' . $params['id'] . '?success=reset_sent');
     } catch (\Throwable $e) {
         header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
-    }
-    exit;
-});
-
-/**
- * Nachträgliches Freischalten des Portal-Zugangs für ein Mitglied, dessen Erstlogin-Einladung
- * bei der Anlage bewusst nicht sofort verschickt wurde (siehe "send_invite_now"-Checkbox in
- * member_form.php). Verschickt dieselbe Einladung wie createMemberRecord(), nur eben zeitlich
- * entkoppelt von der Mitglied-Anlage.
- */
-$router->post('/portal/members/:id/send-invite', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $member = requireMemberAccess($params['id']);
-    if (!$member) { return; }
-    if (!$member['user_id']) { http_response_code(404); echo 'Kein Login-Konto vorhanden.'; return; }
-    $loginEmail = DB::fetchOne('SELECT email FROM users WHERE id = ?', [$member['user_id']])['email'];
-
-    $result = sendInviteMail($loginEmail, $member['first_name']);
-    if ($result['sent']) {
-        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Portal-Zugang wurde per E-Mail freigeschaltet.'));
-    } else {
-        header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($result['error'] ?? 'Mailversand nicht konfiguriert.'));
     }
     exit;
 });
