@@ -92,8 +92,12 @@ CREATE TABLE members (
     -- Vertragsstatus
     contract_bezug_status           TEXT NOT NULL DEFAULT 'none' CHECK (contract_bezug_status IN ('none','created','signed')),
     contract_bezug_generated_at     TIMESTAMPTZ,
+    contract_bezug_sent_at          TIMESTAMPTZ,
+    contract_bezug_version          INTEGER NOT NULL DEFAULT 1,
     contract_einspeisung_status     TEXT NOT NULL DEFAULT 'none' CHECK (contract_einspeisung_status IN ('none','created','signed')),
     contract_einspeisung_generated_at TIMESTAMPTZ,
+    contract_einspeisung_sent_at    TIMESTAMPTZ,
+    contract_einspeisung_version    INTEGER NOT NULL DEFAULT 1,
     photo_path      TEXT,                          -- eigenes Profilbild; NULL = Default-Avatar nach Anrede
     created_at      TIMESTAMPTZ DEFAULT now()
 );

@@ -27,6 +27,12 @@
           onsubmit="return confirm('Bezugsvereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
       <button type="submit" class="btn" style="background:#eff6ff;color:#1d4ed8;font-size:.8rem">✉️ Jetzt senden</button>
     </form>
+    <?php if (!empty($member['contract_bezug_sent_at'])): ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/reset" style="display:inline"
+          onsubmit="return confirm('Bezugsvereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
+      <button type="submit" class="btn" style="background:#f3f4f6;color:#6b7280;font-size:.8rem">🔄 Zurücksetzen</button>
+    </form>
+    <?php endif; ?>
     <?php endif; ?>
     <?php if ($hasProducer): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
@@ -34,6 +40,18 @@
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/send" style="display:inline"
           onsubmit="return confirm('Einspeisevereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
       <button type="submit" class="btn" style="background:#fffbeb;color:#b45309;font-size:.8rem">✉️ Jetzt senden</button>
+    </form>
+    <?php if (!empty($member['contract_einspeisung_sent_at'])): ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/reset" style="display:inline"
+          onsubmit="return confirm('Einspeisevereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
+      <button type="submit" class="btn" style="background:#f3f4f6;color:#6b7280;font-size:.8rem">🔄 Zurücksetzen</button>
+    </form>
+    <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($hasConsumer && $hasProducer): ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/send-both" style="display:inline"
+          onsubmit="return confirm('Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
+      <button type="submit" class="btn" style="background:#ecfdf5;color:#047857;font-size:.8rem">📧 Beide gemeinsam senden</button>
     </form>
     <?php endif; ?>
     <?php if (!empty($application)): ?>

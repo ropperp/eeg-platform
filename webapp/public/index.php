@@ -1570,6 +1570,19 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     }
 });
 
+/**
+ * Baut den {{hinweis}}-Textbaustein für Vertrags-E-Mails: leer bei der erstmaligen Fassung,
+ * sonst ein expliziter Hinweis, dass eine frühere, bereits versendete Fassung ab sofort
+ * ungültig ist (Version wird beim Zurücksetzen eines gesendeten Vertrags hochgezählt).
+ */
+function contractInvalidationNote(int $version): string
+{
+    return $version > 1
+        ? '<p><strong>Hinweis:</strong> Dies ist eine korrigierte Fassung. Eine Ihnen zuvor '
+          . 'zugesendete frühere Version ist ab sofort ungültig.</p>'
+        : '';
+}
+
 $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $member = requireMemberAccess($params['id']);
@@ -1592,21 +1605,57 @@ $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
         exit;
     }
     try {
+        $mail = renderMailTemplate('contract_bezug', [
+            'vorname'  => htmlspecialchars($member['first_name']),
+            'eeg_name' => htmlspecialchars($community['name']),
+            'hinweis'  => contractInvalidationNote((int)$member['contract_bezug_version']),
+        ],
+            'Ihre Bezugsvereinbarung – {{eeg_name}}',
+            '<p>Hallo {{vorname}},</p><p>im Anhang finden Sie Ihre Bezugsvereinbarung mit {{eeg_name}}.</p>{{hinweis}}'
+        );
         Mailer::send(
             $member['email'],
-            'Ihre Bezugsvereinbarung – ' . $community['name'],
-            '<p>Hallo ' . htmlspecialchars($member['first_name']) . ',</p>'
-            . '<p>im Anhang finden Sie Ihre Bezugsvereinbarung mit ' . htmlspecialchars($community['name']) . '.</p>',
+            $mail['subject'],
+            $mail['body'],
             [['name' => 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $pdf]]
         );
         DB::execute(
-            "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now() WHERE id = ?",
+            "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now(), contract_bezug_sent_at = now() WHERE id = ?",
             [$params['id']]
         );
         header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Bezugsvereinbarung wurde per E-Mail verschickt.'));
     } catch (\Throwable $e) {
         header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
     }
+    exit;
+});
+
+/**
+ * Setzt eine bereits versendete Vertragsfassung zurück, damit nach Korrekturen eine neue
+ * Fassung erstellt und gesendet werden kann. Nur möglich, wenn der Vertrag tatsächlich schon
+ * einmal per "Jetzt senden" verschickt wurde -- sonst gibt es ja noch nichts zurückzunehmen,
+ * die reine Generierung/Vorschau kann jederzeit beliebig oft wiederholt werden.
+ */
+$router->post('/portal/members/:id/contract/:type/reset', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $type = $params['type'];
+    if (!in_array($type, ['bezug', 'einspeisung'], true)) { http_response_code(404); return; }
+
+    if (empty($member['contract_' . $type . '_sent_at'])) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Dieser Vertrag wurde noch nicht per E-Mail gesendet, ein Zurücksetzen ist daher nicht nötig.'));
+        exit;
+    }
+
+    DB::execute(
+        "UPDATE members SET contract_{$type}_status = 'none', contract_{$type}_sent_at = NULL, contract_{$type}_version = contract_{$type}_version + 1 WHERE id = ?",
+        [$params['id']]
+    );
+    logAudit($member['community_id'], 'contract.reset', 'member', $params['id'],
+        ucfirst($type) . 'svereinbarung von ' . $member['first_name'] . ' ' . $member['last_name'] . ' zurückgesetzt (Korrektur erforderlich)');
+
+    header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Vertrag wurde zurückgesetzt und kann neu erstellt werden.'));
     exit;
 });
 
@@ -1731,18 +1780,97 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
         exit;
     }
     try {
+        $mail = renderMailTemplate('contract_einspeisung', [
+            'vorname'  => htmlspecialchars($member['first_name']),
+            'eeg_name' => htmlspecialchars($community['name']),
+            'hinweis'  => contractInvalidationNote((int)$member['contract_einspeisung_version']),
+        ],
+            'Ihre Einspeisevereinbarung – {{eeg_name}}',
+            '<p>Hallo {{vorname}},</p><p>im Anhang finden Sie Ihre Einspeisevereinbarung mit {{eeg_name}}.</p>{{hinweis}}'
+        );
         Mailer::send(
             $member['email'],
-            'Ihre Einspeisevereinbarung – ' . $community['name'],
-            '<p>Hallo ' . htmlspecialchars($member['first_name']) . ',</p>'
-            . '<p>im Anhang finden Sie Ihre Einspeisevereinbarung mit ' . htmlspecialchars($community['name']) . '.</p>',
+            $mail['subject'],
+            $mail['body'],
             [['name' => 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $pdf]]
         );
         DB::execute(
-            "UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END, contract_einspeisung_generated_at = now() WHERE id = ?",
+            "UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END, contract_einspeisung_generated_at = now(), contract_einspeisung_sent_at = now() WHERE id = ?",
             [$params['id']]
         );
         header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Einspeisevereinbarung wurde per E-Mail verschickt.'));
+    } catch (\Throwable $e) {
+        header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
+/**
+ * Sendet Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail mit beiden PDFs im
+ * Anhang -- praktisch für Mitglieder, die sowohl Bezugs- als auch Einspeise-Zählpunkte haben,
+ * damit nicht zweimal einzeln gesendet werden muss. Nutzt eine eigene, im Platform-Admin
+ * editierbare Vorlage (contract_both), da der Text sich von den Einzel-Vorlagen unterscheiden soll.
+ */
+$router->post('/portal/members/:id/contract/send-both', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+
+    $consumerMps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
+    $producerMps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
+    if (empty($consumerMps) || empty($producerMps)) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Für den gemeinsamen Versand werden sowohl ein Bezugs- als auch ein Einspeise-Zählpunkt benötigt.'));
+        exit;
+    }
+
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
+    $signature = eegSignatureAsset();
+
+    $error = null;
+    $bezugVars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($consumerMps), $signature);
+    $bezugPdf = generateLatexPdf('bezugsvereinbarung', $bezugVars, $signature['assets'], $error);
+    if ($bezugPdf === null) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
+        exit;
+    }
+    $einspeisungVars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($producerMps), einspeisungAnlagenBeschreibung($producerMps), $signature);
+    $einspeisungPdf = generateLatexPdf('einspeisevereinbarung', $einspeisungVars, $signature['assets'], $error);
+    if ($einspeisungPdf === null) {
+        header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
+        exit;
+    }
+
+    try {
+        $hinweis = contractInvalidationNote((int)$member['contract_bezug_version'])
+            ?: contractInvalidationNote((int)$member['contract_einspeisung_version']);
+        $mail = renderMailTemplate('contract_both', [
+            'vorname'  => htmlspecialchars($member['first_name']),
+            'eeg_name' => htmlspecialchars($community['name']),
+            'hinweis'  => $hinweis,
+        ],
+            'Ihre Vereinbarungen – {{eeg_name}}',
+            '<p>Hallo {{vorname}},</p><p>im Anhang finden Sie Ihre Bezugsvereinbarung und Ihre Einspeisevereinbarung mit {{eeg_name}}.</p>{{hinweis}}'
+        );
+        Mailer::send(
+            $member['email'],
+            $mail['subject'],
+            $mail['body'],
+            [
+                ['name' => 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $bezugPdf],
+                ['name' => 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $einspeisungPdf],
+            ]
+        );
+        DB::execute(
+            "UPDATE members SET
+                contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END,
+                contract_bezug_generated_at = now(), contract_bezug_sent_at = now(),
+                contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END,
+                contract_einspeisung_generated_at = now(), contract_einspeisung_sent_at = now()
+             WHERE id = ?",
+            [$params['id']]
+        );
+        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Beide Vereinbarungen wurden gemeinsam per E-Mail verschickt.'));
     } catch (\Throwable $e) {
         header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
     }

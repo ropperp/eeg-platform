@@ -48,10 +48,20 @@
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">E-Mail-Vorlagen</h3>
   <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
-    Verfügbare Platzhalter: <code>{{vorname}}</code>, <code>{{link}}</code>, <code>{{gueltigkeit}}</code>
-    (werden beim Versand automatisch ersetzt). Der Body darf einfaches HTML enthalten (z. B. <code>&lt;p&gt;</code>).
+    Verfügbare Platzhalter je nach Vorlage: <code>{{vorname}}</code>, <code>{{link}}</code>, <code>{{gueltigkeit}}</code>,
+    <code>{{eeg_name}}</code>, <code>{{hinweis}}</code> (werden beim Versand automatisch ersetzt;
+    <code>{{hinweis}}</code> wird bei Vertrags-Mails automatisch mit dem Ungültigkeits-Hinweis befüllt,
+    falls eine zuvor gesendete Fassung durch eine korrigierte ersetzt wird, sonst bleibt es leer).
+    Der Body darf einfaches HTML enthalten (z. B. <code>&lt;p&gt;</code>).
   </p>
-  <?php $templateLabel = ['password_reset' => 'Passwort zurücksetzen', 'invite' => 'Erstlogin-Einladung']; ?>
+  <?php $templateLabel = [
+    'password_reset'       => 'Passwort zurücksetzen',
+    'invite'                => 'Erstlogin-Einladung',
+    'member_deactivated'    => 'Mitglied deaktiviert ("Wirklich löschen")',
+    'contract_bezug'        => 'Vertrag: nur Bezugsvereinbarung',
+    'contract_einspeisung'  => 'Vertrag: nur Einspeisevereinbarung',
+    'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
+  ]; ?>
   <?php foreach ($mailTemplates as $t): ?>
     <form method="post" action="/admin/mail-templates" style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #e5e7eb">
       <input type="hidden" name="key" value="<?= htmlspecialchars($t['key']) ?>">
