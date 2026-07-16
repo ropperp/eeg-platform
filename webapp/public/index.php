@@ -1318,7 +1318,10 @@ $router->get('/portal/members/:id', function ($params) {
     }
     $communityId = $member['community_id'];
     DB::setCommunity($communityId);
-    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? ORDER BY registered_at DESC', [$params['id']]);
+    // "Gelöschte" Zählpunkte sind nur soft-deaktiviert (active=false), damit historische
+    // Abrechnungsperioden weiter nachvollziehbar bleiben -- auf der Mitglied-Detailseite
+    // sollen sie aber wie erwartet aus der Liste verschwinden.
+    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at DESC', [$params['id']]);
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
     require ROOT . '/src/views/pages/member_detail.php';
@@ -2329,7 +2332,7 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         $successEmail = $application['email'];
         $successInviteError = $result['invite_error'];
         $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$memberIdForRedirect, $communityId]);
-        $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? ORDER BY registered_at DESC', [$memberIdForRedirect]);
+        $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at DESC', [$memberIdForRedirect]);
         $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$memberIdForRedirect]);
         $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$memberIdForRedirect, $communityId]);
         require ROOT . '/src/views/pages/member_detail.php';
