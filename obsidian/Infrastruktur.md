@@ -182,13 +182,19 @@ Ursache erst sichtbar im nginx-**Fehler**-Log IM Container:
 docker compose exec webapp cat /var/log/nginx/error.log
 ```
 → `open() "/var/lib/nginx/tmp/client_body/..." failed (13: Permission denied)`. Grund:
-`nginx.conf` setzt `user www-data;`, aber Alpines nginx-Paket legt `/var/lib/nginx/tmp/*` mit
-dem eigenen `nginx`-User an. Kleine Requests (Login) brauchen dieses Zwischenspeicher-Verzeichnis
-nie, jeder Datei-/Profilbild-Upload (sobald der Body den nginx-Puffer übersteigt) schon --
-nginx scheitert dabei schon vor PHP-FPM und liefert sein eigenes 500 aus.
-Fix in `webapp/Dockerfile` (bereits im Repo):
+`nginx.conf` setzt `user www-data;`, aber Alpines nginx-Paket legt `/var/lib/nginx` SAMT
+`tmp/*` mit dem eigenen `nginx`-User und Modus 750 an. Kleine Requests (Login) brauchen dieses
+Zwischenspeicher-Verzeichnis nie, jeder Datei-/Profilbild-Upload (sobald der Body den
+nginx-Puffer übersteigt) schon -- nginx scheitert dabei schon vor PHP-FPM und liefert sein
+eigenes 500 aus.
+**Erster Fix-Versuch unvollständig:** Nur `tmp/` selbst zu chownen reicht nicht -- der
+Elternordner `/var/lib/nginx` blieb `nginx:nginx` mit Modus 750 (keine Rechte für "andere"),
+wodurch `www-data` gar nicht hineinkonnte (Linux braucht Ausführungsrecht auf JEDEN
+Pfad-Bestandteil). Erklärt das trügerische Verhalten: kleine Uploads (Body bleibt unter dem
+nginx-Puffer, `client_body/` nie gebraucht) funktionierten, größere scheiterten weiter.
+Fix in `webapp/Dockerfile` (bereits im Repo) -- chownt den ganzen Elternordner:
 ```dockerfile
-RUN chown -R www-data:www-data /var/lib/nginx/tmp
+RUN chown -R www-data:www-data /var/lib/nginx
 ```
 Braucht einen echten Rebuild (`docker compose up -d --build`), reines `up -d` reicht nicht.
 Zwei Sackgassen unterwegs, die NICHT die Ursache waren: leeres `docker compose logs traefik`

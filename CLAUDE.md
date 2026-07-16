@@ -312,20 +312,28 @@ zeigt:
 request: "POST /portal/profile/photo HTTP/1.1", host: "portal.stromfueralle.at"
 ```
 `webapp/docker/nginx.conf` setzt `user www-data;` (passend zum PHP-FPM-User), aber das
-Alpine-nginx-Paket (`apk add nginx` im Dockerfile) legt `/var/lib/nginx/tmp/*` (u.a.
+Alpine-nginx-Paket (`apk add nginx` im Dockerfile) legt `/var/lib/nginx` SAMT `tmp/*` (u.a.
 `client_body` -- Zwischenspeicher für POST-Bodies, die den kleinen In-Memory-Puffer von nginx
-übersteigen) beim Install mit dem eigenen `nginx`-System-User an, NICHT `www-data`. Kleine
-Requests ohne Datei-Anhang (Login, Formularfelder) bleiben unter dem Puffer-Limit und brauchen
-dieses Verzeichnis nie, weshalb der Bug nur bei Uploads auffällt -- unabhängig von deren Größe,
-sobald sie über ein paar KB liegen (auch das winzige, von der Zoom-Zuschnitt-Funktion erzeugte
-Profilbild betrifft das schon). nginx scheitert dabei NOCH VOR PHP-FPM und liefert sein eigenes
-Standard-500 aus, weshalb weder die App-eigene Fehlerseite noch ein Log-Eintrag im Access-Log
-auftaucht.
+übersteigen) beim Install mit dem eigenen `nginx`-System-User und Modus 750 an, NICHT
+`www-data`. Kleine Requests ohne Datei-Anhang (Login, Formularfelder) bleiben unter dem
+Puffer-Limit und brauchen dieses Verzeichnis nie, weshalb der Bug nur bei Uploads auffällt.
+nginx scheitert dabei NOCH VOR PHP-FPM und liefert sein eigenes Standard-500 aus, weshalb weder
+die App-eigene Fehlerseite noch ein Log-Eintrag im Access-Log auftaucht.
+
+> **Erster Fix-Versuch war unvollständig:** Nur `chown -R www-data:www-data /var/lib/nginx/tmp`
+> zu setzen behebt das Problem NICHT zuverlässig. Linux verlangt Ausführungsrecht auf JEDES
+> Verzeichnis im Pfad, nicht nur auf das Ziel -- `/var/lib/nginx` selbst (der Elternordner von
+> `tmp`) blieb dabei weiterhin `nginx:nginx` mit Modus 750 (keinerlei Rechte für "andere"),
+> wodurch `www-data` gar nicht erst hineinkonnte, ganz gleich wie `tmp/` selbst berechtigt war.
+> Das erklärt auch das trügerische Verhalten: manche Uploads (deren Body zufällig unter dem
+> nginx-Puffer bleibt und `client_body/` nie braucht) funktionierten, andere (die den Puffer
+> überschreiten) scheiterten weiterhin mit demselben Permission-denied-Fehler -- unabhängig von
+> der tatsächlichen Dateigröße, rein zufällig je nach komprimierter Body-Größe.
 
 **Fix:** in `webapp/Dockerfile` direkt nach dem Storage-Chown ergänzt (bereits im Repo, ab
-Commit dieser Doku-Aktualisierung):
+Commit dieser Doku-Aktualisierung) -- chownt den kompletten Elternordner, nicht nur `tmp`:
 ```dockerfile
-RUN chown -R www-data:www-data /var/lib/nginx/tmp
+RUN chown -R www-data:www-data /var/lib/nginx
 ```
 Wirkt erst nach einem echten Image-Rebuild (Berechtigungen werden beim `docker build` gesetzt,
 nicht zur Laufzeit):
@@ -334,10 +342,12 @@ cd /opt/eeg-platform
 git pull origin main
 docker compose up -d --build
 ```
-Danach zur Kontrolle direkt im Container prüfen:
+Danach zur Kontrolle direkt im Container prüfen (WICHTIG: diesmal auch den Elternordner selbst,
+nicht nur seinen Inhalt):
 ```bash
-docker compose exec webapp ls -la /var/lib/nginx/tmp/
-# client_body/, proxy/, fastcgi/, uwsgi/, scgi/ sollten alle www-data:www-data gehören
+docker compose exec webapp ls -la /var/lib/nginx/
+# /var/lib/nginx selbst UND tmp/ (inkl. client_body/, proxy/, fastcgi/, uwsgi/, scgi/)
+# sollten jetzt alle www-data:www-data gehören
 ```
 
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at

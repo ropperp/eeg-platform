@@ -25,13 +25,19 @@ RUN mkdir -p /var/www/html/storage/uploads /var/www/html/storage/pdfs && \
     chown -R www-data:www-data /var/www/html/storage
 
 # nginx.conf setzt "user www-data;" (passend zum PHP-FPM-User), aber das Alpine-nginx-Paket
-# legt /var/lib/nginx/tmp/* (u.a. client_body -- Zwischenspeicher für POST-Bodies, die zu groß
-# für den kleinen In-Memory-Puffer sind) beim Install mit dem eigenen "nginx"-System-User an,
-# NICHT www-data. Ohne diesen Fix schlägt JEDER Datei-Upload mit "open() .../client_body/...
-# failed (13: Permission denied)" fehl, sobald der Request-Body den Default-Puffer übersteigt --
-# kleine Requests ohne Datei-Anhang (Login, Formularfelder) bleiben unter dem Puffer-Limit und
-# fallen deshalb nie auf, wodurch sich das nginx-eigene Standard-500 nur bei Uploads zeigt.
-RUN chown -R www-data:www-data /var/lib/nginx/tmp
+# legt /var/lib/nginx SAMT /var/lib/nginx/tmp/* (u.a. client_body -- Zwischenspeicher für
+# POST-Bodies, die zu groß für den kleinen In-Memory-Puffer sind) beim Install mit dem eigenen
+# "nginx"-System-User und Modus 750 an, NICHT www-data. Nur /var/lib/nginx/tmp zu chownen
+# reicht NICHT: Linux verlangt Ausführungsrecht auf JEDES Verzeichnis im Pfad, und
+# /var/lib/nginx selbst (der Elternordner) blieb dabei weiterhin nginx:nginx mit Modus 750
+# (keinerlei Rechte für "andere") -- www-data konnte dadurch gar nicht erst hinein, ganz gleich
+# wie tmp/ selbst berechtigt war. Deshalb hier den kompletten Elternordner chownen, nicht nur
+# das tmp-Unterverzeichnis. Ohne diesen Fix schlägt jeder Datei-Upload, dessen Body den kleinen
+# In-Memory-Puffer übersteigt, mit "open() .../client_body/... failed (13: Permission denied)"
+# fehl -- kleine Requests ohne Datei-Anhang (Login, Formularfelder) bleiben unter dem
+# Puffer-Limit und fallen deshalb nie auf, wodurch sich das nginx-eigene Standard-500 nur bei
+# manchen Uploads zeigt (abhängig davon, ob der jeweilige Body zufällig unter dem Puffer bleibt).
+RUN chown -R www-data:www-data /var/lib/nginx
 
 EXPOSE 80
 
