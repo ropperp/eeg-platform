@@ -128,6 +128,21 @@ function renderMailTemplate(string $key, array $vars, string $fallbackSubject, s
 }
 
 /**
+ * Liefert, ob die Plattform aktuell im Testmodus läuft (siehe migrate_20260728.sql). Fängt
+ * fehlende Tabelle/Zeile ab (z.B. Migration auf diesem Server noch nicht eingespielt) und
+ * fällt dann sicher auf "Testmodus" zurück, statt die ganze Seite mit einem SQL-Fehler
+ * abstürzen zu lassen -- eine vergessene Migration darf niemals die Mitglied-Anlage blockieren.
+ */
+function platformTestMode(): bool
+{
+    try {
+        return (bool)(DB::fetchOne('SELECT test_mode FROM platform_settings WHERE id = 1')['test_mode'] ?? true);
+    } catch (\Throwable $e) {
+        return true;
+    }
+}
+
+/**
  * Lädt ein Mitglied anhand der ID community-übergreifend und prüft den Zugriff: Platform-Admins
  * dürfen jedes Mitglied verwalten, Manager nur die der eigenen aktiven Rolle (IDOR-Schutz).
  * Setzt bei Erfolg gleich die RLS-Community auf die des MITGLIEDS (nicht die der gerade aktiven
@@ -437,7 +452,7 @@ function createMemberRecord(string $communityId, array $f): array
     // Lücken von gelöschten/deaktivierten Mitgliedern auf -- praktisch zum Testen). Im
     // Echtbetrieb wird eine einmal vergebene Nummer nie wieder verwendet, daher immer
     // MAX(kundennummer)+1, egal ob dazwischen Lücken bestehen (siehe migrate_20260728.sql).
-    $testMode = (bool)(DB::fetchOne('SELECT test_mode FROM platform_settings WHERE id = 1')['test_mode'] ?? true);
+    $testMode = platformTestMode();
     if ($testMode) {
         $kundennummer = (int)DB::fetchOne(
             "SELECT MIN(candidate) AS next FROM generate_series(
@@ -2726,7 +2741,7 @@ $router->get('/admin/mail-settings', function () {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
-    $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1');
+    try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
     require ROOT . '/src/views/pages/admin_mail_settings.php';
 });
 
@@ -2793,7 +2808,7 @@ $router->post('/admin/mail-settings/test', function () {
     $to = trim($_POST['test_to'] ?? '');
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
-    $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1');
+    try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
         $testError = 'Bitte eine gültige E-Mail-Adresse angeben.';
         require ROOT . '/src/views/pages/admin_mail_settings.php';
