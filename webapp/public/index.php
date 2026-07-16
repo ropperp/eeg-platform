@@ -321,13 +321,13 @@ function zpGridTikz(?string $zp): string
 
 /**
  * Liefert die RAW_-Variable fürs Unterschriftsbild "Für die EEG" sowie das
- * zugehörige Bild-Asset für den aktuell eingeloggten User (i.d.R. der
- * Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte
- * Unterschrift bleibt die Zeile leer (nur die Unterschriftslinie).
+ * zugehörige Bild-Asset für den angegebenen User (Default: der aktuell eingeloggte, i.d.R.
+ * der Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte Unterschrift
+ * bleibt die Zeile leer (nur die Unterschriftslinie).
  */
-function eegSignatureAsset(): array
+function eegSignatureAsset(?string $userId = null): array
 {
-    $user = DB::fetchOne('SELECT signature_image FROM users WHERE id = ?', [Auth::userId()]);
+    $user = DB::fetchOne('SELECT signature_image FROM users WHERE id = ?', [$userId ?? Auth::userId()]);
     if (empty($user['signature_image'])) {
         return ['var' => '', 'assets' => []];
     }
@@ -335,6 +335,26 @@ function eegSignatureAsset(): array
         'var'    => '\\includegraphics[height=1.4cm]{unterschrift_eeg.png}',
         'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
     ];
+}
+
+/**
+ * Wie eegSignatureAsset(), aber für die Selbstbedienungs-Vertragsansicht eines Mitglieds:
+ * dort ist Auth::userId() das Mitglied selbst (hat nie eine Unterschrift hinterlegt), die
+ * Vertrags-PDF braucht aber die Unterschrift eines Managers/Obmanns der jeweiligen EEG.
+ * Nimmt irgendeinen Manager mit hinterlegter Unterschrift -- bei mehreren Obleuten ist es für
+ * das Vertragsdokument unerheblich, wessen Unterschrift dort abgebildet ist.
+ */
+function communityManagerSignature(string $communityId): array
+{
+    $row = DB::fetchOne(
+        "SELECT u.id FROM user_roles ur
+         JOIN users u ON u.id = ur.user_id
+         WHERE ur.community_id = ? AND ur.role = 'manager' AND u.signature_image IS NOT NULL
+         LIMIT 1",
+        [$communityId]
+    );
+    if (!$row) { return ['var' => '', 'assets' => []]; }
+    return eegSignatureAsset($row['id']);
 }
 
 /**
@@ -952,6 +972,7 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
 
     $invoice = DB::fetchOne(
         'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
+                m.community_id AS member_community_id, m.user_id AS member_user_id,
                 br.quartal, br.period_from, br.period_to,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
                 tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur
@@ -965,6 +986,16 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         [$params['id']]
     );
     if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+
+    // IDOR-Schutz: nur das Mitglied selbst (Rechnung gehört zu seinem User-Login) oder ein
+    // Manager/Platform-Admin der jeweiligen Community darf die PDF abrufen -- ohne diese
+    // Prüfung konnte jeder eingeloggte Nutzer mit bekannter/erratener Invoice-UUID fremde
+    // Rechnungen abrufen.
+    $isOwnInvoice = $invoice['member_user_id'] !== null && $invoice['member_user_id'] === Auth::userId();
+    $isManagerOfCommunity = Auth::isManager() && Auth::activeCommunityId() === $invoice['member_community_id'];
+    if (!Auth::isPlatformAdmin() && !$isOwnInvoice && !$isManagerOfCommunity) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
 
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
     $bezugItem = null; $einspeisungItem = null; $beitragItem = null;
@@ -1005,6 +1036,88 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days')),
     ], $invoice['rechnungsnummer'] . '.pdf');
+});
+
+// ─── Portal: Mitglied-Selbstbedienung (eigene Verträge/Dateien) ─────────
+// Analog zu den Manager-Routen unter /portal/members/:id/contract/*, aber ohne Manager-Rolle
+// und ohne :id -- löst den Mitgliedsdatensatz direkt aus der eingeloggten Session auf
+// (currentMemberFull()). Anders als die Manager-Ansicht wird der Status/Zeitstempel beim
+// bloßen Ansehen NICHT verändert -- das bleibt allein den Manager-Aktionen vorbehalten.
+$router->get('/portal/my/contract/bezug', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], 'consumer']);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert.'; return; }
+
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
+    $signature = communityManagerSignature($member['community_id']);
+    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature);
+    streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+});
+
+$router->get('/portal/my/contract/einspeisung', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], 'producer']);
+    if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert.'; return; }
+
+    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
+    $signature = communityManagerSignature($member['community_id']);
+    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature);
+    streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+});
+
+/**
+ * Übersichtsseite: eigene Verträge (Links zu den beiden Routen oben, je nach vorhandenen
+ * Zählpunkten), eigene hochgeladene Dateien (deckt auch vom Manager hochgeladene
+ * Beitrittserklärungen/Ausweis-Scans ab) und -- falls online beigetreten -- das
+ * Beitrittsformular.
+ */
+$router->get('/portal/my/documents', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true', [$member['id']]);
+    $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer'));
+    $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer'));
+    $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$member['id']]);
+    $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$member['id'], $member['community_id']]);
+    require ROOT . '/src/views/pages/my_documents.php';
+});
+
+$router->get('/portal/my/documents/:fileid/download', function ($params) {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $file = DB::fetchOne(
+        'SELECT * FROM member_files WHERE id = ? AND member_id = ?',
+        [$params['fileid'], $member['id']]
+    );
+    if (!$file || !is_file($file['pfad'])) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
+
+    header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Length: ' . filesize($file['pfad']));
+    readfile($file['pfad']);
+    exit;
+});
+
+/** Eigenes Beitrittsformular (nur bei Online-Beitritt vorhanden) selbst ansehen. */
+$router->get('/portal/my/documents/formular', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$member['id'], $member['community_id']]);
+    if (!$application) { http_response_code(404); echo 'Kein Online-Beitrittsformular vorhanden.'; return; }
+    header('Location: /portal/applications/' . $application['id'] . '/formular');
+    exit;
 });
 
 // ─── Portal: Mitgliederverwaltung ───────────────────────
@@ -2008,6 +2121,23 @@ function currentProfileMember(): ?array
     );
 }
 
+/**
+ * Vollständiger Mitgliedsdatensatz des eingeloggten Users in der aktuell aktiven Community --
+ * für die Selbstbedienungs-Ansichten (eigene Verträge/Dateien/Beitrittserklärung). Anders als
+ * currentProfileMember() (nur id/photo_path/salutation fürs Profilbild) wird hier die
+ * komplette Zeile gebraucht (Adresse, IBAN, Zustimmungen etc. für die Vertragsvorlagen).
+ */
+function currentMemberFull(): ?array
+{
+    $communityId = Auth::activeCommunityId();
+    if (!$communityId) { return null; }
+    DB::setCommunity($communityId);
+    return DB::fetchOne(
+        'SELECT * FROM members WHERE user_id = ? AND community_id = ?',
+        [Auth::userId(), $communityId]
+    );
+}
+
 $router->get('/portal/profile', function () {
     Auth::requireLogin();
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path FROM users WHERE id = ?', [Auth::userId()]);
@@ -2176,11 +2306,21 @@ $router->get('/portal/applications/:id', function ($params) {
 });
 
 $router->get('/portal/applications/:id/formular', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
+    Auth::requireLogin();
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $a = DB::fetchOne('SELECT * FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$a) { http_response_code(404); echo 'Nicht gefunden'; return; }
+
+    // Zugriff: Manager/Platform-Admin der Community (bisheriges Verhalten) ODER das Mitglied
+    // selbst, dessen eigene Beitrittserklärung das ist (Selbstbedienung über /portal/my/documents).
+    if (!Auth::isManager()) {
+        $ownMember = currentMemberFull();
+        if (!$ownMember || $a['member_id'] !== $ownMember['id']) {
+            http_response_code(403); echo 'Kein Zugriff'; return;
+        }
+    }
+
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
 
     $isTrue = fn($v) => in_array($v, [true, 't', '1', 1], true);

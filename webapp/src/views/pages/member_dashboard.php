@@ -83,8 +83,9 @@ ob_start();
 <div class="card">
   <h3 style="margin-bottom:.75rem">Mein Zählpunkt</h3>
   <p style="font-size:.875rem;color:#6b7280"><?= htmlspecialchars($member['zaehlpunkt_nr'] ?? '—') ?></p>
-  <p style="margin-top:.5rem">
-    <a href="/portal/invoices" class="btn btn-secondary" style="margin-top:.5rem">🧾 Meine Rechnungen</a>
+  <p style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+    <a href="/portal/invoices" class="btn btn-secondary">🧾 Meine Rechnungen</a>
+    <a href="/portal/my/documents" class="btn btn-secondary">📄 Meine Dokumente</a>
   </p>
 </div>
 

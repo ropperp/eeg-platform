@@ -176,6 +176,9 @@
       <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
         <span class="sidebar-icon">📊</span><span class="sidebar-text">Mein Verbrauch</span>
       </a>
+      <a href="/portal/my/documents" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/documents') ? 'active' : '' ?>">
+        <span class="sidebar-icon">📄</span><span class="sidebar-text">Meine Dokumente</span>
+      </a>
       <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
         <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
       </a>
