@@ -172,7 +172,7 @@
 (function() {
   const canvas = document.getElementById('sig-pad-settings');
   const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = '#0b4f6c'; /* dunkles Aquamarinblau */
+  ctx.strokeStyle = '#00008B'; /* dunkelblau, wie vom Verein vorgegeben */
   ctx.lineWidth = 2.5;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
