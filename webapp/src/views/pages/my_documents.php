@@ -2,16 +2,39 @@
 
 <h2 style="margin-bottom:1.5rem">📄 Meine Dokumente</h2>
 
+<?php if (!empty($success)): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem"><?= htmlspecialchars($success) ?></div>
+<?php endif; ?>
+<?php if (!empty($error)): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($error) ?></div>
+<?php endif; ?>
+<?php if (!empty($info)): ?>
+  <div class="alert" style="margin-bottom:1rem;background:#eff6ff;color:#1d4ed8"><?= htmlspecialchars($info) ?></div>
+<?php endif; ?>
+
 <?php if ($hasConsumer || $hasProducer): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Meine Verträge</h3>
-  <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-    <?php if ($hasConsumer): ?>
-      <a href="/portal/my/contract/bezug" target="_blank" class="btn" style="background:#1d4ed8;color:#fff">📄 Bezugsvereinbarung ansehen</a>
-    <?php endif; ?>
-    <?php if ($hasProducer): ?>
-      <a href="/portal/my/contract/einspeisung" target="_blank" class="btn" style="background:#b45309;color:#fff">☀️ Einspeisevereinbarung ansehen</a>
-    <?php endif; ?>
+  <div style="display:flex;flex-direction:column;gap:.75rem">
+    <?php
+      $contractRows = [];
+      if ($hasConsumer)  $contractRows['bezug']       = ['label' => 'Bezugsvereinbarung',    'color' => '#1d4ed8', 'icon' => '📄'];
+      if ($hasProducer)  $contractRows['einspeisung'] = ['label' => 'Einspeisevereinbarung', 'color' => '#b45309', 'icon' => '☀️'];
+    ?>
+    <?php foreach ($contractRows as $type => $info_): $status = $member['contract_' . $type . '_status'] ?? 'none'; ?>
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <a href="/portal/my/contract/<?= $type ?>" target="_blank" class="btn" style="background:<?= $info_['color'] ?>;color:#fff">
+        <?= $info_['icon'] ?> <?= $info_['label'] ?> ansehen
+      </a>
+      <?php if ($status === 'signed'): ?>
+        <span class="badge badge-green">✓ Unterschrieben am <?= date('d.m.Y', strtotime($member['contract_' . $type . '_signed_at'])) ?></span>
+      <?php elseif ($status === 'created'): ?>
+        <a href="/portal/my/contract/<?= $type ?>/sign" class="btn btn-primary">✍️ Jetzt unterschreiben</a>
+      <?php else: ?>
+        <span class="badge badge-gray">Noch nicht bereit</span>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
   </div>
 </div>
 <?php endif; ?>

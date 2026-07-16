@@ -358,6 +358,37 @@ function communityManagerSignature(string $communityId): array
 }
 
 /**
+ * Wie eegSignatureAsset(), aber fürs Mitglied selbst: bekommt die Unterschrift direkt übergeben
+ * (aus members.contract_{type}_customer_signature), statt sie per DB-Lookup über einen User zu
+ * holen -- das Mitglied unterschreibt digital im Portal (siehe /portal/my/contract/:type/sign),
+ * nicht über das Manager-Unterschriftsfeld in den Einstellungen.
+ */
+function memberSignatureAsset(?string $dataUri): array
+{
+    if (empty($dataUri)) {
+        return ['var' => '', 'assets' => []];
+    }
+    return [
+        'var'    => '\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}',
+        'assets' => ['unterschrift_mitglied.png' => $dataUri],
+    ];
+}
+
+/**
+ * "Ort, Datum"-Zeile in der Mitglieds-Unterschriftsspalte: solange nicht digital unterschrieben
+ * bleibt es eine leere Linie zum handschriftlichen Ausfüllen (Fallback für Papierunterschrift),
+ * nach digitaler Unterschrift steht dort Ort (Wohnort des Mitglieds) und tatsächliches Datum.
+ */
+function memberOrtDatumLine(array $member, string $type): string
+{
+    $signedAt = $member['contract_' . $type . '_signed_at'] ?? null;
+    if (!$signedAt) {
+        return '\\underline{\\hspace{4cm}}';
+    }
+    return texEscape($member['city'] . ', ' . date('d.m.Y', strtotime($signedAt)));
+}
+
+/**
  * Ruft den latex-service auf und liefert die fertigen PDF-Bytes zurück (oder null bei Fehler,
  * dann steht die Fehlermeldung in $errorOut). Reine Datenbeschaffung ohne jede Ausgabe --
  * genutzt sowohl zum direkten Anzeigen (streamLatexPdf) als auch zum Mailversand als Anhang.
@@ -1051,11 +1082,12 @@ $router->get('/portal/my/contract/bezug', function () {
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], 'consumer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert.'; return; }
 
-    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $tariff = contractTariff($member['community_id'], $member['contract_bezug_generated_at'] ?? null);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
     $signature = communityManagerSignature($member['community_id']);
-    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature);
-    streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+    $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null);
+    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
+    streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
 
 $router->get('/portal/my/contract/einspeisung', function () {
@@ -1066,11 +1098,96 @@ $router->get('/portal/my/contract/einspeisung', function () {
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], 'producer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert.'; return; }
 
-    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$member['community_id']]);
+    $tariff = contractTariff($member['community_id'], $member['contract_einspeisung_generated_at'] ?? null);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
     $signature = communityManagerSignature($member['community_id']);
-    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature);
-    streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+    $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null);
+    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
+    streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+});
+
+/** Menschenlesbare Bezeichnung des Vertragstyps für Benachrichtigungen/Meldungen. */
+function contractTypeLabel(string $type): string
+{
+    return $type === 'einspeisung' ? 'Einspeisevereinbarung' : 'Bezugsvereinbarung';
+}
+
+/**
+ * Digitale Unterschrift durch das Mitglied: Statt (wie bisher) den Vertrag nur per Post
+ * unterschrieben zurückzuschicken, unterschreibt das Mitglied hier im Portal per Maus/Finger.
+ * Nur möglich solange der Vertrag "created" (= versendet, aber noch nicht unterschrieben) ist.
+ */
+$router->get('/portal/my/contract/:type/sign', function ($params) {
+    Auth::requireLogin();
+    $type = $params['type'];
+    if (!in_array($type, ['bezug', 'einspeisung'], true)) { http_response_code(404); return; }
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $status = $member['contract_' . $type . '_status'] ?? 'none';
+    if ($status === 'signed') {
+        header('Location: /portal/my/documents?info=' . urlencode(contractTypeLabel($type) . ' wurde bereits unterschrieben.'));
+        exit;
+    }
+    if ($status !== 'created') {
+        header('Location: /portal/my/documents?error=' . urlencode(contractTypeLabel($type) . ' wurde noch nicht zur Unterschrift versendet.'));
+        exit;
+    }
+
+    require ROOT . '/src/views/pages/contract_sign.php';
+});
+
+$router->post('/portal/my/contract/:type/sign', function ($params) {
+    Auth::requireLogin();
+    $type = $params['type'];
+    if (!in_array($type, ['bezug', 'einspeisung'], true)) { http_response_code(404); return; }
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $status = $member['contract_' . $type . '_status'] ?? 'none';
+    if ($status !== 'created') {
+        header('Location: /portal/my/documents?error=' . urlencode('Vertrag kann in diesem Status nicht unterschrieben werden.'));
+        exit;
+    }
+    if (empty($_POST['zustimmung'])) {
+        header('Location: /portal/my/contract/' . $type . '/sign?error=' . urlencode('Bitte bestätigen Sie die Zustimmung, bevor Sie unterschreiben.'));
+        exit;
+    }
+    $signature = $_POST['signature_image'] ?? '';
+    if (!str_starts_with($signature, 'data:image/png;base64,')) {
+        header('Location: /portal/my/contract/' . $type . '/sign?error=' . urlencode('Bitte unterschreiben Sie im Unterschriftsfeld, bevor Sie absenden.'));
+        exit;
+    }
+
+    $communityId = $member['community_id'];
+    DB::setCommunity($communityId);
+    DB::execute(
+        "UPDATE members SET
+            contract_{$type}_status = 'signed',
+            contract_{$type}_customer_signature = ?,
+            contract_{$type}_signed_at = now(),
+            contract_{$type}_signer_ip = ?
+         WHERE id = ?",
+        [$signature, $_SERVER['REMOTE_ADDR'] ?? null, $member['id']]
+    );
+    // Interne Benachrichtigung an die Manager der EEG (analog zur Beitrittserklärung-
+    // Benachrichtigung oben) -- damit die Rückmeldung "Vertrag wurde unterschrieben" ankommt,
+    // ohne dass der Manager aktiv nachfragen muss.
+    DB::execute(
+        'INSERT INTO notifications (community_id, typ, titel, text, referenz_typ, referenz_id)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            $communityId,
+            'vertrag_unterschrieben',
+            'Vertrag digital unterschrieben: ' . $member['first_name'] . ' ' . $member['last_name'] . ' (' . contractTypeLabel($type) . ')',
+            'Die/der Netzbenutzer:in hat die ' . contractTypeLabel($type) . ' im Portal digital unterschrieben. '
+            . 'Der Vertrag ist ab sofort gültig und wird automatisch sicher archiviert.',
+            'member',
+            $member['id'],
+        ]
+    );
+    header('Location: /portal/my/documents?success=' . urlencode(contractTypeLabel($type) . ' wurde erfolgreich unterschrieben und ist jetzt gültig.'));
+    exit;
 });
 
 /**
@@ -1089,6 +1206,9 @@ $router->get('/portal/my/documents', function () {
     $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer'));
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$member['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$member['id'], $member['community_id']]);
+    if (!empty($_GET['success'])) { $success = $_GET['success']; }
+    if (!empty($_GET['error']))   { $error = $_GET['error']; }
+    if (!empty($_GET['info']))    { $info = $_GET['info']; }
     require ROOT . '/src/views/pages/my_documents.php';
 });
 
@@ -1643,11 +1763,28 @@ function memberFullName(array $member): string
 }
 
 /**
+ * Tarif für die Vertrags-Ansicht/Erneut-Versenden: vor der ersten Erstellung der aktuell
+ * gültige, danach für immer der zum Erstellungszeitpunkt gültige Tarif -- sonst würde ein
+ * bereits versendeter oder gar digital unterschriebener Vertrag bei jeder erneuten Ansicht
+ * plötzlich andere Zahlen zeigen, sobald sich der Tarif später ändert.
+ */
+function contractTariff(string $communityId, ?string $generatedAt): ?array
+{
+    if ($generatedAt) {
+        return DB::fetchOne(
+            'SELECT * FROM tariff_config WHERE community_id = ? AND valid_from <= ? ORDER BY valid_from DESC LIMIT 1',
+            [$communityId, $generatedAt]
+        );
+    }
+    return DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+}
+
+/**
  * Baut die Template-Variablen für die Bezugsvereinbarung. Gemeinsam genutzt von der
  * Ansichts-Route (Browser-Vorschau) und der "Jetzt senden"-Route (E-Mail-Anhang), damit
  * beide exakt denselben Vertragsinhalt erzeugen.
  */
-function bezugsvereinbarungVars(array $member, array $community, ?array $tariff, string $zpLines, array $signature): array
+function bezugsvereinbarungVars(array $member, array $community, ?array $tariff, string $zpLines, array $signature, array $memberSignature = ['var' => '', 'assets' => []]): array
 {
     return [
         'EEG_NAME'                  => $community['name'],
@@ -1673,6 +1810,8 @@ function bezugsvereinbarungVars(array $member, array $community, ?array $tariff,
         // PDF-Response zerstört (Output vor den header()-Aufrufen). ?? liest den Key sicher aus.
         'EEG_DASHBOARD_URL'         => ($community['dashboard_url'] ?? null) ?: 'https://portal.stromfueralle.at/portal/login',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
+        'RAW_MITGLIED_UNTERSCHRIFT_BILD' => $memberSignature['var'],
+        'RAW_MITGLIED_ORT_DATUM'    => memberOrtDatumLine($member, 'bezug'),
         'ERSTELLT_AM'               => date('d.m.Y'),
     ];
 }
@@ -1693,24 +1832,20 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Bezugs-Zählpunkt (Typ: Bezug) anlegen.'; return; }
 
-    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
-
-    $genAt    = $member['contract_bezug_generated_at'] ?? null;
-    $tariffAt = $tariff['valid_from'] ?? null;
-    $status   = $member['contract_bezug_status'] ?? 'none';
-    if ($status === 'signed' && $genAt && (!$tariffAt || $tariffAt <= $genAt)) {
-        http_response_code(400);
-        echo 'Vertrag wurde bereits unterschrieben. Generierung nur nach einer Tarifänderung möglich.';
-        return;
-    }
+    $genAt  = $member['contract_bezug_generated_at'] ?? null;
+    $status = $member['contract_bezug_status'] ?? 'none';
+    $tariff = contractTariff($communityId, $genAt);
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $signature = eegSignatureAsset();
-    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature);
-    $ok = streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+    $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null);
+    $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
+    $ok = streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
-    // DB-Update NUR nach erfolgreichem PDF
-    if ($ok) {
+    // DB-Update NUR nach erfolgreichem PDF, und nicht mehr nach digitaler Unterschrift --
+    // ab dann bleibt generated_at eingefroren, damit der signierte Vertrag bei jeder erneuten
+    // Ansicht exakt dieselben (zum Unterschriftszeitpunkt gültigen) Tarifzahlen zeigt.
+    if ($ok && $status !== 'signed') {
         DB::execute(
             "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now() WHERE id = ?",
             [$params['id']]
@@ -1746,6 +1881,9 @@ $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
     $signature = eegSignatureAsset();
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature);
 
+    // PDF wird hier nur zur Validierung erzeugt (Template-/Latex-Fehler sollen dem Manager
+    // sofort auffallen, nicht erst wenn das Mitglied den Portal-Link später öffnet) -- versendet
+    // wird kein Anhang mehr, nur eine Benachrichtigung mit Link zur digitalen Unterschrift.
     $error = null;
     $pdf = generateLatexPdf('bezugsvereinbarung', $vars, $signature['assets'], $error);
     if ($pdf === null) {
@@ -1756,22 +1894,20 @@ $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
         $mail = renderMailTemplate('contract_bezug', [
             'vorname'  => htmlspecialchars($member['first_name']),
             'eeg_name' => htmlspecialchars($community['name']),
+            'link'     => htmlspecialchars(portalUrl('/portal/my/contract/bezug/sign')),
             'hinweis'  => contractInvalidationNote((int)$member['contract_bezug_version']),
         ],
             'Ihre Bezugsvereinbarung – {{eeg_name}}',
-            '<p>Hallo {{vorname}},</p><p>im Anhang finden Sie Ihre Bezugsvereinbarung mit {{eeg_name}}.</p>{{hinweis}}'
+            '<p>Hallo {{vorname}},</p><p>Ihre Bezugsvereinbarung mit {{eeg_name}} liegt für Sie bereit. '
+            . 'Bitte prüfen Sie die Vereinbarung im Mitgliederportal und unterschreiben Sie dort digital, '
+            . 'damit sie gültig wird:</p><p><a href="{{link}}">{{link}}</a></p>{{hinweis}}'
         );
-        Mailer::send(
-            $member['email'],
-            $mail['subject'],
-            $mail['body'],
-            [['name' => 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $pdf]]
-        );
+        Mailer::send($member['email'], $mail['subject'], $mail['body']);
         DB::execute(
             "UPDATE members SET contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END, contract_bezug_generated_at = now(), contract_bezug_sent_at = now() WHERE id = ?",
             [$params['id']]
         );
-        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Bezugsvereinbarung wurde per E-Mail verschickt.'));
+        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Bezugsvereinbarung wurde per E-Mail zur digitalen Unterschrift verschickt.'));
     } catch (\Throwable $e) {
         header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
     }
@@ -1841,7 +1977,7 @@ function einspeisungAnlagenBeschreibung(array $mps): string
  * Baut die Template-Variablen für die Einspeisevereinbarung. Gemeinsam genutzt von der
  * Ansichts-Route und der "Jetzt senden"-Route.
  */
-function einspeisevereinbarungVars(array $member, array $community, ?array $tariff, string $zpLines, string $anlagenBeschreibung, array $signature): array
+function einspeisevereinbarungVars(array $member, array $community, ?array $tariff, string $zpLines, string $anlagenBeschreibung, array $signature, array $memberSignature = ['var' => '', 'assets' => []]): array
 {
     return [
         'EEG_NAME'                  => $community['name'],
@@ -1862,6 +1998,8 @@ function einspeisevereinbarungVars(array $member, array $community, ?array $tari
         'RAW_ZAEHLPUNKTE_LISTE'     => $zpLines,
         'ANLAGENBESCHREIBUNG'       => $anlagenBeschreibung ?: '--',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
+        'RAW_MITGLIED_UNTERSCHRIFT_BILD' => $memberSignature['var'],
+        'RAW_MITGLIED_ORT_DATUM'    => memberOrtDatumLine($member, 'einspeisung'),
         'ERSTELLT_AM'               => date('d.m.Y'),
     ];
 }
@@ -1882,23 +2020,17 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung) anlegen.'; return; }
 
-    $tariff = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
-
-    $genAt    = $member['contract_einspeisung_generated_at'] ?? null;
-    $tariffAt = $tariff['valid_from'] ?? null;
-    $status   = $member['contract_einspeisung_status'] ?? 'none';
-    if ($status === 'signed' && $genAt && (!$tariffAt || $tariffAt <= $genAt)) {
-        http_response_code(400);
-        echo 'Vertrag wurde bereits unterschrieben. Generierung nur nach einer Tarifänderung möglich.';
-        return;
-    }
+    $genAt  = $member['contract_einspeisung_generated_at'] ?? null;
+    $status = $member['contract_einspeisung_status'] ?? 'none';
+    $tariff = contractTariff($communityId, $genAt);
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $signature = eegSignatureAsset();
-    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature);
-    $ok = streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets']);
+    $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null);
+    $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
+    $ok = streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
-    if ($ok) {
+    if ($ok && $status !== 'signed') {
         DB::execute(
             "UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END, contract_einspeisung_generated_at = now() WHERE id = ?",
             [$params['id']]
@@ -1921,6 +2053,8 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
     $signature = eegSignatureAsset();
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature);
 
+    // PDF wird hier nur zur Validierung erzeugt -- versendet wird kein Anhang mehr, nur eine
+    // Benachrichtigung mit Link zur digitalen Unterschrift (siehe Kommentar beim Bezugsvertrag).
     $error = null;
     $pdf = generateLatexPdf('einspeisevereinbarung', $vars, $signature['assets'], $error);
     if ($pdf === null) {
@@ -1931,22 +2065,20 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
         $mail = renderMailTemplate('contract_einspeisung', [
             'vorname'  => htmlspecialchars($member['first_name']),
             'eeg_name' => htmlspecialchars($community['name']),
+            'link'     => htmlspecialchars(portalUrl('/portal/my/contract/einspeisung/sign')),
             'hinweis'  => contractInvalidationNote((int)$member['contract_einspeisung_version']),
         ],
             'Ihre Einspeisevereinbarung – {{eeg_name}}',
-            '<p>Hallo {{vorname}},</p><p>im Anhang finden Sie Ihre Einspeisevereinbarung mit {{eeg_name}}.</p>{{hinweis}}'
+            '<p>Hallo {{vorname}},</p><p>Ihre Einspeisevereinbarung mit {{eeg_name}} liegt für Sie bereit. '
+            . 'Bitte prüfen Sie die Vereinbarung im Mitgliederportal und unterschreiben Sie dort digital, '
+            . 'damit sie gültig wird:</p><p><a href="{{link}}">{{link}}</a></p>{{hinweis}}'
         );
-        Mailer::send(
-            $member['email'],
-            $mail['subject'],
-            $mail['body'],
-            [['name' => 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $pdf]]
-        );
+        Mailer::send($member['email'], $mail['subject'], $mail['body']);
         DB::execute(
             "UPDATE members SET contract_einspeisung_status = CASE WHEN contract_einspeisung_status = 'none' THEN 'created' ELSE contract_einspeisung_status END, contract_einspeisung_generated_at = now(), contract_einspeisung_sent_at = now() WHERE id = ?",
             [$params['id']]
         );
-        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Einspeisevereinbarung wurde per E-Mail verschickt.'));
+        header('Location: /portal/members/' . $params['id'] . '?success=' . urlencode('Einspeisevereinbarung wurde per E-Mail zur digitalen Unterschrift verschickt.'));
     } catch (\Throwable $e) {
         header('Location: /portal/members/' . $params['id'] . '?error=mail&detail=' . urlencode($e->getMessage()));
     }
@@ -1995,20 +2127,15 @@ $router->post('/portal/members/:id/contract/send-both', function ($params) {
         $mail = renderMailTemplate('contract_both', [
             'vorname'  => htmlspecialchars($member['first_name']),
             'eeg_name' => htmlspecialchars($community['name']),
+            'link'     => htmlspecialchars(portalUrl('/portal/my/documents')),
             'hinweis'  => $hinweis,
         ],
             'Ihre Vereinbarungen – {{eeg_name}}',
-            '<p>Hallo {{vorname}},</p><p>im Anhang finden Sie Ihre Bezugsvereinbarung und Ihre Einspeisevereinbarung mit {{eeg_name}}.</p>{{hinweis}}'
+            '<p>Hallo {{vorname}},</p><p>Ihre Bezugsvereinbarung und Ihre Einspeisevereinbarung mit {{eeg_name}} liegen '
+            . 'für Sie bereit. Bitte prüfen Sie beide Vereinbarungen im Mitgliederportal und unterschreiben Sie dort '
+            . 'digital, damit sie gültig werden:</p><p><a href="{{link}}">{{link}}</a></p>{{hinweis}}'
         );
-        Mailer::send(
-            $member['email'],
-            $mail['subject'],
-            $mail['body'],
-            [
-                ['name' => 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $bezugPdf],
-                ['name' => 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', 'contentType' => 'application/pdf', 'content' => $einspeisungPdf],
-            ]
-        );
+        Mailer::send($member['email'], $mail['subject'], $mail['body']);
         DB::execute(
             "UPDATE members SET
                 contract_bezug_status = CASE WHEN contract_bezug_status = 'none' THEN 'created' ELSE contract_bezug_status END,

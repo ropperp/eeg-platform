@@ -302,9 +302,14 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
         <strong style="font-size:.9rem"><?= $info['label'] ?></strong>
         <span class="badge badge-<?= $statusBadge[$cur] ?? 'gray' ?>"><?= $statusLabels[$cur] ?></span>
       </div>
-      <?php if ($sentAt): ?>
+      <?php $signedAt = $member['contract_' . $type . '_signed_at'] ?? null; ?>
+      <?php if ($signedAt): ?>
+        <p style="font-size:.78rem;color:#15803d;margin:0">
+          ✍️ Digital unterschrieben am <?= date('d.m.Y H:i', strtotime($signedAt)) ?> im Mitgliederportal — gültig und sicher abgelegt.
+        </p>
+      <?php elseif ($sentAt): ?>
         <p style="font-size:.78rem;color:#6b7280;margin:0">
-          📨 Versendet am <?= date('d.m.Y H:i', strtotime($sentAt)) ?> — nicht mehr änderbar.
+          📨 Versendet am <?= date('d.m.Y H:i', strtotime($sentAt)) ?> — wartet auf digitale Unterschrift durch das Mitglied.
           Für Korrekturen oben bei „Jetzt senden" auf „🔄 Zurücksetzen" klicken.
         </p>
       <?php else: ?>

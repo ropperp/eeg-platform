@@ -281,9 +281,11 @@ Der Vertrag wird in zweifacher Ausfertigung erstellt und unterfertigt, wovon der
 
 \noindent
 \begin{minipage}[t]{0.48\textwidth}
-  Ort, Datum: \underline{\hspace{4cm}}
+  Ort, Datum: <<<RAW_MITGLIED_ORT_DATUM>>>
   \par\vspace{3\baselineskip}
-  \rule{5cm}{0.4pt}\par
+  % Bild mit Höhe/Breite 0 einboxen: schiebt die Unterschriftslinie nicht mehr nach unten,
+  % sondern schwebt über ihr -- linke und rechte Spalte bleiben exakt auf gleicher Höhe
+  \makebox[0pt][l]{\raisebox{0.25\baselineskip}[0pt][0pt]{<<<RAW_MITGLIED_UNTERSCHRIFT_BILD>>>}}\rule{5cm}{0.4pt}\par
   Unterschrift Eigentümer:in\par
   <<<MITGLIED_NAME>>>
 \end{minipage}%

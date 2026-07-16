@@ -9,6 +9,7 @@
 <?php
 $refLinks = [
   'membership_application' => '/portal/applications/',
+  'member'                 => '/portal/members/',
 ];
 ?>
 
