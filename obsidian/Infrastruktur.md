@@ -175,17 +175,22 @@ Meist: mehrere Zertifikats-Lineages für dieselbe Domain (`stromfueralle.at`,
 Konsolidierung auf eine Lineage, dann `sudo certbot delete --cert-name <name>` für die
 überzähligen (erst nach Verifikation!).
 
-### Datei-/Profilbild-Upload: 500/505 im Browser (Stand 16.07.2026)
-Jeder Upload bricht ab, obwohl `docker compose logs webapp` nur 200/302 zeigt -- der Fehler
-liegt in der Proxy-Kette, nicht in PHP. Auf 10.0.0.144 in `/var/log/nginx/error.log`: `readv()
-failed (104: Connection reset by peer) while reading upstream` für POSTs mit Datei-Anhang.
-`docker compose logs traefik` ist dabei normalerweise leer (kein Accesslog konfiguriert, kein
-Fehlerhinweis). Ursache: `location /` in `70_stromfueralle.conf` setzt `proxy_pass` ohne
-`proxy_http_version 1.1;`, wodurch die Upstream-Verbindung zu Traefik auf HTTP/1.0 fällt --
-funktioniert für normale POSTs, bricht aber bei multipart/form-data-Uploads zuverlässig ab.
-Fix in JEDEM `location /`-Block ergänzen:
-```nginx
-proxy_http_version 1.1;
-proxy_set_header   Connection "";
+### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
+Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte
+Ursache erst sichtbar im nginx-**Fehler**-Log IM Container:
+```bash
+docker compose exec webapp cat /var/log/nginx/error.log
 ```
-Danach `sudo nginx -t && sudo systemctl reload nginx`. Details: siehe `CLAUDE.md` im Repo.
+→ `open() "/var/lib/nginx/tmp/client_body/..." failed (13: Permission denied)`. Grund:
+`nginx.conf` setzt `user www-data;`, aber Alpines nginx-Paket legt `/var/lib/nginx/tmp/*` mit
+dem eigenen `nginx`-User an. Kleine Requests (Login) brauchen dieses Zwischenspeicher-Verzeichnis
+nie, jeder Datei-/Profilbild-Upload (sobald der Body den nginx-Puffer übersteigt) schon --
+nginx scheitert dabei schon vor PHP-FPM und liefert sein eigenes 500 aus.
+Fix in `webapp/Dockerfile` (bereits im Repo):
+```dockerfile
+RUN chown -R www-data:www-data /var/lib/nginx/tmp
+```
+Braucht einen echten Rebuild (`docker compose up -d --build`), reines `up -d` reicht nicht.
+Zwei Sackgassen unterwegs, die NICHT die Ursache waren: leeres `docker compose logs traefik`
+(normal, kein Accesslog konfiguriert) und fehlendes `proxy_http_version 1.1;` im nginx-Proxy auf
+10.0.0.144 (sinnvoller Fix, hat dieses Problem aber nicht behoben). Details: siehe `CLAUDE.md`.

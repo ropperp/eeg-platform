@@ -287,53 +287,58 @@ Subdomain noch nicht erreichbar ist) — sobald DNS + SSL stehen, greift der abs
 > begonnene Session auf der anderen weiterhin nicht erkannt (wirkt wie "sofort ausgeloggt"
 > bzw. Admin-Bereich bleibt scheinbar auf der Hauptdomain hängen).
 
-### Datei-/Profilbild-Upload: 500/505 im Browser, aber webapp-Logs zeigen nur 200/302
-Stand 16.07.2026, reproduzierbar bei **jedem** Datei- und Profilbild-Upload (nicht nur groß
-oder gelegentlich). `docker compose logs webapp` zeigt für den Request selbst nur saubere
-200/302-Codes — der Fehler passiert also NICHT in PHP, sondern beim Zurückliefern der Antwort
-durch die Proxy-Kette. Auf dem nginx-Proxy-Host (10.0.0.144) taucht dazu in
-`/var/log/nginx/error.log` sowas auf:
-```
-readv() failed (104: Connection reset by peer) while reading upstream ...
-request: "POST /portal/members/.../files HTTP/1.1", upstream: "http://10.0.0.250:80/..."
-```
-`docker compose logs traefik` ist dabei leer — das ist normal und KEIN Hinweis auf einen
-Traefik-Fehler: Traefik loggt ohne `--accesslog=true` (nicht gesetzt in `docker-compose.yml`)
-grundsätzlich keine einzelnen Requests, nur eigene Fehler ab Level ERROR.
+### Datei-/Profilbild-Upload: 500 im Browser, aber webapp-Access-Log zeigt nur 200/302
+Stand 16.07.2026, reproduzierbar bei **jedem** Datei- und Profilbild-Upload, in jedem Browser
+(nicht nur groß oder gelegentlich). `docker compose logs webapp` (= nginx-**Access**-Log im
+Container) zeigt für den fehlschlagenden Request gar nichts oder nur unbeteiligte GETs — der
+Request scheitert also, bevor er im Access-Log landet. Zwei Sackgassen auf dem Weg zur Ursache,
+damit sie nicht nochmal verfolgt werden:
+- `docker compose logs traefik` ist normalerweise leer, weil Traefik ohne `--accesslog=true`
+  (nicht gesetzt in `docker-compose.yml`) grundsätzlich keine einzelnen Requests loggt, nur
+  eigene Fehler ab Level ERROR. Kein Hinweis auf einen Traefik-Fehler.
+- Fehlendes `proxy_http_version 1.1;` in der nginx-Proxy-Config auf 10.0.0.144 sah zunächst
+  nach der Ursache aus (Connection-reset-Meldungen dort), war aber nicht die eigentliche
+  Ursache -- dieser Fix ist trotzdem sinnvoll (verhindert HTTP/1.0-Verbindungen zum Backend)
+  und bleibt gesetzt, hat das Problem hier aber nicht behoben.
 
-**Ursache:** `70_stromfueralle.conf` auf 10.0.0.144 setzt `proxy_pass http://10.0.0.250;` ohne
-`proxy_http_version 1.1;` — nginx spricht die Upstream-Verbindung (zu Traefik) dann standardmäßig
-per HTTP/1.0 statt 1.1. Für normale POSTs mit kleinem, sofort bekanntem Body (Login,
-Formularfelder) macht das keinen Unterschied, aber Datei-Uploads (`multipart/form-data`) laufen
-darüber offenbar zuverlässig in einen Verbindungsabbruch zwischen nginx-Proxy und Traefik/webapp.
+**Tatsächliche Ursache**, sichtbar erst im nginx-**Fehler**-Log INNERHALB des webapp-Containers
+(nicht `docker compose logs`, das ist nur der Access-Log-Teil von stdout!):
+```bash
+docker compose exec webapp cat /var/log/nginx/error.log
+```
+zeigt:
+```
+[crit] open() "/var/lib/nginx/tmp/client_body/0000000001" failed (13: Permission denied),
+request: "POST /portal/profile/photo HTTP/1.1", host: "portal.stromfueralle.at"
+```
+`webapp/docker/nginx.conf` setzt `user www-data;` (passend zum PHP-FPM-User), aber das
+Alpine-nginx-Paket (`apk add nginx` im Dockerfile) legt `/var/lib/nginx/tmp/*` (u.a.
+`client_body` -- Zwischenspeicher für POST-Bodies, die den kleinen In-Memory-Puffer von nginx
+übersteigen) beim Install mit dem eigenen `nginx`-System-User an, NICHT `www-data`. Kleine
+Requests ohne Datei-Anhang (Login, Formularfelder) bleiben unter dem Puffer-Limit und brauchen
+dieses Verzeichnis nie, weshalb der Bug nur bei Uploads auffällt -- unabhängig von deren Größe,
+sobald sie über ein paar KB liegen (auch das winzige, von der Zoom-Zuschnitt-Funktion erzeugte
+Profilbild betrifft das schon). nginx scheitert dabei NOCH VOR PHP-FPM und liefert sein eigenes
+Standard-500 aus, weshalb weder die App-eigene Fehlerseite noch ein Log-Eintrag im Access-Log
+auftaucht.
 
-**Fix** (auf 10.0.0.144, in JEDEM `location /`-Block der Datei -- Hauptdomain UND
-portal/www-Blöcke):
+**Fix:** in `webapp/Dockerfile` direkt nach dem Storage-Chown ergänzt (bereits im Repo, ab
+Commit dieser Doku-Aktualisierung):
+```dockerfile
+RUN chown -R www-data:www-data /var/lib/nginx/tmp
+```
+Wirkt erst nach einem echten Image-Rebuild (Berechtigungen werden beim `docker build` gesetzt,
+nicht zur Laufzeit):
 ```bash
-sudo cp /etc/nginx/sites-available/70_stromfueralle.conf \
-        /etc/nginx/sites-available/70_stromfueralle.conf.bak-$(date +%s)
-sudo nano /etc/nginx/sites-available/70_stromfueralle.conf
+cd /opt/eeg-platform
+git pull origin main
+docker compose up -d --build
 ```
-In jedem `location / { ... }`-Block ergänzen:
-```nginx
-location / {
-    proxy_http_version 1.1;
-    proxy_set_header   Connection        "";
-    proxy_pass         http://10.0.0.250;
-    proxy_set_header   Host              $host;
-    proxy_set_header   X-Real-IP         $remote_addr;
-    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header   X-Forwarded-Proto https;
-}
-```
+Danach zur Kontrolle direkt im Container prüfen:
 ```bash
-sudo nginx -t && sudo systemctl reload nginx
+docker compose exec webapp ls -la /var/lib/nginx/tmp/
+# client_body/, proxy/, fastcgi/, uwsgi/, scgi/ sollten alle www-data:www-data gehören
 ```
-Danach Datei-/Profilbild-Upload erneut testen. Falls das Problem weiterhin auftritt, als
-Nächstes direkt auf dem EEG-Server (10.0.0.250) prüfen, ob derselbe Upload via
-`docker compose exec webapp curl -F "photo=@test.png" localhost/portal/profile/photo ...`
-(mit gültigem Session-Cookie) funktioniert -- dann läge der Fehler zwischen nginx-Proxy und
-Traefik/webapp, nicht in Traefik/webapp selbst.
 
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):

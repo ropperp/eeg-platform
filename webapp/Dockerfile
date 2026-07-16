@@ -24,6 +24,15 @@ WORKDIR /var/www/html
 RUN mkdir -p /var/www/html/storage/uploads /var/www/html/storage/pdfs && \
     chown -R www-data:www-data /var/www/html/storage
 
+# nginx.conf setzt "user www-data;" (passend zum PHP-FPM-User), aber das Alpine-nginx-Paket
+# legt /var/lib/nginx/tmp/* (u.a. client_body -- Zwischenspeicher für POST-Bodies, die zu groß
+# für den kleinen In-Memory-Puffer sind) beim Install mit dem eigenen "nginx"-System-User an,
+# NICHT www-data. Ohne diesen Fix schlägt JEDER Datei-Upload mit "open() .../client_body/...
+# failed (13: Permission denied)" fehl, sobald der Request-Body den Default-Puffer übersteigt --
+# kleine Requests ohne Datei-Anhang (Login, Formularfelder) bleiben unter dem Puffer-Limit und
+# fallen deshalb nie auf, wodurch sich das nginx-eigene Standard-500 nur bei Uploads zeigt.
+RUN chown -R www-data:www-data /var/lib/nginx/tmp
+
 EXPOSE 80
 
 COPY webapp/docker/entrypoint.sh /entrypoint.sh
