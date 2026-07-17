@@ -2,9 +2,10 @@
 
 <h2 style="margin-bottom:.5rem">📁 Dateien</h2>
 <p style="color:#6b7280;font-size:.875rem;margin-bottom:1.5rem">
-  LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung. Herunterladen, bearbeiten
-  und per Drag &amp; Drop wieder hochladen -- ohne Kommandozeile oder GitHub. Wirkt sofort auf
-  alle künftig erzeugten PDFs.
+  LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung sowie das Infoblatt der
+  Website. Herunterladen, bearbeiten und per Drag &amp; Drop wieder hochladen -- ohne
+  Kommandozeile oder GitHub. Wirkt sofort (LaTeX-Vorlagen: auf künftig erzeugte PDFs, Infoblatt:
+  auf den Download-Link der Website).
 </p>
 
 <?php if (!empty($_GET['success'])): ?>
@@ -48,7 +49,7 @@
              data-filename="<?= htmlspecialchars($t['filename']) ?>"
              style="display:flex;align-items:center;justify-content:center;gap:.5rem;border:2px dashed #d1d5db;border-radius:8px;padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:#6b7280;transition:border-color .15s,background .15s">
         <span class="dz-text">📄 Neue Datei hierher ziehen oder klicken</span>
-        <input type="file" name="file" accept=".tex" required style="display:none">
+        <input type="file" name="file" accept="<?= $t['type'] === 'pdf' ? '.pdf' : '.tex' ?>" required style="display:none">
       </label>
     </form>
   </div>

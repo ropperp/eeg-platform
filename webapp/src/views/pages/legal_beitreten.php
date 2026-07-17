@@ -18,7 +18,7 @@ ob_start();
     <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/beitreten/formular" class="btn btn-primary">
       Online Beitrittserklärung ausfüllen &amp; unterschreiben
     </a>
-    <a href="/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-secondary" target="_blank" rel="noopener">
+    <a href="/infoblatt.pdf" class="btn btn-secondary" target="_blank" rel="noopener">
       Infoblatt ansehen (PDF)
     </a>
   </div>

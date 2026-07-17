@@ -3188,27 +3188,32 @@ $router->post('/admin/mail-settings/test', function () {
 });
 
 /**
- * Whitelist der über /admin/templates verwaltbaren LaTeX-Vorlagen (Dateiname => Anzeigename).
- * Bewusst eine feste Liste statt freier Dateinamen -- verhindert Path-Traversal und stellt
- * sicher, dass nur Dateien angezeigt werden, die latex-service auch tatsächlich kennt.
+ * Whitelist der über /admin/templates verwaltbaren Dateien (Dateiname => Anzeigename + Typ).
+ * Bewusst eine feste Liste statt freier Dateinamen -- verhindert Path-Traversal. Umfasst die
+ * LaTeX-Vorlagen (von latex-service live pro Anfrage gerendert) UND das Infoblatt: das ist
+ * KEINE Vorlage, sondern eine fertige, statische PDF für die Marketing-Seite (kein
+ * personalisierter Inhalt, daher kein Live-Rendering) -- hier lädt der Platform-Admin direkt
+ * eine fertige PDF hoch, kein .tex.
  */
-function latexTemplateLabels(): array
+function adminFileRegistry(): array
 {
     return [
-        'bezugsvereinbarung.tex'           => 'Bezugsvereinbarung',
-        'einspeisevereinbarung.tex'        => 'Einspeisevereinbarung',
-        'rechnung.tex'                     => 'Rechnung',
-        'beitrittserklaerung_formular.tex' => 'Beitrittserklärung',
+        'bezugsvereinbarung.tex'           => ['label' => 'Bezugsvereinbarung', 'type' => 'tex'],
+        'einspeisevereinbarung.tex'        => ['label' => 'Einspeisevereinbarung', 'type' => 'tex'],
+        'rechnung.tex'                     => ['label' => 'Rechnung', 'type' => 'tex'],
+        'beitrittserklaerung_formular.tex' => ['label' => 'Beitrittserklärung', 'type' => 'tex'],
+        'infoblatt.pdf'                    => ['label' => 'Infoblatt (Website)', 'type' => 'pdf'],
     ];
 }
 
 /**
- * Pfad zur aktuell wirksamen Fassung einer Vorlage: das persistente Volume
+ * Pfad zur aktuell wirksamen Fassung einer verwalteten Datei: das persistente Volume
  * (/var/www/html/latex-templates, geteilt mit latex-service) hat Vorrang, sonst die im
- * Image mitgelieferte Standard-Vorlage als Rückfallebene (z.B. direkt nach einem frischen
- * Deploy, bevor latex-service beim ersten Start das Volume befüllt hat).
+ * Image mitgelieferte Standard-Fassung als Rückfallebene (z.B. direkt nach einem frischen
+ * Deploy, bevor latex-service beim ersten Start das Volume befüllt hat, oder bevor überhaupt
+ * einmal etwas hochgeladen wurde).
  */
-function latexTemplatePath(string $filename): ?string
+function adminFilePath(string $filename): ?string
 {
     $live = '/var/www/html/latex-templates/' . $filename;
     if (is_file($live)) { return $live; }
@@ -3220,11 +3225,12 @@ $router->get('/admin/templates', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $templates = [];
-    foreach (latexTemplateLabels() as $filename => $label) {
-        $path = latexTemplatePath($filename);
+    foreach (adminFileRegistry() as $filename => $info) {
+        $path = adminFilePath($filename);
         $templates[] = [
             'filename'  => $filename,
-            'label'     => $label,
+            'label'     => $info['label'],
+            'type'      => $info['type'],
             'exists'    => $path !== null,
             'is_custom' => $path !== null && str_starts_with($path, '/var/www/html/latex-templates/'),
             'size'      => $path ? filesize($path) : null,
@@ -3237,12 +3243,12 @@ $router->get('/admin/templates', function () {
 $router->get('/admin/templates/:name/download', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
-    $labels = latexTemplateLabels();
-    if (!array_key_exists($params['name'], $labels)) { http_response_code(404); echo 'Unbekannte Vorlage'; return; }
-    $path = latexTemplatePath($params['name']);
+    $registry = adminFileRegistry();
+    if (!array_key_exists($params['name'], $registry)) { http_response_code(404); echo 'Unbekannte Datei'; return; }
+    $path = adminFilePath($params['name']);
     if (!$path) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
 
-    header('Content-Type: text/plain; charset=UTF-8');
+    header('Content-Type: ' . ($registry[$params['name']]['type'] === 'pdf' ? 'application/pdf' : 'text/plain; charset=UTF-8'));
     header('Content-Disposition: attachment; filename="' . $params['name'] . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path);
@@ -3252,18 +3258,18 @@ $router->get('/admin/templates/:name/download', function ($params) {
 $router->post('/admin/templates/:name/upload', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
-    $labels = latexTemplateLabels();
-    if (!array_key_exists($params['name'], $labels)) { http_response_code(404); echo 'Unbekannte Vorlage'; return; }
+    $registry = adminFileRegistry();
+    if (!array_key_exists($params['name'], $registry)) { http_response_code(404); echo 'Unbekannte Datei'; return; }
 
     if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         header('Location: /admin/templates?error=' . urlencode('Datei-Upload fehlgeschlagen.'));
         exit;
     }
-    // Grobe Plausibilitätsprüfung -- keine strikte LaTeX-Validierung, ein Syntaxfehler zeigt
-    // sich ohnehin sofort beim nächsten PDF-Versuch (streamLatexPdf() liefert dann die
-    // pdflatex-Fehlermeldung statt eines PDFs).
-    if ($_FILES['file']['size'] > 2 * 1024 * 1024) {
-        header('Location: /admin/templates?error=' . urlencode('Datei zu groß (max. 2 MB).'));
+    // Grobe Plausibilitätsprüfung -- keine strikte LaTeX-/PDF-Validierung, ein Fehler zeigt
+    // sich ohnehin sofort beim nächsten Aufruf (streamLatexPdf() liefert dann die
+    // pdflatex-Fehlermeldung statt eines PDFs; ein kaputtes Infoblatt-PDF zeigt der Browser an).
+    if ($_FILES['file']['size'] > 10 * 1024 * 1024) {
+        header('Location: /admin/templates?error=' . urlencode('Datei zu groß (max. 10 MB).'));
         exit;
     }
 
@@ -3275,9 +3281,24 @@ $router->post('/admin/templates/:name/upload', function ($params) {
     }
     // entity_id ist in audit_log als UUID typisiert -- der Dateiname passt dort nicht rein,
     // steht stattdessen in der Beschreibung.
-    logAudit(null, 'template.upload', 'latex_template', null,
-        'LaTeX-Vorlage "' . $labels[$params['name']] . '" (' . $params['name'] . ') hochgeladen/ersetzt');
-    header('Location: /admin/templates?success=' . urlencode($labels[$params['name']] . ' wurde aktualisiert.'));
+    logAudit(null, 'template.upload', 'admin_file', null,
+        'Datei "' . $registry[$params['name']]['label'] . '" (' . $params['name'] . ') hochgeladen/ersetzt');
+    header('Location: /admin/templates?success=' . urlencode($registry[$params['name']]['label'] . ' wurde aktualisiert.'));
+    exit;
+});
+
+/**
+ * Öffentlicher Infoblatt-Download für die Marketing-Seite: bevorzugt eine über
+ * /admin/templates hochgeladene Fassung, sonst die mitgelieferte Standard-PDF (siehe
+ * adminFilePath()) -- dieselbe Fallback-Logik wie bei den LaTeX-Vorlagen.
+ */
+$router->get('/infoblatt.pdf', function () {
+    $path = adminFilePath('infoblatt.pdf');
+    if (!$path) { http_response_code(404); echo 'Infoblatt nicht gefunden'; return; }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="infoblatt-eeg-strompool-feldkirchen-suedwest.pdf"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
     exit;
 });
 
