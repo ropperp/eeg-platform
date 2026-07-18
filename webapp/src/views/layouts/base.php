@@ -44,7 +44,8 @@
       <a href="/rc108175/datenschutz">Datenschutz</a> ·
       <a href="/rc108175/agb">AGBs</a> ·
       <a href="/rc108175/preisliste">Preisliste</a> ·
-      <a href="/rc108175/kontakt">Kontakt</a>
+      <a href="/rc108175/kontakt">Kontakt</a> ·
+      <a href="https://kaerntennetz.at/erneuerbare-energiegemeinschaften-eeg.htm" target="_blank" rel="noopener">Kärnten Netz: Netzgebiet prüfen</a>
     </div>
     Strom für alle · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner
   </div>
