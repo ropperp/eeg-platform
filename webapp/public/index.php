@@ -1300,6 +1300,47 @@ $router->post('/portal/my/api-keys/:id/revoke', function ($params) {
     exit;
 });
 
+/**
+ * Erster Test-Endpoint der künftigen Smart-Home-API: prüft nur, ob ein API-Key gültig ist,
+ * und gibt Basisinfos zurück -- noch KEINE Energiedaten (die kommen erst mit Task
+ * "API-Schnittstelle für Live-Energiedaten", siehe /portal/my/api-keys). Dient zum Testen der
+ * Authentifizierung z.B. mit Node-RED, bevor es echte Daten gibt.
+ *
+ * Kein DB::setCommunity() vorab -- der Key wird bewusst GLOBAL per Hash gesucht (die Community
+ * ist ja erst das Ergebnis der Suche), member_api_keys hat deshalb auch keine Community-RLS
+ * (siehe migrate_20260731.sql).
+ */
+$router->get('/api/v1/me', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (!preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Fehlender oder ungültiger Authorization-Header. Erwartet: "Bearer <API-Key>".']);
+        return;
+    }
+    $hash = hash('sha256', trim($m[1]));
+    $key = DB::fetchOne(
+        'SELECT k.*, m.first_name, m.last_name, c.name AS community_name
+         FROM member_api_keys k
+         JOIN members m ON m.id = k.member_id
+         JOIN communities c ON c.id = k.community_id
+         WHERE k.key_hash = ?',
+        [$hash]
+    );
+    if (!$key || $key['revoked_at'] || ($key['expires_at'] && strtotime($key['expires_at']) < time())) {
+        http_response_code(401);
+        echo json_encode(['error' => 'API-Key ungültig, widerrufen oder abgelaufen.']);
+        return;
+    }
+    DB::execute('UPDATE member_api_keys SET last_used_at = now() WHERE id = ?', [$key['id']]);
+    echo json_encode([
+        'status'    => 'ok',
+        'member'    => $key['first_name'] . ' ' . $key['last_name'],
+        'community' => $key['community_name'],
+        'note'      => 'Authentifizierung erfolgreich. Live-Energiedaten-Endpoints folgen in Kürze.',
+    ]);
+});
+
 // ─── Portal: Mitgliederverwaltung ───────────────────────
 $router->get('/portal/members', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
