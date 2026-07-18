@@ -1,13 +1,13 @@
 <?php $pageTitle = 'Mitglied: ' . htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Mitgliederliste</a>
+  <a href="/portal/members" style="color:var(--gray-600);text-decoration:none">← Mitgliederliste</a>
   <div style="position:relative">
     <img src="<?= htmlspecialchars(memberAvatarUrl($member['id'], $member['photo_path'], $member['salutation'])) ?>"
          alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">
     <button type="button" onclick="document.getElementById('photo-dialog').showModal()"
             title="Profilbild ändern"
-            style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#f3f4f6;border:1px solid #e5e7eb;font-size:.6rem;line-height:1;cursor:pointer;padding:0">✏️</button>
+            style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--gray-100);border:1px solid var(--gray-200);font-size:.6rem;line-height:1;cursor:pointer;padding:0">✏️</button>
   </div>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-gray" style="font-weight:700;color:#15803d">KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?></span>
@@ -32,7 +32,7 @@
     <?php if (!empty($member['contract_bezug_sent_at'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/reset" style="display:inline"
           onsubmit="return confirm('Bezugsvereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
-      <button type="submit" class="btn" style="background:#f3f4f6;color:#6b7280;font-size:.8rem">🔄 Zurücksetzen</button>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem">🔄 Zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php endif; ?>
@@ -46,7 +46,7 @@
     <?php if (!empty($member['contract_einspeisung_sent_at'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/reset" style="display:inline"
           onsubmit="return confirm('Einspeisevereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
-      <button type="submit" class="btn" style="background:#f3f4f6;color:#6b7280;font-size:.8rem">🔄 Zurücksetzen</button>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem">🔄 Zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php endif; ?>
@@ -58,10 +58,10 @@
     <?php endif; ?>
     <?php if (!empty($application)): ?>
     <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank"
-       class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">🖨️ Formular ausdrucken (PDF)</a>
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem">🖨️ Formular ausdrucken (PDF)</a>
     <?php endif; ?>
     <a href="/portal/members/<?= $member['id'] ?>/edit"
-       class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem">✏️ Bearbeiten</a>
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem">✏️ Bearbeiten</a>
     <?php if (!empty($member['user_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
       <button type="submit" class="btn" style="background:#e0f2fe;color:#0369a1;font-size:.8rem">🔑 Passwort zurücksetzen</button>
@@ -128,7 +128,7 @@
       <tr><th>E-Mail</th><td><code><?= htmlspecialchars($successEmail) ?></code></td></tr>
       <tr><th>Temporäres Passwort</th><td><code style="font-size:1.1rem;color:#15803d"><?= htmlspecialchars($successTempPw) ?></code></td></tr>
     </table>
-    <p style="margin-top:.75rem;font-size:.8rem;color:#6b7280">Das Mitglied sollte das Passwort nach dem ersten Login ändern. Diese Anzeige erscheint nur einmal.</p>
+    <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)">Das Mitglied sollte das Passwort nach dem ersten Login ändern. Diese Anzeige erscheint nur einmal.</p>
   </div>
 <?php endif; ?>
 
@@ -162,7 +162,7 @@
     <h3 style="margin-bottom:1rem">Zählpunkte & Smart Meter</h3>
 
     <?php if (empty($metering_points)): ?>
-      <p style="color:#6b7280;font-size:.875rem;margin-bottom:1rem">Noch keine Zählpunkte registriert.</p>
+      <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">Noch keine Zählpunkte registriert.</p>
     <?php else: ?>
       <table style="margin-bottom:1.25rem;font-size:.85rem">
         <thead>
@@ -182,11 +182,11 @@
               <?php if ($mp['meter_code']): ?>
                 <code style="font-size:.75rem;color:#16a34a"><?= htmlspecialchars($mp['meter_code']) ?></code>
               <?php else: ?>
-                <span style="color:#9ca3af;font-size:.8rem">—</span>
+                <span style="color:var(--gray-600);font-size:.8rem">—</span>
               <?php endif; ?>
             </td>
             <td><?= $mp['type'] === 'consumer' ? '⬇️ Bezug' : '⬆️ Einspeisung' ?></td>
-            <td style="font-size:.78rem;color:#6b7280">
+            <td style="font-size:.78rem;color:var(--gray-600)">
               <?php if ($mp['type'] === 'consumer'): ?>
                 <?= $mp['jahresverbrauch_kwh'] ? number_format((float)$mp['jahresverbrauch_kwh'], 0, ',', '.') . ' kWh/Jahr' : '—' ?>
               <?php else: ?>
@@ -196,7 +196,7 @@
             </td>
             <td style="white-space:nowrap">
               <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>')"
-                      style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#6b7280">✏️</button>
+                      style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--gray-600)">✏️</button>
               <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">
                 <button type="submit" onclick="return confirm('Zählpunkt wirklich deaktivieren?')"
                         style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#ef4444">🗑️</button>
@@ -263,17 +263,17 @@ foreach ($metering_points as $mp) {
 ?>
 <?php if ($uniqueMeterCodes): ?>
 <?php $mqttId = Auth::activeCommunityMqttId() ?? '…'; ?>
-<div class="card" style="font-size:.8rem;color:#6b7280;margin-bottom:1.5rem">
+<div class="card" style="font-size:.8rem;color:var(--gray-600);margin-bottom:1.5rem">
   <strong>MQTT-Topics (Live-Daten):</strong>
   <?php foreach ($uniqueMeterCodes as $mc): ?>
     <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #e5e7eb">
       <div style="margin-bottom:.3rem">
         <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mc) ?>/live</code>
-        <span style="color:#9ca3af;font-size:.72rem;margin-left:.4rem">Legacy · pp/pm/ep/em/znr</span>
+        <span style="color:var(--gray-600);font-size:.72rem;margin-left:.4rem">Legacy · pp/pm/ep/em/znr</span>
       </div>
       <div>
         <code>eeg/<?= htmlspecialchars($mqttId) ?>/meter/<?= htmlspecialchars($mc) ?>/power</code>
-        <span style="color:#9ca3af;font-size:.72rem;margin-left:.4rem">ESP · power_w/meter_reading/ts</span>
+        <span style="color:var(--gray-600);font-size:.72rem;margin-left:.4rem">ESP · power_w/meter_reading/ts</span>
       </div>
     </div>
   <?php endforeach; ?>
@@ -297,7 +297,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
       $cur = $member['contract_' . $type . '_status'] ?? 'none';
     ?>
     <?php $sentAt = $member['contract_' . $type . '_sent_at'] ?? null; ?>
-    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:.75rem 1rem">
+    <div style="border:1px solid var(--gray-200);border-radius:8px;padding:.75rem 1rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
         <strong style="font-size:.9rem"><?= $info['label'] ?></strong>
         <span class="badge badge-<?= $statusBadge[$cur] ?? 'gray' ?>"><?= $statusLabels[$cur] ?></span>
@@ -308,19 +308,19 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
           ✍️ Digital unterschrieben am <?= date('d.m.Y H:i', strtotime($signedAt)) ?> im Mitgliederportal — gültig und sicher abgelegt.
         </p>
       <?php elseif ($sentAt): ?>
-        <p style="font-size:.78rem;color:#6b7280;margin:0">
+        <p style="font-size:.78rem;color:var(--gray-600);margin:0">
           📨 Versendet am <?= date('d.m.Y H:i', strtotime($sentAt)) ?> — wartet auf digitale Unterschrift durch das Mitglied.
           Für Korrekturen oben bei „Jetzt senden" auf „🔄 Zurücksetzen" klicken.
         </p>
       <?php else: ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/contract-status" style="display:flex;gap:.5rem;align-items:center">
         <input type="hidden" name="type" value="<?= $type ?>">
-        <select name="status" style="flex:1;padding:.3rem .5rem;border:1px solid #e5e7eb;border-radius:6px;font-size:.8rem">
+        <select name="status" style="flex:1;padding:.3rem .5rem;border:1px solid var(--gray-200);border-radius:6px;font-size:.8rem">
           <?php foreach ($statusLabels as $val => $lbl): ?>
             <option value="<?= $val ?>" <?= $cur === $val ? 'selected' : '' ?>><?= $lbl ?></option>
           <?php endforeach; ?>
         </select>
-        <button type="submit" style="padding:.3rem .75rem;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.8rem">Speichern</button>
+        <button type="submit" style="padding:.3rem .75rem;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;font-size:.8rem">Speichern</button>
       </form>
       <?php endif; ?>
     </div>
@@ -334,7 +334,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   <h3 style="margin-bottom:1rem">📎 Dateien</h3>
 
   <?php if (empty($member_files)): ?>
-    <p style="color:#6b7280;font-size:.875rem;margin-bottom:1rem">Noch keine Dateien hochgeladen.</p>
+    <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">Noch keine Dateien hochgeladen.</p>
   <?php else: ?>
     <table style="margin-bottom:1.25rem;font-size:.85rem">
       <thead>
@@ -377,7 +377,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
 </div>
 
 <!-- Profilbild-Modal -->
-<dialog id="photo-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+<dialog id="photo-dialog" style="border:1px solid var(--gray-200);border-radius:12px;padding:1.5rem;min-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
   <h3 style="margin-bottom:1rem">Profilbild ändern</h3>
   <form method="post" action="/portal/members/<?= $member['id'] ?>/photo" enctype="multipart/form-data">
     <div class="form-group">
@@ -387,21 +387,21 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
       <div style="width:220px;height:220px;border-radius:50%;overflow:hidden;border:2px solid #e5e7eb">
         <canvas id="member-photo-canvas" width="220" height="220" style="cursor:grab"></canvas>
       </div>
-      <label style="font-size:.78rem;color:#6b7280;display:flex;align-items:center;gap:.5rem">
+      <label style="font-size:.78rem;color:var(--gray-600);display:flex;align-items:center;gap:.5rem">
         🔍 Zoom
         <input type="range" id="member-photo-zoom" min="100" max="300" value="100">
       </label>
-      <small style="color:#6b7280">Zum Verschieben im Bild ziehen.</small>
+      <small style="color:var(--gray-600)">Zum Verschieben im Bild ziehen.</small>
     </div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
-      <button type="button" onclick="document.getElementById('photo-dialog').close()" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</button>
+      <button type="button" onclick="document.getElementById('photo-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
       <button type="submit" class="btn btn-primary">Speichern</button>
     </div>
   </form>
 </dialog>
 
 <!-- Edit-Modal -->
-<dialog id="edit-mp-dialog" style="border:1px solid #e5e7eb;border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+<dialog id="edit-mp-dialog" style="border:1px solid var(--gray-200);border-radius:12px;padding:1.5rem;min-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
   <h3 style="margin-bottom:1rem">Zählpunkt bearbeiten</h3>
   <form method="post" id="edit-mp-form">
     <div class="form-group">
@@ -435,7 +435,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     </div>
     <div style="display:flex;gap:.75rem">
       <button type="submit" class="btn btn-primary">Speichern</button>
-      <button type="button" onclick="document.getElementById('edit-mp-dialog').close()" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</button>
+      <button type="button" onclick="document.getElementById('edit-mp-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
     </div>
   </form>
 </dialog>

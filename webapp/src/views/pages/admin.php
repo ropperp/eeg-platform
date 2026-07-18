@@ -87,7 +87,7 @@
             </span>
           <?php endforeach; ?>
           <?php if (empty($u['roles'])): ?>
-            <span style="color:#9ca3af">keine</span>
+            <span style="color:var(--gray-600)">keine</span>
           <?php endif; ?>
         </td>
         <td>

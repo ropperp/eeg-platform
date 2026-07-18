@@ -4,7 +4,7 @@ ob_start();
 ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/portal/my/documents" style="color:#6b7280;text-decoration:none">← Zurück zu meinen Dokumenten</a>
+  <a href="/portal/my/documents" style="color:var(--gray-600);text-decoration:none">← Zurück zu meinen Dokumenten</a>
   <h2 style="margin:0">✍️ <?= htmlspecialchars(contractTypeLabel($type)) ?> unterschreiben</h2>
 </div>
 
@@ -14,10 +14,10 @@ ob_start();
 
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.75rem">1. Vereinbarung prüfen</h3>
-  <p style="font-size:.875rem;color:#6b7280;margin-bottom:.75rem">
+  <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:.75rem">
     Bitte lesen Sie die Vereinbarung sorgfältig durch, bevor Sie unterschreiben.
   </p>
-  <iframe src="/portal/my/contract/<?= htmlspecialchars($type) ?>" style="width:100%;height:480px;border:1px solid #e5e7eb;border-radius:8px"></iframe>
+  <iframe src="/portal/my/contract/<?= htmlspecialchars($type) ?>" style="width:100%;height:480px;border:1px solid var(--gray-200);border-radius:8px"></iframe>
   <p style="margin-top:.5rem">
     <a href="/portal/my/contract/<?= htmlspecialchars($type) ?>" target="_blank" style="font-size:.85rem">📄 In neuem Tab öffnen</a>
   </p>
@@ -32,9 +32,9 @@ ob_start();
     </label>
 
     <label style="font-size:.85rem;display:block;margin-bottom:.4rem">Unterschrift</label>
-    <canvas id="sig-pad" width="600" height="180" style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+    <canvas id="sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
     <div style="margin:.5rem 0 1rem">
-      <button type="button" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem" onclick="clearSignature()">Löschen</button>
+      <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature()">Löschen</button>
     </div>
     <input type="hidden" name="signature_image" id="signature_image">
 

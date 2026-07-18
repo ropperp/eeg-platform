@@ -49,14 +49,14 @@ ob_start();
     <div style="display:flex;gap:2rem">
       <div>
         <div style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
-        <div style="font-size:.8rem;color:#6b7280">Bezug</div>
+        <div style="font-size:.8rem;color:var(--gray-600)">Bezug</div>
       </div>
       <div>
         <div style="font-size:1.75rem;font-weight:700;color:#16a34a"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
-        <div style="font-size:.8rem;color:#6b7280">Einspeisung</div>
+        <div style="font-size:.8rem;color:var(--gray-600)">Einspeisung</div>
       </div>
     </div>
-    <p style="margin-top:.75rem;font-size:.8rem;color:#9ca3af"><?= $live['active_meters'] ?> Zählpunkte aktiv in den letzten 2 Min.</p>
+    <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)"><?= $live['active_meters'] ?> Zählpunkte aktiv in den letzten 2 Min.</p>
   </div>
 
   <div class="card">
@@ -96,7 +96,7 @@ ob_start();
       <tr><th>Importiert am</th><td><?= date('d.m.Y H:i', strtotime($lastImport['imported_at'])) ?></td></tr>
     </table>
   <?php else: ?>
-    <p style="color:#6b7280;font-size:.875rem">Noch kein EDA-Import durchgeführt.</p>
+    <p style="color:var(--gray-600);font-size:.875rem">Noch kein EDA-Import durchgeführt.</p>
     <a href="/portal/eda/upload" class="btn btn-primary" style="margin-top:.75rem">EDA-Daten importieren</a>
   <?php endif; ?>
 </div>

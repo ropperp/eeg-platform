@@ -6,7 +6,7 @@ ob_start();
 <div style="min-height:80vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">
     <h1 style="font-size:1.5rem;margin-bottom:.25rem">Anmelden</h1>
-    <p style="color:#6b7280;font-size:.875rem;margin-bottom:1.5rem">EEG-Mitgliederportal</p>
+    <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">EEG-Mitgliederportal</p>
 
     <?php if (!empty($error)): ?>
       <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>

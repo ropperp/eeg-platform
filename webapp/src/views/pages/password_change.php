@@ -21,7 +21,7 @@
         <input type="password" name="new_password" required minlength="8" autocomplete="new-password"
                oninput="checkStrength(this.value)">
         <div id="strength-bar" style="height:4px;border-radius:2px;margin-top:.25rem;transition:all .3s;background:#e5e7eb"></div>
-        <small id="strength-label" style="font-size:.75rem;color:#6b7280"></small>
+        <small id="strength-label" style="font-size:.75rem;color:var(--gray-600)"></small>
       </div>
       <div class="form-group">
         <label>Passwort bestätigen <span style="color:#ef4444">*</span></label>

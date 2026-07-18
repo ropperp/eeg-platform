@@ -63,7 +63,7 @@ ob_start();
               </button>
             </form>
           <?php elseif ($run['status'] === 'pending'): ?>
-            <span style="font-size:.8rem;color:#9ca3af">
+            <span style="font-size:.8rem;color:var(--gray-600)">
               Noch <?= max(0, ceil((strtotime($run['freigabe_nach']) - time()) / 86400)) ?> Tage
             </span>
           <?php else: ?>
@@ -79,7 +79,7 @@ ob_start();
       </tr>
     <?php endforeach; ?>
     <?php if (empty($runs)): ?>
-      <tr><td colspan="6" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Abrechnungsläufe vorhanden.</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Abrechnungsläufe vorhanden.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
@@ -99,7 +99,7 @@ function filterBilling() {
 
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem">ℹ️ Hinweis zum 60-Tage-Korrekturfenster</h3>
-  <p style="font-size:.875rem;color:#6b7280">
+  <p style="font-size:.875rem;color:var(--gray-600)">
     Gemäß den EDA-Richtlinien und den Vereinsstatuten darf eine Abrechnung erst 60 Tage nach Quartalsende
     freigegeben werden. In dieser Zeit können Messwerte vom Netzbetreiber noch korrigiert werden (L1 → L2 → L3).
     Der Freigabe-Button erscheint automatisch sobald das Fenster abgelaufen ist und alle Daten vollständig sind.

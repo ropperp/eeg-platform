@@ -13,7 +13,7 @@ ob_start();
 
   <?php if ($hasDownloadPdf): ?>
     <p style="margin-bottom:1.5rem">
-      <a href="<?= htmlspecialchars($downloadPdf) ?>" class="btn" style="background:#f3f4f6;color:#374151" download>
+      <a href="<?= htmlspecialchars($downloadPdf) ?>" class="btn" style="background:var(--gray-100);color:var(--gray-700)" download>
         📄 Beitrittsformular herunterladen (falls Sie es lieber ausdrucken &amp; per Post/E-Mail schicken möchten)
       </a>
     </p>
@@ -185,7 +185,7 @@ ob_start();
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen &amp; Erklärungen</h3>
-      <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">Alle sechs Punkte sind Pflicht, bevor die Beitrittserklärung übermittelt werden kann.</p>
+      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">Alle sechs Punkte sind Pflicht, bevor die Beitrittserklärung übermittelt werden kann.</p>
       <?php
       $consents = [
         'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
@@ -217,23 +217,23 @@ ob_start();
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Unterschrift Beitrittserklärung</h3>
-      <p style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem">Bitte unterschreiben Sie mit Maus oder Finger im Feld unten.</p>
-      <canvas id="sig-pad" width="600" height="180" style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">Bitte unterschreiben Sie mit Maus oder Finger im Feld unten.</p>
+      <canvas id="sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
       <div style="margin-top:.5rem">
-        <button type="button" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem" onclick="clearSignature('sig-pad')">Löschen</button>
+        <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature('sig-pad')">Löschen</button>
       </div>
       <input type="hidden" name="signature_image" id="signature_image">
     </div>
 
     <div class="card" id="sepa-card" style="margin-bottom:1.5rem;display:none">
       <h3 style="margin-bottom:1rem">SEPA-Lastschriftmandat</h3>
-      <p style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem">
+      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">
         Da Sie eine IBAN angegeben haben, benötigen wir Ihre gesonderte Unterschrift für das
         SEPA-Lastschriftmandat (Einzug von Mitgliedsbeitrag und Rechnungsbeträgen).
       </p>
-      <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+      <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
       <div style="margin-top:.5rem">
-        <button type="button" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem" onclick="clearSignature('sepa-sig-pad')">Löschen</button>
+        <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature('sepa-sig-pad')">Löschen</button>
       </div>
       <input type="hidden" name="sepa_signature_image" id="sepa_signature_image">
     </div>

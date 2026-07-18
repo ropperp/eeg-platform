@@ -13,7 +13,7 @@
   <div class="container inner">
     <div style="display:flex;align-items:center;gap:1rem">
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
-              style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;font-size:1.2rem;color:#6b7280;line-height:1">☰</button>
+              style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;font-size:1.2rem;color:var(--gray-600);line-height:1">☰</button>
       <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo"><img src="/assets/images/logo.png" alt="Strom für alle" class="logo-img"></a>
     </div>
 
@@ -28,7 +28,7 @@
       ?>
 
       <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>
-        <span style="font-size:.85rem;color:#6b7280"><?= htmlspecialchars($ar['community_name'] ?? '') ?></span>
+        <span style="font-size:.85rem;color:var(--gray-600)"><?= htmlspecialchars($ar['community_name'] ?? '') ?></span>
       <?php elseif ($isPlatformAdmin): ?>
         <span style="font-size:.85rem;color:#16a34a;font-weight:600">Plattform-Admin</span>
       <?php endif; ?>

@@ -21,7 +21,7 @@ ob_start();
            style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" oninput="filterInvoices()">
     <input type="number" id="invoice-betrag-max" placeholder="Betrag bis (€)" step="0.01"
            style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" oninput="filterInvoices()">
-    <span id="invoice-result-count" style="font-size:.8rem;color:#6b7280"></span>
+    <span id="invoice-result-count" style="font-size:.8rem;color:var(--gray-600)"></span>
   </div>
 </div>
 
@@ -73,13 +73,13 @@ ob_start();
           <?php if ($inv['pdf_path']): ?>
             <a href="/portal/invoices/<?= $inv['id'] ?>/pdf" target="_blank" style="font-size:.8rem">📄 Ansehen</a>
           <?php else: ?>
-            <span style="font-size:.78rem;color:#9ca3af">wird erstellt…</span>
+            <span style="font-size:.78rem;color:var(--gray-600)">wird erstellt…</span>
           <?php endif; ?>
         </td>
       </tr>
     <?php endforeach; ?>
     <?php if (empty($invoices)): ?>
-      <tr><td colspan="9" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Rechnungen vorhanden.</td></tr>
+      <tr><td colspan="9" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Rechnungen vorhanden.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>

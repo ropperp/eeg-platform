@@ -1,7 +1,7 @@
 <?php $pageTitle = 'EEG konfigurieren'; ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/admin" style="color:#6b7280;text-decoration:none">← Admin</a>
+  <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
   <h2 style="margin:0">EEG konfigurieren</h2>
 </div>
 
@@ -47,7 +47,7 @@
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:1rem">Mitglieder dieser EEG (<?= count($members) ?>)</h3>
   <?php if (empty($members)): ?>
-    <p style="color:#6b7280;font-size:.875rem">Noch keine Mitglieder.</p>
+    <p style="color:var(--gray-600);font-size:.875rem">Noch keine Mitglieder.</p>
   <?php else: ?>
     <table style="font-size:.85rem">
       <thead>
@@ -67,7 +67,7 @@
             <?php if ($m['user_id']): ?>
               <code style="font-size:.78rem"><?= htmlspecialchars($m['login_email']) ?></code>
             <?php else: ?>
-              <span style="color:#9ca3af">kein Login</span>
+              <span style="color:var(--gray-600)">kein Login</span>
             <?php endif; ?>
           </td>
           <td style="white-space:nowrap">
@@ -86,7 +86,7 @@
 
 <div class="card" style="margin-top:1.5rem;border:1px solid #fecaca">
   <h3 style="margin-bottom:1rem;color:#b91c1c">Gefahrenzone</h3>
-  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Löscht die EEG endgültig inkl. aller Mitglieder, Zählpunkte, Verträge, Rechnungen und
     Rollenzuweisungen. Login-Accounts von Mitgliedern/Managern bleiben bestehen, verlieren
     aber ihre Rolle(n) in dieser EEG. Nicht rückgängig zu machen -- alternativ oben einfach

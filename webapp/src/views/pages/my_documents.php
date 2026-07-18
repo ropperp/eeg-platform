@@ -42,14 +42,14 @@
 <?php if (!empty($application)): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Beitrittserklärung</h3>
-  <a href="/portal/my/documents/formular" target="_blank" class="btn" style="background:#f3f4f6;color:#374151">🖨️ Beitrittserklärung ansehen (PDF)</a>
+  <a href="/portal/my/documents/formular" target="_blank" class="btn" style="background:var(--gray-100);color:var(--gray-700)">🖨️ Beitrittserklärung ansehen (PDF)</a>
 </div>
 <?php endif; ?>
 
 <div class="card">
   <h3 style="margin-bottom:1rem">📎 Meine Dateien</h3>
   <?php if (empty($member_files)): ?>
-    <p style="color:#6b7280;font-size:.875rem">Es liegen noch keine Dateien vor (z. B. Beitrittserklärung, Ausweis-Scan).</p>
+    <p style="color:var(--gray-600);font-size:.875rem">Es liegen noch keine Dateien vor (z. B. Beitrittserklärung, Ausweis-Scan).</p>
   <?php else: ?>
     <table style="font-size:.85rem">
       <thead>

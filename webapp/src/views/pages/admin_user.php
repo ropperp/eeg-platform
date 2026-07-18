@@ -1,9 +1,9 @@
 <?php $pageTitle = 'Benutzer: ' . htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/admin" style="color:#6b7280;text-decoration:none">← Admin</a>
+  <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
   <h2 style="margin:0"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></h2>
-  <code style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($user['email']) ?></code>
+  <code style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($user['email']) ?></code>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
@@ -14,7 +14,7 @@
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Aktuelle Rollen</h3>
   <?php if (empty($roles)): ?>
-    <p style="color:#6b7280;font-size:.875rem">Keine Rollen zugewiesen.</p>
+    <p style="color:var(--gray-600);font-size:.875rem">Keine Rollen zugewiesen.</p>
   <?php else: ?>
     <table>
       <thead><tr><th>Rolle</th><th>EEG</th><th>Aktion</th></tr></thead>

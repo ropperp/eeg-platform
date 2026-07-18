@@ -1,7 +1,7 @@
 <?php $pageTitle = 'E-Mail-Einstellungen'; ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/admin" style="color:#6b7280;text-decoration:none">← Admin</a>
+  <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
   <h2 style="margin:0">✉️ E-Mail-Einstellungen (Microsoft Graph)</h2>
 </div>
 
@@ -17,7 +17,7 @@
 
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">🧪 Testmodus / Echtbetrieb</h3>
-  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Betrifft nur die Vergabe von Kundennummern. Im <strong>Testmodus</strong> füllt eine neu
     angelegte Kundennummer Lücken von gelöschten/deaktivierten Mitgliedern wieder auf (praktisch
     zum Testen). Im <strong>Echtbetrieb</strong> wird eine einmal vergebene Kundennummer nie
@@ -35,7 +35,7 @@
 
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Azure-App-Registrierung</h3>
-  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Benötigt eine Azure-AD-App-Registrierung mit Anwendungsberechtigung <code>Mail.Send</code> (Admin-Zustimmung erteilt)
     für die Absenderadresse. Diese Werte werden nur in der Datenbank gespeichert, nie im Repo.
   </p>
@@ -56,7 +56,7 @@
       <div class="form-group">
         <label>Absenderadresse</label>
         <input type="email" name="sender_address" value="<?= htmlspecialchars($mailConfig['sender_address'] ?? '') ?>" placeholder="noreply@stromfueralle.at">
-        <small style="color:#6b7280">Muss ein echtes Postfach im selben Tenant sein (Graph sendet "im Namen von").</small>
+        <small style="color:var(--gray-600)">Muss ein echtes Postfach im selben Tenant sein (Graph sendet "im Namen von").</small>
       </div>
     </div>
     <button type="submit" class="btn btn-primary">Speichern</button>
@@ -65,7 +65,7 @@
 
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">E-Mail-Vorlagen</h3>
-  <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Verfügbare Platzhalter je nach Vorlage: <code>{{vorname}}</code>, <code>{{link}}</code>, <code>{{gueltigkeit}}</code>,
     <code>{{eeg_name}}</code>, <code>{{hinweis}}</code> (werden beim Versand automatisch ersetzt;
     <code>{{hinweis}}</code> wird bei Vertrags-Mails automatisch mit dem Ungültigkeits-Hinweis befüllt,
@@ -92,7 +92,7 @@
         <label>Text (HTML)</label>
         <textarea name="body_html" rows="5" style="width:100%;font-family:monospace;font-size:.85rem" required><?= htmlspecialchars($t['body_html']) ?></textarea>
       </div>
-      <button type="submit" class="btn" style="background:#f3f4f6;color:#374151">Vorlage speichern</button>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Vorlage speichern</button>
     </form>
   <?php endforeach; ?>
 </div>
@@ -104,7 +104,7 @@
       <label>Ziel-Adresse</label>
       <input type="email" name="test_to" required placeholder="test@example.at">
     </div>
-    <button type="submit" class="btn" style="background:#f3f4f6;color:#374151;height:38px">Test-Mail senden</button>
+    <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700);height:38px">Test-Mail senden</button>
   </form>
 </div>
 

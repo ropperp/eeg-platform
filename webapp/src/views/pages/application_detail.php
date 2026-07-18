@@ -5,12 +5,12 @@ ob_start();
 ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/portal/applications" style="color:#6b7280;text-decoration:none">← Neuanmeldungen</a>
+  <a href="/portal/applications" style="color:var(--gray-600);text-decoration:none">← Neuanmeldungen</a>
   <h2 style="margin:0"><?= htmlspecialchars($a['first_name'] . ' ' . $a['last_name']) ?></h2>
   <?php $sb = ['pending' => 'yellow', 'approved' => 'green', 'rejected' => 'gray']; ?>
   <span class="badge badge-<?= $sb[$a['status']] ?? 'gray' ?>"><?= htmlspecialchars($a['status']) ?></span>
   <a href="/portal/applications/<?= $a['id'] ?>/formular" target="_blank"
-     class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem;margin-left:auto">🖨️ Formular ausdrucken (PDF)</a>
+     class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:auto">🖨️ Formular ausdrucken (PDF)</a>
 </div>
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem">
@@ -70,7 +70,7 @@ ob_start();
         </li>
       <?php endforeach; ?>
     </ul>
-    <p style="font-size:.8rem;color:#6b7280;margin-top:.5rem">
+    <p style="font-size:.8rem;color:var(--gray-600);margin-top:.5rem">
       Unterschrieben am <?= $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '—' ?>
       <?php if (!empty($a['signer_ip'])): ?> von IP <?= htmlspecialchars($a['signer_ip']) ?><?php endif; ?>
     </p>
@@ -80,15 +80,15 @@ ob_start();
 <?php if (!empty($a['signature_image'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Unterschrift Beitrittserklärung</h3>
-  <img src="<?= htmlspecialchars($a['signature_image']) ?>" alt="Unterschrift" style="max-width:400px;border:1px solid #e5e7eb;border-radius:8px;background:#fff">
+  <img src="<?= htmlspecialchars($a['signature_image']) ?>" alt="Unterschrift" style="max-width:400px;border:1px solid var(--gray-200);border-radius:8px;background:#fff">
 </div>
 <?php endif; ?>
 
 <?php if (!empty($a['sepa_signature_image'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Unterschrift SEPA-Lastschriftmandat</h3>
-  <img src="<?= htmlspecialchars($a['sepa_signature_image']) ?>" alt="SEPA-Unterschrift" style="max-width:400px;border:1px solid #e5e7eb;border-radius:8px;background:#fff">
-  <p style="font-size:.8rem;color:#6b7280;margin-top:.5rem">
+  <img src="<?= htmlspecialchars($a['sepa_signature_image']) ?>" alt="SEPA-Unterschrift" style="max-width:400px;border:1px solid var(--gray-200);border-radius:8px;background:#fff">
+  <p style="font-size:.8rem;color:var(--gray-600);margin-top:.5rem">
     Unterschrieben am <?= $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '—' ?>
   </p>
 </div>
@@ -105,7 +105,7 @@ ob_start();
     <form method="post" action="/portal/applications/<?= $a['id'] ?>/reject" style="display:flex;gap:.5rem;align-items:center"
           onsubmit="return confirm('Beitrittserklärung wirklich ablehnen?')">
       <input type="text" name="ablehnungsgrund" placeholder="Ablehnungsgrund (optional)"
-             style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+             style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px">
       <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c">❌ Ablehnen</button>
     </form>
   </div>

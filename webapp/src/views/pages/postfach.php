@@ -29,7 +29,7 @@ $refLinks = [
     <?php foreach ($notifications as $n): ?>
       <tr>
         <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y H:i', strtotime($n['created_at'])) ?></td>
-        <td style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($n['typ']) ?></td>
+        <td style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($n['typ']) ?></td>
         <td>
           <?php if (!empty($n['referenz_typ']) && !empty($refLinks[$n['referenz_typ']])): ?>
             <a href="<?= $refLinks[$n['referenz_typ']] . $n['referenz_id'] ?>"><?= htmlspecialchars($n['titel']) ?></a>
@@ -37,17 +37,17 @@ $refLinks = [
             <?= htmlspecialchars($n['titel']) ?>
           <?php endif; ?>
         </td>
-        <td style="font-size:.85rem;color:#6b7280"><?= htmlspecialchars($n['text'] ?? '') ?></td>
+        <td style="font-size:.85rem;color:var(--gray-600)"><?= htmlspecialchars($n['text'] ?? '') ?></td>
         <td>
           <span class="badge badge-<?= $n['status'] === 'offen' ? 'yellow' : 'gray' ?>"><?= htmlspecialchars($n['status']) ?></span>
         </td>
         <td>
           <?php if ($n['status'] === 'offen'): ?>
             <form method="post" action="/portal/postfach/<?= $n['id'] ?>/erledigt">
-              <button type="submit" class="btn" style="background:#f3f4f6;color:#374151;font-size:.8rem;padding:.3rem .6rem">Als erledigt markieren</button>
+              <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;padding:.3rem .6rem">Als erledigt markieren</button>
             </form>
           <?php else: ?>
-            <span style="font-size:.8rem;color:#9ca3af">
+            <span style="font-size:.8rem;color:var(--gray-600)">
               erledigt <?= $n['erledigt_am'] ? date('d.m.Y H:i', strtotime($n['erledigt_am'])) : '' ?>
             </span>
           <?php endif; ?>
@@ -55,7 +55,7 @@ $refLinks = [
       </tr>
     <?php endforeach; ?>
     <?php if (empty($notifications)): ?>
-      <tr><td colspan="6" style="text-align:center;color:#6b7280;padding:2rem">Keine Benachrichtigungen.</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:2rem">Keine Benachrichtigungen.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>

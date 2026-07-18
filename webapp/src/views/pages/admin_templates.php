@@ -1,7 +1,7 @@
 <?php $pageTitle = 'Dateien'; ob_start(); ?>
 
 <h2 style="margin-bottom:.5rem">📁 Dateien</h2>
-<p style="color:#6b7280;font-size:.875rem;margin-bottom:1.5rem">
+<p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
   LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung sowie das Infoblatt der
   Website. Herunterladen, bearbeiten und per Drag &amp; Drop wieder hochladen -- ohne
   Kommandozeile oder GitHub. Wirkt sofort (LaTeX-Vorlagen: auf künftig erzeugte PDFs, Infoblatt:
@@ -20,7 +20,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
     <div>
       <strong><?= htmlspecialchars($t['label']) ?></strong>
-      <code style="font-size:.78rem;color:#6b7280;margin-left:.5rem"><?= htmlspecialchars($t['filename']) ?></code>
+      <code style="font-size:.78rem;color:var(--gray-600);margin-left:.5rem"><?= htmlspecialchars($t['filename']) ?></code>
       <?php if (!$t['exists']): ?>
         <span class="badge badge-gray" style="margin-left:.5rem">Keine Datei vorhanden</span>
       <?php elseif ($t['is_custom']): ?>
@@ -30,7 +30,7 @@
       <?php endif; ?>
     </div>
     <?php if ($t['exists']): ?>
-      <span style="font-size:.78rem;color:#9ca3af">
+      <span style="font-size:.78rem;color:var(--gray-600)">
         <?= number_format($t['size'] / 1024, 1, ',', '.') ?> KB · zuletzt geändert <?= date('d.m.Y H:i', $t['mtime']) ?>
       </span>
     <?php endif; ?>
@@ -38,7 +38,7 @@
 
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <?php if ($t['exists']): ?>
-      <a href="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download" class="btn" style="background:#f3f4f6;color:#374151;font-size:.85rem">
+      <a href="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.85rem">
         ⬇️ Herunterladen
       </a>
     <?php endif; ?>
@@ -47,7 +47,7 @@
           enctype="multipart/form-data" class="template-upload-form" style="flex:1;min-width:260px">
       <label class="template-dropzone"
              data-filename="<?= htmlspecialchars($t['filename']) ?>"
-             style="display:flex;align-items:center;justify-content:center;gap:.5rem;border:2px dashed #d1d5db;border-radius:8px;padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:#6b7280;transition:border-color .15s,background .15s">
+             style="display:flex;align-items:center;justify-content:center;gap:.5rem;border:2px dashed #d1d5db;border-radius:8px;padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:var(--gray-600);transition:border-color .15s,background .15s">
         <span class="dz-text">📄 Neue Datei hierher ziehen oder klicken</span>
         <input type="file" name="file" accept="<?= $t['type'] === 'pdf' ? '.pdf' : '.tex' ?>" required style="display:none">
       </label>

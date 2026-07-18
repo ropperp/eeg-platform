@@ -24,13 +24,13 @@
         <div style="width:220px;height:220px;border-radius:50%;overflow:hidden;border:2px solid #e5e7eb">
           <canvas id="profile-photo-canvas" width="220" height="220" style="cursor:grab"></canvas>
         </div>
-        <label style="font-size:.78rem;color:#6b7280;display:flex;align-items:center;gap:.5rem">
+        <label style="font-size:.78rem;color:var(--gray-600);display:flex;align-items:center;gap:.5rem">
           🔍 Zoom
           <input type="range" id="profile-photo-zoom" min="100" max="300" value="100">
         </label>
-        <small style="color:#6b7280">Zum Verschieben im Bild ziehen.</small>
+        <small style="color:var(--gray-600)">Zum Verschieben im Bild ziehen.</small>
       </div>
-      <button type="submit" class="btn" style="background:#f3f4f6;color:#374151">Ändern</button>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Ändern</button>
     </form>
   </div>
 </div>

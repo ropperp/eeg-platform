@@ -23,13 +23,13 @@
               ⬇ PDF
             </a>
           <?php else: ?>
-            <span style="font-size:.8rem;color:#9ca3af">wird erstellt…</span>
+            <span style="font-size:.8rem;color:var(--gray-600)">wird erstellt…</span>
           <?php endif; ?>
         </td>
       </tr>
     <?php endforeach; ?>
     <?php if (empty($invoices)): ?>
-      <tr><td colspan="5" style="text-align:center;color:#6b7280;padding:2rem">
+      <tr><td colspan="5" style="text-align:center;color:var(--gray-600);padding:2rem">
         Noch keine Rechnungen vorhanden. Rechnungen erscheinen nach der Quartalsabrechnung.
       </td></tr>
     <?php endif; ?>
@@ -38,7 +38,7 @@
 </div>
 
 <div class="card" style="margin-top:1.5rem">
-  <p style="font-size:.875rem;color:#6b7280">
+  <p style="font-size:.875rem;color:var(--gray-600)">
     <strong>Wichtiger Hinweis:</strong> Rechnungen werden auf Basis der offiziellen EDA-Messdaten
     vom Netzbetreiber erstellt. Die täglich sichtbaren Verbrauchsdaten im Dashboard basieren auf
     den ESP32-Smart-Meter-Modulen und können leicht abweichen.

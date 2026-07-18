@@ -19,7 +19,7 @@ ob_start();
         <div>
           <strong style="font-size:1.05rem"><?= htmlspecialchars($c['name']) ?></strong>
           <?php if (!empty($c['address'])): ?>
-            <div style="font-size:.85rem;color:#6b7280"><?= htmlspecialchars($c['address']) ?></div>
+            <div style="font-size:.85rem;color:var(--gray-600)"><?= htmlspecialchars($c['address']) ?></div>
           <?php endif; ?>
         </div>
         <?php if ($hasLegalPages): ?>
@@ -27,12 +27,12 @@ ob_start();
             Informieren &amp; Beitreten
           </a>
         <?php else: ?>
-          <span style="font-size:.85rem;color:#9ca3af">Informationen folgen in Kürze</span>
+          <span style="font-size:.85rem;color:var(--gray-600)">Informationen folgen in Kürze</span>
         <?php endif; ?>
       </div>
     <?php endforeach; ?>
     <?php if (empty($communities)): ?>
-      <p style="color:#6b7280">Aktuell ist keine Energiegemeinschaft verfügbar.</p>
+      <p style="color:var(--gray-600)">Aktuell ist keine Energiegemeinschaft verfügbar.</p>
     <?php endif; ?>
   </div>
 </div>

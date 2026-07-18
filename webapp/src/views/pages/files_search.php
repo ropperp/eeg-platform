@@ -27,7 +27,7 @@
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
           <?php if ($m['company_name']): ?>
-            <div style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
+            <div style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
           <?php endif; ?>
         </td>
         <td style="font-size:.85rem"><?= htmlspecialchars($m['email']) ?></td>
@@ -35,7 +35,7 @@
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="4" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="4" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>

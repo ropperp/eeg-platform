@@ -6,7 +6,7 @@ ob_start();
 ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/portal/members" style="color:#6b7280;text-decoration:none">← Zurück</a>
+  <a href="/portal/members" style="color:var(--gray-600);text-decoration:none">← Zurück</a>
   <h2 style="margin:0"><?= $pageTitle ?></h2>
 </div>
 
@@ -51,7 +51,7 @@ ob_start();
         <label>E-Mail <span style="color:#ef4444">*</span></label>
         <input type="email" name="email" required value="<?= htmlspecialchars($m['email'] ?? $_POST['email'] ?? '') ?>">
         <?php if (!isset($member)): ?>
-          <small style="color:#6b7280">Wird für den Plattform-Login verwendet.</small>
+          <small style="color:var(--gray-600)">Wird für den Plattform-Login verwendet.</small>
         <?php endif; ?>
       </div>
       <div class="form-group">
@@ -90,7 +90,7 @@ ob_start();
       <div class="form-group">
         <label>Kundennummer</label>
         <input type="text" value="<?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?>" disabled
-               style="background:#f3f4f6;font-weight:600;color:#15803d">
+               style="background:var(--gray-100);font-weight:600;color:#15803d">
       </div>
       <?php endif; ?>
       <div class="form-group">
@@ -102,7 +102,7 @@ ob_start();
         <label>Mitglied bis</label>
         <input type="date" name="member_until"
                value="<?= htmlspecialchars($m['member_until'] ?? $_POST['member_until'] ?? '2099-12-31') ?>">
-        <small style="color:#6b7280">Leer lassen = aktives Mitglied (wird auf 31.12.2099 gesetzt)</small>
+        <small style="color:var(--gray-600)">Leer lassen = aktives Mitglied (wird auf 31.12.2099 gesetzt)</small>
       </div>
     </div>
   </div>
@@ -165,7 +165,7 @@ ob_start();
       <?php if (isset($member) && !empty($m['mandatsreferenz'])): ?>
       <div class="form-group">
         <label>Mandatsreferenz</label>
-        <input type="text" value="<?= htmlspecialchars($m['mandatsreferenz']) ?>" disabled style="background:#f3f4f6">
+        <input type="text" value="<?= htmlspecialchars($m['mandatsreferenz']) ?>" disabled style="background:var(--gray-100)">
       </div>
       <?php endif; ?>
     </div>
@@ -183,7 +183,7 @@ ob_start();
   <?php if (!isset($member)): ?>
   <div class="card" style="margin-bottom:1.5rem">
     <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen &amp; Erklärungen</h3>
-    <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
       Bitte erst anhaken, wenn das Mitglied die Beitrittserklärung unterschrieben hat.
       Alle sechs Punkte sind Pflicht, bevor das Mitglied angelegt werden kann.
     </p>
@@ -212,7 +212,7 @@ ob_start();
 
   <div style="display:flex;gap:1rem">
     <button type="submit" class="btn btn-primary"><?= isset($member) ? 'Speichern' : 'Mitglied anlegen' ?></button>
-    <a href="/portal/members" class="btn" style="background:#f3f4f6;color:#374151">Abbrechen</a>
+    <a href="/portal/members" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</a>
   </div>
 </form>
 

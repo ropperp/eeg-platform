@@ -193,7 +193,7 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
   padding: 1.5rem .4rem;
 }
 .sidebar-label {
-  font-size:.75rem; font-weight:600; color:#9ca3af;
+  font-size:.75rem; font-weight:600; color:var(--gray-600);
   text-transform:uppercase; margin-bottom:.75rem;
   white-space: nowrap; overflow: hidden;
   transition: opacity .15s;

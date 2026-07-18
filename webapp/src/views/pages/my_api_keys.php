@@ -1,7 +1,7 @@
 <?php $pageTitle = 'API-Zugänge'; ob_start(); ?>
 
 <h2 style="margin-bottom:.5rem">🔌 API-Zugänge</h2>
-<p style="color:#6b7280;font-size:.875rem;margin-bottom:1.5rem">
+<p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
   Persönliche API-Keys für die künftige Smart-Home-Anbindung (eigene Bezugs-/Einspeiseleistung
   und Gemeinschafts-Autarkie in Echtzeit).
 </p>
@@ -18,7 +18,7 @@
   <p style="margin-bottom:.5rem;font-size:.85rem">
     Bitte jetzt kopieren -- aus Sicherheitsgründen wird dieser Key nur dieses eine Mal angezeigt:
   </p>
-  <code style="display:block;padding:.6rem .75rem;background:#f3f4f6;border-radius:6px;font-size:.95rem;word-break:break-all"><?= htmlspecialchars($newApiKey) ?></code>
+  <code style="display:block;padding:.6rem .75rem;background:var(--gray-100);border-radius:6px;font-size:.95rem;word-break:break-all"><?= htmlspecialchars($newApiKey) ?></code>
 </div>
 <?php endif; ?>
 
@@ -94,7 +94,7 @@
       </tr>
     <?php endforeach; ?>
     <?php if (empty($apiKeys)): ?>
-      <tr><td colspan="7" style="text-align:center;color:#6b7280;padding:2rem">Noch keine API-Keys angelegt.</td></tr>
+      <tr><td colspan="7" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine API-Keys angelegt.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>

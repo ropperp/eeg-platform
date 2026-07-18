@@ -38,7 +38,7 @@
       <div class="form-group" style="grid-column:1 / -1">
         <label>Mitgliederportal-Link (im Bezugsvertrag als Verweis auf die Erzeugungsanlagen-Liste)</label>
         <input type="text" name="dashboard_url" placeholder="https://portal.stromfueralle.at/portal/login" value="<?= htmlspecialchars($community['dashboard_url'] ?? '') ?>">
-        <small style="color:#6b7280">Frei änderbar, falls sich die Verlinkung ändert. Leer lassen für den Standard-Link.</small>
+        <small style="color:var(--gray-600)">Frei änderbar, falls sich die Verlinkung ändert. Leer lassen für den Standard-Link.</small>
       </div>
     </div>
     <button type="submit" class="btn btn-primary">Stammdaten speichern</button>
@@ -49,7 +49,7 @@
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Tarif</h3>
   <?php if ($tariff): ?>
-    <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
       Aktuell gültig ab <?= date('d.m.Y', strtotime($tariff['valid_from'])) ?>:
       Bezug <?= number_format((float)$tariff['bezug_ct_kwh'], 4, ',', '.') ?> ct/kWh ·
       Einspeisung <?= number_format((float)$tariff['einspeisung_ct_kwh'], 4, ',', '.') ?> ct/kWh ·
@@ -90,7 +90,7 @@
     <tr><th>Steuermodell</th><td>
       <?php if ($tax['tax_model'] === 'kleinunternehmer'): ?>
         <span class="badge badge-green">Kleinunternehmer</span>
-        <span style="font-size:.8rem;color:#6b7280;margin-left:.5rem">§ 6 Abs 1 Z 27 UStG</span>
+        <span style="font-size:.8rem;color:var(--gray-600);margin-left:.5rem">§ 6 Abs 1 Z 27 UStG</span>
       <?php else: ?>
         <span class="badge badge-yellow">Standard (<?= $tax['tax_rate_percent'] ?>% USt)</span>
       <?php endif; ?>
@@ -101,7 +101,7 @@
     <tr><th>Gültig ab</th><td><?= date('d.m.Y', strtotime($tax['valid_from'])) ?></td></tr>
   </table>
   <?php else: ?>
-    <p style="color:#6b7280;font-size:.875rem">Keine Steuerkonfiguration vorhanden.</p>
+    <p style="color:var(--gray-600);font-size:.875rem">Keine Steuerkonfiguration vorhanden.</p>
   <?php endif; ?>
   <form method="post" action="/portal/settings/tax" style="margin-top:1rem">
     <p style="font-size:.8rem;color:#92400e;margin-bottom:1rem">
@@ -136,7 +136,7 @@
 <!-- Unterschrift für Verträge -->
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.5rem">Unterschrift für Verträge</h3>
-  <p style="font-size:.8rem;color:#6b7280;margin-bottom:1rem">
+  <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
     Wird beim Erzeugen von Bezugs-/Einspeisevereinbarungen über der Unterschriftslinie
     "Für die EEG" eingefügt. Bitte unten einmalig mit Maus oder Finger unterschreiben —
     die Unterschrift wird als <?= htmlspecialchars($myUser['first_name'] . ' ' . $myUser['last_name']) ?>
@@ -147,19 +147,19 @@
     <p style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">Vorschau im Vertrag:</p>
     <div style="border:1px dashed #d1d5db;border-radius:8px;padding:1rem 1.5rem;max-width:320px;margin-bottom:1rem">
       <img src="<?= htmlspecialchars($myUser['signature_image']) ?>" alt="Unterschrift" style="max-height:70px;max-width:100%;display:block;margin-bottom:.3rem">
-      <div style="border-top:1px solid #111827;padding-top:.3rem;font-size:.75rem;color:#374151">
+      <div style="border-top:1px solid #111827;padding-top:.3rem;font-size:.75rem;color:var(--gray-700)">
         Für die EEG – Obmann/Obfrau<br><?= htmlspecialchars($community['name'] ?? '') ?>
       </div>
     </div>
   <?php endif; ?>
 
   <form method="post" action="/portal/settings/signature" id="signature-form">
-    <p style="font-size:.8rem;color:#6b7280;margin-bottom:.5rem">Neu unterschreiben:</p>
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">Neu unterschreiben:</p>
     <canvas id="sig-pad-settings" width="600" height="180"
-            style="border:1px solid #e5e7eb;border-radius:8px;width:100%;max-width:400px;height:120px;touch-action:none;background:#fff;display:block;margin-bottom:.5rem"></canvas>
+            style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:400px;height:120px;touch-action:none;background:#fff;display:block;margin-bottom:.5rem"></canvas>
     <input type="hidden" name="signature_image" id="signature_image_settings">
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-      <button type="button" class="btn" style="background:#f3f4f6;color:#374151" onclick="clearSettingsSignature()">Löschen</button>
+      <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700)" onclick="clearSettingsSignature()">Löschen</button>
       <button type="submit" class="btn btn-primary">Unterschrift speichern</button>
       <?php if (!empty($myUser['signature_image'])): ?>
         <button type="submit" formaction="/portal/settings/signature/delete" formnovalidate class="btn" style="background:#fee2e2;color:#b91c1c">Unterschrift entfernen</button>

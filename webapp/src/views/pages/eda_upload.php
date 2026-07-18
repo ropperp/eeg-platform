@@ -26,7 +26,7 @@
 
 <div class="card">
   <h3 style="margin-bottom:1rem">XLSX hochladen</h3>
-  <p style="font-size:.875rem;color:#6b7280;margin-bottom:1.5rem">
+  <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:1.5rem">
     Laden Sie die XLSX-Datei aus dem <strong>EDA-Anwenderportal</strong> hoch.
     Dateiname-Format: <code>RC108175_2026-05-11T00_00-2026-06-11T23_45.xlsx</code>
   </p>
@@ -39,7 +39,7 @@
            onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#d1d5db'">
         <div style="font-size:2.5rem;margin-bottom:.75rem">📄</div>
         <div style="font-weight:600;margin-bottom:.25rem">XLSX hier ablegen oder klicken</div>
-        <div style="font-size:.8rem;color:#9ca3af">Maximale Dateigröße: 20 MB</div>
+        <div style="font-size:.8rem;color:var(--gray-600)">Maximale Dateigröße: 20 MB</div>
       </div>
       <input type="file" id="xlsx-input" name="xlsx" accept=".xlsx" style="display:none"
              onchange="document.getElementById('file-label').textContent = this.files[0]?.name ?? ''">
@@ -53,7 +53,7 @@
 
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem">ℹ️ Wichtiger Hinweis</h3>
-  <p style="font-size:.875rem;color:#6b7280">
+  <p style="font-size:.875rem;color:var(--gray-600)">
     Die EDA-Daten sind die <strong>einzige rechtlich bindende Abrechnungsgrundlage</strong>.
     Nach erfolgreichem Import prüft das System automatisch ob alle Zählpunkte vollständig (COMPLETE)
     und ob das 60-Tage-Korrekturfenster abgelaufen ist.

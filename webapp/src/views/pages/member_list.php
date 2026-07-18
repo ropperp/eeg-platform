@@ -25,7 +25,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       <tr><th>E-Mail</th><td><code><?= htmlspecialchars($successEmail) ?></code></td></tr>
       <tr><th>Temporäres Passwort</th><td><code style="font-size:1.1rem;color:#15803d"><?= htmlspecialchars($successTempPw) ?></code></td></tr>
     </table>
-    <p style="margin-top:.75rem;font-size:.8rem;color:#6b7280">Das Mitglied sollte das Passwort nach dem ersten Login ändern. Diese Anzeige erscheint nur einmal.</p>
+    <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)">Das Mitglied sollte das Passwort nach dem ersten Login ändern. Diese Anzeige erscheint nur einmal.</p>
   </div>
 <?php endif; ?>
 
@@ -58,7 +58,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       <option value="online">Nur Online-Beitritt</option>
       <option value="offline">Nur Offline angelegt</option>
     </select>
-    <span id="result-count" style="font-size:.8rem;color:#6b7280"></span>
+    <span id="result-count" style="font-size:.8rem;color:var(--gray-600)"></span>
   </div>
 </div>
 
@@ -108,7 +108,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
           <?php if ($m['company_name']): ?>
-            <div style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
+            <div style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
           <?php endif; ?>
         </td>
         <td style="font-size:.85rem"><?= htmlspecialchars($m['email']) ?></td>
@@ -142,12 +142,12 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         <td style="white-space:nowrap">
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
           &nbsp;·&nbsp;
-          <a href="/portal/members/<?= $m['id'] ?>/edit" style="font-size:.8rem;color:#6b7280">Bearb.</a>
+          <a href="/portal/members/<?= $m['id'] ?>/edit" style="font-size:.8rem;color:var(--gray-600)">Bearb.</a>
         </td>
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="10" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="10" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>

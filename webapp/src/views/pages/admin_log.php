@@ -1,7 +1,7 @@
 <?php $pageTitle = 'Aktivitätslog'; ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-  <a href="/admin" style="color:#6b7280;text-decoration:none">← Admin</a>
+  <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
   <h2 style="margin:0">📋 Aktivitätslog</h2>
 </div>
 
@@ -13,7 +13,7 @@
         <option value="<?= $c['id'] ?>" <?= ($_GET['community_id'] ?? '') === $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
       <?php endforeach; ?>
     </select>
-    <span style="font-size:.8rem;color:#6b7280">Letzte 500 Einträge</span>
+    <span style="font-size:.8rem;color:var(--gray-600)">Letzte 500 Einträge</span>
   </form>
 </div>
 
@@ -34,14 +34,14 @@
         <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y H:i:s', strtotime($e['created_at'])) ?></td>
         <td style="font-size:.85rem"><?= htmlspecialchars($e['community_name'] ?? '—') ?></td>
         <td style="font-size:.85rem"><?= htmlspecialchars(trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['email'] ?? 'System')) ?></td>
-        <td style="font-size:.8rem;color:#6b7280"><?= htmlspecialchars($e['aktion']) ?></td>
+        <td style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($e['aktion']) ?></td>
         <td style="font-size:.85rem;<?= in_array($e['ist_fehler'], [true, 't', '1', 1], true) ? 'color:#b91c1c' : '' ?>">
           <?= in_array($e['ist_fehler'], [true, 't', '1', 1], true) ? '⚠️ ' : '' ?><?= htmlspecialchars($e['beschreibung']) ?>
         </td>
       </tr>
     <?php endforeach; ?>
     <?php if (empty($entries)): ?>
-      <tr><td colspan="5" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Einträge.</td></tr>
+      <tr><td colspan="5" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Einträge.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>

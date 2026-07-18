@@ -35,7 +35,7 @@
       </tr>
     <?php endforeach; ?>
     <?php if (empty($applications)): ?>
-      <tr><td colspan="7" style="text-align:center;color:#6b7280;padding:2rem">Noch keine Beitrittserklärungen eingegangen.</td></tr>
+      <tr><td colspan="7" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Beitrittserklärungen eingegangen.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
