@@ -48,6 +48,8 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+html { scroll-behavior: smooth; }
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--gray-800);
@@ -102,8 +104,10 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius);
   border: none; cursor: pointer;
   font-size: .9rem; font-weight: 500;
-  transition: background .15s;
+  transition: background .15s, transform .15s, box-shadow .15s;
 }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.1); }
+.btn:active { transform: translateY(0); box-shadow: none; }
 .btn-primary   { background: var(--green); color: var(--on-color); }
 .btn-primary:hover { background: var(--green-dark); }
 .btn-secondary { background: var(--gray-100); color: var(--gray-800); border: 1px solid var(--gray-200); }
@@ -119,6 +123,14 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: var(--shadow);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.features .card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.05);
+}
+[data-theme="dark"] .features .card:hover {
+  box-shadow: 0 10px 24px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.3);
 }
 
 /* ─── Forms ──────────────────────────────────────── */
@@ -260,6 +272,52 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
   margin-left: 1rem;
 }
 .hero .btn-outline:hover { background: rgba(255,255,255,.1); }
+
+/* Sanftes Einblenden beim Laden -- rein CSS, kein JS nötig, kurzer, dezenter Versatz je Element */
+.hero h1, .hero p, .hero a.btn {
+  opacity: 0;
+  animation: hero-in .7s ease forwards;
+}
+.hero h1     { animation-delay: .05s; }
+.hero p      { animation-delay: .18s; }
+.hero a.btn:nth-of-type(1) { animation-delay: .3s; }
+.hero a.btn:nth-of-type(2) { animation-delay: .38s; }
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Scroll-Reveal (z.B. Startseite): sanftes Einblenden beim Scrollen ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.reveal.is-visible { opacity: 1; transform: none; }
+
+.reveal-grid > * {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.reveal-grid.is-visible > * { opacity: 1; transform: none; }
+.reveal-grid.is-visible > *:nth-child(2) { transition-delay: .08s; }
+.reveal-grid.is-visible > *:nth-child(3) { transition-delay: .16s; }
+.reveal-grid.is-visible > *:nth-child(4) { transition-delay: .24s; }
+.reveal-grid.is-visible > *:nth-child(5) { transition-delay: .32s; }
+.reveal-grid.is-visible > *:nth-child(6) { transition-delay: .4s; }
+
+/* Wer Bewegung reduziert haben möchte (Betriebssystem-Einstellung): alle Animationen/
+   Übergänge sofort im Endzustand zeigen, nichts bewegt sich. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .card, .btn, .reveal, .reveal-grid > *, .hero h1, .hero p, .hero a.btn {
+    transition: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 
 /* ─── Features ───────────────────────────────────── */
 .features { padding: 5rem 0; }

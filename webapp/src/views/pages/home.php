@@ -17,8 +17,8 @@ ob_start();
 <!-- Features -->
 <section class="features">
   <div class="container">
-    <h2 style="text-align:center;font-size:1.75rem;margin-bottom:3rem">Was die Plattform bietet</h2>
-    <div class="grid-3">
+    <h2 class="reveal" style="text-align:center;font-size:1.75rem;margin-bottom:3rem">Was die Plattform bietet</h2>
+    <div class="grid-3 reveal-grid">
       <div class="card">
         <div class="feature-icon">⚡</div>
         <h3>Echtzeit-Monitoring</h3>
@@ -67,7 +67,7 @@ ob_start();
 
 <!-- Pilot EEG -->
 <section style="background:var(--white);padding:4rem 0;border-top:1px solid var(--gray-200)">
-  <div class="container" style="text-align:center">
+  <div class="container reveal" style="text-align:center">
     <h2 style="font-size:1.5rem;margin-bottom:1rem">Unser Pilotprojekt</h2>
     <p style="color:var(--gray-600);max-width:600px;margin:0 auto 2rem">
       Die <strong>EEG Strompool Feldkirchen Süd-West</strong> (ZVR 1778816746) läuft als erste Gemeinschaft
@@ -80,7 +80,7 @@ ob_start();
 
 <!-- Ausleseeinheit -->
 <section style="padding:4rem 0;background:var(--white);border-top:1px solid var(--gray-200)">
-  <div class="container" style="max-width:720px">
+  <div class="container reveal" style="max-width:720px">
     <div style="text-align:center;margin-bottom:1.5rem">
       <div class="feature-icon" style="margin:0 auto">📡</div>
       <h2 style="font-size:1.5rem;margin-top:1rem">Echtzeit-Energie: sehen, wann Strom gebraucht wird</h2>
@@ -113,7 +113,7 @@ ob_start();
 
 <!-- Kontakt -->
 <section style="padding:4rem 0">
-  <div class="container" style="text-align:center">
+  <div class="container reveal" style="text-align:center">
     <h2 style="font-size:1.5rem;margin-bottom:1rem">Interesse an der Plattform?</h2>
     <p style="color:var(--gray-600);margin-bottom:1.5rem">
       Sie möchten Ihre EEG auf unserer Plattform verwalten? Kontaktieren Sie uns.

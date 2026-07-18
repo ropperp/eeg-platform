@@ -60,6 +60,28 @@ function toggleDark() {
 }
 document.getElementById('theme-toggle').textContent =
   document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+
+// Scroll-Reveal: Elemente mit .reveal/.reveal-grid blenden beim Scrollen sanft ein
+// (siehe app.css). Läuft auf jeder Seite, die dieses Layout nutzt, ist aber ein reines
+// No-Op, solange keine solchen Elemente vorkommen -- aktuell nur auf der Startseite genutzt.
+(function () {
+  var targets = document.querySelectorAll('.reveal, .reveal-grid');
+  if (!targets.length) return;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    targets.forEach(function (el) { el.classList.add('is-visible'); });
+    return;
+  }
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  targets.forEach(function (el) { observer.observe(el); });
+})();
 </script>
 </body>
 </html>
