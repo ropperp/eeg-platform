@@ -294,26 +294,7 @@ VALUES ('a0000000-0000-0000-0000-000000000001', '2026-05-26', 12.00, 8.00, 24.00
 INSERT INTO tax_config (community_id, valid_from, tax_model)
 VALUES ('a0000000-0000-0000-0000-000000000001', '2026-05-26', 'kleinunternehmer');
 
--- Platform-Admin: Patrick Ropper
--- Passwort wird beim ersten Start gesetzt (siehe SETUP.md)
-INSERT INTO users (id, email, password_hash, first_name, last_name)
-VALUES (
-    'b0000000-0000-0000-0000-000000000001',
-    'patrick.ropper@gmail.com',
-    '$2y$12$PLACEHOLDER_CHANGE_ON_FIRST_LOGIN',   -- wird beim Setup ersetzt
-    'Patrick',
-    'Ropper'
-);
-
-INSERT INTO user_roles (community_id, user_id, role)
-VALUES (
-    'a0000000-0000-0000-0000-000000000001',
-    'b0000000-0000-0000-0000-000000000001',
-    'platform_admin'
-);
-INSERT INTO user_roles (community_id, user_id, role)
-VALUES (
-    'a0000000-0000-0000-0000-000000000001',
-    'b0000000-0000-0000-0000-000000000001',
-    'manager'
-);
+-- Der erste Platform-Admin-Zugang wird NICHT hier fest eingetragen (keine Personen-E-Mail
+-- ins Repo/in fremde Installationen), sondern interaktiv von scripts/setup.sh angelegt: das
+-- Skript fragt bei der Ersteinrichtung nach Admin-E-Mail und -Passwort, hasht das Passwort im
+-- webapp-Container und legt users/user_roles (platform_admin + manager) entsprechend an.

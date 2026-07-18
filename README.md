@@ -18,19 +18,19 @@ Entwickelt als Diplomarbeit 2026/27 an der HTL Kärnten (Patrick Ropper, Fabian,
 
 ## Schnellstart
 
+Docker noch nicht installiert? → [docs/DOCKER_INSTALL.md](docs/DOCKER_INSTALL.md)
+(macOS/Windows/Linux, Webseite oder Kommandozeile).
+
 ```bash
 git clone https://github.com/ropperp/eeg-platform.git
 cd eeg-platform
-cp .env.example .env
-# .env mit echten Werten befüllen (Domain, Passwörter, SMTP)
-docker compose up -d
+./scripts/setup.sh
 ```
 
-> Das allein reicht NICHT für einen funktionierenden ersten Login (Storage-Verzeichnisse,
-> Datenbank-Migrations und Admin-Passwort fehlen dann noch) — unbedingt der vollständigen
-> Anleitung folgen:
-
-Detaillierte Anleitung → [SETUP.md](SETUP.md)
+Das erledigt alles automatisch: `.env` mit zufälligen Secrets, Datenverzeichnisse mit
+korrekten Rechten, Container bauen/starten, alle Datenbank-Migrationen einspielen und fragt
+am Ende nur noch nach Admin-E-Mail-Adresse und -Passwort für den ersten Login. Details und
+die manuelle Schritt-für-Schritt-Variante → [SETUP.md](SETUP.md)
 
 ## Update (laufendes System)
 
@@ -44,6 +44,7 @@ docker compose up -d --build
 | Datei | Inhalt |
 |-------|--------|
 | [SETUP.md](SETUP.md) | Schritt-für-Schritt-Installation auf einem neuen Gerät |
+| [docs/DOCKER_INSTALL.md](docs/DOCKER_INSTALL.md) | Docker installieren (macOS/Windows/Linux) |
 | [docs/BACKUP.md](docs/BACKUP.md) | Backup, NAS-Synchronisation, Restore (inkl. Uploads) |
 | [docs/PROJEKTSTAND.md](docs/PROJEKTSTAND.md) | Architektur, Schema, Fertigstellungsgrad |
 | [database/init.sql](database/init.sql) | Vollständiges Datenbankschema |

@@ -131,25 +131,25 @@ SMTP_PASSWORD=<passwort>
 
 ## Neuinstallation (Fresh Deploy)
 
+Seit dem Setup-Skript (Stand 18.07.2026) reicht ein Befehl -- `.env` (mit zufälligen Secrets),
+`/opt/eeg`-Verzeichnisse (inkl. korrekter `82:82`-Rechte), Container, alle Migrationen UND der
+erste Platform-Admin-Zugang (interaktiv nach E-Mail/Passwort gefragt, kein fest im Repo
+eingetragener Account mehr) werden automatisch erledigt:
+
 ```bash
-# 1. Repo klonen
 git clone https://github.com/ropperp/eeg-platform.git /opt/eeg-platform
 cd /opt/eeg-platform
+./scripts/setup.sh
+```
 
-# 2. .env anlegen (Werte befüllen)
-cp .env.example .env
-nano .env
-
-# 3. Daten-Verzeichnisse
-sudo mkdir -p /opt/eeg/{timescaledb,redis,mosquitto/data,mosquitto/log,traefik/letsencrypt,webapp-storage/uploads,webapp-storage/pdfs}
-
-# 4. Starten
-docker compose up -d
-
-# 5. Prüfen
+Danach:
+```bash
 docker compose ps
 curl -H "Host: stromfueralle.at" http://localhost/
 ```
+
+Manuelle Schritt-für-Schritt-Variante (falls das Skript nicht genutzt werden soll/kann) →
+`SETUP.md`. Docker-Installation (macOS/Windows/Linux) → `docs/DOCKER_INSTALL.md`.
 
 > **Kein `docker-compose.override.yml`** auf dem Produktivserver anlegen — diese Datei deaktiviert Traefik und mappt Port 80 direkt auf webapp (nur für lokale Entwicklung).
 

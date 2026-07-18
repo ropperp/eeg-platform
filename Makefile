@@ -1,5 +1,9 @@
-.PHONY: up down build build-clean prod update logs logs-web logs-latex logs-db \
+.PHONY: setup up down build build-clean prod update logs logs-web logs-latex logs-db \
         ps shell-db shell-web backup backup-storage backup-all sync-nas restore migrate schema demo-db verify
+
+# ─── Ersteinrichtung (einmalig, siehe SETUP.md) ───────────────────────────────
+setup:
+	bash scripts/setup.sh
 
 # ─── Starten ──────────────────────────────────────────────────────────────────
 up:
