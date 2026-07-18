@@ -47,6 +47,7 @@ docker compose up -d --build
 | [docs/DOCKER_INSTALL.md](docs/DOCKER_INSTALL.md) | Docker installieren (macOS/Windows/Linux) |
 | [docs/BACKUP.md](docs/BACKUP.md) | Backup, NAS-Synchronisation, Restore (inkl. Uploads) |
 | [docs/PROJEKTSTAND.md](docs/PROJEKTSTAND.md) | Architektur, Schema, Fertigstellungsgrad |
+| [docs/ESB_IDEEN.md](docs/ESB_IDEEN.md) | Ideen-Backlog für ESB-Hardware/Firmware (auch für den ESB-Code-Chat) |
 | [database/init.sql](database/init.sql) | Vollständiges Datenbankschema |
 
 ## Tech-Stack
