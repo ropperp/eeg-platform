@@ -25,6 +25,11 @@ COPY eda-parser/ /var/www/html/eda-parser/
 # mitgelieferten Standard-Dateien an, statt eine leere/kaputte Seite auszuliefern.
 COPY latex-service/templates/ /var/www/html/latex-templates-default/
 COPY webapp/public/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf /var/www/html/latex-templates-default/infoblatt.pdf
+# Gleiches Logo als Standard für beide Varianten -- bis der Platform-Admin über
+# /admin/templates eine eigene, für Dark-Mode optimierte Grafik hochlädt (siehe
+# logo-img-light/-dark in app.css), zeigt der Dark-Mode ersatzweise das Light-Logo.
+COPY webapp/public/assets/images/logo.png /var/www/html/latex-templates-default/logo-light.png
+COPY webapp/public/assets/images/logo.png /var/www/html/latex-templates-default/logo-dark.png
 
 WORKDIR /var/www/html
 

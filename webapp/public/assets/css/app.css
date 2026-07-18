@@ -85,6 +85,9 @@ a:hover { text-decoration: underline; }
 .navbar .inner { display: flex; align-items: center; justify-content: space-between; }
 .navbar .logo { display: flex; align-items: center; }
 .navbar .logo-img { height: 34px; width: auto; display: block; }
+.navbar .logo-img-dark { display: none; }
+[data-theme="dark"] .navbar .logo-img-light { display: none; }
+[data-theme="dark"] .navbar .logo-img-dark { display: block; }
 .navbar nav a {
   margin-left: 1.5rem;
   color: var(--gray-600);

@@ -3244,6 +3244,126 @@ function adminFileRegistry(): array
         'rechnung.tex'                     => ['label' => 'Rechnung', 'type' => 'tex'],
         'beitrittserklaerung_formular.tex' => ['label' => 'Beitrittserklärung', 'type' => 'tex'],
         'infoblatt.pdf'                    => ['label' => 'Infoblatt (Website)', 'type' => 'pdf'],
+        'logo-light.png'                   => ['label' => 'Logo (Light-Mode)', 'type' => 'image'],
+        'logo-dark.png'                    => ['label' => 'Logo (Dark-Mode)', 'type' => 'image'],
+    ];
+}
+
+/**
+ * Verfügbare <<<VARIABLE>>>-Platzhalter je LaTeX-Vorlage, rein zu Anzeigezwecken in
+ * /admin/templates -- Quelle der Wahrheit sind die .tex-Dateien selbst (latex-service
+ * ersetzt <<<NAME>>> durch den jeweiligen Wert, siehe latex-service/service.js). Ein
+ * mit RAW_ beginnender Variablenname wird NICHT für LaTeX escaped (dort steht bereits
+ * fertiges LaTeX drin, z.B. eine eingebettete Unterschrift-Grafik oder eine Liste) --
+ * beim Bearbeiten der Vorlage also nicht versehentlich Text hineinschreiben, der wie
+ * ein RAW_-Platzhalter aussieht.
+ */
+function adminFileVariables(): array
+{
+    return [
+        'rechnung.tex' => [
+            'RECHNUNGSNUMMER' => 'Fortlaufende Rechnungsnummer',
+            'RECHNUNGSDATUM' => 'Ausstellungsdatum',
+            'ABRECHNUNGSZEITRAUM' => 'Zeitraum, für den abgerechnet wird',
+            'ZAHLUNGSZIEL' => 'Fälligkeitsdatum',
+            'EEG_NAME' => 'Name der Energiegemeinschaft',
+            'EEG_ADRESSE' => 'Adresse der Energiegemeinschaft',
+            'EEG_UID' => 'UID-Nummer der Energiegemeinschaft',
+            'MITGLIED_NAME' => 'Name des Mitglieds',
+            'MITGLIED_ADRESSE' => 'Adresse des Mitglieds',
+            'MITGLIED_UID' => 'UID-Nummer des Mitglieds (falls Firma)',
+            'BEZUG_KWH' => 'Bezogene Energiemenge in kWh',
+            'BEZUG_TARIF' => 'Bezugstarif (€/kWh)',
+            'BEZUG_BETRAG' => 'Betrag für den Bezug',
+            'EINSPEISUNG_KWH' => 'Eingespeiste Energiemenge in kWh',
+            'EINSPEISUNG_TARIF' => 'Einspeisetarif (€/kWh)',
+            'EINSPEISUNG_BETRAG' => 'Betrag für die Einspeisung',
+            'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste',
+            'SUMME_NETTO' => 'Gesamtsumme netto',
+            'SUMME_BRUTTO' => 'Gesamtsumme brutto',
+            'IBAN' => 'IBAN der Energiegemeinschaft (für die Zahlung)',
+            'BIC' => 'BIC der Energiegemeinschaft',
+            'RAW_STEUER_ZEILE' => 'Vorformatierte USt-Zeile (RAW, nicht escapen)',
+            'RAW_STEUER_TEXT' => 'Vorformatierter Steuerhinweis-Text (RAW, nicht escapen)',
+        ],
+        'bezugsvereinbarung.tex' => [
+            'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',
+            'EEG_NAME' => 'Name der Energiegemeinschaft',
+            'EEG_ADRESSE' => 'Adresse der Energiegemeinschaft',
+            'EEG_ORT' => 'Ort der Energiegemeinschaft',
+            'EEG_ZVR' => 'ZVR-Zahl der Energiegemeinschaft',
+            'EEG_IBAN' => 'IBAN der Energiegemeinschaft',
+            'EEG_MARKTPARTNER_ID' => 'Marktpartner-ID der Energiegemeinschaft',
+            'EEG_DASHBOARD_URL' => 'Link zum öffentlichen Live-Dashboard',
+            'MITGLIED_NAME' => 'Name des Mitglieds (inkl. Titel)',
+            'MITGLIED_ADRESSE' => 'Adresse des Mitglieds',
+            'MITGLIED_IBAN' => 'IBAN des Mitglieds',
+            'MITGLIED_UID_ZEILE' => 'UID-Zeile des Mitglieds, falls vorhanden',
+            'MITGLIED_SEPA_MANDATSREFERENZ' => 'SEPA-Mandatsreferenz des Mitglieds',
+            'BEZUG_TARIF' => 'Vereinbarter Bezugstarif (€/kWh)',
+            'TARIF_GUELTIG_AB' => 'Gültig-ab-Datum des Tarifs',
+            'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste',
+            'RAW_ZAEHLPUNKTE_LISTE' => 'Vorformatierte Liste der Bezugs-Zählpunkte (RAW, nicht escapen)',
+            'RAW_EEG_UNTERSCHRIFT_BILD' => 'Eingebettete Unterschrift-Grafik der EEG (RAW, nicht escapen)',
+            'RAW_MITGLIED_UNTERSCHRIFT_BILD' => 'Eingebettete Unterschrift-Grafik des Mitglieds (RAW, nicht escapen)',
+            'RAW_MITGLIED_ORT_DATUM' => 'Vorformatierter Ort/Datum-Text bei der Unterschrift (RAW, nicht escapen)',
+        ],
+        'einspeisevereinbarung.tex' => [
+            'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',
+            'EEG_NAME' => 'Name der Energiegemeinschaft',
+            'EEG_ADRESSE' => 'Adresse der Energiegemeinschaft',
+            'EEG_ORT' => 'Ort der Energiegemeinschaft',
+            'EEG_ZVR' => 'ZVR-Zahl der Energiegemeinschaft',
+            'EEG_MARKTPARTNER_ID' => 'Marktpartner-ID der Energiegemeinschaft',
+            'MITGLIED_NAME' => 'Name des Mitglieds (inkl. Titel)',
+            'MITGLIED_ADRESSE' => 'Adresse des Mitglieds',
+            'MITGLIED_IBAN' => 'IBAN des Mitglieds',
+            'MITGLIED_UID_ZEILE' => 'UID-Zeile des Mitglieds, falls vorhanden',
+            'MITGLIED_SEIT' => 'Mitglied-seit-Datum',
+            'ANLAGENBESCHREIBUNG' => 'Beschreibung der Einspeiseanlage (z.B. PV-Leistung)',
+            'EINSPEISUNG_TARIF' => 'Vereinbarter Einspeisetarif (€/kWh)',
+            'TARIF_GUELTIG_AB' => 'Gültig-ab-Datum des Tarifs',
+            'RAW_ZAEHLPUNKTE_LISTE' => 'Vorformatierte Liste der Einspeise-Zählpunkte (RAW, nicht escapen)',
+            'RAW_EEG_UNTERSCHRIFT_BILD' => 'Eingebettete Unterschrift-Grafik der EEG (RAW, nicht escapen)',
+            'RAW_MITGLIED_UNTERSCHRIFT_BILD' => 'Eingebettete Unterschrift-Grafik des Mitglieds (RAW, nicht escapen)',
+            'RAW_MITGLIED_ORT_DATUM' => 'Vorformatierter Ort/Datum-Text bei der Unterschrift (RAW, nicht escapen)',
+        ],
+        'beitrittserklaerung_formular.tex' => [
+            'EINGEREICHT_AM' => 'Einreichdatum des Formulars',
+            'TITEL' => 'Titel (z.B. akademischer Grad)',
+            'VORNAME' => 'Vorname',
+            'NACHNAME' => 'Nachname',
+            'GEBURTSDATUM' => 'Geburtsdatum',
+            'ADRESSE' => 'Adresse',
+            'EMAIL' => 'E-Mail-Adresse',
+            'TELEFON' => 'Telefonnummer',
+            'STROMLIEFERANT' => 'Bisheriger Stromlieferant',
+            'BEZUG_JAHRESVERBRAUCH' => 'Jährlicher Stromverbrauch (kWh)',
+            'EINSPEISUNG_GEPLANT' => 'Ob eine Einspeiseanlage geplant ist',
+            'EINSPEISUNG_KWP' => 'Geplante PV-Leistung (kWp)',
+            'SPEICHER_KWH' => 'Geplante Speicherkapazität (kWh)',
+            'ANDERE_EEG_NAME' => 'Name einer evtl. anderen EEG-Mitgliedschaft',
+            'EEG_NAME' => 'Name der Energiegemeinschaft',
+            'EEG_ADRESSE' => 'Adresse der Energiegemeinschaft',
+            'EEG_ZVR' => 'ZVR-Zahl der Energiegemeinschaft',
+            'SIGNER_IP' => 'IP-Adresse bei der Online-Unterschrift',
+            'UNTERSCHRIEBEN_AM' => 'Zeitpunkt der Unterschrift',
+            'UNTERSCHRIEBEN_DATUM' => 'Datum der Unterschrift',
+            'RAW_ANREDE_HERR' => 'Ankreuzfeld „Herr" (RAW, nicht escapen)',
+            'RAW_ANREDE_FRAU' => 'Ankreuzfeld „Frau" (RAW, nicht escapen)',
+            'RAW_BEZUG_CB' => 'Ankreuzfeld Bezug (RAW, nicht escapen)',
+            'RAW_EINSPEISUNG_CB' => 'Ankreuzfeld Einspeisung (RAW, nicht escapen)',
+            'RAW_SPEICHER_JA' => 'Ankreuzfeld Speicher „Ja" (RAW, nicht escapen)',
+            'RAW_SPEICHER_NEIN' => 'Ankreuzfeld Speicher „Nein" (RAW, nicht escapen)',
+            'RAW_SPEICHER_GEPLANT' => 'Vorformatierter Speicher-Block (RAW, nicht escapen)',
+            'RAW_ANDERE_EEG_JA' => 'Ankreuzfeld andere EEG „Ja" (RAW, nicht escapen)',
+            'RAW_ANDERE_EEG_NEIN' => 'Ankreuzfeld andere EEG „Nein" (RAW, nicht escapen)',
+            'RAW_ZP_BEZUG_GRID' => 'Vorformatiertes Raster der Bezugs-Zählpunkte (RAW, nicht escapen)',
+            'RAW_ZP_EINSPEISUNG_GRID' => 'Vorformatiertes Raster der Einspeise-Zählpunkte (RAW, nicht escapen)',
+            'RAW_ZUSTIMMUNGEN_LISTE' => 'Vorformatierte Liste der Zustimmungen (RAW, nicht escapen)',
+            'RAW_SEPA_BLOCK' => 'Vorformatierter SEPA-Block (RAW, nicht escapen)',
+            'RAW_UNTERSCHRIFT_BILD' => 'Eingebettete Unterschrift-Grafik (RAW, nicht escapen)',
+        ],
     ];
 }
 
@@ -3276,6 +3396,7 @@ $router->get('/admin/templates', function () {
             'is_custom' => $path !== null && str_starts_with($path, '/var/www/html/latex-templates/'),
             'size'      => $path ? filesize($path) : null,
             'mtime'     => $path ? filemtime($path) : null,
+            'variables' => adminFileVariables()[$filename] ?? null,
         ];
     }
     require ROOT . '/src/views/pages/admin_templates.php';
@@ -3289,7 +3410,8 @@ $router->get('/admin/templates/:name/download', function ($params) {
     $path = adminFilePath($params['name']);
     if (!$path) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
 
-    header('Content-Type: ' . ($registry[$params['name']]['type'] === 'pdf' ? 'application/pdf' : 'text/plain; charset=UTF-8'));
+    $contentTypes = ['pdf' => 'application/pdf', 'image' => 'image/png', 'tex' => 'text/plain; charset=UTF-8'];
+    header('Content-Type: ' . $contentTypes[$registry[$params['name']]['type']]);
     header('Content-Disposition: attachment; filename="' . $params['name'] . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path);
@@ -3311,6 +3433,13 @@ $router->post('/admin/templates/:name/upload', function ($params) {
     // pdflatex-Fehlermeldung statt eines PDFs; ein kaputtes Infoblatt-PDF zeigt der Browser an).
     if ($_FILES['file']['size'] > 10 * 1024 * 1024) {
         header('Location: /admin/templates?error=' . urlencode('Datei zu groß (max. 10 MB).'));
+        exit;
+    }
+    // Logos werden direkt (ohne pdflatex/PDF-Viewer als "Fehler zeigt sich später von selbst")
+    // in jede Seiten-Kopfzeile eingebettet -- hier lohnt sich eine echte Bildvalidierung, damit
+    // keine beliebige Datei mit .png-Namen ausgeliefert wird.
+    if ($registry[$params['name']]['type'] === 'image' && @getimagesize($_FILES['file']['tmp_name']) === false) {
+        header('Location: /admin/templates?error=' . urlencode('Datei ist kein gültiges Bild.'));
         exit;
     }
 
@@ -3338,6 +3467,23 @@ $router->get('/infoblatt.pdf', function () {
     if (!$path) { http_response_code(404); echo 'Infoblatt nicht gefunden'; return; }
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="infoblatt-eeg-strompool-feldkirchen-suedwest.pdf"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+});
+
+/**
+ * Öffentliches Logo (Header, Light-/Dark-Mode getrennt): bevorzugt eine über
+ * /admin/templates hochgeladene Fassung, sonst die mitgelieferte Standard-Grafik --
+ * dieselbe Fallback-Logik wie beim Infoblatt. Wird von base.php/portal.php per <img>
+ * eingebunden und per CSS ([data-theme="dark"]) je nach Theme ein-/ausgeblendet.
+ */
+$router->get('/logo-:variant.png', function ($params) {
+    if (!in_array($params['variant'], ['light', 'dark'], true)) { http_response_code(404); return; }
+    $path = adminFilePath('logo-' . $params['variant'] . '.png');
+    if (!$path) { http_response_code(404); return; }
+    header('Content-Type: image/png');
+    header('Cache-Control: public, max-age=3600');
     header('Content-Length: ' . filesize($path));
     readfile($path);
     exit;

@@ -2,10 +2,10 @@
 
 <h2 style="margin-bottom:.5rem">📁 Dateien</h2>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
-  LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung sowie das Infoblatt der
-  Website. Herunterladen, bearbeiten und per Drag &amp; Drop wieder hochladen -- ohne
-  Kommandozeile oder GitHub. Wirkt sofort (LaTeX-Vorlagen: auf künftig erzeugte PDFs, Infoblatt:
-  auf den Download-Link der Website).
+  LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung, das Infoblatt der Website
+  sowie das Logo (getrennt für Light- und Dark-Mode). Herunterladen, bearbeiten und per Drag
+  &amp; Drop wieder hochladen -- ohne Kommandozeile oder GitHub. Wirkt sofort (LaTeX-Vorlagen:
+  auf künftig erzeugte PDFs, Infoblatt/Logo: sofort auf der ganzen Website).
 </p>
 
 <?php if (!empty($_GET['success'])): ?>
@@ -36,6 +36,12 @@
     <?php endif; ?>
   </div>
 
+  <?php if ($t['type'] === 'image' && $t['exists']): ?>
+    <div style="background:repeating-conic-gradient(#e5e7eb 0% 25%, transparent 0% 50%) 50% / 20px 20px;border-radius:8px;padding:.75rem;margin-bottom:.75rem;display:inline-block">
+      <img src="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download?v=<?= $t['mtime'] ?>" alt="<?= htmlspecialchars($t['label']) ?>" style="max-height:44px;display:block">
+    </div>
+  <?php endif; ?>
+
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <?php if ($t['exists']): ?>
       <a href="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.85rem">
@@ -49,10 +55,26 @@
              data-filename="<?= htmlspecialchars($t['filename']) ?>"
              style="display:flex;align-items:center;justify-content:center;gap:.5rem;border:2px dashed #d1d5db;border-radius:8px;padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:var(--gray-600);transition:border-color .15s,background .15s">
         <span class="dz-text">📄 Neue Datei hierher ziehen oder klicken</span>
-        <input type="file" name="file" accept="<?= $t['type'] === 'pdf' ? '.pdf' : '.tex' ?>" required style="display:none">
+        <input type="file" name="file" accept="<?= ['pdf' => '.pdf', 'image' => '.png'][$t['type']] ?? '.tex' ?>" required style="display:none">
       </label>
     </form>
   </div>
+
+  <?php if ($t['variables']): ?>
+    <details style="margin-top:.75rem">
+      <summary style="cursor:pointer;font-size:.82rem;color:var(--gray-600)">🧩 Verfügbare Variablen in dieser Vorlage (<?= count($t['variables']) ?>)</summary>
+      <div style="margin-top:.5rem;max-height:280px;overflow-y:auto">
+        <table style="font-size:.8rem">
+          <?php foreach ($t['variables'] as $var => $desc): ?>
+            <tr>
+              <td style="white-space:nowrap;font-family:monospace">&lt;&lt;&lt;<?= htmlspecialchars($var) ?>&gt;&gt;&gt;</td>
+              <td style="color:var(--gray-600)"><?= htmlspecialchars($desc) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </table>
+      </div>
+    </details>
+  <?php endif; ?>
 </div>
 <?php endforeach; ?>
 
