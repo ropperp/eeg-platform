@@ -64,9 +64,14 @@ class Mailer
         }
         $token = self::getAccessToken($cfg);
 
+        // Signatur (z.B. Kontakthinweis für Rückfragen zu Rechnungen/Verträgen) an jede
+        // ausgehende Mail anhängen -- global für alle Vorlagen, konfigurierbar statt hart
+        // codiert (Platform-Admin -> E-Mail-Einstellungen).
+        $fullBody = $htmlBody . (!empty($cfg['signature_html']) ? '<br><br>' . $cfg['signature_html'] : '');
+
         $message = [
             'subject'      => $subject,
-            'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
+            'body'         => ['contentType' => 'HTML', 'content' => $fullBody],
             'toRecipients' => [['emailAddress' => ['address' => $to]]],
         ];
         // Absender ist oft eine unüberwachte Shared Mailbox (noreply@...) -- Antworten der

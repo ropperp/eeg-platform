@@ -9,8 +9,33 @@ ob_start();
   <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
 <?php if (isset($_GET['success'])): ?>
-  <div class="alert alert-success">Abrechnung erfolgreich freigegeben. PDFs werden generiert und versendet.</div>
+  <div class="alert alert-success">Gespeichert.</div>
 <?php endif; ?>
+
+<div class="card" style="margin-bottom:1rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h3 style="margin-bottom:.25rem">Neuen Abrechnungslauf anlegen</h3>
+      <p style="color:var(--gray-600);font-size:.85rem">Format: Jahr-Q Quartalsnummer, z.B. <code>2026-Q1</code>.</p>
+    </div>
+    <form method="post" action="/portal/billing/create" style="display:flex;gap:.5rem">
+      <input type="text" name="quartal" placeholder="2026-Q1" pattern="\d{4}-Q[1-4]" required
+             style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px;width:120px">
+      <button type="submit" class="btn btn-primary">Anlegen</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <h3 style="margin-bottom:.25rem">🧪 Test-Vorschau</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
+    Zeigt, wie eine Rechnung aussieht -- mit Platzhalter-Werten statt echten Mitgliedsdaten. Erzeugt keinen
+    Datenbankeintrag, ideal um das Layout bzw. eine neue LaTeX-Vorlage zu prüfen.
+  </p>
+  <a href="/portal/billing/preview" target="_blank" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
+    Beispiel-Rechnung ansehen (PDF)
+  </a>
+</div>
 
 <!-- Suche -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
@@ -21,8 +46,6 @@ ob_start();
     <select id="billing-status" onchange="filterBilling()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
       <option value="pending">Ausstehend</option>
-      <option value="ready">Bereit</option>
-      <option value="released">Freigegeben</option>
       <option value="done">Abgeschlossen</option>
     </select>
   </div>
@@ -42,19 +65,20 @@ ob_start();
     </thead>
     <tbody>
     <?php foreach ($runs as $run): ?>
+      <?php $canRelease = $run['status'] === 'pending' && strtotime($run['freigabe_nach']) <= time(); ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
         <td><?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?></td>
         <td>
-          <?php $badges = ['pending' => 'gray', 'ready' => 'green', 'released' => 'yellow', 'done' => 'green']; ?>
+          <?php $badges = ['pending' => 'gray', 'done' => 'green']; ?>
           <span class="badge badge-<?= $badges[$run['status']] ?? 'gray' ?>">
-            <?= htmlspecialchars($run['status']) ?>
+            <?= $run['status'] === 'pending' ? ($canRelease ? 'bereit zur Freigabe' : 'ausstehend') : 'abgeschlossen' ?>
           </span>
         </td>
         <td><?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?></td>
         <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
         <td>
-          <?php if ($run['status'] === 'ready'): ?>
+          <?php if ($canRelease): ?>
             <form method="post" action="/portal/billing/release"
                   onsubmit="return confirm('Abrechnung wirklich freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
@@ -77,6 +101,65 @@ ob_start();
           <?php endif; ?>
         </td>
       </tr>
+      <?php if ($run['status'] === 'pending'): ?>
+        <tr>
+          <td colspan="6" style="background:var(--gray-50)">
+            <details>
+              <summary style="cursor:pointer;font-size:.85rem;color:var(--gray-700)">
+                ➕ Zusatzpositionen (<?= count($extraItemsByRun[$run['id']] ?? []) ?>) -- z.B. einmaliger Rabatt für dieses Quartal
+              </summary>
+              <div style="padding:.75rem 0 .5rem">
+                <?php if (!empty($extraItemsByRun[$run['id']])): ?>
+                  <table style="margin-bottom:.75rem">
+                    <thead><tr><th>Text</th><th>Menge</th><th>Einheit</th><th>Betrag</th><th></th></tr></thead>
+                    <tbody>
+                      <?php foreach ($extraItemsByRun[$run['id']] as $ei): ?>
+                        <tr>
+                          <td><?= htmlspecialchars($ei['label']) ?></td>
+                          <td><?= htmlspecialchars((string)$ei['quantity']) ?></td>
+                          <td><?= htmlspecialchars($ei['unit']) ?></td>
+                          <td style="<?= (float)$ei['amount_eur'] < 0 ? 'color:#16a34a' : '' ?>">
+                            <?= number_format((float)$ei['amount_eur'], 2, ',', '.') ?> €
+                          </td>
+                          <td>
+                            <form method="post" action="/portal/billing/<?= $run['id'] ?>/extra-items/<?= $ei['id'] ?>/delete"
+                                  onsubmit="return confirm('Zusatzposition wirklich entfernen?')">
+                              <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;font-size:.85rem">✕</button>
+                            </form>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                  <p style="color:var(--gray-600);font-size:.8rem;margin-bottom:.75rem">
+                    Gilt für <strong>alle</strong> Rechnungen dieses Abrechnungslaufs -- wird bei der Freigabe automatisch
+                    in jede einzelne Rechnung übernommen. Negativer Betrag = Gutschrift/Rabatt.
+                  </p>
+                <?php endif; ?>
+                <form method="post" action="/portal/billing/<?= $run['id'] ?>/extra-items" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+                  <div class="form-group" style="margin:0;flex:2;min-width:180px">
+                    <label style="font-size:.78rem">Text</label>
+                    <input type="text" name="label" placeholder="z.B. Rabatt Mitgliedsbeitrag Q1" required style="width:100%">
+                  </div>
+                  <div class="form-group" style="margin:0;width:80px">
+                    <label style="font-size:.78rem">Menge</label>
+                    <input type="text" name="quantity" value="1" style="width:100%">
+                  </div>
+                  <div class="form-group" style="margin:0;width:90px">
+                    <label style="font-size:.78rem">Einheit</label>
+                    <input type="text" name="unit" value="Stk" style="width:100%">
+                  </div>
+                  <div class="form-group" style="margin:0;width:110px">
+                    <label style="font-size:.78rem">Betrag (€)</label>
+                    <input type="text" name="amount_eur" placeholder="-6,00" required style="width:100%">
+                  </div>
+                  <button type="submit" class="btn btn-secondary" style="padding:.5rem .9rem">Hinzufügen</button>
+                </form>
+              </div>
+            </details>
+          </td>
+        </tr>
+      <?php endif; ?>
     <?php endforeach; ?>
     <?php if (empty($runs)): ?>
       <tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Abrechnungsläufe vorhanden.</td></tr>
@@ -102,7 +185,7 @@ function filterBilling() {
   <p style="font-size:.875rem;color:var(--gray-600)">
     Gemäß den EDA-Richtlinien und den Vereinsstatuten darf eine Abrechnung erst 60 Tage nach Quartalsende
     freigegeben werden. In dieser Zeit können Messwerte vom Netzbetreiber noch korrigiert werden (L1 → L2 → L3).
-    Der Freigabe-Button erscheint automatisch sobald das Fenster abgelaufen ist und alle Daten vollständig sind.
+    Der Freigabe-Button erscheint automatisch sobald das Fenster abgelaufen ist.
   </p>
 </div>
 

@@ -65,6 +65,15 @@
           Antworten der Kunden landen dann trotzdem in einem tatsächlich gelesenen Postfach. Leer lassen, wenn Antworten
           an die Absenderadresse selbst gehen sollen.</small>
       </div>
+      <div class="form-group" style="grid-column:1 / -1">
+        <label>Signatur (an jede E-Mail angehängt)</label>
+        <textarea name="signature_html" rows="4" placeholder="<p>Bei Fragen zu Rechnungen, Verträgen oder Vereinbarungen antworten Sie einfach auf diese E-Mail oder schreiben Sie an office@stromfueralle.at.<br>EEG Strompool Feldkirchen Süd-West</p>"><?= htmlspecialchars($mailConfig['signature_html'] ?? '') ?></textarea>
+        <small style="color:var(--gray-600)">Einfaches HTML möglich (z.B. <code>&lt;br&gt;</code>, <code>&lt;strong&gt;</code>). Gilt für
+          <strong>alle</strong> E-Mails (Einladung, Passwort-Reset, Vertrags-/Rechnungsversand, Test-Mail) -- eine gemeinsame Signatur statt
+          sie in jede einzelne Vorlage einzeln hineinzuschreiben, damit eine spätere Änderung (z.B. neue Telefonnummer) nur an einer
+          Stelle gepflegt werden muss. Am einfachsten die gleiche Adresse wie bei "Antwort-an" nennen -- eine zusätzliche, dritte
+          Kontaktadresse würde nur verwirren.</small>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>

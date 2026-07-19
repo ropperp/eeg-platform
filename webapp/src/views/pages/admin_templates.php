@@ -1,11 +1,17 @@
 <?php $pageTitle = 'Dateien'; ob_start(); ?>
 
 <h2 style="margin-bottom:.5rem">📁 Dateien</h2>
-<p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
+<p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">
   LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung, das Infoblatt der Website
   sowie das Logo (getrennt für Light- und Dark-Mode). Herunterladen, bearbeiten und per Drag
   &amp; Drop wieder hochladen -- ohne Kommandozeile oder GitHub. Wirkt sofort (LaTeX-Vorlagen:
   auf künftig erzeugte PDFs, Infoblatt/Logo: sofort auf der ganzen Website).
+</p>
+<p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
+  🧩 Vollständige Variablen-Referenz (auch für eine externe KI, die beim Schreiben einer eigenen
+  .tex-Datei hilft):
+  <a href="/admin/templates/variablen.md">als Markdown</a> ·
+  <a href="/admin/templates/variablen.csv">als CSV</a>
 </p>
 
 <?php if (!empty($_GET['success'])): ?>
@@ -68,6 +74,22 @@
           <?php foreach ($t['variables'] as $var => $desc): ?>
             <tr>
               <td style="white-space:nowrap;font-family:monospace">&lt;&lt;&lt;<?= htmlspecialchars($var) ?>&gt;&gt;&gt;</td>
+              <td style="color:var(--gray-600)"><?= htmlspecialchars($desc) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </table>
+      </div>
+    </details>
+  <?php endif; ?>
+
+  <?php if ($t['assets']): ?>
+    <details style="margin-top:.5rem">
+      <summary style="cursor:pointer;font-size:.82rem;color:var(--gray-600)">🖼️ Verfügbare Bild-Assets (<?= count($t['assets']) ?>)</summary>
+      <div style="margin-top:.5rem">
+        <table style="font-size:.8rem">
+          <?php foreach ($t['assets'] as $name => $desc): ?>
+            <tr>
+              <td style="white-space:nowrap;font-family:monospace"><?= htmlspecialchars($name) ?></td>
               <td style="color:var(--gray-600)"><?= htmlspecialchars($desc) ?></td>
             </tr>
           <?php endforeach; ?>

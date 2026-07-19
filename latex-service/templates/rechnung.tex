@@ -9,6 +9,7 @@
 \usepackage{microtype}
 \usepackage{parskip}
 \usepackage{eurosym}
+\usepackage{graphicx}
 
 \definecolor{green}{RGB}{22,163,74}
 \definecolor{lightgray}{RGB}{249,250,251}
@@ -18,11 +19,15 @@
 \pagestyle{empty}
 
 % ─── Kopfzeile ────────────────────────────────────────────────────────────────
-\begin{tabularx}{\textwidth}{Xr}
+% logo.png: eigenes Logo der EEG falls hochgeladen (Platform-Admin/Manager-Einstellungen),
+% sonst automatisch das Website-Logo als Rückfallebene (siehe communityLogoAsset() in
+% index.php) -- die Datei ist also immer vorhanden, \includegraphics schlägt nie fehl.
+\begin{tabularx}{\textwidth}{lXr}
+  \raisebox{-.5\height}{\includegraphics[height=1.4cm]{logo.png}} &
   {\Large\bfseries\color{green}<<<EEG_NAME>>>} &
   \begin{tabular}[t]{r}
-    \small<<<EEG_ADRESSE>>>\\
-    \small<<<EEG_UID>>>
+    \small{<<<EEG_ADRESSE>>>}\\
+    \small{<<<EEG_UID>>>}
   \end{tabular}
 \end{tabularx}
 
@@ -60,6 +65,7 @@
   Energiebezug & <<<BEZUG_KWH>>> & kWh & <<<BEZUG_TARIF>>> ct/kWh & <<<BEZUG_BETRAG>>> \\
   Einspeisegutschrift & <<<EINSPEISUNG_KWH>>> & kWh & <<<EINSPEISUNG_TARIF>>> ct/kWh & $-$\,<<<EINSPEISUNG_BETRAG>>> \\
   Mitgliedsbeitrag & 1 & Quartal & & <<<MITGLIEDSBEITRAG>>> \\
+<<<RAW_ZUSATZPOSITIONEN_LISTE>>>
   \midrule
   \textbf{Summe netto} & & & & \textbf{<<<SUMME_NETTO>>>} \\
   <<<RAW_STEUER_ZEILE>>>

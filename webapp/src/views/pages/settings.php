@@ -45,6 +45,29 @@
   </form>
 </div>
 
+<!-- Logo für Rechnungen/Verträge -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">Logo für Rechnungen/Verträge</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Erscheint auf Rechnungen (und künftig weiteren PDF-Dokumenten) dieser EEG. Ohne eigenes Logo wird
+    ersatzweise das Website-Logo verwendet. Getrennt vom Website-Logo unter Plattform-Admin -&gt; Dateien,
+    das für alle Besucher der Website gilt.
+  </p>
+  <?php if ($hasCustomLogo): ?>
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+      <img src="/portal/settings/logo/preview?v=<?= time() ?>" alt="Logo" style="max-height:60px;background:var(--gray-100);padding:.5rem;border-radius:6px">
+      <span class="badge badge-yellow">Eigenes Logo aktiv</span>
+    </div>
+  <?php endif; ?>
+  <form method="post" action="/portal/settings/logo" enctype="multipart/form-data" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+    <input type="file" name="logo" accept=".png,.jpg,.jpeg" required>
+    <button type="submit" class="btn btn-primary">Hochladen</button>
+    <?php if ($hasCustomLogo): ?>
+      <button type="submit" formaction="/portal/settings/logo/delete" formnovalidate class="btn" style="background:#fee2e2;color:#b91c1c">Entfernen (Standard-Logo verwenden)</button>
+    <?php endif; ?>
+  </form>
+</div>
+
 <!-- Tarif -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Tarif</h3>

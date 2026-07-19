@@ -45,9 +45,11 @@ class Billing
     {
         $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$billingRunId]);
         if (!$run) throw new RuntimeException('Abrechnungslauf nicht gefunden');
-        if ($run['status'] !== 'ready') throw new RuntimeException('Abrechnung ist noch nicht bereit');
+        if ($run['status'] !== 'pending') throw new RuntimeException('Abrechnung wurde bereits freigegeben');
 
-        // 60-Tage-Sperre — hardcodiert, kein Override
+        // 60-Tage-Sperre — hardcodiert, kein Override. Das ist die einzige echte Prüfung vor der
+        // Freigabe -- ein früherer separater "ready"-Status wurde nie irgendwo gesetzt (es gab
+        // keinen Mechanismus dafür) und hätte die Freigabe dauerhaft blockiert.
         $freigabeNach = new DateTimeImmutable($run['freigabe_nach']);
         if (new DateTimeImmutable() < $freigabeNach) {
             throw new RuntimeException(
@@ -73,10 +75,17 @@ class Billing
             $tax    = self::getTaxForPeriod($run['community_id'], $run['period_from']);
 
             // Fortlaufende Rechnungsnummer
-            $community = DB::fetchOne('SELECT marktpartner_id FROM communities WHERE id = ?', [$run['community_id']]);
+            $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$run['community_id']]);
             $prefix    = ($community['marktpartner_id'] ?? 'EEG') . '-' . $run['quartal'] . '-';
 
             $invoiceSeq = 1;
+
+            // Manuelle Zusatzpositionen (z.B. einmaliger Rabatt) gelten für alle Rechnungen
+            // dieses Laufs -- vom Manager vor der Freigabe über /portal/billing erfasst.
+            $extraItems = DB::fetchAll(
+                'SELECT * FROM billing_run_extra_items WHERE billing_run_id = ? ORDER BY created_at',
+                [$billingRunId]
+            );
 
             // Mitglieder gruppieren (ein Mitglied kann mehrere Zählpunkte haben)
             $memberGroups = [];
@@ -125,29 +134,40 @@ class Billing
                              'months' => 3, 'amount_eur' => $beitrag];
                 $saldo += $beitrag;
 
+                // Manuelle Zusatzpositionen (Rabatt/Gutschrift o.ä.) gelten für alle Mitglieder
+                // dieses Laufs -- 1:1 in jede einzelne Rechnung übernehmen.
+                foreach ($extraItems as $extra) {
+                    $items[] = ['type' => 'manuell', 'label' => $extra['label'],
+                                 'quantity' => $extra['quantity'], 'unit' => $extra['unit'],
+                                 'amount_eur' => (float)$extra['amount_eur']];
+                    $saldo += (float)$extra['amount_eur'];
+                }
+
                 $rechnungsnummer = $prefix . str_pad((string)$invoiceSeq++, 3, '0', STR_PAD_LEFT);
 
                 DB::execute(
-                    'INSERT INTO invoices (billing_run_id, community_id, member_id, rechnungsnummer, saldo_eur)
-                     VALUES (?, ?, ?, ?, ?)',
-                    [$billingRunId, $run['community_id'], $mid, $rechnungsnummer, $saldo]
+                    'INSERT INTO invoices (billing_run_id, community_id, member_id, rechnungsnummer, saldo_eur, pdf_path)
+                     VALUES (?, ?, ?, ?, ?, ?)',
+                    // pdf_path ist nur ein "existiert"-Marker für die Rechnungslisten (invoices.php/
+                    // billing_invoices.php zeigen den Download-Link nur wenn gesetzt) -- die PDF selbst
+                    // wird nicht vorgerendert/auf Platte gespeichert, sondern bei jedem Abruf frisch aus
+                    // invoice_items generiert (siehe /portal/invoices/:id/pdf). Vorher stand hier ein
+                    // eigener, kaputter Render-Aufruf (falscher Request-/Response-Aufbau gegenüber
+                    // latex-service), wodurch pdf_path nie gesetzt wurde und der Download-Link für
+                    // JEDE über die Abrechnung freigegebene Rechnung dauerhaft fehlte.
+                    [$billingRunId, $run['community_id'], $mid, $rechnungsnummer, $saldo, $rechnungsnummer]
                 );
 
                 $invoiceId = DB::fetchOne('SELECT id FROM invoices WHERE rechnungsnummer = ?', [$rechnungsnummer])['id'];
 
                 foreach ($items as $item) {
                     DB::execute(
-                        'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur)
-                         VALUES (?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur, label, quantity, unit)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         [$invoiceId, $item['type'], $item['kwh'] ?? null, $item['rate_ct_kwh'] ?? null,
-                         $item['months'] ?? null, $item['amount_eur']]
+                         $item['months'] ?? null, $item['amount_eur'], $item['label'] ?? null,
+                         $item['quantity'] ?? null, $item['unit'] ?? null]
                     );
-                }
-
-                // PDF generieren
-                $pdf = self::generatePdf($invoiceId, $member, $items, $saldo, $tariff, $tax, $community, $run);
-                if ($pdf) {
-                    DB::execute('UPDATE invoices SET pdf_path = ? WHERE id = ?', [$pdf, $invoiceId]);
                 }
             }
 
@@ -161,74 +181,6 @@ class Billing
             DB::rollback();
             throw $e;
         }
-    }
-
-    private static function generatePdf(
-        string $invoiceId, array $member, array $items, float $saldo,
-        array $tariff, array $tax, array $community, array $run
-    ): ?string {
-        $latexUrl = getenv('LATEX_SERVICE_URL') . '/generate';
-        $apiKey   = getenv('LATEX_API_KEY');
-
-        $steuerHinweis = $tax['tax_model'] === 'kleinunternehmer'
-            ? 'Gem. § 6 Abs 1 Z 27 UStG wird keine Umsatzsteuer ausgewiesen.'
-            : '';
-        $steuerBetrag  = $tax['tax_model'] === 'standard'
-            ? round($saldo * (float)$tax['tax_rate_percent'] / 100, 2)
-            : 0;
-        $summeBrutto = $saldo + $steuerBetrag;
-
-        $bezugItem     = collect_item($items, 'bezug');
-        $einspeisItem  = collect_item($items, 'einspeisung');
-        $beitragItem   = collect_item($items, 'mitgliedsbeitrag');
-
-        $variables = [
-            'EEG_NAME'             => $community['name'] ?? '',
-            'EEG_ADRESSE'          => $community['address'] ?? '',
-            'EEG_UID'              => $community['uid_number'] ?? '',
-            'RECHNUNGSNUMMER'      => 'n/a', // wird von caller gesetzt
-            'RECHNUNGSDATUM'       => date('d.m.Y'),
-            'ABRECHNUNGSZEITRAUM'  => $run['period_from'] . ' – ' . $run['period_to'],
-            'MITGLIED_NAME'        => ($member['invoice_name'] ?? '') ?: trim($member['first_name'] . ' ' . $member['last_name']),
-            'MITGLIED_ADRESSE'     => $member['address'] . ', ' . $member['zip'] . ' ' . $member['city'],
-            'MITGLIED_UID'         => $member['invoice_uid'] ?? '',
-            'BEZUG_KWH'            => $bezugItem ? number_format((float)$bezugItem['kwh'], 3, ',', '.') : '0,000',
-            'BEZUG_TARIF'          => $bezugItem ? number_format((float)$bezugItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
-            'BEZUG_BETRAG'         => $bezugItem ? number_format((float)$bezugItem['amount_eur'], 2, ',', '.') : '0,00',
-            'EINSPEISUNG_KWH'      => $einspeisItem ? number_format(abs((float)$einspeisItem['kwh']), 3, ',', '.') : '0,000',
-            'EINSPEISUNG_TARIF'    => $einspeisItem ? number_format((float)$einspeisItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
-            'EINSPEISUNG_BETRAG'   => $einspeisItem ? number_format(abs((float)$einspeisItem['amount_eur']), 2, ',', '.') : '0,00',
-            'MITGLIEDSBEITRAG'     => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
-            'SUMME_NETTO'          => number_format($saldo, 2, ',', '.'),
-            'STEUER_HINWEIS'       => $steuerHinweis,
-            'STEUER_BETRAG'        => number_format($steuerBetrag, 2, ',', '.'),
-            'SUMME_BRUTTO'         => number_format($summeBrutto, 2, ',', '.'),
-            'IBAN'                 => $community['iban'] ?? '',
-            'BIC'                  => $community['bic'] ?? '',
-            'ZAHLUNGSZIEL'         => ($community['payment_days'] ?? 14) . ' Tage',
-        ];
-
-        $ch = curl_init($latexUrl);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(['template' => 'rechnung', 'variables' => $variables]),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Api-Key: ' . $apiKey],
-            CURLOPT_TIMEOUT        => 30,
-        ]);
-        $response = curl_exec($ch);
-        $status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($status !== 200 || !$response) return null;
-
-        $data    = json_decode($response, true);
-        $pdfB64  = $data['pdf'] ?? null;
-        if (!$pdfB64) return null;
-
-        $path = '/var/www/html/storage/pdfs/' . $invoiceId . '.pdf';
-        file_put_contents($path, base64_decode($pdfB64));
-        return $path;
     }
 
     private static function getTariffForPeriod(string $communityId, string $date): array
@@ -263,12 +215,4 @@ class Billing
         $freigabe = date('Y-m-d', strtotime($to . ' +60 days'));
         return [$from, $to, $freigabe];
     }
-}
-
-function collect_item(array $items, string $type): ?array
-{
-    foreach ($items as $item) {
-        if ($item['type'] === $type) return $item;
-    }
-    return null;
 }

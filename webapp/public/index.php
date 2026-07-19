@@ -1029,11 +1029,12 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
     }
 
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
-    $bezugItem = null; $einspeisungItem = null; $beitragItem = null;
+    $bezugItem = null; $einspeisungItem = null; $beitragItem = null; $extraItems = [];
     foreach ($items as $it) {
         if ($it['type'] === 'bezug')           $bezugItem       = $it;
         if ($it['type'] === 'einspeisung')     $einspeisungItem = $it;
         if ($it['type'] === 'mitgliedsbeitrag') $beitragItem    = $it;
+        if ($it['type'] === 'manuell')         $extraItems[]    = $it;
     }
 
     // RAW_: LaTeX-Befehle direkt übergeben — service.js darf diese NICHT escapen.
@@ -1063,10 +1064,11 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'SUMME_BRUTTO'          => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
+        'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days')),
-    ], $invoice['rechnungsnummer'] . '.pdf');
+    ], $invoice['rechnungsnummer'] . '.pdf', communityLogoAsset($invoice['member_community_id']));
 });
 
 // ─── Portal: Mitglied-Selbstbedienung (eigene Verträge/Dateien) ─────────
@@ -2458,7 +2460,134 @@ $router->get('/portal/billing', function () {
     $runs = DB::fetchAll(
         'SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]
     );
+    $extraItemsByRun = [];
+    foreach (DB::fetchAll('SELECT * FROM billing_run_extra_items WHERE community_id = ? ORDER BY created_at', [$communityId]) as $ei) {
+        $extraItemsByRun[$ei['billing_run_id']][] = $ei;
+    }
     require ROOT . '/src/views/pages/billing.php';
+});
+
+/**
+ * Test-Vorschau einer Rechnung mit Platzhalter-Werten statt echten Mitgliedsdaten -- erzeugt
+ * keinen Datenbankeintrag, dient nur dazu, das Layout (bzw. eine angepasste rechnung.tex) zu
+ * begutachten. Nutzt die echten Stammdaten der Community (Name/Adresse/IBAN/Logo), damit die
+ * Vorschau realistisch aussieht.
+ */
+$router->get('/portal/billing/preview', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $tax = DB::fetchOne('SELECT * FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
+
+    $steuerZeile = '';
+    $steuerText  = '';
+    if (($tax['tax_model'] ?? 'kleinunternehmer') === 'kleinunternehmer') {
+        $steuerZeile = '\\multicolumn{5}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
+        $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+    }
+
+    // Beispiel-Zusatzposition, damit die Vorschau auch zeigt, wie ein Rabatt/eine Gutschrift
+    // aussieht (siehe /portal/billing -> Zusatzpositionen).
+    $extraItemsLatex = rechnungExtraItemsLatex([
+        ['label' => 'Beispiel: Rabatt Mitgliedsbeitrag Q1', 'quantity' => 1, 'unit' => 'Stk', 'amount_eur' => -6.00],
+    ]);
+
+    streamLatexPdf('rechnung', [
+        'EEG_NAME'              => $community['name'] ?? 'Muster-EEG',
+        'EEG_ADRESSE'           => $community['address'] ?? 'Musterstraße 1, 9020 Klagenfurt',
+        'EEG_UID'               => $tax['uid_number'] ?? '',
+        'MITGLIED_NAME'         => 'Max Mustermann',
+        'MITGLIED_ADRESSE'      => 'Musterweg 12, 9020 Klagenfurt',
+        'MITGLIED_UID'          => '',
+        'RECHNUNGSNUMMER'       => 'MUSTER-2026-Q1-000',
+        'RECHNUNGSDATUM'        => date('d.m.Y'),
+        'ABRECHNUNGSZEITRAUM'   => '01.01.2026 -- 31.03.2026',
+        'BEZUG_KWH'             => '412,50',
+        'BEZUG_TARIF'           => '9,8000',
+        'BEZUG_BETRAG'          => '40,42',
+        'EINSPEISUNG_KWH'       => '85,00',
+        'EINSPEISUNG_TARIF'     => '7,5000',
+        'EINSPEISUNG_BETRAG'    => '6,38',
+        'MITGLIEDSBEITRAG'      => '15,00',
+        'SUMME_NETTO'           => '49,04',
+        'SUMME_BRUTTO'          => '49,04',
+        'RAW_STEUER_ZEILE'      => $steuerZeile,
+        'RAW_STEUER_TEXT'       => $steuerText,
+        'RAW_ZUSATZPOSITIONEN_LISTE' => $extraItemsLatex,
+        'IBAN'                  => $community['iban'] ?? 'AT00 0000 0000 0000 0000',
+        'BIC'                   => $community['bic'] ?? '',
+        'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime('+14 days')),
+    ], 'Test-Rechnung.pdf', communityLogoAsset($communityId));
+});
+
+/**
+ * Legt einen neuen Abrechnungslauf für ein Quartal an (z.B. "2026-Q1"). Ohne diese Route gab
+ * es bisher gar keine Möglichkeit, überhaupt einen billing_runs-Eintrag anzulegen -- die
+ * gesamte Rechnungs-Funktion war dadurch faktisch nie erreichbar.
+ */
+$router->post('/portal/billing/create', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $quartal = trim($_POST['quartal'] ?? '');
+    if (!preg_match('/^\d{4}-Q[1-4]$/', $quartal)) {
+        header('Location: /portal/billing?error=' . urlencode('Ungültiges Quartalsformat (z.B. 2026-Q1).'));
+        exit;
+    }
+    try {
+        Billing::getOrCreateRun($communityId, $quartal);
+        logAudit($communityId, 'billing.create', 'billing_run', null, 'Abrechnungslauf ' . $quartal . ' angelegt');
+        header('Location: /portal/billing?success=1');
+    } catch (Throwable $e) {
+        header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
+/**
+ * Manuelle Zusatzposition (z.B. einmaliger Rabatt/Gutschrift) zu einem noch nicht
+ * freigegebenen Abrechnungslauf hinzufügen -- gilt für alle Mitglieder dieses Laufs, siehe
+ * Billing::release().
+ */
+$router->post('/portal/billing/:id/extra-items', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$run) { http_response_code(404); echo 'Abrechnungslauf nicht gefunden'; return; }
+    if ($run['status'] !== 'pending') {
+        header('Location: /portal/billing?error=' . urlencode('Zusatzpositionen können nur vor der Freigabe hinzugefügt werden.'));
+        exit;
+    }
+    $label = trim($_POST['label'] ?? '');
+    $amount = str_replace(',', '.', trim($_POST['amount_eur'] ?? ''));
+    if ($label === '' || !is_numeric($amount)) {
+        header('Location: /portal/billing?error=' . urlencode('Bitte Text und Betrag angeben.'));
+        exit;
+    }
+    DB::execute(
+        'INSERT INTO billing_run_extra_items (billing_run_id, community_id, label, quantity, unit, amount_eur)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        [$params['id'], $communityId, $label, str_replace(',', '.', trim($_POST['quantity'] ?? '') ?: '1'),
+         trim($_POST['unit'] ?? '') ?: 'Stk', (float)$amount]
+    );
+    logAudit($communityId, 'billing.extra_item.add', 'billing_run', $params['id'], 'Zusatzposition "' . $label . '" (' . $amount . ' EUR) hinzugefügt');
+    header('Location: /portal/billing?success=1');
+    exit;
+});
+
+$router->post('/portal/billing/:id/extra-items/:itemId/delete', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    DB::execute(
+        'DELETE FROM billing_run_extra_items WHERE id = ? AND billing_run_id = ? AND community_id = ?',
+        [$params['itemId'], $params['id'], $communityId]
+    );
+    logAudit($communityId, 'billing.extra_item.delete', 'billing_run', $params['id'], 'Zusatzposition entfernt');
+    header('Location: /portal/billing?success=1');
+    exit;
 });
 
 /**
@@ -2857,7 +2986,56 @@ $router->get('/portal/settings', function () {
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
     $tax       = DB::fetchOne('SELECT * FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
     $myUser    = DB::fetchOne('SELECT first_name, last_name, signature_image FROM users WHERE id = ?', [Auth::userId()]);
+    $hasCustomLogo = communityLogoPath($communityId) !== null;
     require ROOT . '/src/views/pages/settings.php';
+});
+
+/**
+ * Eigenes Logo der EEG für Rechnungen/Verträge (anders als das plattformweite Website-Logo
+ * unter /admin/templates) -- landet im geteilten Volume unter community-logos/{id}.png, siehe
+ * communityLogoPath()/communityLogoAsset().
+ */
+$router->post('/portal/settings/logo', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    if (empty($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
+        header('Location: /portal/settings?error=' . urlencode('Logo-Upload fehlgeschlagen.'));
+        exit;
+    }
+    if ($_FILES['logo']['size'] > 5 * 1024 * 1024) {
+        header('Location: /portal/settings?error=' . urlencode('Datei zu groß (max. 5 MB).'));
+        exit;
+    }
+    if (@getimagesize($_FILES['logo']['tmp_name']) === false) {
+        header('Location: /portal/settings?error=' . urlencode('Datei ist kein gültiges Bild.'));
+        exit;
+    }
+    @mkdir('/var/www/html/latex-templates/community-logos', 0775, true);
+    if (!move_uploaded_file($_FILES['logo']['tmp_name'], '/var/www/html/latex-templates/community-logos/' . $communityId . '.png')) {
+        header('Location: /portal/settings?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
+        exit;
+    }
+    logAudit($communityId, 'community.logo.upload', 'community', $communityId, 'EEG-Logo für Rechnungen/Verträge aktualisiert');
+    header('Location: /portal/settings?success=1');
+    exit;
+});
+
+$router->get('/portal/settings/logo/preview', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $path = communityLogoPath(Auth::activeCommunityId());
+    if (!$path) { http_response_code(404); return; }
+    header('Content-Type: image/png');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+});
+
+$router->post('/portal/settings/logo/delete', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    @unlink('/var/www/html/latex-templates/community-logos/' . $communityId . '.png');
+    logAudit($communityId, 'community.logo.delete', 'community', $communityId, 'EEG-Logo entfernt (Standard-Logo wirkt wieder)');
+    header('Location: /portal/settings?success=1');
+    exit;
 });
 
 $router->post('/portal/settings/signature', function () {
@@ -3193,7 +3371,7 @@ $router->post('/admin/mail-settings', function () {
 
     DB::execute(
         'UPDATE platform_mail_config
-         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, updated_at = now()
+         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?, updated_at = now()
          WHERE id = 1',
         [
             trim($_POST['tenant_id'] ?? '') ?: null,
@@ -3201,6 +3379,7 @@ $router->post('/admin/mail-settings', function () {
             $clientSecret,
             trim($_POST['sender_address'] ?? '') ?: null,
             trim($_POST['reply_to'] ?? '') ?: null,
+            trim($_POST['signature_html'] ?? '') ?: null,
         ]
     );
     logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Microsoft-Graph-Mailkonfiguration aktualisiert');
@@ -3286,6 +3465,7 @@ function adminFileVariables(): array
             'BIC' => 'BIC der Energiegemeinschaft',
             'RAW_STEUER_ZEILE' => 'Vorformatierte USt-Zeile (RAW, nicht escapen)',
             'RAW_STEUER_TEXT' => 'Vorformatierter Steuerhinweis-Text (RAW, nicht escapen)',
+            'RAW_ZUSATZPOSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für manuelle Zusatzpositionen, z.B. ein Rabatt (RAW, nicht escapen) -- siehe /portal/billing',
         ],
         'bezugsvereinbarung.tex' => [
             'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',
@@ -3369,6 +3549,87 @@ function adminFileVariables(): array
 }
 
 /**
+ * Bild-Assets (keine Text-Platzhalter, sondern eingebettete Dateien) je Vorlage --
+ * eingebunden in LaTeX über \includegraphics{dateiname} (benötigt \usepackage{graphicx}).
+ */
+function adminFileAssets(): array
+{
+    return [
+        'rechnung.tex' => [
+            'logo.png' => 'Logo der EEG. Eigenes hochgeladenes Logo (Manager-Einstellungen -> Logo für Rechnungen/Verträge) oder ersatzweise das Website-Logo -- immer vorhanden, \includegraphics{logo.png} funktioniert also immer.',
+        ],
+    ];
+}
+
+/**
+ * Vollständige Liste aller Felder aus members/communities/tariff_config/tax_config, die
+ * grundsätzlich für neue Platzhalter zur Verfügung stünden -- unabhängig davon, ob sie
+ * aktuell schon in einer Vorlage verwendet werden (siehe adminFileVariables()). Gedacht als
+ * Nachschlagewerk beim Erweitern einer Vorlage bzw. zum Export für eine externe KI, die beim
+ * Schreiben einer neuen .tex-Datei hilft. Ist ein Feld hier noch nicht als <<<VAR>>> in einer
+ * bestehenden Vorlage verdrahtet, muss es zuerst im jeweiligen PHP-Code (z.B. der
+ * /portal/invoices/:id/pdf-Route) ergänzt werden, bevor es dort tatsächlich ersetzt wird --
+ * diese Liste beschreibt die verfügbaren Rohdaten, nicht automatisch fertige Platzhalter.
+ */
+function availableDataFields(): array
+{
+    return [
+        'Mitglied (members)' => [
+            'salutation' => 'Anrede (Herr/Frau)',
+            'first_name' => 'Vorname',
+            'last_name' => 'Nachname',
+            'company_name' => 'Firmenname, falls Firmenmitglied',
+            'address' => 'Straße und Hausnummer',
+            'zip' => 'Postleitzahl',
+            'city' => 'Ort',
+            'email' => 'E-Mail-Adresse',
+            'phone' => 'Telefonnummer',
+            'invoice_name' => 'Abweichender Name für Rechnungen (falls gesetzt)',
+            'invoice_uid' => 'UID-Nummer für Rechnungen (falls Firma)',
+            'member_iban' => 'IBAN des Mitglieds',
+            'member_bic' => 'BIC des Mitglieds',
+            'kundennummer' => 'Plattformweit eindeutige Kundennummer',
+            'member_since' => 'Mitglied seit (Datum)',
+            'member_until' => 'Mitglied bis (Datum, falls beendet)',
+            'status' => 'Mitgliedsstatus (pending/active/inactive)',
+        ],
+        'Zählpunkt (metering_points)' => [
+            'zaehlpunkt_nr' => 'Zählpunktnummer (AT...)',
+            'type' => 'Zählpunkt-Typ (consumer/producer/prosumer)',
+            'active' => 'Ob der Zählpunkt aktiv ist',
+        ],
+        'Energiegemeinschaft (communities)' => [
+            'name' => 'Name der EEG',
+            'marktpartner_id' => 'Marktpartner-ID (z.B. RC108175)',
+            'zvr_number' => 'ZVR-Zahl',
+            'address' => 'Adresse der EEG',
+            'dashboard_url' => 'Link zum Mitgliederportal',
+            'iban' => 'IBAN der EEG',
+            'bic' => 'BIC der EEG',
+            'payment_days' => 'Zahlungsziel in Tagen',
+        ],
+        'Tarif (tariff_config, historisiert)' => [
+            'valid_from' => 'Gültig ab (Datum)',
+            'bezug_ct_kwh' => 'Bezugstarif in ct/kWh',
+            'einspeisung_ct_kwh' => 'Einspeisevergütung in ct/kWh',
+            'mitgliedsbeitrag_eur' => 'Jahresbeitrag in EUR',
+        ],
+        'Steuer (tax_config, historisiert)' => [
+            'tax_model' => 'Steuermodell (kleinunternehmer/standard)',
+            'tax_rate_percent' => 'USt-Satz in %, falls "standard"',
+            'uid_number' => 'UID-Nummer der EEG (falls USt-pflichtig)',
+        ],
+        'Abrechnung (invoices/invoice_items/billing_runs)' => [
+            'rechnungsnummer' => 'Fortlaufende Rechnungsnummer',
+            'saldo_eur' => 'Gesamtsumme der Rechnung',
+            'quartal' => 'Abgerechnetes Quartal (z.B. 2026-Q1)',
+            'period_from / period_to' => 'Abrechnungszeitraum',
+            'invoice_items.label/quantity/unit/amount_eur' => 'Manuelle Zusatzposition (z.B. Rabatt) -- siehe /portal/billing',
+        ],
+    ];
+}
+
+/**
  * Pfad zur aktuell wirksamen Fassung einer verwalteten Datei: das persistente Volume
  * (/var/www/html/latex-templates, geteilt mit latex-service) hat Vorrang, sonst die im
  * Image mitgelieferte Standard-Fassung als Rückfallebene (z.B. direkt nach einem frischen
@@ -3381,6 +3642,51 @@ function adminFilePath(string $filename): ?string
     if (is_file($live)) { return $live; }
     $default = '/var/www/html/latex-templates-default/' . $filename;
     return is_file($default) ? $default : null;
+}
+
+/**
+ * Pfad zum individuellen Logo einer einzelnen EEG für Rechnungen/Verträge (anders als
+ * logo-light.png/logo-dark.png in adminFileRegistry(), die für die ganze Website gelten --
+ * jede Community kann hier ein eigenes Logo hinterlegen). Kein DB-Feld nötig, reine
+ * Dateikonvention nach community_id, gleiches geteiltes Volume wie die LaTeX-Vorlagen.
+ */
+function communityLogoPath(string $communityId): ?string
+{
+    $path = '/var/www/html/latex-templates/community-logos/' . $communityId . '.png';
+    return is_file($path) ? $path : null;
+}
+
+/**
+ * Logo-Bild als LaTeX-Asset für die Rechnungserstellung: eigenes Logo der EEG falls
+ * hochgeladen, sonst das Website-Logo (Light-Variante) als Rückfallebene -- so findet
+ * \includegraphics{logo.png} in rechnung.tex immer eine Datei, auch wenn diese EEG noch
+ * keins hochgeladen hat.
+ */
+function communityLogoAsset(string $communityId): array
+{
+    $path = communityLogoPath($communityId)
+        ?? adminFilePath('logo-light.png')
+        ?? ROOT . '/public/assets/images/logo.png';
+    return is_file($path) ? ['logo.png' => base64_encode(file_get_contents($path))] : [];
+}
+
+/**
+ * Baut die LaTeX-Tabellenzeilen für manuelle Rechnungs-Zusatzpositionen (z.B. ein einmaliger
+ * Rabatt) -- als RAW_-Variable, da hier bereits fertiges LaTeX (Tabellenzeilen mit \\)
+ * hineinkommt. $items: Liste von ['label' => string, 'quantity' => float, 'unit' => string,
+ * 'amount_eur' => float]. Leere Liste ergibt einen leeren String (keine zusätzliche Zeile).
+ */
+function rechnungExtraItemsLatex(array $items): string
+{
+    return implode("\n", array_map(function (array $it): string {
+        $amount = (float)$it['amount_eur'];
+        $amountStr = ($amount < 0 ? '$-$\\,' : '') . number_format(abs($amount), 2, ',', '.');
+        $qtyFloat = (float)$it['quantity'];
+        $qty = fmod($qtyFloat, 1.0) === 0.0
+            ? number_format($qtyFloat, 0, ',', '.')
+            : rtrim(rtrim(number_format($qtyFloat, 3, ',', '.'), '0'), ',');
+        return '  ' . texEscape($it['label']) . ' & ' . $qty . ' & ' . texEscape($it['unit']) . ' & & ' . $amountStr . ' \\\\';
+    }, $items));
 }
 
 $router->get('/admin/templates', function () {
@@ -3398,9 +3704,77 @@ $router->get('/admin/templates', function () {
             'size'      => $path ? filesize($path) : null,
             'mtime'     => $path ? filemtime($path) : null,
             'variables' => adminFileVariables()[$filename] ?? null,
+            'assets'    => adminFileAssets()[$filename] ?? null,
         ];
     }
     require ROOT . '/src/views/pages/admin_templates.php';
+});
+
+/**
+ * Export der Variablen-Referenz (alle Vorlagen) als Markdown bzw. CSV -- gedacht zum
+ * Weitergeben an eine KI, die beim Schreiben/Anpassen einer .tex-Datei hilft, ohne dass man
+ * die Platzhalternamen händisch abtippen muss.
+ */
+$router->get('/admin/templates/variablen.md', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    $md = "# Variablen-Referenz -- Strom für alle\n\n";
+    $md .= "Platzhalter der Form `<<<NAME>>>` in den LaTeX-Vorlagen. Namen mit `RAW_`-Präfix ";
+    $md .= "enthalten bereits fertiges LaTeX und werden NICHT escaped.\n\n";
+    foreach (adminFileRegistry() as $filename => $info) {
+        if ($info['type'] !== 'tex') continue;
+        $md .= "## " . $info['label'] . " (`{$filename}`)\n\n";
+        $vars = adminFileVariables()[$filename] ?? [];
+        if ($vars) {
+            $md .= "| Variable | Beschreibung |\n|---|---|\n";
+            foreach ($vars as $name => $desc) { $md .= "| `<<<{$name}>>>` | {$desc} |\n"; }
+            $md .= "\n";
+        }
+        $assets = adminFileAssets()[$filename] ?? [];
+        if ($assets) {
+            $md .= "**Bild-Assets** (über `\\includegraphics{dateiname}`, benötigt `\\usepackage{graphicx}`):\n\n";
+            $md .= "| Datei | Beschreibung |\n|---|---|\n";
+            foreach ($assets as $name => $desc) { $md .= "| `{$name}` | {$desc} |\n"; }
+            $md .= "\n";
+        }
+    }
+    $md .= "# Verfügbare Rohdaten (noch nicht zwingend als Platzhalter verdrahtet)\n\n";
+    $md .= "Diese Felder existieren in der Datenbank und könnten bei Bedarf als zusätzliche ";
+    $md .= "`<<<VARIABLE>>>` in eine Vorlage aufgenommen werden -- dafür muss der jeweilige ";
+    $md .= "PHP-Code (z.B. die Rechnungs-/Vertrags-Route) noch angepasst werden, damit der Wert ";
+    $md .= "tatsächlich mitgeschickt wird.\n\n";
+    foreach (availableDataFields() as $group => $fields) {
+        $md .= "## {$group}\n\n| Feld | Beschreibung |\n|---|---|\n";
+        foreach ($fields as $name => $desc) { $md .= "| `{$name}` | {$desc} |\n"; }
+        $md .= "\n";
+    }
+    header('Content-Type: text/markdown; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="variablen-referenz.md"');
+    echo $md;
+});
+
+$router->get('/admin/templates/variablen.csv', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="variablen-referenz.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Kategorie', 'Vorlage/Gruppe', 'Name', 'Beschreibung']);
+    foreach (adminFileRegistry() as $filename => $info) {
+        if ($info['type'] !== 'tex') continue;
+        foreach (adminFileVariables()[$filename] ?? [] as $name => $desc) {
+            fputcsv($out, ['Platzhalter', $info['label'], "<<<{$name}>>>", $desc]);
+        }
+        foreach (adminFileAssets()[$filename] ?? [] as $name => $desc) {
+            fputcsv($out, ['Bild-Asset', $info['label'], $name, $desc]);
+        }
+    }
+    foreach (availableDataFields() as $group => $fields) {
+        foreach ($fields as $name => $desc) {
+            fputcsv($out, ['Verfügbares Rohdatenfeld', $group, $name, $desc]);
+        }
+    }
+    fclose($out);
 });
 
 $router->get('/admin/templates/:name/download', function ($params) {
