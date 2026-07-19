@@ -69,6 +69,12 @@ class Mailer
             'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
             'toRecipients' => [['emailAddress' => ['address' => $to]]],
         ];
+        // Absender ist oft eine unüberwachte Shared Mailbox (noreply@...) -- Antworten der
+        // Kunden sollen dann an ein tatsächlich gelesenes Postfach gehen. Optional, konfigurierbar
+        // über Platform-Admin -> E-Mail-Einstellungen statt hart codiert.
+        if (!empty($cfg['reply_to'])) {
+            $message['replyTo'] = [['emailAddress' => ['address' => $cfg['reply_to']]]];
+        }
         if (!empty($attachments)) {
             $message['attachments'] = array_map(
                 fn(array $a) => [

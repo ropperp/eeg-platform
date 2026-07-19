@@ -3193,13 +3193,14 @@ $router->post('/admin/mail-settings', function () {
 
     DB::execute(
         'UPDATE platform_mail_config
-         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, updated_at = now()
+         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, updated_at = now()
          WHERE id = 1',
         [
             trim($_POST['tenant_id'] ?? '') ?: null,
             trim($_POST['client_id'] ?? '') ?: null,
             $clientSecret,
             trim($_POST['sender_address'] ?? '') ?: null,
+            trim($_POST['reply_to'] ?? '') ?: null,
         ]
     );
     logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Microsoft-Graph-Mailkonfiguration aktualisiert');

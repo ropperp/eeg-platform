@@ -58,6 +58,13 @@
         <input type="email" name="sender_address" value="<?= htmlspecialchars($mailConfig['sender_address'] ?? '') ?>" placeholder="noreply@stromfueralle.at">
         <small style="color:var(--gray-600)">Muss ein echtes Postfach im selben Tenant sein (Graph sendet "im Namen von").</small>
       </div>
+      <div class="form-group">
+        <label>Antwort-an-Adresse (Reply-To)</label>
+        <input type="email" name="reply_to" value="<?= htmlspecialchars($mailConfig['reply_to'] ?? '') ?>" placeholder="office@stromfueralle.at">
+        <small style="color:var(--gray-600)">Optional. Sinnvoll, wenn die Absenderadresse ein unüberwachtes Postfach ist (z.B. noreply@...) --
+          Antworten der Kunden landen dann trotzdem in einem tatsächlich gelesenen Postfach. Leer lassen, wenn Antworten
+          an die Absenderadresse selbst gehen sollen.</small>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>
