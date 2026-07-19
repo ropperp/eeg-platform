@@ -1003,6 +1003,8 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
 
     $invoice = DB::fetchOne(
         'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
+                m.salutation, m.titel, m.company_name, m.invoice_name,
+                m.kundennummer, m.mandatsreferenz, m.member_iban,
                 m.community_id AS member_community_id, m.user_id AS member_user_id,
                 br.quartal, br.period_from, br.period_to,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
@@ -1043,13 +1045,53 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
     // Paragraph am Seitenende:
     $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
 
+    // Anzeigename: abweichender Rechnungsname > Firma > Titel + Vor-/Nachname
+    $anzeigeName = ($invoice['invoice_name'] ?? '')
+        ?: (($invoice['company_name'] ?? '')
+        ?: trim((!empty($invoice['titel']) ? $invoice['titel'] . ' ' : '')
+            . $invoice['first_name'] . ' ' . $invoice['last_name']));
+
+    // EEG-Adresse für den Footer aufteilen ("Straße 1, 9560 Ort" -> zwei Zeilen)
+    $eegAdrTeile = array_map('trim', explode(',', $invoice['eeg_address'] ?? '', 2));
+
+    // Zahlungstext (RAW = wird nicht escaped, texEscape() für dynamische Teile!)
+    $saldoVal  = (float)$invoice['saldo_eur'];
+    $betragFmt = number_format(abs($saldoVal), 2, ',', '.');
+    $faellig   = date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days'));
+    $ibanEnd   = !empty($invoice['member_iban'])
+        ? substr(preg_replace('/\s+/', '', $invoice['member_iban']), -4) : null;
+
+    $summeLabel = '';
+    if ($saldoVal < 0) {
+        $zahlungText = 'Ihr Guthaben von \\textbf{EUR ' . $betragFmt . '} wird auf Ihr bei uns hinterlegtes Konto'
+            . ($ibanEnd ? ' (IBAN mit der Endung \\textbf{' . $ibanEnd . '})' : '')
+            . ' überwiesen. Sie müssen nichts weiter veranlassen.';
+        $summeLabel = 'Ihr Guthaben';
+    } elseif (!empty($invoice['mandatsreferenz'])) {
+        $zahlungText = 'Der Rechnungsbetrag von \\textbf{EUR ' . $betragFmt . '} wird gemäß SEPA-Lastschriftmandat'
+            . ' (Mandatsreferenz \\textbf{' . texEscape($invoice['mandatsreferenz']) . '}) am \\textbf{' . $faellig . '}'
+            . ($ibanEnd ? ' von Ihrem Konto mit der Endung \\textbf{' . $ibanEnd . '}' : ' von Ihrem Konto')
+            . ' eingezogen. Sie müssen nichts weiter veranlassen.'
+            . ' Diese Rechnung gilt zugleich als Vorabankündigung (Pre-Notification)'
+            . ' im Sinne des SEPA-Lastschriftverfahrens.';
+    } else {
+        $zahlungText = ''; // Vorlage zeigt dann automatisch die Überweisungsbitte
+    }
+
     streamLatexPdf('rechnung', [
         'EEG_NAME'              => $invoice['eeg_name'],
         'EEG_ADRESSE'           => $invoice['eeg_address'] ?? '',
+        'EEG_STRASSE'           => $eegAdrTeile[0] ?? '',
+        'EEG_PLZ_ORT'           => $eegAdrTeile[1] ?? '',
         'EEG_UID'               => '',
-        'MITGLIED_NAME'         => $invoice['first_name'] . ' ' . $invoice['last_name'],
+        'MITGLIED_ANREDE'       => $invoice['salutation'] ?? '',
+        'MITGLIED_NAME'         => $anzeigeName,
         'MITGLIED_ADRESSE'      => $invoice['address'] . ', ' . $invoice['zip'] . ' ' . $invoice['city'],
+        'MITGLIED_STRASSE'      => $invoice['address'],
+        'MITGLIED_PLZ_ORT'      => trim($invoice['zip'] . ' ' . $invoice['city']),
         'MITGLIED_UID'          => $invoice['invoice_uid'] ?? '',
+        'KUNDENNUMMER'          => $invoice['kundennummer'] !== null ? (string)$invoice['kundennummer'] : '',
+        'MITGLIED_SEPA_MANDATSREFERENZ' => $invoice['mandatsreferenz'] ?? '',
         'RECHNUNGSNUMMER'       => $invoice['rechnungsnummer'],
         'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
         'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
@@ -1065,9 +1107,11 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
+        'RAW_ZAHLUNG_TEXT'      => $zahlungText,
+        'RAW_SUMME_LABEL'       => $summeLabel,
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
-        'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days')),
+        'ZAHLUNGSZIEL'          => $faellig,
     ], $invoice['rechnungsnummer'] . '.pdf', communityLogoAsset($invoice['member_community_id']));
 });
 
@@ -2493,13 +2537,22 @@ $router->get('/portal/billing/preview', function () {
         ['label' => 'Beispiel: Rabatt Mitgliedsbeitrag Q1', 'quantity' => 1, 'unit' => 'Stk', 'amount_eur' => -6.00],
     ]);
 
+    $eegAdrTeile = array_map('trim', explode(',', $community['address'] ?? 'Musterstraße 1, 9020 Klagenfurt', 2));
+
     streamLatexPdf('rechnung', [
         'EEG_NAME'              => $community['name'] ?? 'Muster-EEG',
         'EEG_ADRESSE'           => $community['address'] ?? 'Musterstraße 1, 9020 Klagenfurt',
+        'EEG_STRASSE'           => $eegAdrTeile[0] ?? '',
+        'EEG_PLZ_ORT'           => $eegAdrTeile[1] ?? '',
         'EEG_UID'               => $tax['uid_number'] ?? '',
+        'MITGLIED_ANREDE'       => 'Herr',
         'MITGLIED_NAME'         => 'Max Mustermann',
         'MITGLIED_ADRESSE'      => 'Musterweg 12, 9020 Klagenfurt',
+        'MITGLIED_STRASSE'      => 'Musterweg 12',
+        'MITGLIED_PLZ_ORT'      => '9020 Klagenfurt',
         'MITGLIED_UID'          => '',
+        'KUNDENNUMMER'          => '123',
+        'MITGLIED_SEPA_MANDATSREFERENZ' => 'MUSTER-MANDAT-001',
         'RECHNUNGSNUMMER'       => 'MUSTER-2026-Q1-000',
         'RECHNUNGSDATUM'        => date('d.m.Y'),
         'ABRECHNUNGSZEITRAUM'   => '01.01.2026 -- 31.03.2026',
@@ -2515,6 +2568,11 @@ $router->get('/portal/billing/preview', function () {
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => $extraItemsLatex,
+        'RAW_ZAHLUNG_TEXT'      => 'Der Rechnungsbetrag von \\textbf{EUR 49,04} wird gemäß SEPA-Lastschriftmandat'
+            . ' (Mandatsreferenz \\textbf{MUSTER-MANDAT-001}) am \\textbf{' . date('d.m.Y', strtotime('+14 days')) . '}'
+            . ' von Ihrem Konto eingezogen. Sie müssen nichts weiter veranlassen.'
+            . ' Diese Rechnung gilt zugleich als Vorabankündigung (Pre-Notification) im Sinne des SEPA-Lastschriftverfahrens.',
+        'RAW_SUMME_LABEL'       => '',
         'IBAN'                  => $community['iban'] ?? 'AT00 0000 0000 0000 0000',
         'BIC'                   => $community['bic'] ?? '',
         'ZAHLUNGSZIEL'          => date('d.m.Y', strtotime('+14 days')),
@@ -3447,11 +3505,18 @@ function adminFileVariables(): array
             'ABRECHNUNGSZEITRAUM' => 'Zeitraum, für den abgerechnet wird',
             'ZAHLUNGSZIEL' => 'Fälligkeitsdatum',
             'EEG_NAME' => 'Name der Energiegemeinschaft',
-            'EEG_ADRESSE' => 'Adresse der Energiegemeinschaft',
+            'EEG_ADRESSE' => 'Adresse der Energiegemeinschaft (einzeilig)',
+            'EEG_STRASSE' => 'Straße/Hausnummer der Energiegemeinschaft (erster Teil von EEG_ADRESSE, für den Footer)',
+            'EEG_PLZ_ORT' => 'PLZ und Ort der Energiegemeinschaft (zweiter Teil von EEG_ADRESSE, für den Footer)',
             'EEG_UID' => 'UID-Nummer der Energiegemeinschaft',
-            'MITGLIED_NAME' => 'Name des Mitglieds',
-            'MITGLIED_ADRESSE' => 'Adresse des Mitglieds',
+            'MITGLIED_ANREDE' => 'Anrede des Mitglieds (Herr/Frau)',
+            'MITGLIED_NAME' => 'Anzeigename: abweichender Rechnungsname > Firma > Titel + Vor-/Nachname',
+            'MITGLIED_ADRESSE' => 'Adresse des Mitglieds (einzeilig, Fallback falls Vorlage keine getrennten Zeilen nutzt)',
+            'MITGLIED_STRASSE' => 'Straße/Hausnummer des Mitglieds (für getrennte Adresszeilen)',
+            'MITGLIED_PLZ_ORT' => 'PLZ und Ort des Mitglieds (für getrennte Adresszeilen)',
             'MITGLIED_UID' => 'UID-Nummer des Mitglieds (falls Firma)',
+            'KUNDENNUMMER' => 'Plattformweit eindeutige Kundennummer des Mitglieds',
+            'MITGLIED_SEPA_MANDATSREFERENZ' => 'SEPA-Mandatsreferenz des Mitglieds, falls vorhanden',
             'BEZUG_KWH' => 'Bezogene Energiemenge in kWh',
             'BEZUG_TARIF' => 'Bezugstarif (€/kWh)',
             'BEZUG_BETRAG' => 'Betrag für den Bezug',
@@ -3466,6 +3531,8 @@ function adminFileVariables(): array
             'RAW_STEUER_ZEILE' => 'Vorformatierte USt-Zeile (RAW, nicht escapen)',
             'RAW_STEUER_TEXT' => 'Vorformatierter Steuerhinweis-Text (RAW, nicht escapen)',
             'RAW_ZUSATZPOSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für manuelle Zusatzpositionen, z.B. ein Rabatt (RAW, nicht escapen) -- siehe /portal/billing',
+            'RAW_ZAHLUNG_TEXT' => 'Vorformatierter Zahlungstext: SEPA-Lastschrift-Vorabankündigung, Gutschrift-Hinweis oder leer (Vorlage zeigt dann die Standard-Überweisungsbitte) -- RAW, nicht escapen',
+            'RAW_SUMME_LABEL' => 'Beschriftung der Summe, z.B. "Ihr Guthaben" bei einer Gutschrift statt "Gesamtbetrag" (RAW, nicht escapen)',
         ],
         'bezugsvereinbarung.tex' => [
             'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',
@@ -3576,6 +3643,7 @@ function availableDataFields(): array
     return [
         'Mitglied (members)' => [
             'salutation' => 'Anrede (Herr/Frau)',
+            'titel' => 'Akademischer Titel',
             'first_name' => 'Vorname',
             'last_name' => 'Nachname',
             'company_name' => 'Firmenname, falls Firmenmitglied',
@@ -3589,6 +3657,7 @@ function availableDataFields(): array
             'member_iban' => 'IBAN des Mitglieds',
             'member_bic' => 'BIC des Mitglieds',
             'kundennummer' => 'Plattformweit eindeutige Kundennummer',
+            'mandatsreferenz' => 'SEPA-Mandatsreferenz',
             'member_since' => 'Mitglied seit (Datum)',
             'member_until' => 'Mitglied bis (Datum, falls beendet)',
             'status' => 'Mitgliedsstatus (pending/active/inactive)',
