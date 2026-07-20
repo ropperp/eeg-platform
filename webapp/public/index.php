@@ -1008,6 +1008,7 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
                 m.community_id AS member_community_id, m.user_id AS member_user_id,
                 br.quartal, br.period_from, br.period_to,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
+                c.zvr_number AS eeg_zvr,
                 tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur
          FROM invoices i
          JOIN members m ON m.id = i.member_id
@@ -1084,6 +1085,7 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'EEG_STRASSE'           => $eegAdrTeile[0] ?? '',
         'EEG_PLZ_ORT'           => $eegAdrTeile[1] ?? '',
         'EEG_UID'               => '',
+        'EEG_ZVR'               => $invoice['eeg_zvr'] ?? '',
         'MITGLIED_ANREDE'       => $invoice['salutation'] ?? '',
         'MITGLIED_NAME'         => $anzeigeName,
         'MITGLIED_ADRESSE'      => $invoice['address'] . ', ' . $invoice['zip'] . ' ' . $invoice['city'],
@@ -2545,6 +2547,7 @@ $router->get('/portal/billing/preview', function () {
         'EEG_STRASSE'           => $eegAdrTeile[0] ?? '',
         'EEG_PLZ_ORT'           => $eegAdrTeile[1] ?? '',
         'EEG_UID'               => $tax['uid_number'] ?? '',
+        'EEG_ZVR'               => $community['zvr_number'] ?? '1778816746',
         'MITGLIED_ANREDE'       => 'Herr',
         'MITGLIED_NAME'         => 'Max Mustermann',
         'MITGLIED_ADRESSE'      => 'Musterweg 12, 9020 Klagenfurt',
@@ -3509,6 +3512,7 @@ function adminFileVariables(): array
             'EEG_STRASSE' => 'Straße/Hausnummer der Energiegemeinschaft (erster Teil von EEG_ADRESSE, für den Footer)',
             'EEG_PLZ_ORT' => 'PLZ und Ort der Energiegemeinschaft (zweiter Teil von EEG_ADRESSE, für den Footer)',
             'EEG_UID' => 'UID-Nummer der Energiegemeinschaft',
+            'EEG_ZVR' => 'Zentralvereinsregisternummer (ZVR) der Energiegemeinschaft',
             'MITGLIED_ANREDE' => 'Anrede des Mitglieds (Herr/Frau)',
             'MITGLIED_NAME' => 'Anzeigename: abweichender Rechnungsname > Firma > Titel + Vor-/Nachname',
             'MITGLIED_ADRESSE' => 'Adresse des Mitglieds (einzeilig, Fallback falls Vorlage keine getrennten Zeilen nutzt)',
