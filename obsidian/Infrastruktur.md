@@ -211,3 +211,11 @@ Braucht einen echten Rebuild (`docker compose up -d --build`), reines `up -d` re
 Zwei Sackgassen unterwegs, die NICHT die Ursache waren: leeres `docker compose logs traefik`
 (normal, kein Accesslog konfiguriert) und fehlendes `proxy_http_version 1.1;` im nginx-Proxy auf
 10.0.0.144 (sinnvoller Fix, hat dieses Problem aber nicht behoben). Details: siehe `CLAUDE.md`.
+
+## Claude-Sitzungslog (Selbstdokumentation)
+
+Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,
+verwendetes Modell und den professionell zusammengefassten Auftrag: Claude Code schreibt in
+`obsidian/Claude-Sitzungslog.md` im Repo (wird in den Vault gespiegelt), Cowork/Chat direkt
+in den Vault unter `eeg-platform-notes/logs/JJJJ-MM-TT.md`. Details: Abschnitt
+„Selbstdokumentation" in `CLAUDE.md`.

@@ -415,3 +415,33 @@ docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrat
 `/obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks lokalen Obsidian-Vault
 (Sync-Workflow: `/obsidian/README.md`). **Bei jeder inhaltlichen Änderung an diesem `CLAUDE.md`
 auch `/obsidian/Infrastruktur.md` entsprechend aktualisieren.**
+
+---
+
+## Selbstdokumentation (Claude-Sitzungslog)
+
+Patrick möchte nachvollziehen können, welches Claude-Modell wann mit welchem Auftrag
+gearbeitet hat. Deshalb schreibt **jede** Claude-Arbeitssitzung (Claude Code, Claude Chat,
+Cowork) am Ende einen kurzen Log-Eintrag.
+
+**Format je Eintrag** (neueste zuerst):
+
+```markdown
+## JJJJ-MM-TT HH:MM — <Werkzeug> — <Modell>
+**Auftrag:** <Anliegen des Nutzers, sprachlich geglättet und professionell
+zusammengefasst — nicht das wörtliche Diktat; 1–3 Sätze>
+**Ergebnis:** <was gemacht wurde: Commits, Dateien, offene Punkte; 1–3 Sätze>
+```
+
+- Werkzeug: `Claude Code` / `Claude Chat` / `Cowork`
+- Modell: so genau wie bekannt, z. B. `Claude Fable 5`, `Claude Opus 4.8`
+
+**Wohin schreiben:**
+- **Claude Code** (arbeitet in diesem Repo): Eintrag oben in `obsidian/Claude-Sitzungslog.md`
+  einfügen und zusammen mit den übrigen Änderungen committen/pushen. Die Datei liegt bewusst
+  unter `obsidian/` und wird dadurch per täglichem Sync automatisch in Patricks
+  Obsidian-Vault gespiegelt.
+- **Cowork / Claude Chat** (haben Obsidian-Zugriff, committen/pushen NICHT in dieses Repo):
+  Eintrag direkt in den Vault schreiben: `eeg-platform-notes/logs/JJJJ-MM-TT.md`
+  (eine Datei pro Tag; existiert sie schon, Eintrag anhängen). Der Ordner `logs/` existiert
+  nur im Vault und wird vom Doku-Sync nie überschrieben.
