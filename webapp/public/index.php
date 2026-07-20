@@ -1008,13 +1008,21 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
                 m.community_id AS member_community_id, m.user_id AS member_user_id,
                 br.quartal, br.period_from, br.period_to,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
-                c.zvr_number AS eeg_zvr,
-                tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur
+                c.zvr_number AS eeg_zvr, c.contact_phone AS eeg_contact_phone,
+                c.contact_email AS eeg_contact_email, c.bank_name AS eeg_bank_name,
+                c.account_holder AS eeg_account_holder,
+                tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur,
+                tx.uid_number AS eeg_uid_number
          FROM invoices i
          JOIN members m ON m.id = i.member_id
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN communities c ON c.id = br.community_id
          LEFT JOIN tariff_config tc ON tc.community_id = c.id AND tc.valid_from <= br.period_from
+         LEFT JOIN LATERAL (
+             SELECT uid_number FROM tax_config
+             WHERE community_id = c.id AND valid_from <= br.period_from
+             ORDER BY valid_from DESC LIMIT 1
+         ) tx ON true
          WHERE i.id = ?
          ORDER BY tc.valid_from DESC',
         [$params['id']]
@@ -1084,8 +1092,12 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'EEG_ADRESSE'           => $invoice['eeg_address'] ?? '',
         'EEG_STRASSE'           => $eegAdrTeile[0] ?? '',
         'EEG_PLZ_ORT'           => $eegAdrTeile[1] ?? '',
-        'EEG_UID'               => '',
+        'EEG_UID'               => $invoice['eeg_uid_number'] ?? '',
         'EEG_ZVR'               => $invoice['eeg_zvr'] ?? '',
+        'EEG_OBMANN_TELEFON'    => $invoice['eeg_contact_phone'] ?? '',
+        'EEG_KONTAKT_EMAIL'     => $invoice['eeg_contact_email'] ?? '',
+        'EEG_BANKNAME'          => $invoice['eeg_bank_name'] ?? '',
+        'EEG_KONTOINHABER'      => $invoice['eeg_account_holder'] ?? '',
         'MITGLIED_ANREDE'       => $invoice['salutation'] ?? '',
         'MITGLIED_NAME'         => $anzeigeName,
         'MITGLIED_ADRESSE'      => $invoice['address'] . ', ' . $invoice['zip'] . ' ' . $invoice['city'],
@@ -2548,6 +2560,10 @@ $router->get('/portal/billing/preview', function () {
         'EEG_PLZ_ORT'           => $eegAdrTeile[1] ?? '',
         'EEG_UID'               => $tax['uid_number'] ?? '',
         'EEG_ZVR'               => $community['zvr_number'] ?? '1778816746',
+        'EEG_OBMANN_TELEFON'    => $community['contact_phone'] ?? '',
+        'EEG_KONTAKT_EMAIL'     => $community['contact_email'] ?? '',
+        'EEG_BANKNAME'          => $community['bank_name'] ?? '',
+        'EEG_KONTOINHABER'      => $community['account_holder'] ?? '',
         'MITGLIED_ANREDE'       => 'Herr',
         'MITGLIED_NAME'         => 'Max Mustermann',
         'MITGLIED_ADRESSE'      => 'Musterweg 12, 9020 Klagenfurt',
@@ -3123,7 +3139,8 @@ $router->post('/portal/settings/community', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     DB::execute(
-        'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=? WHERE id=?',
+        'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
+                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -3132,6 +3149,10 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['zvr_number'] ?? '') ?: null,
             trim($_POST['marktpartner_id'] ?? '') ?: null,
             trim($_POST['dashboard_url'] ?? '') ?: null,
+            trim($_POST['bank_name'] ?? '') ?: null,
+            trim($_POST['account_holder'] ?? '') ?: null,
+            trim($_POST['contact_phone'] ?? '') ?: null,
+            trim($_POST['contact_email'] ?? '') ?: null,
             $communityId,
         ]
     );
@@ -3513,6 +3534,10 @@ function adminFileVariables(): array
             'EEG_PLZ_ORT' => 'PLZ und Ort der Energiegemeinschaft (zweiter Teil von EEG_ADRESSE, für den Footer)',
             'EEG_UID' => 'UID-Nummer der Energiegemeinschaft',
             'EEG_ZVR' => 'Zentralvereinsregisternummer (ZVR) der Energiegemeinschaft',
+            'EEG_OBMANN_TELEFON' => 'Kontakt-Telefonnummer (Obmann/Obfrau) der Energiegemeinschaft, für den Rechnungs-Footer',
+            'EEG_KONTAKT_EMAIL' => 'Kontakt-E-Mail der Energiegemeinschaft, für den Rechnungs-Footer',
+            'EEG_BANKNAME' => 'Name der Bank der Energiegemeinschaft, für den Rechnungs-Footer',
+            'EEG_KONTOINHABER' => 'Kontoinhaber (falls abweichend vom EEG-Namen), für den Rechnungs-Footer -- leer = Vorlage fällt auf EEG_NAME zurück',
             'MITGLIED_ANREDE' => 'Anrede des Mitglieds (Herr/Frau)',
             'MITGLIED_NAME' => 'Anzeigename: abweichender Rechnungsname > Firma > Titel + Vor-/Nachname',
             'MITGLIED_ADRESSE' => 'Adresse des Mitglieds (einzeilig, Fallback falls Vorlage keine getrennten Zeilen nutzt)',

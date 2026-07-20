@@ -35,6 +35,25 @@
         <label>BIC</label>
         <input type="text" name="bic" value="<?= htmlspecialchars($community['bic'] ?? '') ?>">
       </div>
+      <div class="form-group">
+        <label>Bankname</label>
+        <input type="text" name="bank_name" placeholder="z.B. Sparkasse Feldkirchen" value="<?= htmlspecialchars($community['bank_name'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Kontoinhaber</label>
+        <input type="text" name="account_holder" value="<?= htmlspecialchars($community['account_holder'] ?? '') ?>">
+        <small style="color:var(--gray-600)">Leer lassen, wenn identisch mit dem Namen der EEG.</small>
+      </div>
+      <div class="form-group">
+        <label>Kontakt-Telefon (Obmann/Obfrau)</label>
+        <input type="text" name="contact_phone" value="<?= htmlspecialchars($community['contact_phone'] ?? '') ?>">
+        <small style="color:var(--gray-600)">Erscheint im Rechnungs-Footer, falls ausgefüllt.</small>
+      </div>
+      <div class="form-group">
+        <label>Kontakt-E-Mail</label>
+        <input type="email" name="contact_email" value="<?= htmlspecialchars($community['contact_email'] ?? '') ?>">
+        <small style="color:var(--gray-600)">Erscheint im Rechnungs-Footer, falls ausgefüllt.</small>
+      </div>
       <div class="form-group" style="grid-column:1 / -1">
         <label>Mitgliederportal-Link (im Bezugsvertrag als Verweis auf die Erzeugungsanlagen-Liste)</label>
         <input type="text" name="dashboard_url" placeholder="https://portal.stromfueralle.at/portal/login" value="<?= htmlspecialchars($community['dashboard_url'] ?? '') ?>">
