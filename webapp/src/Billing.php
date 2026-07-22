@@ -130,31 +130,15 @@ class Billing
                     }
                 }
 
-                // Mitgliedsbeitrag anteilig nach tatsächlicher Mitgliedsdauer im
-                // Abrechnungszeitraum: wer erst unterjährig beitritt, zahlt nur für die Monate,
-                // in denen er (zumindest anteilig) Mitglied war. Beispiel bei Quartalsbeitrag 6 €
-                // (= 2 €/Monat): Beitritt im 2. Monat des Quartals -> nur 4 €; ganzes Quartal
-                // dabei -> volle 6 €. Voller Quartalsbeitrag = Jahresbeitrag/4 = 3 Monate à
-                // Jahresbeitrag/12, ein voll dabei gewesenes Mitglied zahlt also exakt wie zuvor.
-                // Mitglieder, die im Zeitraum ausgetreten sind, werden gar nicht erst abgerechnet
-                // (status = 'active'-Filter oben) -- daher hier nur Beitritts-, keine Austritts-
-                // Proration nötig.
-                $monatsBeitrag = (float)$tariff['mitgliedsbeitrag_eur'] / 12;
-                $memberSinceTs = strtotime($member['member_since']);
-                $aktiveMonate  = 0;
-                $cursor = strtotime(date('Y-m-01', strtotime($run['period_from'])));
-                $endTs  = strtotime($run['period_to']);
-                while ($cursor <= $endTs) {
-                    // Monat zählt, wenn die Mitgliedschaft spätestens am Monatsende begonnen hat.
-                    if ($memberSinceTs <= strtotime(date('Y-m-t', $cursor))) {
-                        $aktiveMonate++;
-                    }
-                    $cursor = strtotime('+1 month', $cursor);
-                }
-                $beitrag = round($aktiveMonate * $monatsBeitrag, 2);
+                // Mitgliedsbeitrag anteilig nach tatsächlicher Mitgliedsdauer (siehe
+                // Billing::mitgliedsbeitragAnteilig).
+                $anteil  = self::mitgliedsbeitragAnteilig(
+                    $run['period_from'], $run['period_to'],
+                    $member['member_since'], (float)$tariff['mitgliedsbeitrag_eur']
+                );
                 $items[] = ['type' => 'mitgliedsbeitrag', 'kwh' => null, 'rate_ct_kwh' => null,
-                             'months' => $aktiveMonate, 'amount_eur' => $beitrag];
-                $saldo += $beitrag;
+                             'months' => $anteil['months'], 'amount_eur' => $anteil['amount']];
+                $saldo += $anteil['amount'];
 
                 // Manuelle Zusatzpositionen (Rabatt/Gutschrift o.ä.) gelten für alle Mitglieder
                 // dieses Laufs -- 1:1 in jede einzelne Rechnung übernehmen.
@@ -225,6 +209,35 @@ class Billing
         );
         if (!$row) throw new RuntimeException('Keine Steuerkonfiguration für diesen Zeitraum');
         return $row;
+    }
+
+    /**
+     * Anteiliger Mitgliedsbeitrag nach tatsächlicher Mitgliedsdauer im Abrechnungszeitraum:
+     * wer erst unterjährig beitritt, zahlt nur für die Monate, in denen er (zumindest anteilig)
+     * Mitglied war. Beispiel bei Quartalsbeitrag 6 € (= 2 €/Monat): Beitritt im 2. Monat des
+     * Quartals -> nur 4 €; ganzes Quartal dabei -> volle 6 €. Voller Quartalsbeitrag =
+     * Jahresbeitrag/4 = 3 Monate à Jahresbeitrag/12, ein voll dabei gewesenes Mitglied zahlt
+     * also exakt wie zuvor. Mitglieder, die im Zeitraum ausgetreten sind, werden gar nicht erst
+     * abgerechnet (status='active'-Filter in release()) -- daher nur Beitritts-, keine
+     * Austritts-Proration. Reine Funktion (keine DB) -> automatisiert testbar (tests/).
+     * @return array{months:int, amount:float}
+     */
+    public static function mitgliedsbeitragAnteilig(
+        string $periodFrom, string $periodTo, string $memberSince, float $jahresbeitrag
+    ): array {
+        $monatsBeitrag = $jahresbeitrag / 12;
+        $memberSinceTs = strtotime($memberSince);
+        $aktiveMonate  = 0;
+        $cursor = strtotime(date('Y-m-01', strtotime($periodFrom)));
+        $endTs  = strtotime($periodTo);
+        while ($cursor <= $endTs) {
+            // Monat zählt, wenn die Mitgliedschaft spätestens am Monatsende begonnen hat.
+            if ($memberSinceTs <= strtotime(date('Y-m-t', $cursor))) {
+                $aktiveMonate++;
+            }
+            $cursor = strtotime('+1 month', $cursor);
+        }
+        return ['months' => $aktiveMonate, 'amount' => round($aktiveMonate * $monatsBeitrag, 2)];
     }
 
     private static function quarterDates(string $quartal): array
