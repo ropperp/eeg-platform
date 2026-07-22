@@ -1,107 +1,286 @@
-\documentclass[a4paper,11pt]{article}
+% ─────────────────────────────────────────────────────────────────────────────
+% Rechnung — Strom für alle
+% Layout angelehnt an moderne EEG-Abrechnungen (Referenz: Solar Union): grüne
+% Akzentlinien, schlichte (unfarbige) Tabellen-Kopfzeile mit booktabs-Linien,
+% grüner Summenbalken, dreispaltiger Footer. Positionstabelle zeigt optional
+% pro Zählpunkt eine eigene Zeile (Produktname + 33-stellige Zählpunktnummer
+% als zweite Zeile IN der Zelle, via \newline -- NICHT \\, siehe Kommentar
+% weiter unten).
+%
+% Robust gegen fehlende Variablen: Neue Platzhalter (MITGLIED_ANREDE,
+% MITGLIED_STRASSE/PLZ_ORT, KUNDENNUMMER, MITGLIED_SEPA_MANDATSREFERENZ,
+% RAW_ZAHLUNG_TEXT, EEG_STRASSE/PLZ_ORT, EEG_ZVR, EEG_OBMANN_TELEFON,
+% EEG_KONTAKT_EMAIL, EEG_KONTOINHABER, RAW_BEZUG_POSITIONEN_LISTE,
+% RAW_EINSPEISUNG_POSITIONEN_LISTE, BEZUG_ZAEHLPUNKT, EINSPEISUNG_ZAEHLPUNKT)
+% werden erst nach der PHP-Erweiterung befüllt — bis dahin greifen automatisch
+% Fallbacks (siehe php-erweiterung-rechnungsvariablen.md).
+%
+% ACHTUNG Breaking Change (Runde 5): Positionstabelle hat jetzt 4 statt 5
+% Spalten (Einheit steht im Spaltenkopf, nicht mehr in jeder Zeile) --
+% RAW_ZUSATZPOSITIONEN_LISTE und RAW_STEUER_ZEILE müssen entsprechend 4 statt
+% 5 Zellen liefern, siehe php-erweiterung-rechnungsvariablen.md.
+% ─────────────────────────────────────────────────────────────────────────────
+\documentclass[a4paper,10pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[ngerman]{babel}
-\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage[left=20mm,right=20mm,top=16mm,bottom=18mm]{geometry}
+\usepackage{graphicx}
+\usepackage{array}
 \usepackage{tabularx}
 \usepackage{booktabs}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage{microtype}
 \usepackage{parskip}
 \usepackage{eurosym}
-\usepackage{graphicx}
+\usepackage[scaled=0.96]{helvet}
+\usepackage{eso-pic}   % für die Falzmarken links am Seitenrand -- Teil von
+                       % texlive-latex-recommended, das im latex-service-Image
+                       % bereits installiert ist, kein Dockerfile-Änderung nötig
+\renewcommand{\familydefault}{\sfdefault}
 
-\definecolor{green}{RGB}{22,163,74}
-\definecolor{lightgray}{RGB}{249,250,251}
-\definecolor{midgray}{RGB}{107,114,128}
+% ─── Falzmarken (DIN 5008) ────────────────────────────────────────────────────
+% Drei kurze Striche am linken Papierrand, absolut zur Papierkante positioniert
+% (unabhängig vom Inhalt/Fließtext, daher eso-pic statt normalem \vspace):
+%  105mm und 210mm ab Oberkante -- Drittel-Faltung fürs Kuvert (DIN-lang/C6),
+%  148,5mm ab Oberkante -- exakte Papiermitte (Mittelfalz).
+\AddToShipoutPictureBG{%
+  \AtPageUpperLeft{%
+    \color{black}%
+    \put(\LenToUnit{0mm},\LenToUnit{-105mm}){\rule{4mm}{0.4pt}}%
+    \put(\LenToUnit{0mm},\LenToUnit{-148.5mm}){\rule{4mm}{0.4pt}}%
+    \put(\LenToUnit{0mm},\LenToUnit{-210mm}){\rule{4mm}{0.4pt}}%
+  }%
+}
+
+% ─── Markenfarben (aus dem Website-Logo) ─────────────────────────────────────
+\definecolor{brandgreen}{RGB}{22,163,74}    % strom-Grün
+\definecolor{navy}{RGB}{26,32,51}           % "für alle"-Dunkelblau
+\definecolor{teal}{RGB}{20,148,166}         % "Energie teilen"-Türkis
+\definecolor{cardgray}{RGB}{244,246,248}    % heller Flächenhintergrund
+\definecolor{midgray}{RGB}{107,114,128}     % Sekundärtext
+\definecolor{rulegray}{RGB}{229,231,235}    % feine Linien
+
+% ─── Konditionale Werte (leere Variablen blenden ihre Zeile komplett aus) ────
+\def\eeguid{<<<EEG_UID>>>}
+\def\mitglieduid{<<<MITGLIED_UID>>>}
+\def\steuertext{<<<RAW_STEUER_TEXT>>>}
+\def\anrede{<<<MITGLIED_ANREDE>>>}
+\def\mitgliedstrasse{<<<MITGLIED_STRASSE>>>}
+\def\mitgliedplzort{<<<MITGLIED_PLZ_ORT>>>}
+\def\kundennummer{<<<KUNDENNUMMER>>>}
+\def\mandatsref{<<<MITGLIED_SEPA_MANDATSREFERENZ>>>}
+\def\zahlungstext{<<<RAW_ZAHLUNG_TEXT>>>}
+\def\eegstrasse{<<<EEG_STRASSE>>>}
+\def\eegplzort{<<<EEG_PLZ_ORT>>>}
+\def\summelabel{<<<RAW_SUMME_LABEL>>>}   % z.B. "Ihr Guthaben" bei negativem Saldo
+\def\eegzvr{<<<EEG_ZVR>>>}
+\def\obmanntel{<<<EEG_OBMANN_TELEFON>>>}
+\def\kontaktemail{<<<EEG_KONTAKT_EMAIL>>>}
+\def\kontoinhaber{<<<EEG_KONTOINHABER>>>}
+% Positionstabelle: RAW-Listen (mehrere Zählpunkte möglich) haben Vorrang;
+% ohne PHP-Erweiterung greift der Fallback auf je eine einzelne Bezugs-/
+% Einspeisungszeile (optional mit Zählpunktnummer als zweiter Zeile).
+\def\rawbezugliste{<<<RAW_BEZUG_POSITIONEN_LISTE>>>}
+\def\raweinspeisungliste{<<<RAW_EINSPEISUNG_POSITIONEN_LISTE>>>}
+\def\bezugzp{<<<BEZUG_ZAEHLPUNKT>>>}
+\def\einspeisungzp{<<<EINSPEISUNG_ZAEHLPUNKT>>>}
 
 \begin{document}
 \pagestyle{empty}
 
-% ─── Kopfzeile ────────────────────────────────────────────────────────────────
-% logo.png: eigenes Logo der EEG falls hochgeladen (Platform-Admin/Manager-Einstellungen),
-% sonst automatisch das Website-Logo als Rückfallebene (siehe communityLogoAsset() in
-% index.php) -- die Datei ist also immer vorhanden, \includegraphics schlägt nie fehl.
-\begin{tabularx}{\textwidth}{lXr}
-  \raisebox{-.5\height}{\includegraphics[height=1.4cm]{logo.png}} &
-  {\Large\bfseries\color{green}<<<EEG_NAME>>>} &
-  \begin{tabular}[t]{r}
-    \small{<<<EEG_ADRESSE>>>}\\
-    \small{<<<EEG_UID>>>}
-  \end{tabular}
-\end{tabularx}
+% ─── Kopf: Empfänger links (Fensterkuvert), Logo + Rechnungsdaten rechts ─────
+\noindent
+\begin{minipage}[t]{0.50\textwidth}
+  \vspace{16mm}
+  {\scriptsize\color{midgray}<<<EEG_NAME>>> $\cdot$ <<<EEG_ADRESSE>>>}\\[2.5mm]
+  \ifx\anrede\empty\else\anrede\\\fi
+  {\normalsize\bfseries\color{navy}<<<MITGLIED_NAME>>>}\\[0.5mm]
+  \ifx\mitgliedstrasse\empty
+    <<<MITGLIED_ADRESSE>>>%
+  \else
+    \mitgliedstrasse\\
+    \mitgliedplzort%
+  \fi
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \vspace{0mm}\raggedleft
+  \includegraphics[width=72mm]{logo.png}\\[3mm]
+  {\scriptsize\color{midgray}versendet von \textbf{strom für alle} im Auftrag von\\[0.5mm]
+   <<<EEG_NAME>>>}\\[4mm]
+  {\small
+  \renewcommand{\arraystretch}{1.25}%
+  \begin{tabular}{@{}r r@{}}
+    \ifx\kundennummer\empty\else{\color{midgray}Kundennummer:} & \textbf{\kundennummer}\\\fi
+    {\color{midgray}Rechnungs-Nr.:}    & \textbf{<<<RECHNUNGSNUMMER>>>}\\
+    {\color{midgray}Rechnungsdatum:}   & <<<RECHNUNGSDATUM>>>\\
+    {\color{midgray}Fälligkeitsdatum:} & <<<ZAHLUNGSZIEL>>>\\
+    \ifx\mandatsref\empty\else{\color{midgray}SEPA-Mandatsref.:} & \mandatsref\\\fi
+    \ifx\eeguid\empty\else{\color{midgray}UID-Nr.:} & \eeguid\\\fi
+    \ifx\mitglieduid\empty\else{\color{midgray}Ihre UID-Nr.:} & \mitglieduid\\\fi
+  \end{tabular}}
+\end{minipage}
 
-\vspace{1em}
-\hrule height 0.8pt
-\vspace{1.5em}
+\vspace{9mm}
 
-% ─── Empfänger ────────────────────────────────────────────────────────────────
-\begin{tabular}{l}
-  \textbf{<<<MITGLIED_NAME>>>}\\
-  <<<MITGLIED_ADRESSE>>>\\
-  <<<MITGLIED_UID>>>
-\end{tabular}
+% ─── Titelband ───────────────────────────────────────────────────────────────
+\noindent{\color{brandgreen}\rule{\textwidth}{2pt}}\\[-0.4pt]
+\noindent\colorbox{cardgray}{%
+  \begin{minipage}{\dimexpr\textwidth-2\fboxsep\relax}
+    \vspace{3mm}
+    \begin{tabularx}{\linewidth}{@{\hspace{3mm}}X r@{\hspace{3mm}}}
+      {\Large\bfseries\color{navy}Abrechnung} & {\footnotesize\color{midgray}Abrechnungszeitraum}\\[1mm]
+      {\small\color{midgray}<<<EEG_NAME>>>} & {\bfseries\color{navy}<<<ABRECHNUNGSZEITRAUM>>>}\\
+    \end{tabularx}
+    \vspace{3mm}
+  \end{minipage}}
 
-\vspace{2em}
+\vspace{6mm}
 
-% ─── Rechnungsdetails ─────────────────────────────────────────────────────────
-\begin{tabularx}{\textwidth}{lX}
-  \textbf{Rechnungsnummer:}    & <<<RECHNUNGSNUMMER>>> \\
-  \textbf{Rechnungsdatum:}     & <<<RECHNUNGSDATUM>>> \\
-  \textbf{Abrechnungszeitraum:}& <<<ABRECHNUNGSZEITRAUM>>> \\
-\end{tabularx}
+Sehr geehrtes Mitglied,
 
-\vspace{2em}
+nachfolgend finden Sie die Abrechnung Ihrer Energiegemeinschaft für den
+oben angegebenen Zeitraum:
 
-{\Large\bfseries Rechnung}
+\vspace{2mm}
 
-\vspace{1em}
-
-% ─── Positionen ───────────────────────────────────────────────────────────────
-\begin{tabularx}{\textwidth}{lrrrX}
+% ─── Positionen (4 Spalten — RAW-Zeilen erwarten dieses Format) ──────────────
+% Angelehnt ans Solar-Union-Vorbild: kein Grau-/Farbbalken mehr im Kopf, nur
+% schlichte fette Beschriftung + Linie (booktabs). Die Einheiten stehen einmal
+% im Spaltenkopf ("Menge (kWh)", "Tarif (ct/kWh)") statt in jeder Zeile neu --
+% dafür ist "Position" jetzt die mit Abstand breiteste Spalte. Zusatzzeilen
+% ohne Energiemenge (Mitgliedsbeitrag, Rabatte) lassen Menge/Tarif bewusst
+% leer, genau wie die "Mitgliedschaft"-Zeile im Vorbild.
+%
+% Mehrere Zählpunkte pro Mitglied (z.B. zwei PV-Anlagen oder zwei Bezugs-
+% zählpunkte): RAW_BEZUG_POSITIONEN_LISTE / RAW_EINSPEISUNG_POSITIONEN_LISTE
+% nehmen dafür jeweils EINE vorformatierte Zeile PRO Zählpunkt auf (siehe
+% php-erweiterung-rechnungsvariablen.md) -- jede Zeile zeigt den Produktnamen
+% und darunter, als zweite (kleinere, graue) Zeile IN DERSELBEN Zelle, die
+% 33-stellige Zählpunktnummer; Menge/Tarif/Betrag gehören zu dieser einen
+% Zählpunkt-Zeile. Ohne PHP-Erweiterung (RAW-Liste leer) zeigt die Vorlage
+% automatisch die alte Einzeiler-Fallback-Zeile (optional mit Zählpunktnummer
+% über BEZUG_ZAEHLPUNKT/EINSPEISUNG_ZAEHLPUNKT).
+% Spaltenbreiten: 82+20+24+26mm Inhalt + 3×6mm Abstand = 170mm = \textwidth.
+{\renewcommand{\arraystretch}{1.3}%
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{82mm}@{\hspace{6mm}}%
+                    >{\raggedleft\arraybackslash}p{20mm}@{\hspace{6mm}}%
+                    >{\raggedleft\arraybackslash}p{24mm}@{\hspace{6mm}}%
+                    >{\raggedleft\arraybackslash}p{26mm}@{}}
   \toprule
-  \textbf{Position} & \textbf{Menge} & \textbf{Einheit} & \textbf{Preis} & \textbf{Betrag (EUR)} \\
+  {\footnotesize\bfseries\color{navy}Position} &
+  {\footnotesize\bfseries\color{navy}Menge (kWh)} &
+  {\footnotesize\bfseries\color{navy}Tarif (ct/kWh)} &
+  {\footnotesize\bfseries\color{navy}Betrag (EUR)}\\
   \midrule
-  Energiebezug & <<<BEZUG_KWH>>> & kWh & <<<BEZUG_TARIF>>> ct/kWh & <<<BEZUG_BETRAG>>> \\
-  Einspeisegutschrift & <<<EINSPEISUNG_KWH>>> & kWh & <<<EINSPEISUNG_TARIF>>> ct/kWh & $-$\,<<<EINSPEISUNG_BETRAG>>> \\
-  Mitgliedsbeitrag & 1 & Quartal & & <<<MITGLIEDSBEITRAG>>> \\
-<<<RAW_ZUSATZPOSITIONEN_LISTE>>>
-  \midrule
-  \textbf{Summe netto} & & & & \textbf{<<<SUMME_NETTO>>>} \\
-  <<<RAW_STEUER_ZEILE>>>
+  % WICHTIG: \newline statt \\ für den Umbruch INNERHALB der Zelle zur
+  % Zählpunktnummer -- \\ würde (auch in einer p-Spalte!) die ganze
+  % Tabellenzeile beenden statt nur innerhalb der Zelle umzubrechen, dadurch
+  % würden Menge/Tarif/Betrag in die NÄCHSTE Zeile hineinrutschen.
+  \ifx\rawbezugliste\empty
+    Energiebezug aus der Gemeinschaft%
+    \ifx\bezugzp\empty\else\newline{\footnotesize\color{midgray}Zählpunkt: \bezugzp}\fi
+    & <<<BEZUG_KWH>>> & <<<BEZUG_TARIF>>> & <<<BEZUG_BETRAG>>>\\
+  \else
+    \rawbezugliste
+  \fi
+  \arrayrulecolor{rulegray}\hline
+  \ifx\raweinspeisungliste\empty
+    Einspeisevergütung (Gutschrift)%
+    \ifx\einspeisungzp\empty\else\newline{\footnotesize\color{midgray}Zählpunkt: \einspeisungzp}\fi
+    & <<<EINSPEISUNG_KWH>>> & <<<EINSPEISUNG_TARIF>>> & $-$\,<<<EINSPEISUNG_BETRAG>>>\\
+  \else
+    \raweinspeisungliste
+  \fi
+  \hline
+  Mitgliedsbeitrag & & & <<<MITGLIEDSBEITRAG>>>\\
+  <<<RAW_ZUSATZPOSITIONEN_LISTE>>>%
+  \arrayrulecolor{navy}\specialrule{0.9pt}{2pt}{2pt}
+  \textbf{Summe netto} & & & \textbf{<<<SUMME_NETTO>>>}\\
+  <<<RAW_STEUER_ZEILE>>>%
   \bottomrule
-\end{tabularx}
+\end{tabular}}
 
-\vspace{1em}
+\vspace{4mm}
 
-\colorbox{lightgray}{%
-  \begin{minipage}{\textwidth}
-    \vspace{.5em}
-    \hspace{1em}
-    \large\textbf{Gesamtbetrag: \EUR{<<<SUMME_BRUTTO>>>}}
-    \vspace{.5em}
-  \end{minipage}%
-}
+% ─── Summenbalken ────────────────────────────────────────────────────────────
+% Feste Höhe + innere Zentrierung ("[c][11mm][c]") statt \vspace oben/unten --
+% \vspace am Anfang einer Box wird von TeX teilweise verschluckt, dadurch stand
+% der Text zu weit oben. Mit fixer Boxhöhe + zentrierter Innenposition ist die
+% Zentrierung robust, unabhängig von Schriftgröße/Zeilenhöhe.
+\noindent\colorbox{brandgreen}{%
+  \begin{minipage}[c][11mm][c]{\dimexpr\textwidth-2\fboxsep\relax}
+    \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}\hspace{3mm}}l r@{\hspace{3mm}}}
+      {\color{white}\large\bfseries \ifx\summelabel\empty Zu zahlender Gesamtbetrag\else\summelabel\fi} &
+      {\color{white}\large\bfseries EUR <<<SUMME_BRUTTO>>>}\\
+    \end{tabular*}
+  \end{minipage}}
 
-\vspace{2em}
+\vspace{5mm}
 
-% ─── Zahlungsdetails ──────────────────────────────────────────────────────────
-\textbf{Zahlungsinformationen}
+% ─── Zahlung ─────────────────────────────────────────────────────────────────
+% RAW_ZAHLUNG_TEXT kommt fertig aus PHP (SEPA-Einzug inkl. Mandatsreferenz und
+% Pre-Notification-Hinweis, Gutschrift-Überweisung bei negativem Betrag, oder
+% Überweisungsbitte ohne Mandat). Fallback: klassische Überweisungsbitte.
+{\small
+\ifx\zahlungstext\empty
+  Bitte überweisen Sie den Gesamtbetrag bis spätestens \textbf{<<<ZAHLUNGSZIEL>>>}
+  unter Angabe des Verwendungszwecks \textbf{<<<RECHNUNGSNUMMER>>>} auf das unten
+  angeführte Konto der Energiegemeinschaft.%
+\else
+  \zahlungstext%
+\fi}
 
-\begin{tabular}{ll}
-  IBAN: & <<<IBAN>>> \\
-  BIC:  & <<<BIC>>> \\
-  Verwendungszweck: & <<<RECHNUNGSNUMMER>>> \\
-  Zahlungsziel: & <<<ZAHLUNGSZIEL>>> \\
-\end{tabular}
+% ─── Steuer-Merksatz (z.B. Kleinunternehmerregelung) — nur wenn befüllt ──────
+\ifx\steuertext\empty\else
+  \vspace{5mm}
+  \noindent\begin{tabular}{@{}!{\color{brandgreen}\vrule width 2.5pt}@{\hspace{3mm}}p{\dimexpr\textwidth-3mm-2.5pt\relax}@{}}
+    {\small\color{midgray}\steuertext}\\
+  \end{tabular}
+\fi
 
-\vspace{2em}
+\vspace{5mm}
+{\color{teal}\itshape Vielen Dank, dass Sie ein Teil der Energiegemeinschaft sind!}
 
-% ─── Kleinunternehmer-Klausel (bedingt) ──────────────────────────────────────
-\small\color{midgray}
-<<<RAW_STEUER_TEXT>>>
-
-\vspace{1em}
-Vielen Dank für Ihre Mitgliedschaft bei der <<<EEG_NAME>>>!
+% ─── Footer ──────────────────────────────────────────────────────────────────
+% Drei Spalten, bewusst alle 4-zeilig (inkl. Überschrift), damit sie sauber
+% nebeneinander stehen: EEG-Adresse / Kontakt (Obmann-Mobil, Kontakt-E-Mail,
+% Website, Vereins-ZVR ODER Firmen-UID) / Bankverbindung (Kontoinhaber, IBAN,
+% BIC). Kein Bankname mehr (macht die rechte Spalte sonst 5-zeilig und damit
+% länger als die anderen beiden) und keine Zahlungsreferenz-Spalte (Rechnungs-
+% nr. steht bereits oben rechts im Kopf). ZVR/UID: zeigt ZVR wenn vorhanden
+% (Verein), sonst UID (Firma) -- beide Variablen existieren bereits.
+\vfill
+\noindent{\color{rulegray}\rule{\textwidth}{0.6pt}}\\[2.5mm]
+{\scriptsize\color{midgray}
+\begin{minipage}[t]{0.33\textwidth}
+  {\bfseries\color{navy}<<<EEG_NAME>>>}\\[0.5mm]
+  \ifx\eegstrasse\empty
+    <<<EEG_ADRESSE>>>\\
+  \else
+    \eegstrasse\\
+    \ifx\eegplzort\empty\else\eegplzort\\\fi
+  \fi
+  Österreich
+\end{minipage}%
+\begin{minipage}[t]{0.33\textwidth}
+  \centering
+  \ifx\obmanntel\empty\else Mobil: \obmanntel\\\fi
+  \ifx\kontaktemail\empty\else E-Mail: \kontaktemail\\\fi
+  Web: www.stromfueralle.at%
+  \ifx\eegzvr\empty
+    \ifx\eeguid\empty\else\\UID-Nr.: \eeguid\fi
+  \else
+    \\ZVR-Nr.: \eegzvr
+  \fi
+\end{minipage}%
+\begin{minipage}[t]{0.34\textwidth}
+  \raggedleft
+  {\bfseries\color{navy}Bankverbindung}\\[0.5mm]
+  \ifx\kontoinhaber\empty{}<<<EEG_NAME>>>\else\kontoinhaber\fi\\
+  IBAN <<<IBAN>>>\\
+  BIC <<<BIC>>>
+\end{minipage}}
 
 \end{document}

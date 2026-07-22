@@ -116,14 +116,16 @@ class Billing
                     if (in_array($mp['mp_type'], ['consumer', 'prosumer']) && $energyData['kwh_bezug'] > 0) {
                         $amount = round((float)$energyData['kwh_bezug'] * (float)$tariff['bezug_ct_kwh'] / 100, 2);
                         $items[] = ['type' => 'bezug', 'kwh' => $energyData['kwh_bezug'],
-                                    'rate_ct_kwh' => $tariff['bezug_ct_kwh'], 'amount_eur' => $amount];
+                                    'rate_ct_kwh' => $tariff['bezug_ct_kwh'], 'amount_eur' => $amount,
+                                    'zaehlpunkt_nr' => $mp['zaehlpunkt_nr']];
                         $saldo += $amount;
                     }
 
                     if (in_array($mp['mp_type'], ['producer', 'prosumer']) && $energyData['kwh_einspeisung'] > 0) {
                         $gutschrift = round((float)$energyData['kwh_einspeisung'] * (float)$tariff['einspeisung_ct_kwh'] / 100, 2);
                         $items[] = ['type' => 'einspeisung', 'kwh' => $energyData['kwh_einspeisung'],
-                                    'rate_ct_kwh' => $tariff['einspeisung_ct_kwh'], 'amount_eur' => -$gutschrift];
+                                    'rate_ct_kwh' => $tariff['einspeisung_ct_kwh'], 'amount_eur' => -$gutschrift,
+                                    'zaehlpunkt_nr' => $mp['zaehlpunkt_nr']];
                         $saldo -= $gutschrift;
                     }
                 }
@@ -182,11 +184,11 @@ class Billing
 
                 foreach ($items as $item) {
                     DB::execute(
-                        'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur, label, quantity, unit)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur, label, quantity, unit, zaehlpunkt_nr)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         [$invoiceId, $item['type'], $item['kwh'] ?? null, $item['rate_ct_kwh'] ?? null,
                          $item['months'] ?? null, $item['amount_eur'], $item['label'] ?? null,
-                         $item['quantity'] ?? null, $item['unit'] ?? null]
+                         $item['quantity'] ?? null, $item['unit'] ?? null, $item['zaehlpunkt_nr'] ?? null]
                     );
                 }
             }

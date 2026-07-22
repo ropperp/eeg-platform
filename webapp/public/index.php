@@ -1040,17 +1040,29 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
     }
 
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
-    $bezugItem = null; $einspeisungItem = null; $beitragItem = null; $extraItems = [];
+    // Bezug/Einspeisung können mehrere Positionen haben (eine pro Zählpunkt) -- als Listen
+    // sammeln, damit die Rechnung pro Zählpunkt eine eigene Zeile zeigen kann.
+    $bezugItems = []; $einspeisungItems = []; $beitragItem = null; $extraItems = [];
     foreach ($items as $it) {
-        if ($it['type'] === 'bezug')           $bezugItem       = $it;
-        if ($it['type'] === 'einspeisung')     $einspeisungItem = $it;
-        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem    = $it;
-        if ($it['type'] === 'manuell')         $extraItems[]    = $it;
+        if ($it['type'] === 'bezug')            $bezugItems[]       = $it;
+        if ($it['type'] === 'einspeisung')      $einspeisungItems[] = $it;
+        if ($it['type'] === 'mitgliedsbeitrag') $beitragItem        = $it;
+        if ($it['type'] === 'manuell')          $extraItems[]       = $it;
     }
+    // Aggregat-Summen für die Fallback-Einzeiler (falls die RAW-Liste leer ist).
+    $bezugKwh    = array_sum(array_map(fn($i) => (float)$i['kwh'], $bezugItems));
+    $bezugBetrag = array_sum(array_map(fn($i) => (float)$i['amount_eur'], $bezugItems));
+    $einspKwh    = array_sum(array_map(fn($i) => (float)$i['kwh'], $einspeisungItems));
+    $einspBetrag = array_sum(array_map(fn($i) => (float)$i['amount_eur'], $einspeisungItems));
+    $bezugTarif  = $bezugItems[0]['rate_ct_kwh'] ?? null;
+    $einspTarif  = $einspeisungItems[0]['rate_ct_kwh'] ?? null;
+    // Zählpunkt-Fallback (nur ein Zählpunkt): direkt als zweite Zeile im Einzeiler anzeigen.
+    $bezugZp     = count($bezugItems) === 1 ? trim((string)($bezugItems[0]['zaehlpunkt_nr'] ?? '')) : '';
+    $einspZp     = count($einspeisungItems) === 1 ? trim((string)($einspeisungItems[0]['zaehlpunkt_nr'] ?? '')) : '';
 
     // RAW_: LaTeX-Befehle direkt übergeben — service.js darf diese NICHT escapen.
-    // Zeile im Tabellenkontext (5 Spalten, braucht \\):
-    $steuerZeile = '\\multicolumn{5}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
+    // 4-Spalten-Tabelle (Position / Menge / Tarif / Betrag), Steuerzeile spannt alle 4 Spalten:
+    $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
     // Paragraph am Seitenende:
     $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
 
@@ -1109,12 +1121,16 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'RECHNUNGSNUMMER'       => $invoice['rechnungsnummer'],
         'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
         'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
-        'BEZUG_KWH'             => $bezugItem ? number_format((float)$bezugItem['kwh'], 2, ',', '.') : '0,00',
-        'BEZUG_TARIF'           => $bezugItem ? number_format((float)$bezugItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
-        'BEZUG_BETRAG'          => $bezugItem ? number_format((float)$bezugItem['amount_eur'], 2, ',', '.') : '0,00',
-        'EINSPEISUNG_KWH'       => $einspeisungItem ? number_format((float)$einspeisungItem['kwh'], 2, ',', '.') : '0,00',
-        'EINSPEISUNG_TARIF'     => $einspeisungItem ? number_format((float)$einspeisungItem['rate_ct_kwh'], 4, ',', '.') : '0,0000',
-        'EINSPEISUNG_BETRAG'    => $einspeisungItem ? number_format(abs((float)$einspeisungItem['amount_eur']), 2, ',', '.') : '0,00',
+        'BEZUG_KWH'             => number_format($bezugKwh, 2, ',', '.'),
+        'BEZUG_TARIF'           => $bezugTarif !== null ? number_format((float)$bezugTarif, 4, ',', '.') : '0,0000',
+        'BEZUG_BETRAG'          => number_format($bezugBetrag, 2, ',', '.'),
+        'BEZUG_ZAEHLPUNKT'      => $bezugZp,
+        'EINSPEISUNG_KWH'       => number_format($einspKwh, 2, ',', '.'),
+        'EINSPEISUNG_TARIF'     => $einspTarif !== null ? number_format((float)$einspTarif, 4, ',', '.') : '0,0000',
+        'EINSPEISUNG_BETRAG'    => number_format(abs($einspBetrag), 2, ',', '.'),
+        'EINSPEISUNG_ZAEHLPUNKT' => $einspZp,
+        'RAW_BEZUG_POSITIONEN_LISTE'       => rechnungPositionenLatex($bezugItems, 'Energiebezug aus der Gemeinschaft', false),
+        'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true),
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
         'SUMME_NETTO'           => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
         'SUMME_BRUTTO'          => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
@@ -2541,7 +2557,7 @@ $router->get('/portal/billing/preview', function () {
     $steuerZeile = '';
     $steuerText  = '';
     if (($tax['tax_model'] ?? 'kleinunternehmer') === 'kleinunternehmer') {
-        $steuerZeile = '\\multicolumn{5}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
+        $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
         $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
     }
 
@@ -2550,6 +2566,15 @@ $router->get('/portal/billing/preview', function () {
     $extraItemsLatex = rechnungExtraItemsLatex([
         ['label' => 'Beispiel: Rabatt Mitgliedsbeitrag Q1', 'quantity' => 1, 'unit' => 'Stk', 'amount_eur' => -6.00],
     ]);
+    // Beispielhafte Positionslisten -- zeigen zwei Bezugs-Zählpunkte (mehrere Zeilen) und einen
+    // Einspeise-Zählpunkt mit Zählpunktnummer als grauer Zweitzeile.
+    $bezugListe = rechnungPositionenLatex([
+        ['zaehlpunkt_nr' => 'AT0030000000000000000000000000001', 'kwh' => 250.00, 'rate_ct_kwh' => 9.80, 'amount_eur' => 24.50],
+        ['zaehlpunkt_nr' => 'AT0030000000000000000000000000002', 'kwh' => 162.50, 'rate_ct_kwh' => 9.80, 'amount_eur' => 15.93],
+    ], 'Energiebezug aus der Gemeinschaft', false);
+    $einspListe = rechnungPositionenLatex([
+        ['zaehlpunkt_nr' => 'AT0030000000000000000000000000003', 'kwh' => 85.00, 'rate_ct_kwh' => 7.50, 'amount_eur' => -6.38],
+    ], 'Einspeisevergütung (Gutschrift)', true);
 
     $eegAdrTeile = array_map('trim', explode(',', $community['address'] ?? 'Musterstraße 1, 9020 Klagenfurt', 2));
 
@@ -2581,6 +2606,8 @@ $router->get('/portal/billing/preview', function () {
         'EINSPEISUNG_KWH'       => '85,00',
         'EINSPEISUNG_TARIF'     => '7,5000',
         'EINSPEISUNG_BETRAG'    => '6,38',
+        'RAW_BEZUG_POSITIONEN_LISTE'       => $bezugListe,
+        'RAW_EINSPEISUNG_POSITIONEN_LISTE' => $einspListe,
         'MITGLIEDSBEITRAG'      => '15,00',
         'SUMME_NETTO'           => '49,04',
         'SUMME_BRUTTO'          => '49,04',
@@ -3546,13 +3573,17 @@ function adminFileVariables(): array
             'MITGLIED_UID' => 'UID-Nummer des Mitglieds (falls Firma)',
             'KUNDENNUMMER' => 'Plattformweit eindeutige Kundennummer des Mitglieds',
             'MITGLIED_SEPA_MANDATSREFERENZ' => 'SEPA-Mandatsreferenz des Mitglieds, falls vorhanden',
-            'BEZUG_KWH' => 'Bezogene Energiemenge in kWh',
-            'BEZUG_TARIF' => 'Bezugstarif (€/kWh)',
-            'BEZUG_BETRAG' => 'Betrag für den Bezug',
-            'EINSPEISUNG_KWH' => 'Eingespeiste Energiemenge in kWh',
-            'EINSPEISUNG_TARIF' => 'Einspeisetarif (€/kWh)',
-            'EINSPEISUNG_BETRAG' => 'Betrag für die Einspeisung',
-            'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste',
+            'BEZUG_KWH' => 'Bezogene Energiemenge in kWh (Summe; Fallback-Einzeiler, wenn keine RAW-Bezugsliste)',
+            'BEZUG_TARIF' => 'Bezugstarif (ct/kWh) für den Fallback-Einzeiler',
+            'BEZUG_BETRAG' => 'Betrag für den Bezug (Summe) für den Fallback-Einzeiler',
+            'BEZUG_ZAEHLPUNKT' => 'Einzelne Bezugs-Zählpunktnummer für den Fallback-Einzeiler (nur bei genau einem Zählpunkt)',
+            'EINSPEISUNG_KWH' => 'Eingespeiste Energiemenge in kWh (Summe; Fallback-Einzeiler)',
+            'EINSPEISUNG_TARIF' => 'Einspeisetarif (ct/kWh) für den Fallback-Einzeiler',
+            'EINSPEISUNG_BETRAG' => 'Betrag für die Einspeisung (Summe) für den Fallback-Einzeiler',
+            'EINSPEISUNG_ZAEHLPUNKT' => 'Einzelne Einspeise-Zählpunktnummer für den Fallback-Einzeiler (nur bei genau einem Zählpunkt)',
+            'RAW_BEZUG_POSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für den Bezug -- eine Zeile pro Zählpunkt, jeweils mit Zählpunktnummer (RAW, nicht escapen). Leer = Fallback auf BEZUG_KWH-Einzeiler',
+            'RAW_EINSPEISUNG_POSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für die Einspeisung -- eine Zeile pro Zählpunkt (RAW, nicht escapen). Leer = Fallback auf EINSPEISUNG_KWH-Einzeiler',
+            'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste (anteilig bei unterjährigem Beitritt)',
             'SUMME_NETTO' => 'Gesamtsumme netto',
             'SUMME_BRUTTO' => 'Gesamtsumme brutto',
             'IBAN' => 'IBAN der Energiegemeinschaft (für die Zahlung)',
@@ -3773,18 +3804,54 @@ function communityLogoAsset(string $communityId): array
  * Rabatt) -- als RAW_-Variable, da hier bereits fertiges LaTeX (Tabellenzeilen mit \\)
  * hineinkommt. $items: Liste von ['label' => string, 'quantity' => float, 'unit' => string,
  * 'amount_eur' => float]. Leere Liste ergibt einen leeren String (keine zusätzliche Zeile).
+ *
+ * 4-Spalten-Format (Position / Menge / Tarif / Betrag) passend zur aktuellen rechnung.tex:
+ * Zusatzpositionen haben keine Energiemenge/keinen Tarif -> diese beiden Zellen bleiben leer.
+ * Eine von 1 abweichende Stückzahl wird in den Positionstext übernommen (die 4-spaltige
+ * Tabelle hat keine eigene Mengen-/Einheitenspalte mehr für Nicht-Energie-Positionen).
  */
 function rechnungExtraItemsLatex(array $items): string
 {
     return implode("\n", array_map(function (array $it): string {
         $amount = (float)$it['amount_eur'];
         $amountStr = ($amount < 0 ? '$-$\\,' : '') . number_format(abs($amount), 2, ',', '.');
-        $qtyFloat = (float)$it['quantity'];
-        $qty = fmod($qtyFloat, 1.0) === 0.0
-            ? number_format($qtyFloat, 0, ',', '.')
-            : rtrim(rtrim(number_format($qtyFloat, 3, ',', '.'), '0'), ',');
-        return '  ' . texEscape($it['label']) . ' & ' . $qty . ' & ' . texEscape($it['unit']) . ' & & ' . $amountStr . ' \\\\';
+        $label = (string)$it['label'];
+        $qtyFloat = (float)($it['quantity'] ?? 1);
+        $unit = trim((string)($it['unit'] ?? ''));
+        if ($qtyFloat != 1.0 || ($unit !== '' && $unit !== 'Stk')) {
+            $qty = fmod($qtyFloat, 1.0) === 0.0
+                ? number_format($qtyFloat, 0, ',', '.')
+                : rtrim(rtrim(number_format($qtyFloat, 3, ',', '.'), '0'), ',');
+            $label .= ' (' . $qty . ($unit !== '' ? ' ' . $unit : '') . ')';
+        }
+        return '  ' . texEscape($label) . ' & & & ' . $amountStr . ' \\\\';
     }, $items));
+}
+
+/**
+ * Baut die vorformatierten Positionszeilen (RAW_BEZUG_POSITIONEN_LISTE bzw.
+ * RAW_EINSPEISUNG_POSITIONEN_LISTE) für rechnung.tex -- eine Zeile PRO Zählpunkt. Jede Zeile
+ * zeigt den Produktnamen und, falls eine Zählpunktnummer vorliegt, darunter (via \newline,
+ * NICHT \\ -- sonst bricht die Tabellenzeile um) die 33-stellige Zählpunktnummer als kleine
+ * graue Zweitzeile. Mehrere Zeilen werden mit einer feinen Trennlinie verbunden (nicht nach
+ * der letzten -- die setzt die Vorlage selbst zwischen Bezugs- und Einspeisungsblock).
+ * $items: invoice_items eines Typs (bezug oder einspeisung). $gutschrift=true stellt dem
+ * Betrag ein Minuszeichen voran (Einspeisung wird von der Summe abgezogen).
+ */
+function rechnungPositionenLatex(array $items, string $label, bool $gutschrift): string
+{
+    $zeilen = array_map(function (array $it) use ($label, $gutschrift): string {
+        $cell = $label;
+        $zp = trim((string)($it['zaehlpunkt_nr'] ?? ''));
+        if ($zp !== '') {
+            $cell .= '\\newline{\\footnotesize\\color{midgray}Zählpunkt: ' . texEscape($zp) . '}';
+        }
+        $kwh    = number_format((float)$it['kwh'], 2, ',', '.');
+        $tarif  = number_format((float)$it['rate_ct_kwh'], 4, ',', '.');
+        $betrag = ($gutschrift ? '$-$\\,' : '') . number_format(abs((float)$it['amount_eur']), 2, ',', '.');
+        return '  ' . $cell . ' & ' . $kwh . ' & ' . $tarif . ' & ' . $betrag . ' \\\\';
+    }, $items);
+    return implode("\n  \\arrayrulecolor{rulegray}\\hline\n", $zeilen);
 }
 
 $router->get('/admin/templates', function () {
