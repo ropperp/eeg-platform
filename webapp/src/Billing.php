@@ -38,30 +38,29 @@ class Billing
     }
 
     /**
-     * Gibt den Abrechnungslauf frei.
-     * Wirft Exception wenn 60-Tage-Fenster noch nicht abgelaufen ist.
+     * Erzeugt (bzw. erneuert) die Rechnungs-Entwürfe eines Abrechnungslaufs aus den EDA-Daten
+     * und setzt den Lauf auf 'ready'. KEIN 60-Tage-Check -- Entwürfe dürfen jederzeit berechnet
+     * und danach pro Rechnung manuell nachbearbeitet werden (siehe
+     * /portal/billing/invoices/:id/edit), bevor der Lauf endgültig freigegeben wird (finalize()).
+     * Idempotent: bereits vorhandene Entwürfe dieses Laufs werden vorher verworfen und neu
+     * erzeugt (invoice_items hängen per ON DELETE CASCADE an invoices).
      */
-    public static function release(string $billingRunId, string $releasedByUserId): void
+    public static function generateDrafts(string $billingRunId): void
     {
         $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$billingRunId]);
         if (!$run) throw new RuntimeException('Abrechnungslauf nicht gefunden');
-        if ($run['status'] !== 'pending') throw new RuntimeException('Abrechnung wurde bereits freigegeben');
-
-        // 60-Tage-Sperre — hardcodiert, kein Override. Das ist die einzige echte Prüfung vor der
-        // Freigabe -- ein früherer separater "ready"-Status wurde nie irgendwo gesetzt (es gab
-        // keinen Mechanismus dafür) und hätte die Freigabe dauerhaft blockiert.
-        $freigabeNach = new DateTimeImmutable($run['freigabe_nach']);
-        if (new DateTimeImmutable() < $freigabeNach) {
-            throw new RuntimeException(
-                '60-Tage-Korrekturfenster noch nicht abgelaufen. ' .
-                'Freigabe frühestens möglich ab ' . $freigabeNach->format('d.m.Y') . '.'
-            );
+        if (!in_array($run['status'], ['pending', 'ready'], true)) {
+            throw new RuntimeException('Abrechnung wurde bereits freigegeben und kann nicht neu berechnet werden.');
         }
 
         DB::setCommunity($run['community_id']);
         DB::beginTransaction();
 
         try {
+            // Bestehende Entwürfe dieses Laufs verwerfen (Neuberechnung überschreibt evtl.
+            // manuelle Änderungen -- bewusst, "Neu berechnen" = frisch aus den EDA-Daten).
+            DB::execute('DELETE FROM invoices WHERE billing_run_id = ?', [$billingRunId]);
+
             $members = DB::fetchAll(
                 'SELECT m.*, mp.id AS mp_id, mp.type AS mp_type, mp.zaehlpunkt_nr
                  FROM members m
@@ -177,16 +176,48 @@ class Billing
                 }
             }
 
-            DB::execute(
-                'UPDATE billing_runs SET status = ?, released_by = ?, released_at = now() WHERE id = ?',
-                ['done', $releasedByUserId, $billingRunId]
-            );
+            DB::execute("UPDATE billing_runs SET status = 'ready' WHERE id = ?", [$billingRunId]);
 
             DB::commit();
         } catch (Throwable $e) {
             DB::rollback();
             throw $e;
         }
+    }
+
+    /**
+     * Gibt einen berechneten Abrechnungslauf endgültig frei (Status 'done'). Setzt das
+     * 60-Tage-Korrekturfenster hart durch (kein Override) -- vorher müssen die Entwürfe per
+     * generateDrafts() erzeugt (Status 'ready') und ggf. manuell nachbearbeitet worden sein.
+     */
+    public static function finalize(string $billingRunId, string $releasedByUserId): void
+    {
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$billingRunId]);
+        if (!$run) throw new RuntimeException('Abrechnungslauf nicht gefunden');
+        if ($run['status'] !== 'ready') {
+            throw new RuntimeException('Bitte zuerst die Rechnungen berechnen (Entwurf erstellen), dann freigeben.');
+        }
+        $freigabeNach = new DateTimeImmutable($run['freigabe_nach']);
+        if (new DateTimeImmutable() < $freigabeNach) {
+            throw new RuntimeException(
+                '60-Tage-Korrekturfenster noch nicht abgelaufen. ' .
+                'Freigabe frühestens möglich ab ' . $freigabeNach->format('d.m.Y') . '.'
+            );
+        }
+        DB::execute(
+            "UPDATE billing_runs SET status = 'done', released_by = ?, released_at = now() WHERE id = ?",
+            [$releasedByUserId, $billingRunId]
+        );
+    }
+
+    /**
+     * Rechnet den gespeicherten Rechnungssaldo neu aus der Summe der invoice_items -- nach
+     * einer manuellen Bearbeitung der Positionen (Einzelbearbeitung vor Versand).
+     */
+    public static function recalcInvoiceSaldo(string $invoiceId): void
+    {
+        $sum = DB::fetchOne('SELECT COALESCE(SUM(amount_eur), 0) AS s FROM invoice_items WHERE invoice_id = ?', [$invoiceId]);
+        DB::execute('UPDATE invoices SET saldo_eur = ? WHERE id = ?', [round((float)$sum['s'], 2), $invoiceId]);
     }
 
     private static function getTariffForPeriod(string $communityId, string $date): array

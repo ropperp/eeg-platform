@@ -65,31 +65,44 @@ ob_start();
     </thead>
     <tbody>
     <?php foreach ($runs as $run): ?>
-      <?php $canRelease = $run['status'] === 'pending' && strtotime($run['freigabe_nach']) <= time(); ?>
+      <?php
+        $fensterOffen = strtotime($run['freigabe_nach']) <= time();
+        $restTage = max(0, ceil((strtotime($run['freigabe_nach']) - time()) / 86400));
+      ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
         <td><?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?></td>
         <td>
-          <?php $badges = ['pending' => 'gray', 'done' => 'green']; ?>
+          <?php $badges = ['pending' => 'gray', 'ready' => 'yellow', 'done' => 'green']; ?>
           <span class="badge badge-<?= $badges[$run['status']] ?? 'gray' ?>">
-            <?= $run['status'] === 'pending' ? ($canRelease ? 'bereit zur Freigabe' : 'ausstehend') : 'abgeschlossen' ?>
+            <?= ['pending' => 'offen', 'ready' => 'Entwurf – prüfen', 'done' => 'abgeschlossen'][$run['status']] ?? htmlspecialchars($run['status']) ?>
           </span>
         </td>
         <td><?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?></td>
         <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
         <td>
-          <?php if ($canRelease): ?>
-            <form method="post" action="/portal/billing/release"
-                  onsubmit="return confirm('Abrechnung wirklich freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
+          <?php if ($run['status'] === 'pending'): ?>
+            <form method="post" action="/portal/billing/generate" style="display:inline"
+                  onsubmit="return confirm('Rechnungen für dieses Quartal aus den EDA-Daten berechnen? Sie können danach jede Rechnung noch einzeln anpassen.')">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-              <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">
-                ✅ Freigeben
-              </button>
+              <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">🧮 Rechnungen berechnen</button>
             </form>
-          <?php elseif ($run['status'] === 'pending'): ?>
-            <span style="font-size:.8rem;color:var(--gray-600)">
-              Noch <?= max(0, ceil((strtotime($run['freigabe_nach']) - time()) / 86400)) ?> Tage
-            </span>
+          <?php elseif ($run['status'] === 'ready'): ?>
+            <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem">📝 Prüfen/Bearbeiten</a>
+            <form method="post" action="/portal/billing/generate" style="display:inline"
+                  onsubmit="return confirm('Neu berechnen? Manuelle Änderungen an den Rechnungen dieses Laufs gehen dabei verloren.')">
+              <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+              <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.35rem .6rem;font-size:.8rem">🔄 Neu</button>
+            </form>
+            <?php if ($fensterOffen): ?>
+              <form method="post" action="/portal/billing/release" style="display:inline"
+                    onsubmit="return confirm('Abrechnung endgültig freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
+                <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
+                <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">✅ Freigeben</button>
+              </form>
+            <?php else: ?>
+              <span style="font-size:.8rem;color:var(--gray-600)">Freigabe in <?= $restTage ?> Tagen</span>
+            <?php endif; ?>
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
           <?php endif; ?>

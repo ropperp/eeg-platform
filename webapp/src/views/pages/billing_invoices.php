@@ -69,11 +69,14 @@ ob_start();
             <span class="badge badge-gray">Nicht versendet</span>
           <?php endif; ?>
         </td>
-        <td>
+        <td style="white-space:nowrap">
           <?php if ($inv['pdf_path']): ?>
             <a href="/portal/invoices/<?= $inv['id'] ?>/pdf" target="_blank" style="font-size:.8rem">📄 Ansehen</a>
           <?php else: ?>
             <span style="font-size:.78rem;color:var(--gray-600)">wird erstellt…</span>
+          <?php endif; ?>
+          <?php if (($inv['run_status'] ?? '') === 'ready'): ?>
+            · <a href="/portal/billing/invoices/<?= $inv['id'] ?>/edit" style="font-size:.8rem">📝 Bearbeiten</a>
           <?php endif; ?>
         </td>
       </tr>

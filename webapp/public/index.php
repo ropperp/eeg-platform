@@ -2681,9 +2681,9 @@ $router->post('/portal/billing/create', function () {
 });
 
 /**
- * Manuelle Zusatzposition (z.B. einmaliger Rabatt/Gutschrift) zu einem noch nicht
- * freigegebenen Abrechnungslauf hinzufügen -- gilt für alle Mitglieder dieses Laufs, siehe
- * Billing::release().
+ * Manuelle Zusatzposition (z.B. einmaliger Rabatt/Gutschrift) zu einem noch nicht berechneten
+ * Abrechnungslauf hinzufügen -- gilt für alle Mitglieder dieses Laufs, wird bei der Berechnung
+ * (Billing::generateDrafts()) in jede einzelne Rechnung übernommen.
  */
 $router->post('/portal/billing/:id/extra-items', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
@@ -2737,7 +2737,7 @@ $router->get('/portal/billing/invoices', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $invoices = DB::fetchAll(
-        'SELECT i.*, br.quartal, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email
+        'SELECT i.*, br.quartal, br.status AS run_status, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email
          FROM invoices i
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN members m ON m.id = i.member_id
@@ -2749,21 +2749,132 @@ $router->get('/portal/billing/invoices', function () {
     require ROOT . '/src/views/pages/billing_invoices.php';
 });
 
+// Schritt 1: Rechnungen aus den EDA-Daten berechnen (Entwurf) -- Lauf geht auf 'ready',
+// danach pro Rechnung manuell nachbearbeitbar. Auch erneut aufrufbar ("neu berechnen").
+$router->post('/portal/billing/generate', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $runId = $_POST['billing_run_id'] ?? '';
+    $communityId = Auth::activeCommunityId();
+    try {
+        Billing::generateDrafts($runId);
+        logAudit($communityId, 'billing.generate', 'billing_run', $runId, 'Rechnungs-Entwürfe berechnet');
+        header('Location: /portal/billing?success=' . urlencode('Rechnungs-Entwürfe berechnet. Sie können jede Rechnung vor der Freigabe noch anpassen.'));
+    } catch (Throwable $e) {
+        logAudit($communityId, 'billing.generate', 'billing_run', $runId, 'Berechnung fehlgeschlagen: ' . $e->getMessage(), true);
+        header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
+// Schritt 2: berechneten Lauf endgültig freigeben (60-Tage-Gate). Route-Name "release" bleibt
+// aus Kompatibilität, ruft aber jetzt finalize() (Berechnung ist ein eigener Schritt davor).
 $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
     $communityId = Auth::activeCommunityId();
     try {
-        Billing::release($runId, Auth::userId());
+        Billing::finalize($runId, Auth::userId());
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Abrechnungslauf freigegeben');
         header('Location: /portal/billing?success=1');
     } catch (Throwable $e) {
-        $error = $e->getMessage();
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Freigabe fehlgeschlagen: ' . $e->getMessage(), true);
-        DB::setCommunity($communityId);
-        $runs = DB::fetchAll('SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]);
-        require ROOT . '/src/views/pages/billing.php';
+        header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
     }
+    exit;
+});
+
+/**
+ * Einzelbearbeitung einer Rechnung vor der Freigabe: nur solange der Abrechnungslauf im
+ * Status 'ready' ist (nach der Berechnung, vor der endgültigen Freigabe). Zeigt alle
+ * Positionen einer Rechnung und erlaubt Bearbeiten/Löschen/Hinzufügen; der Saldo wird nach
+ * jeder Änderung neu berechnet.
+ */
+$router->get('/portal/billing/invoices/:id/edit', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $invoice = DB::fetchOne(
+        'SELECT i.*, br.status AS run_status, br.quartal, m.first_name, m.last_name, m.kundennummer
+         FROM invoices i
+         JOIN billing_runs br ON br.id = i.billing_run_id
+         JOIN members m ON m.id = i.member_id
+         WHERE i.id = ? AND i.community_id = ?',
+        [$params['id'], $communityId]
+    );
+    if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+    $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
+    require ROOT . '/src/views/pages/invoice_edit.php';
+});
+
+/** Hilfsfunktion: prüft, dass die Rechnung existiert, zur Community gehört und ihr Lauf noch
+ *  im Status 'ready' ist (nur dann darf bearbeitet werden). Gibt die Rechnung zurück oder null. */
+function editableInvoiceOrNull(string $invoiceId, string $communityId): ?array
+{
+    $inv = DB::fetchOne(
+        'SELECT i.id, br.status AS run_status FROM invoices i
+         JOIN billing_runs br ON br.id = i.billing_run_id
+         WHERE i.id = ? AND i.community_id = ?',
+        [$invoiceId, $communityId]
+    );
+    return ($inv && $inv['run_status'] === 'ready') ? $inv : null;
+}
+
+$router->post('/portal/billing/invoices/:id/items/add', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    if (!editableInvoiceOrNull($params['id'], $communityId)) {
+        header('Location: /portal/billing?error=' . urlencode('Diese Rechnung kann nicht (mehr) bearbeitet werden.')); exit;
+    }
+    $label  = trim($_POST['label'] ?? '');
+    $amount = str_replace(',', '.', trim($_POST['amount_eur'] ?? ''));
+    if ($label === '' || !is_numeric($amount)) {
+        header('Location: /portal/billing/invoices/' . $params['id'] . '/edit?error=' . urlencode('Bitte Text und Betrag angeben.')); exit;
+    }
+    DB::execute(
+        'INSERT INTO invoice_items (invoice_id, type, label, quantity, unit, amount_eur) VALUES (?, ?, ?, ?, ?, ?)',
+        [$params['id'], 'manuell', $label, str_replace(',', '.', trim($_POST['quantity'] ?? '') ?: '1'),
+         trim($_POST['unit'] ?? '') ?: 'Stk', (float)$amount]
+    );
+    Billing::recalcInvoiceSaldo($params['id']);
+    logAudit($communityId, 'invoice.item.add', 'invoice', $params['id'], 'Position "' . $label . '" (' . $amount . ' EUR) hinzugefügt');
+    header('Location: /portal/billing/invoices/' . $params['id'] . '/edit?success=1');
+    exit;
+});
+
+$router->post('/portal/billing/invoices/:id/items/:itemId/update', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    if (!editableInvoiceOrNull($params['id'], $communityId)) {
+        header('Location: /portal/billing?error=' . urlencode('Diese Rechnung kann nicht (mehr) bearbeitet werden.')); exit;
+    }
+    $amount = str_replace(',', '.', trim($_POST['amount_eur'] ?? ''));
+    if (!is_numeric($amount)) {
+        header('Location: /portal/billing/invoices/' . $params['id'] . '/edit?error=' . urlencode('Ungültiger Betrag.')); exit;
+    }
+    // label nur bei manuellen Positionen editierbar; Beträge bei allen.
+    DB::execute(
+        'UPDATE invoice_items SET amount_eur = ?, label = COALESCE(?, label) WHERE id = ? AND invoice_id = ?',
+        [(float)$amount, (array_key_exists('label', $_POST) ? trim($_POST['label']) : null), $params['itemId'], $params['id']]
+    );
+    Billing::recalcInvoiceSaldo($params['id']);
+    logAudit($communityId, 'invoice.item.update', 'invoice', $params['id'], 'Position angepasst (' . $amount . ' EUR)');
+    header('Location: /portal/billing/invoices/' . $params['id'] . '/edit?success=1');
+    exit;
+});
+
+$router->post('/portal/billing/invoices/:id/items/:itemId/delete', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    if (!editableInvoiceOrNull($params['id'], $communityId)) {
+        header('Location: /portal/billing?error=' . urlencode('Diese Rechnung kann nicht (mehr) bearbeitet werden.')); exit;
+    }
+    DB::execute('DELETE FROM invoice_items WHERE id = ? AND invoice_id = ?', [$params['itemId'], $params['id']]);
+    Billing::recalcInvoiceSaldo($params['id']);
+    logAudit($communityId, 'invoice.item.delete', 'invoice', $params['id'], 'Position gelöscht');
+    header('Location: /portal/billing/invoices/' . $params['id'] . '/edit?success=1');
     exit;
 });
 
