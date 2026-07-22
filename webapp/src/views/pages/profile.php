@@ -66,4 +66,16 @@
   </form>
 </div>
 
+<?php if ($profileMember): ?>
+<div class="card" style="max-width:480px;margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">Meine Daten exportieren</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Sie können jederzeit alle zu Ihnen gespeicherten Daten als Datei herunterladen
+    (DSGVO-Auskunftsrecht, Art. 15). Die Datei enthält Ihre Stammdaten, Zählpunkte, Verträge,
+    Rechnungen und hochgeladenen Dokumente im maschinenlesbaren JSON-Format.
+  </p>
+  <a href="/portal/my/dsgvo-export" class="btn" style="background:var(--gray-100);color:var(--gray-700)">🔐 Datenauskunft herunterladen (JSON)</a>
+</div>
+<?php endif; ?>
+
 <?php $content = ob_get_clean(); require ROOT . '/src/views/layouts/portal.php'; ?>

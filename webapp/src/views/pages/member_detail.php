@@ -62,6 +62,9 @@
     <?php endif; ?>
     <a href="/portal/members/<?= $member['id'] ?>/edit"
        class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem">✏️ Bearbeiten</a>
+    <a href="/portal/members/<?= $member['id'] ?>/dsgvo-export"
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"
+       title="Alle gespeicherten Daten dieses Mitglieds als JSON (DSGVO-Auskunftsersuchen, Art. 15)">🔐 DSGVO-Export</a>
     <?php if (!empty($member['user_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
       <button type="submit" class="btn" style="background:#e0f2fe;color:#0369a1;font-size:.8rem">🔑 Passwort zurücksetzen</button>

@@ -2402,6 +2402,84 @@ function currentMemberFull(): ?array
     );
 }
 
+/**
+ * Stellt alle zu einem Mitglied gespeicherten personenbezogenen Daten strukturiert zusammen --
+ * DSGVO Art. 15 (Auskunftsrecht) bzw. Art. 20 (Datenübertragbarkeit), maschinenlesbar als JSON.
+ * Bewusst OHNE sicherheitskritische interne Felder (Passwort-Hash, API-Key-Hash, Signier-Token)
+ * und ohne die eingebetteten Unterschriftsbilder (große Base64-Blobs ohne Mehrwert im Export).
+ */
+function buildMemberDsgvoExport(array $member): array
+{
+    $cid = $member['community_id'];
+    $mid = $member['id'];
+    DB::setCommunity($cid);
+
+    $strip = function (array $rows, array $keys): array {
+        foreach ($rows as &$r) { foreach ($keys as $k) { unset($r[$k]); } }
+        return $rows;
+    };
+
+    $konto = null;
+    if (!empty($member['user_id'])) {
+        // Explizit nur unbedenkliche Spalten -- NICHT password_hash/reset_token.
+        $konto = DB::fetchOne(
+            'SELECT email, first_name, last_name, active, created_at, last_login_at FROM users WHERE id = ?',
+            [$member['user_id']]
+        );
+    }
+
+    $rechnungen = DB::fetchAll('SELECT * FROM invoices WHERE member_id = ? AND community_id = ? ORDER BY created_at', [$mid, $cid]);
+    foreach ($rechnungen as &$r) {
+        $r['positionen'] = DB::fetchAll('SELECT type, label, kwh, rate_ct_kwh, quantity, unit, amount_eur, zaehlpunkt_nr FROM invoice_items WHERE invoice_id = ?', [$r['id']]);
+    }
+    unset($r);
+
+    return [
+        'export_erzeugt_am' => date('c'),
+        'hinweis' => 'DSGVO-Datenauskunft (Art. 15) bzw. Datenübertragbarkeit (Art. 20). Enthält alle '
+            . 'zu dieser Person gespeicherten personenbezogenen Daten. Sicherheitskritische interne Felder '
+            . '(Passwort-Hash, API-Key-Hash, Signier-Token) und eingebettete Unterschriftsbilder sind bewusst '
+            . 'nicht enthalten.',
+        'stammdaten'          => $member,
+        'login_konto'         => $konto,
+        'zaehlpunkte'         => DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND community_id = ?', [$mid, $cid]),
+        'beitrittserklaerung' => $strip(DB::fetchAll('SELECT * FROM membership_applications WHERE member_id = ? AND community_id = ?', [$mid, $cid]), ['signature_image']),
+        'vertraege'           => $strip(DB::fetchAll('SELECT * FROM contracts WHERE member_id = ? AND community_id = ?', [$mid, $cid]), ['signature_image', 'sign_token', 'sign_token_expires_at']),
+        'rechnungen'          => $rechnungen,
+        'hochgeladene_dateien'=> DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? AND community_id = ?', [$mid, $cid]),
+        'api_zugaenge'        => $strip(DB::fetchAll('SELECT * FROM member_api_keys WHERE member_id = ?', [$mid]), ['key_hash']),
+    ];
+}
+
+/** Sendet ein DSGVO-Export-Array als JSON-Download. */
+function sendDsgvoExport(array $data, string $filename): void
+{
+    header('Content-Type: application/json; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+// Mitglied exportiert seine eigenen Daten (Selbstauskunft).
+$router->get('/portal/my/dsgvo-export', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    logAudit($member['community_id'], 'dsgvo.export.self', 'member', $member['id'], 'Mitglied hat DSGVO-Selbstauskunft exportiert');
+    sendDsgvoExport(buildMemberDsgvoExport($member), 'dsgvo-export-' . ($member['kundennummer'] ?? 'mitglied') . '.json');
+});
+
+// Manager/Platform-Admin exportiert die Daten eines bestimmten Mitglieds (Auskunftsersuchen).
+$router->get('/portal/members/:id/dsgvo-export', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$member) { http_response_code(404); echo 'Mitglied nicht gefunden.'; return; }
+    logAudit($communityId, 'dsgvo.export.manager', 'member', $member['id'],
+        'DSGVO-Auskunft für ' . $member['first_name'] . ' ' . $member['last_name'] . ' exportiert');
+    sendDsgvoExport(buildMemberDsgvoExport($member), 'dsgvo-export-' . ($member['kundennummer'] ?? $member['id']) . '.json');
+});
+
 $router->get('/portal/profile', function () {
     Auth::requireLogin();
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path FROM users WHERE id = ?', [Auth::userId()]);
