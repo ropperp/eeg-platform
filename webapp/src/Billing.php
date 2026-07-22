@@ -128,10 +128,30 @@ class Billing
                     }
                 }
 
-                // Mitgliedsbeitrag (anteilig bei Neumitgliedern — vereinfacht: 3 Monate)
-                $beitrag = round((float)$tariff['mitgliedsbeitrag_eur'] / 4, 2); // Quartalsanteil
+                // Mitgliedsbeitrag anteilig nach tatsächlicher Mitgliedsdauer im
+                // Abrechnungszeitraum: wer erst unterjährig beitritt, zahlt nur für die Monate,
+                // in denen er (zumindest anteilig) Mitglied war. Beispiel bei Quartalsbeitrag 6 €
+                // (= 2 €/Monat): Beitritt im 2. Monat des Quartals -> nur 4 €; ganzes Quartal
+                // dabei -> volle 6 €. Voller Quartalsbeitrag = Jahresbeitrag/4 = 3 Monate à
+                // Jahresbeitrag/12, ein voll dabei gewesenes Mitglied zahlt also exakt wie zuvor.
+                // Mitglieder, die im Zeitraum ausgetreten sind, werden gar nicht erst abgerechnet
+                // (status = 'active'-Filter oben) -- daher hier nur Beitritts-, keine Austritts-
+                // Proration nötig.
+                $monatsBeitrag = (float)$tariff['mitgliedsbeitrag_eur'] / 12;
+                $memberSinceTs = strtotime($member['member_since']);
+                $aktiveMonate  = 0;
+                $cursor = strtotime(date('Y-m-01', strtotime($run['period_from'])));
+                $endTs  = strtotime($run['period_to']);
+                while ($cursor <= $endTs) {
+                    // Monat zählt, wenn die Mitgliedschaft spätestens am Monatsende begonnen hat.
+                    if ($memberSinceTs <= strtotime(date('Y-m-t', $cursor))) {
+                        $aktiveMonate++;
+                    }
+                    $cursor = strtotime('+1 month', $cursor);
+                }
+                $beitrag = round($aktiveMonate * $monatsBeitrag, 2);
                 $items[] = ['type' => 'mitgliedsbeitrag', 'kwh' => null, 'rate_ct_kwh' => null,
-                             'months' => 3, 'amount_eur' => $beitrag];
+                             'months' => $aktiveMonate, 'amount_eur' => $beitrag];
                 $saldo += $beitrag;
 
                 // Manuelle Zusatzpositionen (Rabatt/Gutschrift o.ä.) gelten für alle Mitglieder

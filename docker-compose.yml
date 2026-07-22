@@ -1,3 +1,14 @@
+# Log-Rotation für ALLE Container: ohne diese Vorgabe schreibt Docker die Container-Logs
+# unbegrenzt in json-Dateien -- auf einem Raspberry Pi mit SD-Karte kann das über Wochen die
+# Platte volllaufen lassen, wodurch der ganze Host langsam einfriert (Schreibzugriffe hängen,
+# Netzwerk/Ping antwortet aber noch -> "im Netz sichtbar, aber kein SSH mehr"). Max. 3 x 10 MB
+# pro Container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   # ─────────────────────────────────────────
@@ -7,6 +18,7 @@ services:
     image: traefik:latest
     container_name: traefik
     restart: always
+    logging: *default-logging
     command:
       - "--api.insecure=false"
       - "--providers.docker=true"
@@ -29,6 +41,7 @@ services:
     image: timescale/timescaledb-ha:pg16
     container_name: timescaledb
     restart: always
+    logging: *default-logging
     volumes:
       - /opt/eeg/timescaledb:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -52,6 +65,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     restart: always
+    logging: *default-logging
     volumes:
       - /opt/eeg/redis:/data
     command: redis-server --save 60 1 --loglevel warning
@@ -70,6 +84,7 @@ services:
     image: eclipse-mosquitto:2
     container_name: mosquitto
     restart: always
+    logging: *default-logging
     ports:
       - "1883:1883"
       - "8883:8883"
@@ -93,6 +108,7 @@ services:
     build: ./mqtt-subscriber
     container_name: mqtt-subscriber
     restart: always
+    logging: *default-logging
     environment:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
@@ -118,6 +134,7 @@ services:
       dockerfile: webapp/Dockerfile
     container_name: webapp
     restart: always
+    logging: *default-logging
     environment:
       DB_HOST: timescaledb
       DB_PORT: 5432
@@ -178,6 +195,7 @@ services:
     build: ./latex-service
     container_name: latex-service
     restart: always
+    logging: *default-logging
     environment:
       API_KEY: ${LATEX_API_KEY}
       SMTP_HOST: ${SMTP_HOST}

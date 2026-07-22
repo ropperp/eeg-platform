@@ -186,6 +186,12 @@ Meist: mehrere Zertifikats-Lineages für dieselbe Domain (`stromfueralle.at`,
 Konsolidierung auf eine Lineage, dann `sudo certbot delete --cert-name <name>` für die
 überzähligen (erst nach Verifikation!).
 
+### Raspberry Pi hängt sich auf (Ping ja, SSH nein)
+Klassischer I/O-Stall — meist SD-Karte am Ende, RAM/Swap voll, Unterspannung oder volle Platte.
+Vollständige Diagnose + Selbstheilung per Hardware-Watchdog (Pi rebootet sich bei Einfrieren
+selbst): `docs/RASPBERRY_STABILITAET.md`. Bereits abgesichert: `restart: always` auf allen
+Containern + Docker-Log-Rotation (`x-logging` in `docker-compose.yml`).
+
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte
 Ursache erst sichtbar im nginx-**Fehler**-Log IM Container:

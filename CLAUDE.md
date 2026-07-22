@@ -372,6 +372,15 @@ Häufigste Ursachen:
 - **nginx wurde nach Renewal/Änderung nicht neu geladen** → `sudo systemctl reload nginx`.
 Nach jeder Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
 
+### Raspberry Pi hängt sich auf (im Netz sichtbar, aber kein SSH/Terminal mehr)
+Klassischer I/O-Stall (SD-Karte am Ende, RAM/Swap voll, Unterspannung oder volllaufende
+Platte). Ausführliche Diagnose, Ursachen und v. a. **Selbstheilung per Hardware-Watchdog**
+(Pi rebootet sich bei Einfrieren selbst, ohne dass jemand daheim sein muss):
+→ `docs/RASPBERRY_STABILITAET.md`. Im Repo bereits abgesichert: `restart: always` auf allen
+Containern (Autostart nach Reboot) und Docker-Log-Rotation (`x-logging` in
+`docker-compose.yml`, max. 3 × 10 MB/Container), damit die Logs die Platte nicht volllaufen
+lassen.
+
 ---
 
 ## Update (laufendes System)
