@@ -6,10 +6,16 @@ aber SSH / Raspberry Pi Connect / Terminal reagieren nicht mehr. Erst ein Strom-
 wahrscheinlichen Ursachen, b) wie man die tatsächliche Ursache findet, c) wie sich der Pi im
 Ernstfall **selbst neu startet**, ohne dass jemand zu Hause sein muss.
 
-> Wichtig zuerst: „Ping geht, aber SSH nicht" ist der klassische Fingerabdruck eines
-> **I/O-Stalls** — der Netzwerk-Stack sitzt im Kernel und antwortet noch auf Ping, während
-> alles, was die Platte braucht (Login, Shell, Docker), hängt. Die Platte ist auf einem Pi in
-> ~90 % der Fälle der Übeltäter (SD-Karte) oder der Arbeitsspeicher (Swap auf SD-Karte).
+> Wichtig zuerst: „Ping geht (z. B. 0,3 ms), aber SSH/Pi-Connect/Terminal reagieren nicht"
+> ist der klassische Fingerabdruck dafür, dass der **Kernel noch lebt** (er beantwortet den
+> Ping), aber der **Userspace bzw. der Datenträger hängt** — alles, was auf die Platte oder
+> auf einen abgeschossenen Dienst zugreift (Login, sshd, Docker), bleibt stehen. Bei einem
+> **Pi 5 mit SSD** (nicht SD-Karte) sind die wahrscheinlichsten Ursachen in dieser Reihenfolge:
+> **(1) USB-SATA-/UAS-Reset des SSD-Adapters** → Root-Dateisystem geht read-only → sshd kann
+> nicht mehr schreiben; **(2) OOM-Killer** hat unter Speicherdruck sshd/Dienste abgeschossen,
+> während der Kernel weiterläuft; **(3) Unterspannung** (Pi 5 will 5 V/5 A, SSD zieht mit) →
+> USB-Brownout. SD-Karten-Verschleiß ist bei dir also NICHT der Hauptverdacht — die folgenden
+> Diagnosen zeigen, welcher der drei Fälle vorliegt.
 
 ---
 
@@ -57,21 +63,35 @@ journalctl -b -1 -e --no-pager | tail -80
 journalctl -b -1 --no-pager | grep -iE "oom|out of memory|killed process|EXT4-fs error|I/O error|mmc0|voltage|throttl|watchdog"
 ```
 
-### a) SD-Karte am Ende / I/O-Fehler  ← häufigste Ursache
-Postgres/TimescaleDB + Redis + Docker schreiben rund um die Uhr. SD-Karten haben begrenzte
-Schreibzyklen; wenn Blöcke ausfallen, geht das Dateisystem in den Read-only-Modus oder
-Schreibzugriffe hängen → genau das „Ping ja, SSH nein"-Bild.
+### a) USB-SSD-/Datenträger-Reset → Dateisystem read-only  ← Hauptverdacht bei SSD
+Auch eine gute SSD hilft nichts, wenn der **USB-SATA-Adapter** (die Bridge zwischen SSD und
+Pi) unter Last oder bei Spannungsschwankungen kurz aussetzt: Der Kernel bekommt einen
+I/O-Fehler, remountet das Root-Dateisystem **read-only**, und ab da hängt jeder Dienst, der
+schreiben will (sshd-Login, Docker, Postgres) — der Kernel selbst pingt aber weiter. Das ist
+der mit Abstand häufigste Grund für „Ping ja, SSH nein" bei einem Pi mit USB-SSD.
 
+Nach dem nächsten Hänger + Reboot **zuerst** prüfen (‑b ‑1 = der Boot davor):
 ```bash
-dmesg | grep -iE "mmc0|EXT4-fs error|I/O error|read-only"   # nach dem Reboot
-mount | grep " / "                                          # steht da "ro," ist die FS read-only
-sudo smartctl -a /dev/mmcblk0 2>/dev/null || echo "(SD-Karten liefern meist keine SMART-Werte)"
+mount | grep " / "                     # steht da "ro," war das Root-FS read-only -> Treffer
+journalctl -k -b -1 | grep -iE "usb|uas|ata|nvme|EXT4-fs error|I/O error|read-only|reset"
 ```
+- Tauchen dort **USB-Resets / „uas" / „reset SuperSpeed"** kurz vor dem Einfrieren auf, ist es
+  die USB-SATA-Bridge. Abhilfe:
+  1. **Anderes/kürzeres USB-Kabel** und einen USB-3-Port am Pi verwenden.
+  2. **UAS für den Adapter abschalten** (viele billige Bridges sind mit UAS instabil, mit dem
+     älteren `usb-storage`-Treiber aber stabil). Adapter-ID mit `lsusb` ermitteln und in
+     `/boot/firmware/cmdline.txt` `usb-storage.quirks=<id>:u` ergänzen (siehe Raspberry-Pi-Foren
+     zu „UAS quirks").
+  3. Auf dem Pi 5 wenn möglich **NVMe-SSD über den PCIe-/M.2-HAT** statt USB-SATA nutzen — das
+     ist der stabilste und schnellste Weg und umgeht das USB-Bridge-Problem ganz.
+- Steht das FS auf „ro", hilft kurzfristig nur ein Reboot; der Watchdog (Punkt 1) erledigt das
+  von selbst, weil dann auch systemd/journald beim Schreiben hängen und den Watchdog nicht mehr
+  bedienen können → Hardware-Reboot.
 
-**Beste Lösung:** Vom **USB-SSD** statt SD-Karte booten (Pi 4/5 können das nativ). Eine
-kleine SSD kostet wenig, hält um Größenordnungen länger und ist deutlich schneller — für eine
-Datenbank praktisch Pflicht. Minimal-Variante: zumindest `/opt/eeg` (die Daten-Volumes) auf
-eine SSD legen und dorthin mounten.
+> SD-Karten-Verschleiß (begrenzte Schreibzyklen, Blockausfall → read-only) erzeugt dasselbe
+> Bild, ist bei dir aber nicht relevant, weil das OS auf SSD läuft. Falls doch mal eine
+> SD-Karte im Spiel ist: `sudo smartctl -a /dev/mmcblk0` liefert bei SD meist keine Werte,
+> Diagnose dann nur über `dmesg | grep -i mmc0`.
 
 ### b) Zu wenig RAM / Swap auf SD-Karte
 timescaledb + redis + latex (`pdflatex` ist speicherhungrig) + node + python zusammen können
@@ -126,9 +146,14 @@ override-Datei anlegen, die Traefik deaktiviert oder Ports umbiegt (siehe Warnun
 ---
 
 ## 4. Grundsatz-Empfehlung für den Produktivbetrieb
-1. **Watchdog aktivieren** (Punkt 1) — Pi heilt sich selbst, egal was die Ursache ist.
-2. **Von SSD statt SD-Karte booten** — beseitigt die mit Abstand häufigste Absturzursache.
-3. **Ordentliches Netzteil + Kühlung.**
+1. **Watchdog aktivieren** (Punkt 1) — Pi heilt sich selbst, egal was die Ursache ist. Für den
+   Fall, dass der Kernel noch lebt (Ping ja) aber nur ein Dienst tot ist, zusätzlich sinnvoll:
+   ein kleiner systemd-Timer, der alle paar Minuten die eigene Website/DB prüft und bei
+   wiederholtem Fehlschlag `systemctl reboot` auslöst (health-check-basierter Selbst-Reboot).
+2. **SSD-Anbindung stabilisieren** — du nutzt bereits eine SSD; entscheidend ist die
+   *Anbindung*: am Pi 5 nach Möglichkeit **NVMe über PCIe/M.2-HAT** statt USB-SATA, sonst ein
+   gutes Kabel + ggf. UAS abschalten (siehe Punkt 2a). Das beseitigt den Hauptverdacht.
+3. **Ordentliches Netzteil + Kühlung** (Pi 5: original 5 V/5 A; SSD zieht zusätzlich Strom).
 4. **Externes Monitoring** (z. B. ein Uptime-Check von außen, der dir eine Mail/Push schickt,
    wenn `https://stromfueralle.at` nicht antwortet) — dann weißt du sofort Bescheid, statt es
    erst vom Kunden zu erfahren. Kann später über die vorhandene Microsoft-Graph-Mail-Anbindung
