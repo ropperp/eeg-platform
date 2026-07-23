@@ -12,6 +12,14 @@
   <div class="alert" style="margin-bottom:1rem;background:#eff6ff;color:#1d4ed8"><?= htmlspecialchars($info) ?></div>
 <?php endif; ?>
 
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">📅 Jahresübersicht</h3>
+  <p style="color:var(--gray-600);font-size:.9rem;margin-bottom:1rem">
+    Alle Ihre Rechnungen eines Jahres auf einen Blick – als druckbare Übersicht (auch als PDF speicherbar).
+  </p>
+  <a href="/portal/my/jahresuebersicht" target="_blank" class="btn btn-secondary">Jahresübersicht öffnen</a>
+</div>
+
 <?php if (($hasConsumer || $hasProducer) && contractsEnabled($member['community_id'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Meine Verträge</h3>

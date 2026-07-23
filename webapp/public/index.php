@@ -1289,6 +1289,87 @@ $router->get('/portal/my/documents', function () {
     require ROOT . '/src/views/pages/my_documents.php';
 });
 
+/**
+ * Sammelt die Jahresübersicht eines Mitglieds: alle Rechnungen eines Kalenderjahres (aus dem
+ * Quartals-Präfix des Abrechnungslaufs), je mit Netto/USt/Brutto (zentrale taxBreakdown()) und
+ * Zahlungsstatus, plus Jahressummen und die Liste der Jahre mit Rechnungen. Gemeinsame Datenbasis
+ * für die Manager- und die Mitglied-Ansicht.
+ */
+function memberJahresUebersicht(string $memberId, string $communityId, ?int $jahr): array
+{
+    $member    = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$memberId, $communityId]);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $jahre = array_map(fn($r) => (int)$r['jahr'], DB::fetchAll(
+        "SELECT DISTINCT substring(br.quartal from 1 for 4) AS jahr
+           FROM invoices i JOIN billing_runs br ON br.id = i.billing_run_id
+          WHERE i.member_id = ? AND i.community_id = ?
+          ORDER BY jahr DESC",
+        [$memberId, $communityId]
+    ));
+    if ($jahr === null) { $jahr = $jahre[0] ?? (int)date('Y'); }
+    $rows = DB::fetchAll(
+        "SELECT i.*, br.quartal, br.period_from, br.status AS run_status,
+                tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
+           FROM invoices i
+           JOIN billing_runs br ON br.id = i.billing_run_id
+           LEFT JOIN LATERAL (
+               SELECT tax_model, tax_rate_percent FROM tax_config
+               WHERE community_id = i.community_id AND valid_from <= br.period_from
+               ORDER BY valid_from DESC LIMIT 1
+           ) tx ON true
+          WHERE i.member_id = ? AND i.community_id = ? AND substring(br.quartal from 1 for 4) = ?
+          ORDER BY br.quartal",
+        [$memberId, $communityId, (string)$jahr]
+    );
+    $sum = ['netto' => 0.0, 'ust' => 0.0, 'brutto' => 0.0, 'gebuehr' => 0.0];
+    foreach ($rows as &$r) {
+        $tb = taxBreakdown((float)$r['saldo_eur'], $r['eeg_tax_model'] ?? null, $r['eeg_tax_rate'] ?? null);
+        $r['netto'] = $tb['netto']; $r['ust'] = $tb['ust']; $r['brutto'] = $tb['brutto'];
+        $sum['netto'] += $tb['netto']; $sum['ust'] += $tb['ust']; $sum['brutto'] += $tb['brutto'];
+        $sum['gebuehr'] += (float)($r['mahn_gebuehr_summe_eur'] ?? 0);
+    }
+    unset($r);
+    return compact('member', 'community', 'jahre', 'jahr', 'rows', 'sum');
+}
+
+$router->get('/portal/members/:id/jahresuebersicht/:jahr', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $data = memberJahresUebersicht($member['id'], $member['community_id'], (int)$params['jahr']);
+    $backUrl = '/portal/members/' . $member['id'];
+    extract($data);
+    require ROOT . '/src/views/pages/jahresuebersicht.php';
+});
+$router->get('/portal/members/:id/jahresuebersicht', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $data = memberJahresUebersicht($member['id'], $member['community_id'], null);
+    $backUrl = '/portal/members/' . $member['id'];
+    extract($data);
+    require ROOT . '/src/views/pages/jahresuebersicht.php';
+});
+
+$router->get('/portal/my/jahresuebersicht/:jahr', function ($params) {
+    Auth::requireLogin();
+    $me = currentMemberFull();
+    if (!$me) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $data = memberJahresUebersicht($me['id'], $me['community_id'], (int)$params['jahr']);
+    $backUrl = '/portal/my/documents';
+    extract($data);
+    require ROOT . '/src/views/pages/jahresuebersicht.php';
+});
+$router->get('/portal/my/jahresuebersicht', function () {
+    Auth::requireLogin();
+    $me = currentMemberFull();
+    if (!$me) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $data = memberJahresUebersicht($me['id'], $me['community_id'], null);
+    $backUrl = '/portal/my/documents';
+    extract($data);
+    require ROOT . '/src/views/pages/jahresuebersicht.php';
+});
+
 $router->get('/portal/my/documents/:fileid/download', function ($params) {
     Auth::requireLogin();
     $member = currentMemberFull();

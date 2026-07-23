@@ -65,6 +65,9 @@
     <a href="/portal/members/<?= $member['id'] ?>/dsgvo-export"
        class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"
        title="Alle gespeicherten Daten dieses Mitglieds als JSON (DSGVO-Auskunftsersuchen, Art. 15)">🔐 DSGVO-Export</a>
+    <a href="/portal/members/<?= $member['id'] ?>/jahresuebersicht" target="_blank"
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"
+       title="Alle Rechnungen eines Jahres als druckbare Übersicht">📅 Jahresübersicht</a>
     <?php if (!empty($member['user_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
       <button type="submit" class="btn btn-tint-blue" style="font-size:.8rem">🔑 Passwort zurücksetzen</button>
