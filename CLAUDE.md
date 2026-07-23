@@ -202,6 +202,22 @@ Manuelle Schritt-für-Schritt-Variante (falls das Skript nicht genutzt werden so
 
 ## Bekannte Probleme & Lösungen
 
+> **Pfad-/Mount-Übersicht:** Welches Host-Verzeichnis in welchen Container gehängt wird, steht
+> vollständig in `docs/INFRASTRUKTUR_PFADE.md` (mit Diagramm). Bei DB-/Daten-„weg"-Symptomen
+> IMMER zuerst dort nachsehen.
+
+### Datenbank wirkt plötzlich leer / „relation does not exist" nach Container-Neustart
+Symptom: Login/Abrechnung brechen ab, `\dt` zeigt kaum Tabellen, obwohl vorher Daten da waren —
+oft nach `docker compose up -d`/Reboot/Image-Update. **Ursache (Vorfall 23.07.2026):** Das
+`timescale/timescaledb-ha`-Image legt sein Datenverzeichnis unter **`/home/postgres/pgdata/data`**
+ab, **nicht** `/var/lib/postgresql/data`. Der Mount stand aber auf `/var/lib/postgresql/data` →
+PostgreSQL schrieb in flüchtigen Container-Speicher, der beim nächsten Container-Neubau weg war.
+Die echten Daten lagen unangetastet auf der Platte, nur nicht gemountet. **Behoben** durch
+korrekten Mount (`/opt/eeg/timescaledb:/home/postgres/pgdata`) + Image-Pin auf feste Digest in
+`docker-compose.yml`. Diagnose/Details: `docs/INFRASTRUKTUR_PFADE.md`. Merksatz: **nie den
+`:pg16`-Tag unbewusst neu ziehen**, PGDATA prüfen mit
+`docker compose exec timescaledb bash -lc 'echo $PGDATA'`.
+
 ### Traefik: "client version 1.24 is too old"
 Docker Engine 29.x unterstützt nur API ≥ 1.40. Traefik:latest behebt das, zusätzlich ist `DOCKER_API_VERSION=1.40` in der compose-Datei gesetzt.
 

@@ -177,6 +177,16 @@ docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrat
 
 ## Bekannte Probleme & Lösungen
 
+> **Pfad-/Mount-Übersicht:** vollständig in `docs/INFRASTRUKTUR_PFADE.md` (mit Diagramm). Bei
+> „DB/Daten weg"-Symptomen zuerst dort nachsehen.
+
+### Datenbank wirkt plötzlich leer nach Container-Neustart (PGDATA-Fallstrick, 23.07.2026)
+`timescaledb-ha` legt PGDATA unter `/home/postgres/pgdata/data` ab, **nicht**
+`/var/lib/postgresql/data`. Falscher Mount → PostgreSQL schrieb in flüchtigen Container-Speicher,
+nach Container-Neubau „leer". Behoben: Mount `/opt/eeg/timescaledb:/home/postgres/pgdata` +
+Image-Pin auf feste Digest. Nie den `:pg16`-Tag unbewusst neu ziehen. Details:
+`docs/INFRASTRUKTUR_PFADE.md`.
+
 ### Traefik: "client version 1.24 is too old"
 Docker Engine 29.x unterstützt nur API ≥ 1.40 → `DOCKER_API_VERSION=1.40` in der compose-Datei.
 

@@ -36,9 +36,16 @@ Beides zusammen: `make backup-all` (DB-Dump + Storage-Archiv).
 
 ---
 
-## Automatisches Backup via Cron (täglich 02:30 Uhr)
+## Automatisches Backup via Cron (täglich 02:00 Uhr)
 
-Auf dem Raspberry Pi als root oder als Deploy-User (der Docker-Zugriff hat):
+> **Wichtig / gelernt am 23.07.2026:** Dieser Cron-Job war lange nur *dokumentiert*, aber auf dem
+> Pi **nie wirklich in der crontab eingetragen** — dadurch liefen keine täglichen Backups (nur
+> vereinzelte manuelle). Deshalb unten der ausdrückliche Schritt **„Prüfen, dass er wirklich
+> installiert ist"**. `scripts/backup.sh` schickt außerdem bei jedem Fehlschlag eine **Alarm-Mail
+> ans Admin-Postfach** (über den Microsoft-Graph-Versand der Plattform), damit ein ausbleibendes
+> Backup nicht mehr unbemerkt bleibt.
+
+Auf dem Raspberry Pi als der User, der Docker-Zugriff hat (hier `admin`):
 
 ```bash
 crontab -e
@@ -47,16 +54,34 @@ crontab -e
 Eintrag (DB-Dump + Uploads):
 
 ```
-30 2 * * * cd /opt/eeg-platform && bash scripts/backup.sh >> /var/log/eeg-backup.log 2>&1
-35 2 * * * cd /opt/eeg-platform && bash scripts/backup-storage.sh >> /var/log/eeg-backup.log 2>&1
+0 2 * * * cd /opt/eeg-platform && bash scripts/backup.sh >> /var/log/eeg-backup.log 2>&1
+5 2 * * * cd /opt/eeg-platform && bash scripts/backup-storage.sh >> /var/log/eeg-backup.log 2>&1
+```
+
+**Prüfen, dass der Cron wirklich installiert ist** (genau das hat 2026 gefehlt):
+
+```bash
+crontab -l | grep backup.sh          # muss die Zeile zeigen
+sudo systemctl status cron           # cron-Dienst muss "active (running)" sein
 ```
 
 Log prüfen:
 
 ```bash
 tail -20 /var/log/eeg-backup.log
-ls -lh backups/
+ls -lh backups/                      # jeden Morgen ein neues eeg_JJJJMMTT_0200.dump
 ```
+
+**Alarm-Mail testen** (erzwingt einen Fehlschlag gegen eine nicht existierende DB und muss eine
+Mail ans Admin-Postfach auslösen):
+
+```bash
+docker compose exec -T -e ALERT_REASON="Testalarm (manuell ausgelöst)" webapp \
+  php < scripts/backup_alert.php
+```
+Kommt keine Mail an, ist der Microsoft-Graph-Versand nicht konfiguriert (Platform-Admin →
+E-Mail-Einstellungen) oder es existiert kein aktiver Platform-Admin als Empfänger. Empfänger
+lässt sich alternativ per Umgebungsvariable `BACKUP_ALERT_EMAIL` fest vorgeben.
 
 ---
 
