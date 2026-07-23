@@ -442,13 +442,16 @@ function createMemberRecord(string $communityId, array $f): array
         if ($token) {
             try {
                 $link = htmlspecialchars(passwordResetLink($token));
+                $anrede = mailSalutation($f);
                 $mail = renderMailTemplate('invite', [
                     'vorname'     => htmlspecialchars(trim($f['first_name'])),
+                    'anrede'      => htmlspecialchars($anrede['anrede']),
+                    'nachname'    => htmlspecialchars($anrede['nachname']),
                     'link'        => $link,
                     'gueltigkeit' => '24 Stunden',
                 ],
                     'Willkommen bei Strom für alle – Zugang einrichten',
-                    '<p>Hallo {{vorname}},</p>'
+                    '<p>{{anrede}} {{nachname}},</p>'
                     . '<p>Ihr Zugang zum Mitgliederportal wurde angelegt. Bitte vergeben Sie über folgenden Link '
                     . 'innerhalb der nächsten {{gueltigkeit}} Ihr persönliches Passwort:</p>'
                     . '<p><a href="{{link}}">{{link}}</a></p>'
@@ -495,9 +498,10 @@ function createMemberRecord(string $communityId, array $f): array
             member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
             geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
             zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
-            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
+            email_anrede_mode
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
@@ -528,6 +532,7 @@ function createMemberRecord(string $communityId, array $f): array
             !empty($f['andere_eeg']) ? 'true' : 'false',
             trim($f['andere_eeg_name'] ?? '') ?: null,
             'true', 'true', 'true', 'true', 'true', 'true',
+            in_array($f['email_anrede_mode'] ?? 'auto', ['auto', 'herr', 'frau', 'familie'], true) ? ($f['email_anrede_mode'] ?? 'auto') : 'auto',
         ]
     );
     $member = DB::fetchOne('SELECT id FROM members WHERE community_id = ? AND kundennummer = ?', [$communityId, $kundennummer]);
@@ -886,7 +891,7 @@ $router->post('/portal/forgot-password', function () {
                 'gueltigkeit' => 'Stunde',
             ],
                 'Passwort zurücksetzen – Strom für alle',
-                '<p>Hallo {{vorname}},</p>'
+                '<p>Liebes Mitglied,</p>'
                 . '<p>über folgenden Link können Sie innerhalb der nächsten {{gueltigkeit}} ein neues Passwort vergeben:</p>'
                 . '<p><a href="{{link}}">{{link}}</a></p>'
                 . '<p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>'
@@ -1579,7 +1584,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
         'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
          phone=?, invoice_uid=?, member_iban=?, member_bic=?, kontoinhaber=?, konto_adresse=?, mandatsreferenz=?,
          member_since=?, member_until=?,
-         geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?
+         geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?,
+         email_anrede_mode=?
          WHERE id=?',
         [
             $_POST['salutation'] ?? null,
@@ -1605,6 +1611,7 @@ $router->post('/portal/members/:id/edit', function ($params) {
             ($_POST['speicher_kwh'] ?? '') !== '' ? (float)$_POST['speicher_kwh'] : null,
             isset($_POST['andere_eeg']) ? 'true' : 'false',
             trim($_POST['andere_eeg_name'] ?? '') ?: null,
+            in_array($_POST['email_anrede_mode'] ?? 'auto', ['auto', 'herr', 'frau', 'familie'], true) ? ($_POST['email_anrede_mode'] ?? 'auto') : 'auto',
             $params['id'],
         ]
     );
@@ -1669,11 +1676,14 @@ $router->post('/portal/members/:id/deactivate', function ($params) {
 
     $mailError = null;
     try {
+        $anrede = mailSalutation($member);
         $mail = renderMailTemplate('member_deactivated', [
-            'vorname' => htmlspecialchars($member['first_name']),
+            'vorname'  => htmlspecialchars($member['first_name']),
+            'anrede'   => htmlspecialchars($anrede['anrede']),
+            'nachname' => htmlspecialchars($anrede['nachname']),
         ],
             'Ihre Mitgliedschaft bei Strom für alle wurde deaktiviert',
-            '<p>Hallo {{vorname}},</p><p>Ihr Zugang wurde deaktiviert. Ihre Daten bleiben aus '
+            '<p>{{anrede}} {{nachname}},</p><p>Ihr Zugang wurde deaktiviert. Ihre Daten bleiben aus '
             . 'Aufbewahrungsgründen erhalten. Bitte wenden Sie sich zur Reaktivierung an Ihre EEG-Verwaltung.</p>'
         );
         Mailer::send($member['email'], $mail['subject'], $mail['body']);
@@ -1724,7 +1734,7 @@ $router->post('/portal/members/:id/reset-password', function ($params) {
             'gueltigkeit' => '10 Minuten',
         ],
             'Passwort zurücksetzen – Strom für alle',
-            '<p>Hallo {{vorname}},</p>'
+            '<p>Liebes Mitglied,</p>'
             . '<p>über folgenden Link können Sie innerhalb der nächsten {{gueltigkeit}} ein neues Passwort vergeben:</p>'
             . '<p><a href="{{link}}">{{link}}</a></p>'
             . '<p>Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>'
@@ -2066,14 +2076,17 @@ $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
         exit;
     }
     try {
+        $anrede = mailSalutation($member);
         $mail = renderMailTemplate('contract_bezug', [
             'vorname'  => htmlspecialchars($member['first_name']),
+            'anrede'   => htmlspecialchars($anrede['anrede']),
+            'nachname' => htmlspecialchars($anrede['nachname']),
             'eeg_name' => htmlspecialchars($community['name']),
             'link'     => htmlspecialchars(portalUrl('/portal/my/contract/bezug/sign')),
             'hinweis'  => contractInvalidationNote((int)$member['contract_bezug_version']),
         ],
             'Ihre Bezugsvereinbarung – {{eeg_name}}',
-            '<p>Hallo {{vorname}},</p><p>Ihre Bezugsvereinbarung mit {{eeg_name}} liegt für Sie bereit. '
+            '<p>{{anrede}} {{nachname}},</p><p>Ihre Bezugsvereinbarung mit {{eeg_name}} liegt für Sie bereit. '
             . 'Bitte prüfen Sie die Vereinbarung im Mitgliederportal und unterschreiben Sie dort digital, '
             . 'damit sie gültig wird:</p><p><a href="{{link}}">{{link}}</a></p>{{hinweis}}'
         );
@@ -2239,14 +2252,17 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
         exit;
     }
     try {
+        $anrede = mailSalutation($member);
         $mail = renderMailTemplate('contract_einspeisung', [
             'vorname'  => htmlspecialchars($member['first_name']),
+            'anrede'   => htmlspecialchars($anrede['anrede']),
+            'nachname' => htmlspecialchars($anrede['nachname']),
             'eeg_name' => htmlspecialchars($community['name']),
             'link'     => htmlspecialchars(portalUrl('/portal/my/contract/einspeisung/sign')),
             'hinweis'  => contractInvalidationNote((int)$member['contract_einspeisung_version']),
         ],
             'Ihre Einspeisevereinbarung – {{eeg_name}}',
-            '<p>Hallo {{vorname}},</p><p>Ihre Einspeisevereinbarung mit {{eeg_name}} liegt für Sie bereit. '
+            '<p>{{anrede}} {{nachname}},</p><p>Ihre Einspeisevereinbarung mit {{eeg_name}} liegt für Sie bereit. '
             . 'Bitte prüfen Sie die Vereinbarung im Mitgliederportal und unterschreiben Sie dort digital, '
             . 'damit sie gültig wird:</p><p><a href="{{link}}">{{link}}</a></p>{{hinweis}}'
         );
@@ -2302,14 +2318,17 @@ $router->post('/portal/members/:id/contract/send-both', function ($params) {
     try {
         $hinweis = contractInvalidationNote((int)$member['contract_bezug_version'])
             ?: contractInvalidationNote((int)$member['contract_einspeisung_version']);
+        $anrede = mailSalutation($member);
         $mail = renderMailTemplate('contract_both', [
             'vorname'  => htmlspecialchars($member['first_name']),
+            'anrede'   => htmlspecialchars($anrede['anrede']),
+            'nachname' => htmlspecialchars($anrede['nachname']),
             'eeg_name' => htmlspecialchars($community['name']),
             'link'     => htmlspecialchars(portalUrl('/portal/my/documents')),
             'hinweis'  => $hinweis,
         ],
             'Ihre Vereinbarungen – {{eeg_name}}',
-            '<p>Hallo {{vorname}},</p><p>Ihre Bezugsvereinbarung und Ihre Einspeisevereinbarung mit {{eeg_name}} liegen '
+            '<p>{{anrede}} {{nachname}},</p><p>Ihre Bezugsvereinbarung und Ihre Einspeisevereinbarung mit {{eeg_name}} liegen '
             . 'für Sie bereit. Bitte prüfen Sie beide Vereinbarungen im Mitgliederportal und unterschreiben Sie dort '
             . 'digital, damit sie gültig werden:</p><p><a href="{{link}}">{{link}}</a></p>{{hinweis}}'
         );
@@ -2966,7 +2985,8 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
     $abbuchung = date('d.m.Y', strtotime('+' . $days . ' days'));
     $rows = DB::fetchAll(
         "SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal, br.period_from,
-                m.first_name, m.email, m.mandatsreferenz, m.member_iban
+                m.first_name, m.last_name, m.company_name, m.salutation, m.titel,
+                m.email_anrede_mode, m.email, m.mandatsreferenz, m.member_iban
            FROM invoices i
            JOIN billing_runs br ON br.id = i.billing_run_id
            JOIN members m ON m.id = i.member_id
@@ -2985,9 +3005,12 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
         $iban = trim((string)$r['member_iban']);
         if (empty($r['email']) || $ref === '' || $iban === '') continue;
         $brutto = taxBreakdown((float)$r['saldo_eur'], $tx['tax_model'] ?? null, $tx['tax_rate_percent'] ?? null)['brutto'];
+        $anrede = mailSalutation($r);
         try {
             $mail = renderMailTemplate('sepa_prenotification', [
                 'vorname'        => htmlspecialchars((string)$r['first_name']),
+                'anrede'         => htmlspecialchars($anrede['anrede']),
+                'nachname'       => htmlspecialchars($anrede['nachname']),
                 'eeg_name'       => htmlspecialchars((string)($community['name'] ?? '')),
                 'rechnungsnummer'=> htmlspecialchars((string)$r['rechnungsnummer']),
                 'betrag'         => number_format($brutto, 2, ',', '.'),
@@ -2996,7 +3019,7 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
                 'creditor_id'    => htmlspecialchars((string)($community['creditor_id'] ?? '')),
             ],
                 'SEPA-Vorabinformation zu Rechnung {{rechnungsnummer}} – {{eeg_name}}',
-                '<p>Hallo {{vorname}},</p>'
+                '<p>{{anrede}} {{nachname}},</p>'
                 . '<p>Ihre Rechnung <strong>{{rechnungsnummer}}</strong> über <strong>{{betrag}} €</strong> wird '
                 . 'im Wege des SEPA-Lastschriftverfahrens am <strong>{{abbuchung}}</strong> von Ihrem Konto eingezogen. '
                 . 'Sie müssen nichts weiter veranlassen.</p>'
@@ -3431,6 +3454,7 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         'member_iban' => $application['iban'], 'member_bic' => $application['bic'],
         'kontoinhaber' => $application['kontoinhaber'], 'konto_adresse' => $application['konto_adresse'],
         'member_since' => date('Y-m-d'),
+        'email_anrede_mode' => $_POST['email_anrede_mode'] ?? 'auto',
     ]);
 
     // Vom Antragsteller angegebene Zählpunkte übernehmen, damit sie nicht händisch

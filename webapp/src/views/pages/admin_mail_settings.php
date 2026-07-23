@@ -194,6 +194,8 @@
   // Test-Nutzer: deckt alle Platzhalter ab, die in den Vorlagen vorkommen können.
   const mailPreviewTestUser = {
     vorname: 'Max',
+    anrede: 'Sehr geehrter Herr',
+    nachname: 'Mustermann',
     eeg_name: 'EEG Strompool Feldkirchen Süd-West',
     link: 'https://portal.stromfueralle.at/portal/login',
     gueltigkeit: '24 Stunden',
@@ -268,7 +270,9 @@
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">E-Mail-Vorlagen</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
-    Verfügbare Platzhalter je nach Vorlage: <code>{{vorname}}</code>, <code>{{link}}</code>, <code>{{gueltigkeit}}</code>,
+    Verfügbare Platzhalter je nach Vorlage: <code>{{anrede}}</code> (= „Sehr geehrter Herr" / „Sehr geehrte Frau" /
+    „Sehr geehrte Familie", je nach Einstellung am Mitglied), <code>{{nachname}}</code>, <code>{{vorname}}</code>,
+    <code>{{link}}</code>, <code>{{gueltigkeit}}</code>,
     <code>{{eeg_name}}</code>, <code>{{hinweis}}</code> (werden beim Versand automatisch ersetzt;
     <code>{{hinweis}}</code> wird bei Vertrags-Mails automatisch mit dem Ungültigkeits-Hinweis befüllt,
     falls eine zuvor gesendete Fassung durch eine korrigierte ersetzt wird, sonst bleibt es leer).

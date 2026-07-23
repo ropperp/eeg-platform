@@ -206,6 +206,38 @@ function sepaPain008Xml(
 }
 
 /**
+ * Baut die formelle E-Mail-Anrede eines Mitglieds: ['anrede' => 'Sehr geehrter Herr',
+ * 'nachname' => '<Titel> <Nachname>']. Getrennt vom Geschlecht (salutation), das die Person
+ * selbst angibt -- email_anrede_mode überschreibt nur die Anrede:
+ *   auto    -> aus salutation ableiten (Herr/Frau; sonst neutral "Guten Tag")
+ *   herr    -> "Sehr geehrter Herr"
+ *   frau    -> "Sehr geehrte Frau"
+ *   familie -> "Sehr geehrte Familie"
+ * Der Nachname bleibt immer der (Titel +) Nachname des Vertragspartners. Firmenmitglieder ohne
+ * Personennamen bekommen "Sehr geehrte Damen und Herren" ohne Nachname.
+ */
+function mailSalutation(array $m): array
+{
+    $titel = trim((string)($m['titel'] ?? ''));
+    $last  = trim((string)($m['last_name'] ?? ''));
+    if ($last === '' && trim((string)($m['company_name'] ?? '')) !== '') {
+        return ['anrede' => 'Sehr geehrte Damen und Herren', 'nachname' => ''];
+    }
+    $mode = $m['email_anrede_mode'] ?? 'auto';
+    if ($mode === 'auto') {
+        $sal = trim((string)($m['salutation'] ?? ''));
+        $mode = $sal === 'Herr' ? 'herr' : ($sal === 'Frau' ? 'frau' : 'neutral');
+    }
+    $anrede = match ($mode) {
+        'herr'    => 'Sehr geehrter Herr',
+        'frau'    => 'Sehr geehrte Frau',
+        'familie' => 'Sehr geehrte Familie',
+        default   => 'Guten Tag',
+    };
+    return ['anrede' => $anrede, 'nachname' => trim($titel . ' ' . $last)];
+}
+
+/**
  * Umsatzsteuer-Aufteilung für einen Netto-Betrag. Die Tarife der Plattform sind grundsätzlich
  * netto hinterlegt. Bei 'kleinunternehmer' (§ 6 Abs 1 Z 27 UStG) fällt keine USt an, netto =
  * brutto. Bei 'standard' wird der USt-Satz (Default 20 %) auf den Netto-Betrag aufgeschlagen.
