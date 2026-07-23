@@ -8,6 +8,20 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-24 (vormittags) — Claude Code — Claude Opus 4.8
+**Auftrag:** E-Mail-Vorlagen laut Mandatsdatei umsetzen (formelle Anrede „Sehr geehrter Herr
+{{nachname}}" statt „Hallo {{vorname}}", neue Platzhalter {{anrede}}/{{nachname}}). Außerdem der
+Fall Franz Lorenz (Vertrag) / Burgi Lorenz (E-Mail): pro Mitglied wählbare E-Mail-Anrede
+(Automatisch/Herr/Frau/Familie), einstellbar beim Bearbeiten und beim Freigeben einer
+Online-Beitrittserklärung.
+**Ergebnis:** `mailSalutation()` (7 Tests) + Spalte `members.email_anrede_mode`
+(`migrate_20260813`, inkl. Umstellung aller 7 Vorlagen auf {{anrede}} {{nachname}}). Alle
+6 Mitglieder-Mailtypen verkabelt (Einladung, Deaktivierung, 3× Vertrag, SEPA-Vorabinfo);
+Passwort-Reset bewusst ohne Namen. Auswahlfeld im Mitglied-Formular und im Freigabe-Dialog,
+Vorschau-Testnutzer + Platzhalterhilfe ergänzt. Hinweis: die Vertragsvorlagen wurden mit
+„im Mitgliederportal … digital unterschreiben" statt dem Mandats-Wortlaut „im Anhang" gesetzt,
+da der aktuelle Flow per Link signiert (kein Anhang). Alle 47 Tests grün. Gemergt (Fortsetzung #12).
+
 ## 2026-07-24 (früh) — Claude Code — Claude Opus 4.8
 **Auftrag:** Signatur-Logo besser steuerbar: Größe (px) einstellbar und Position frei wählbar
 (zwischen Grußformel und Impressum, nicht immer am Ende). Außerdem die E-Mail-Vorschau für

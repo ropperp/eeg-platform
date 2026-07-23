@@ -19,13 +19,29 @@ ob_start();
     <h3 style="margin-bottom:1rem">Persönliche Daten</h3>
     <div class="grid-2">
       <div class="form-group">
-        <label>Anrede</label>
+        <label>Anrede (Geschlecht)</label>
         <select name="salutation">
           <option value="">—</option>
           <?php foreach (['Herr','Frau','Divers'] as $s): ?>
             <option value="<?= $s ?>" <?= ($m['salutation'] ?? '') === $s ? 'selected' : '' ?>><?= $s ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="form-group">
+        <label>E-Mail-Anrede</label>
+        <?php $eam = $m['email_anrede_mode'] ?? $_POST['email_anrede_mode'] ?? 'auto'; ?>
+        <select name="email_anrede_mode">
+          <?php foreach ([
+            'auto'    => 'Automatisch (aus Geschlecht)',
+            'herr'    => 'Sehr geehrter Herr',
+            'frau'    => 'Sehr geehrte Frau',
+            'familie' => 'Sehr geehrte Familie',
+          ] as $val => $lbl): ?>
+            <option value="<?= $val ?>" <?= $eam === $val ? 'selected' : '' ?>><?= $lbl ?></option>
+          <?php endforeach; ?>
+        </select>
+        <small style="color:var(--gray-600)">Nur die Anrede in E-Mails. Nützlich, wenn z.&nbsp;B. die Ehefrau die
+          Mails liest, der Vertrag aber auf den Mann läuft → „Sehr geehrte Familie". Der Nachname bleibt der des Vertragspartners.</small>
       </div>
       <div class="form-group">
         <label>Titel</label>

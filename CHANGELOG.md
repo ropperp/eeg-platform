@@ -20,6 +20,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Formelle E-Mail-Anrede + Anrede-Modus je Mitglied.** Alle Mitglieder-Mails (Einladung,
+  Vertrag, Deaktivierung, SEPA-Vorabinfo) verwenden jetzt `{{anrede}} {{nachname}}`
+  („Sehr geehrter Herr Lorenz") statt „Hallo {{vorname}}". Neues Feld **E-Mail-Anrede** am
+  Mitglied (`members.email_anrede_mode`: automatisch / Herr / Frau / **Familie**) – einstellbar
+  in der Mitglieder-Bearbeitung und beim Freigeben einer Online-Beitrittserklärung. Löst den
+  Fall, dass z. B. die Ehefrau die Mails liest, der Vertrag aber auf den Mann läuft
+  („Sehr geehrte Familie Lorenz"). Das Geschlecht der Person bleibt davon unberührt, der
+  Nachname immer der des Vertragspartners. Passwort-Reset bleibt bewusst ohne Namen
+  („Liebes Mitglied"). Alle Vorlagen auf die neue Fassung umgestellt (`migrate_20260813`).
 - **E-Mail-Vorschau je Vorlage (Smartphone + Laptop):** in den E-Mail-Einstellungen zeigt eine
   Live-Vorschau, wie eine ausgehende Mail aussieht – in Smartphone-Breite (375 px) und
   Laptop-Breite (≈820 px), aktualisiert beim Tippen. **Vorlagen-Auswahl** (Rechnung/Vorabinfo,
