@@ -8,6 +8,15 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-24 (spätnachmittags) — Claude Code — Claude Opus 4.8
+**Auftrag:** Punkt 2 von 4: Jahresübersicht/-abrechnung pro Mitglied.
+**Ergebnis:** Helfer `memberJahresUebersicht()` (alle Rechnungen eines Jahres aus dem
+Quartals-Präfix, Netto/USt/Brutto via taxBreakdown, Jahressummen, Jahresliste). Routen für
+Obmann (`/portal/members/:id/jahresuebersicht[/:jahr]`) und Mitglied
+(`/portal/my/jahresuebersicht[/:jahr]`); druckbare Standalone-Seite `jahresuebersicht.php`
+(Browser-Druck→PDF, kein LaTeX nötig), Jahr per Klick wechselbar. Verlinkt am Mitglied und
+unter „Meine Dokumente". Keine Migration. Alle 52 Tests grün. Gemergt (#15 folgend).
+
 ## 2026-07-24 (nachmittags) — Claude Code — Claude Opus 4.8
 **Auftrag:** Rücklastschrift + Mahnwesen als erster von vier nächsten Punkten (danach
 Jahresübersicht, Audit-Log Vorher/Nachher, TOTP-2FA mit Ein-/Ausschalter; Passkeys später).

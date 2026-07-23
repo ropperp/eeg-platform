@@ -20,6 +20,11 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Jahresübersicht pro Mitglied.** Eine druckbare Zusammenfassung aller Rechnungen eines
+  Kalenderjahres (Quartale Q1–Q4) mit Netto/USt/Brutto je Rechnung, Zahlungsstatus/Mahnstufe und
+  Jahressummen. Erreichbar für den Obmann (`/portal/members/:id/jahresuebersicht`, Button am
+  Mitglied) und für das Mitglied selbst im Portal (unter „Meine Dokumente"). Jahr per Klick
+  wechselbar, „Drucken / als PDF speichern" über den Browser (keine eigene LaTeX-Vorlage nötig).
 - **Rücklastschrift + Mahnwesen.** Wird ein SEPA-Einzug von der Bank zurückgebucht, meldet der
   Obmann die **Rücklastschrift** (Rechnung wieder offen). Danach lässt sich stufenweise mahnen:
   **Stufe 1 Zahlungserinnerung → 2 = 1. Mahnung → 3 = letzte Mahnung**, je mit E-Mail
