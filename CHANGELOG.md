@@ -20,6 +20,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **E-Mail-Vorschau (Smartphone + Laptop):** in den E-Mail-Einstellungen zeigt eine
+  Live-Vorschau, wie eine ausgehende Mail samt Signatur und Logo aussieht – in
+  Smartphone-Breite (375 px) und Laptop-Breite (≈820 px), aktualisiert sich beim Tippen.
+- **Rechnungsliste in Brutto:** die Betrags-Spalte zeigt jetzt immer den Brutto-Betrag
+  (bei Kleinunternehmer identisch mit netto, bei Standard inkl. USt) – konsistent mit
+  Rechnung, SEPA-Einzug und Vorabinfo.
 - **Steuer netto/brutto (USt-Ausweis):** neben der Kleinunternehmerregelung jetzt ein
   Standard-Pfad mit Umsatzsteuer (Default 20 %, je EEG einstellbar). Tarife bleiben netto;
   bei „Standard" weist die Rechnung Netto, USt und Brutto aus, und **SEPA-Einzug wie
@@ -58,6 +64,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   status), wenn eine EEG ohne separate Verträge arbeitet.
 - **Preisliste mit Tarif-Historie:** die öffentliche Preisliste zeigt neben dem aktuellen Tarif
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
+
+### Behoben
+- **SEPA-Test-XML: Beispiel-IBANs prüfziffern-gültig.** Die Debtor-IBANs der Testdatei waren
+  frei erfunden und wurden vom Bank-Prüftool (zu Recht) als ungültig abgewiesen – jetzt
+  Mod-97-korrekte AT-Test-IBANs. Zusätzlich überspringt der echte SEPA-Export Mitglieder mit
+  ungültiger IBAN (statt die ganze Sammellastschrift von der Bank zurückweisen zu lassen).
 
 ### Behoben / Betrieb (Vorfall 23.07.2026)
 - **DB-Datenverlust-Fallstrick behoben:** `timescaledb-ha`-Mount auf das echte PGDATA

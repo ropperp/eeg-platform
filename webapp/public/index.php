@@ -2793,14 +2793,25 @@ $router->get('/portal/billing/invoices', function () {
     DB::setCommunity($communityId);
     $invoices = DB::fetchAll(
         'SELECT i.*, br.quartal, br.status AS run_status, m.kundennummer, m.first_name, m.last_name,
-                m.company_name, m.email, m.member_iban, m.mandatsreferenz
+                m.company_name, m.email, m.member_iban, m.mandatsreferenz,
+                tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
          FROM invoices i
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN members m ON m.id = i.member_id
+         LEFT JOIN LATERAL (
+             SELECT tax_model, tax_rate_percent FROM tax_config
+             WHERE community_id = i.community_id AND valid_from <= br.period_from
+             ORDER BY valid_from DESC LIMIT 1
+         ) tx ON true
          WHERE i.community_id = ?
          ORDER BY i.created_at DESC',
         [$communityId]
     );
+    // Anzeige immer in Brutto: bei Kleinunternehmer identisch mit netto, bei Standard inkl. USt.
+    foreach ($invoices as &$inv) {
+        $inv['brutto_eur'] = taxBreakdown((float)$inv['saldo_eur'], $inv['eeg_tax_model'] ?? null, $inv['eeg_tax_rate'] ?? null)['brutto'];
+    }
+    unset($inv);
     $quartalFilter = $_GET['quartal'] ?? '';
     // Fortschritt der Zahlungsabwicklung nur über bereits freigegebene Rechnungen (run_status
     // 'done') -- Entwürfe zählen nicht als "offen".
@@ -2914,7 +2925,10 @@ function sepaCollectionData(string $communityId, string $runId): array
         $iban = trim((string)$r['member_iban']);
         $ref  = trim((string)$r['mandatsreferenz']);
         $brutto = taxBreakdown((float)$r['saldo_eur'], $tx['tax_model'] ?? null, $tx['tax_rate_percent'] ?? null)['brutto'];
-        if ($iban === '' || $ref === '') {
+        // Ohne verwertbares Mandat (fehlende/ungültige IBAN oder fehlende Mandatsreferenz) NICHT
+        // in die Sammellastschrift aufnehmen -- eine einzige ungültige IBAN lässt sonst die Bank
+        // die komplette Datei zurückweisen.
+        if ($iban === '' || $ref === '' || !validateIban($iban)) {
             $ohneMandat[] = ['name' => $name, 'rechnungsnummer' => $r['rechnungsnummer'], 'saldo' => $brutto];
             continue;
         }
@@ -3065,11 +3079,11 @@ $router->get('/portal/billing/sepa-test-xml', function () {
     ];
     $txns = [
         ['end_to_end_id' => 'TEST-2026-Q1-001', 'amount' => 42.50, 'mandate_ref' => 'S00001F2026A100', 'mandate_date' => '2026-01-15',
-         'debtor_name' => 'Max Mustermann', 'debtor_iban' => 'AT022011100000001234', 'debtor_bic' => 'GIBAATWWXXX', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
+         'debtor_name' => 'Max Mustermann', 'debtor_iban' => 'AT162011100000001234', 'debtor_bic' => 'GIBAATWWXXX', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
         ['end_to_end_id' => 'TEST-2026-Q1-002', 'amount' => 18.90, 'mandate_ref' => 'S00002F2026A101', 'mandate_date' => '2026-02-01',
-         'debtor_name' => 'Anna Beispiel', 'debtor_iban' => 'AT483200000000005678', 'debtor_bic' => '', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
+         'debtor_name' => 'Anna Beispiel', 'debtor_iban' => 'AT613200000000005678', 'debtor_bic' => '', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
         ['end_to_end_id' => 'TEST-2026-Q1-003', 'amount' => 7.15, 'mandate_ref' => 'S00003F2026A102', 'mandate_date' => '2026-03-10',
-         'debtor_name' => 'Familie Test', 'debtor_iban' => 'AT611200000002731300', 'debtor_bic' => 'BKAUATWW', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
+         'debtor_name' => 'Familie Test', 'debtor_iban' => 'AT381200000002731300', 'debtor_bic' => 'BKAUATWW', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
     ];
     $collect = date('Y-m-d', strtotime('+' . max($days, 2) . ' days'));
     $xml = sepaPain008Xml($creditor, $txns, $collect, $version, 'RCUR', 'SFA-TEST-' . date('YmdHis'));
