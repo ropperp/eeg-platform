@@ -631,6 +631,18 @@ $router->get('/rc108175/agb', function () {
 });
 
 $router->get('/rc108175/preisliste', function () {
+    // Datengetrieben: aktuelle Preise + vollständige Änderungshistorie aus tariff_config
+    // (jede Tarifänderung legt dort einen neuen Datensatz mit valid_from an). So können
+    // Mitglieder jederzeit nachvollziehen, welcher Preis seit wann galt.
+    $community = DB::fetchOne("SELECT * FROM communities WHERE lower(marktpartner_id) = 'rc108175' LIMIT 1");
+    $tariffHistory = [];
+    if ($community) {
+        DB::setCommunity($community['id']);
+        $tariffHistory = DB::fetchAll(
+            'SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC, created_at DESC',
+            [$community['id']]
+        );
+    }
     require ROOT . '/src/views/pages/legal_preisliste.php';
 });
 
@@ -3363,7 +3375,9 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['account_holder'] ?? '') ?: null,
             trim($_POST['contact_phone'] ?? '') ?: null,
             trim($_POST['contact_email'] ?? '') ?: null,
-            !empty($_POST['contracts_enabled']),
+            // Als 'true'/'false' binden, nicht als PHP-bool: PDO (pgsql, emulate_prepares=off)
+            // schickt PHP-false als leeren String '', den eine boolean-Spalte ablehnt (22P02).
+            !empty($_POST['contracts_enabled']) ? 'true' : 'false',
             $communityId,
         ]
     );
