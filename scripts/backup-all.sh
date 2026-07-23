@@ -54,8 +54,11 @@ $COMPOSE exec -T timescaledb rm -f /tmp/verify_all >/dev/null 2>&1
 
 # 2) Dateien
 if [ -d "$STORAGE_DIR" ]; then
-    log "Sichere Dateien (webapp-storage) ..."
-    tar -czf "${WORK}/storage.tar.gz" -C "$STORAGE_DIR" --exclude='uploads/*.xlsx' . 2>/dev/null || fail "Datei-Archiv fehlgeschlagen."
+    log "Sichere Dateien (webapp-storage) aus dem Container ..."
+    # Im webapp-Container archivieren -- er läuft als www-data (UID 82) und darf die Dateien
+    # lesen; der Host-User kann uploads/members + avatars nicht lesen (Permission denied).
+    $COMPOSE exec -T webapp tar -czf - -C /var/www/html/storage . > "${WORK}/storage.tar.gz" 2>/dev/null
+    [ "${PIPESTATUS[0]}" -eq 0 ] || fail "Datei-Archiv fehlgeschlagen."
 else
     log "WARNUNG: ${STORAGE_DIR} nicht gefunden -- Komplettsicherung enthält nur die Datenbank."
     : > "${WORK}/storage.tar.gz"

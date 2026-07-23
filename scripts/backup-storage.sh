@@ -44,16 +44,22 @@ fail() {
 
 [ -d "$STORAGE_DIR" ] || fail "${STORAGE_DIR} nicht gefunden -- falscher Host?"
 
-# Gibt es überhaupt zu sichernde Dateien (ohne die redundanten EDA-XLSX)?
-SRC_FILES=$(find "$STORAGE_DIR" -type f -not -name '*.xlsx' 2>/dev/null | wc -l)
+# WICHTIG: Das Archiv wird IM webapp-Container erstellt. Die Dateien gehören www-data (UID 82);
+# der Host-User (admin) darf uploads/members + uploads/avatars nicht lesen (Permission denied)
+# -- ein Host-seitiges tar würde sie stillschweigend auslassen (das war der 45-Byte-Leer-Bug).
+# Im Container läuft alles als www-data und liest die Dateien korrekt. Gesichert wird das
+# KOMPLETTE storage (inkl. der EDA-XLSX -- die sind Quelldaten und dürfen ruhig mitgesichert
+# werden; Vollständigkeit geht hier vor Archivgröße).
+SRC_FILES=$($COMPOSE exec -T webapp sh -lc 'find /var/www/html/storage -type f 2>/dev/null | wc -l' | tr -dc '0-9')
+SRC_FILES=${SRC_FILES:-0}
 if [ "$SRC_FILES" -eq 0 ]; then
-    log "Keine sicherungswürdigen Dateien in ${STORAGE_DIR} (noch keine Uploads/PDFs) -- übersprungen."
+    log "Keine Dateien in webapp-storage (noch keine Uploads/PDFs) -- übersprungen."
     exit 0
 fi
 
-log "Archiviere ${STORAGE_DIR} (${SRC_FILES} Dateien, ohne EDA-XLSX) ..."
-tar -czf "$TMP" -C "$STORAGE_DIR" --exclude='uploads/*.xlsx' . 2>/dev/null
-[ "${PIPESTATUS[0]}" -eq 0 ] || fail "tar lieferte einen Fehler."
+log "Archiviere webapp-storage (${SRC_FILES} Dateien) aus dem Container ..."
+$COMPOSE exec -T webapp tar -czf - -C /var/www/html/storage . > "$TMP" 2>/dev/null
+[ "${PIPESTATUS[0]}" -eq 0 ] || fail "tar (im Container) fehlgeschlagen."
 
 # Prüfen: Archiv lesbar UND enthält Dateien (nicht das frühere 45-Byte-Leer-Archiv)
 if ! gzip -t "$TMP" 2>/dev/null; then
