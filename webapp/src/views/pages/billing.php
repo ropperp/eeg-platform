@@ -58,7 +58,7 @@ ob_start();
         <th>Quartal</th>
         <th>Zeitraum</th>
         <th>Status</th>
-        <th>Freigabe ab</th>
+        <th>EDA-Datenqualität</th>
         <th>Freigegeben am</th>
         <th>Aktion</th>
       </tr>
@@ -66,8 +66,12 @@ ob_start();
     <tbody>
     <?php foreach ($runs as $run): ?>
       <?php
-        $fensterOffen = strtotime($run['freigabe_nach']) <= time();
-        $restTage = max(0, ceil((strtotime($run['freigabe_nach']) - time()) / 86400));
+        $edaStatus = $run['eda_status'] ?? 'unbekannt';
+        $edaLabel  = ['unbekannt' => 'noch nicht geprüft', 'vollstaendig' => 'vollständig (belastbar)', 'unvollstaendig' => 'unvollständig'][$edaStatus] ?? $edaStatus;
+        $edaBadge  = ['unbekannt' => 'gray', 'vollstaendig' => 'green', 'unvollstaendig' => 'yellow'][$edaStatus] ?? 'gray';
+        // Freigabe ist erlaubt, sobald die Daten belastbar sind: Status nicht 'unvollständig'.
+        // Der zusätzliche automatische L3-Check läuft serverseitig in Billing::finalize().
+        $freigabeErlaubt = $edaStatus !== 'unvollstaendig';
       ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
@@ -78,7 +82,19 @@ ob_start();
             <?= ['pending' => 'offen', 'ready' => 'Entwurf – prüfen', 'done' => 'abgeschlossen'][$run['status']] ?? htmlspecialchars($run['status']) ?>
           </span>
         </td>
-        <td><?= date('d.m.Y', strtotime($run['freigabe_nach'])) ?></td>
+        <td>
+          <span class="badge badge-<?= $edaBadge ?>"><?= htmlspecialchars($edaLabel) ?></span>
+          <?php if ($run['status'] !== 'done'): ?>
+            <form method="post" action="/portal/billing/<?= $run['id'] ?>/eda-status" style="display:inline-flex;gap:.3rem;margin-top:.35rem">
+              <select name="eda_status" style="padding:.2rem .4rem;border:1px solid var(--gray-200);border-radius:5px;font-size:.75rem">
+                <?php foreach (['unbekannt' => 'noch nicht geprüft', 'vollstaendig' => 'vollständig (belastbar)', 'unvollstaendig' => 'unvollständig'] as $val => $lbl): ?>
+                  <option value="<?= $val ?>" <?= $edaStatus === $val ? 'selected' : '' ?>><?= $lbl ?></option>
+                <?php endforeach; ?>
+              </select>
+              <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.2rem .5rem;font-size:.72rem">Setzen</button>
+            </form>
+          <?php endif; ?>
+        </td>
         <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
         <td>
           <?php if ($run['status'] === 'pending'): ?>
@@ -94,14 +110,14 @@ ob_start();
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
               <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.35rem .6rem;font-size:.8rem">🔄 Neu</button>
             </form>
-            <?php if ($fensterOffen): ?>
+            <?php if ($freigabeErlaubt): ?>
               <form method="post" action="/portal/billing/release" style="display:inline"
-                    onsubmit="return confirm('Abrechnung endgültig freigeben? Dieser Schritt kann nicht rückgängig gemacht werden.')">
+                    onsubmit="return confirm('Abrechnung endgültig freigeben? Dieser Schritt kann nicht rückgängig gemacht werden. Voraussetzung: die EDA-Werte sind belastbar (keine L3-Werte mehr).')">
                 <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
                 <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">✅ Freigeben</button>
               </form>
             <?php else: ?>
-              <span style="font-size:.8rem;color:var(--gray-600)">Freigabe in <?= $restTage ?> Tagen</span>
+              <span style="font-size:.8rem;color:var(--gray-600)">Freigabe gesperrt: EDA-Daten unvollständig</span>
             <?php endif; ?>
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
@@ -194,11 +210,20 @@ function filterBilling() {
 </script>
 
 <div class="card" style="margin-top:1.5rem">
-  <h3 style="margin-bottom:.75rem">ℹ️ Hinweis zum 60-Tage-Korrekturfenster</h3>
+  <h3 style="margin-bottom:.75rem">ℹ️ Freigabe nach EDA-Datenqualität</h3>
+  <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:.5rem">
+    Eine Abrechnung darf freigegeben werden, sobald die Messwerte belastbar sind – nicht mehr erst nach einer
+    starren 60-Tage-Frist. Die EDA kennzeichnet jeden Viertelstundenwert mit einer Wertekategorie:
+  </p>
+  <ul style="font-size:.85rem;color:var(--gray-600);margin:0 0 .5rem 1.1rem">
+    <li><strong>L1</strong> – Echtwert, gemessen → belastbar (bester Wert)</li>
+    <li><strong>L2</strong> – Ersatzwert, belastbar → belastbar (ändert sich mit hoher Wahrscheinlichkeit nicht mehr)</li>
+    <li><strong>L3</strong> – Ersatzwert, <em>nicht</em> belastbar → ändert sich wahrscheinlich noch; laut EDA <strong>nicht</strong> abzurechnen</li>
+  </ul>
   <p style="font-size:.875rem;color:var(--gray-600)">
-    Gemäß den EDA-Richtlinien und den Vereinsstatuten darf eine Abrechnung erst 60 Tage nach Quartalsende
-    freigegeben werden. In dieser Zeit können Messwerte vom Netzbetreiber noch korrigiert werden (L1 → L2 → L3).
-    Der Freigabe-Button erscheint automatisch sobald das Fenster abgelaufen ist.
+    Freigegeben werden kann, sobald der EDA-Monatsbericht (Eder-XLSX) den Zeitraum als <strong>vollständig</strong>
+    meldet und keine L3-Werte mehr vorliegen. Den Gesamtstatus aus dem Bericht trägst du oben in der Spalte
+    „EDA-Datenqualität" ein; die Prüfung auf verbliebene L3-Werte läuft zusätzlich automatisch bei der Freigabe.
   </p>
 </div>
 

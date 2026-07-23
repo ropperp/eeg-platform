@@ -2784,6 +2784,27 @@ $router->post('/portal/billing/release', function () {
 });
 
 /**
+ * EDA-Datenqualitäts-Status eines Abrechnungslaufs setzen (aus dem Monatsbericht/Eder-XLSX
+ * übernommen). Ersetzt zusammen mit dem automatischen L3-Check die alte 60-Tage-Frist als
+ * Freigabe-Kriterium (siehe Billing::datenqualitaetProblem()).
+ */
+$router->post('/portal/billing/:id/eda-status', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
+    try {
+        Billing::setEdaStatus($params['id'], $_POST['eda_status'] ?? 'unbekannt');
+        logAudit($communityId, 'billing.eda_status', 'billing_run', $params['id'], 'EDA-Datenstatus auf "' . ($_POST['eda_status'] ?? '') . '" gesetzt');
+        header('Location: /portal/billing?success=1');
+    } catch (Throwable $e) {
+        header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
+/**
  * Einzelbearbeitung einer Rechnung vor der Freigabe: nur solange der Abrechnungslauf im
  * Status 'ready' ist (nach der Berechnung, vor der endgültigen Freigabe). Zeigt alle
  * Positionen einer Rechnung und erlaubt Bearbeiten/Löschen/Hinzufügen; der Saldo wird nach
