@@ -1,50 +1,83 @@
 #!/usr/bin/env bash
-# scripts/backup-storage.sh — Archiv der unwiederbringlichen Uploads (Avatare,
-# Mitglieder-Dateien: Ausweis-Scans, Beitrittserklärungen etc.)
+# scripts/backup-storage.sh — Archiv der unwiederbringlichen Dateien der Plattform:
+# Uploads (Ausweis-Scans, Beitrittserklärungen = zugleich SEPA-Mandate, Profilbilder) UND die
+# generierten Vertrags-/Rechnungs-PDFs. Diese Dateien liegen NUR auf der Platte und lassen sich
+# durch keinen DB-Restore wiederherstellen -- deshalb ergänzt dieses Skript scripts/backup.sh.
 #
 # Verwendung:
-#   bash scripts/backup-storage.sh
+#   bash scripts/backup-storage.sh   (im Cron täglich 02:05 -- siehe docs/BACKUP.md)
 #
-# Ergänzt scripts/backup.sh (nur DB-Dump) um die Dateien, die NUR auf der Platte liegen und
-# durch keinen DB-Restore wiederhergestellt werden können.
-#
-# Setzt voraus:
-#   - Aufruf auf dem Host, auf dem /opt/eeg/webapp-storage gemountet ist (nicht im Container)
-#   - Aufruf aus dem Repo-Root-Verzeichnis
-#
-# Datenschutz:
-#   Das Archiv enthält echte Mitgliederdaten (Ausweis-Scans, Profilbilder). NICHT in Git,
-#   backups/ steht in .gitignore. Extern sichern -- siehe docs/BACKUP.md.
+# Absicherung:
+#   - Sichert /opt/eeg/webapp-storage KOMPLETT (uploads/ inkl. members, avatars; pdfs/; ...),
+#     bis auf die redundanten EDA-XLSX-Rohdateien (nach dem Import überflüssig).
+#   - Prüft, dass das Archiv wirklich Dateien enthält (fängt das frühere "45-Byte-leer"-Problem).
+#   - Bei JEDEM Fehler: Alarm-Mail ans Admin-Postfach (scripts/backup_alert.php).
 
-set -euo pipefail
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
 
 STORAGE_DIR="/opt/eeg/webapp-storage"
-BACKUP_DIR="$(dirname "$0")/../backups"
+BACKUP_DIR="${REPO_ROOT}/backups"
+KEEP=14
 TIMESTAMP="$(date +%Y%m%d_%H%M)"
-FILENAME="storage_${TIMESTAMP}.tar.gz"
-FILEPATH="${BACKUP_DIR}/${FILENAME}"
+FINAL="${BACKUP_DIR}/storage_${TIMESTAMP}.tar.gz"
+TMP="${BACKUP_DIR}/.storage_${TIMESTAMP}.tar.gz.part"
+COMPOSE="docker compose"
 
-mkdir -p "${BACKUP_DIR}"
+mkdir -p "$BACKUP_DIR"
+log() { echo "[backup-storage $(date '+%F %T')] $*"; }
 
-if [[ ! -d "${STORAGE_DIR}" ]]; then
-  echo "[backup-storage] FEHLER: ${STORAGE_DIR} nicht gefunden -- läuft dieses Skript auf dem falschen Host?"
-  exit 1
+fail() {
+    local reason="$1"
+    log "FEHLER: ${reason}"
+    rm -f "$TMP"
+    if $COMPOSE exec -T -e ALERT_REASON="Datei-Backup: ${reason}" -e ALERT_HOST="$(hostname)" \
+         webapp php < "${REPO_ROOT}/scripts/backup_alert.php" 2>>"${BACKUP_DIR}/.alert.log"; then
+        log "Alarm-Mail ausgelöst."
+    else
+        log "Alarm-Mail konnte NICHT gesendet werden (siehe ${BACKUP_DIR}/.alert.log)."
+    fi
+    exit 1
+}
+
+[ -d "$STORAGE_DIR" ] || fail "${STORAGE_DIR} nicht gefunden -- falscher Host?"
+
+# WICHTIG: Das Archiv wird IM webapp-Container erstellt. Die Dateien gehören www-data (UID 82);
+# der Host-User (admin) darf uploads/members + uploads/avatars nicht lesen (Permission denied)
+# -- ein Host-seitiges tar würde sie stillschweigend auslassen (das war der 45-Byte-Leer-Bug).
+# Im Container läuft alles als www-data und liest die Dateien korrekt. Gesichert wird das
+# KOMPLETTE storage (inkl. der EDA-XLSX -- die sind Quelldaten und dürfen ruhig mitgesichert
+# werden; Vollständigkeit geht hier vor Archivgröße).
+SRC_FILES=$($COMPOSE exec -T webapp sh -lc 'find /var/www/html/storage -type f 2>/dev/null | wc -l' | tr -dc '0-9')
+SRC_FILES=${SRC_FILES:-0}
+if [ "$SRC_FILES" -eq 0 ]; then
+    log "Keine Dateien in webapp-storage (noch keine Uploads/PDFs) -- übersprungen."
+    exit 0
 fi
 
-echo "[backup-storage] Archiviere ${STORAGE_DIR}/uploads/{avatars,members} ..."
+log "Archiviere webapp-storage (${SRC_FILES} Dateien) aus dem Container ..."
+$COMPOSE exec -T webapp tar -czf - -C /var/www/html/storage . > "$TMP" 2>/dev/null
+[ "${PIPESTATUS[0]}" -eq 0 ] || fail "tar (im Container) fehlgeschlagen."
 
-# Nur die unwiederbringlichen Unterordner sichern -- die direkt in uploads/ liegenden
-# EDA-XLSX-Rohdateien (uniqid()_dateiname.xlsx, aus dem EDA-Import) sind nach dem Import
-# redundant und werden bewusst ausgelassen, um das Archiv klein zu halten.
-tar -czf "${FILEPATH}" \
-  -C "${STORAGE_DIR}" \
-  --ignore-failed-read \
-  uploads/avatars uploads/members 2>/dev/null || true
-
-if [[ ! -s "${FILEPATH}" ]]; then
-  echo "[backup-storage] WARNUNG: Archiv leer oder fehlgeschlagen (noch keine Uploads vorhanden?)."
-  exit 0
+# Prüfen: Archiv lesbar UND enthält Dateien (nicht das frühere 45-Byte-Leer-Archiv)
+if ! gzip -t "$TMP" 2>/dev/null; then
+    fail "Archiv ist beschädigt (gzip -t fehlgeschlagen)."
+fi
+ARCHIVED=$(tar -tzf "$TMP" 2>/dev/null | grep -c -v '/$' || true)
+if [ "$ARCHIVED" -eq 0 ]; then
+    fail "Archiv enthält KEINE Dateien, obwohl ${SRC_FILES} vorhanden sind."
 fi
 
-SIZE=$(du -sh "${FILEPATH}" | cut -f1)
-echo "[backup-storage] Fertig: ${FILEPATH} (${SIZE})"
+mv "$TMP" "$FINAL"
+SIZE=$(du -sh "$FINAL" | cut -f1)
+log "OK: $(basename "$FINAL") (${SIZE}, ${ARCHIVED} Dateien)"
+
+# Rotation: die neuesten $KEEP behalten
+ls -1t "${BACKUP_DIR}"/storage_*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+    log "Entferne altes Archiv: $(basename "$old")"
+    rm -f "$old"
+done
+
+log "Fertig."

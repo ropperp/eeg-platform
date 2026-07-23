@@ -8,6 +8,30 @@ quelle: CLAUDE.md (eeg-platform Repo-Root)
 > Spiegel von `CLAUDE.md` im [eeg-platform](https://github.com/ropperp/eeg-platform)-Repo.
 > Bei jeder Änderung an `CLAUDE.md` wird diese Notiz mit aktualisiert.
 
+## Git-Workflow: Branches, Tags & Versionierung
+
+Seit 0.9.0 mit schlanker Branch-/Tag-Strategie:
+
+- **`main`** ist immer deploybar (`git pull && docker compose up -d --build`). Kleine, klare
+  Änderungen dürfen direkt auf `main`.
+- **Feature-Branches** (`feature/<kurzname>` bzw. der von der Umgebung vorgegebene
+  `claude/<...>`-Branch) für größere/riskante Arbeit → testen (`make test` + CI) → per Pull
+  Request nach `main` mergen. Hält `main` jederzeit lauffähig.
+- **Tags** (`vX.Y.Z`, Semantic Versioning) markieren getestete Stände: PATCH = Bugfix,
+  MINOR = neue Funktion, MAJOR/`1.0.0` = großer Umbau bzw. Produktivstart. `0.x` = vor dem
+  Produktivstart. Jeder Tag hat einen `CHANGELOG.md`-Eintrag.
+
+**Nutzen:** Ein Tag ist ein benannter Fixpunkt → jederzeit einen getesteten Stand deployen oder
+dorthin zurückrollen, im Changelog nachlesen was sich geändert hat, und gegenüber der HTL/
+Diplomarbeit den Funktionsstand pro Zeitpunkt dokumentieren.
+
+```bash
+git switch -c feature/mein-thema        # neuen Branch beginnen
+git push -u origin feature/mein-thema   # dann PR nach main
+git tag -a v0.9.1 -m "0.9.1 – ..." && git push origin v0.9.1   # Release taggen
+git checkout v0.9.0 && docker compose up -d --build            # Stand deployen/zurückrollen
+```
+
 ## Netzwerk-Architektur
 
 ```
@@ -152,6 +176,16 @@ docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrat
 ```
 
 ## Bekannte Probleme & Lösungen
+
+> **Pfad-/Mount-Übersicht:** vollständig in `docs/INFRASTRUKTUR_PFADE.md` (mit Diagramm). Bei
+> „DB/Daten weg"-Symptomen zuerst dort nachsehen.
+
+### Datenbank wirkt plötzlich leer nach Container-Neustart (PGDATA-Fallstrick, 23.07.2026)
+`timescaledb-ha` legt PGDATA unter `/home/postgres/pgdata/data` ab, **nicht**
+`/var/lib/postgresql/data`. Falscher Mount → PostgreSQL schrieb in flüchtigen Container-Speicher,
+nach Container-Neubau „leer". Behoben: Mount `/opt/eeg/timescaledb:/home/postgres/pgdata` +
+Image-Pin auf feste Digest. Nie den `:pg16`-Tag unbewusst neu ziehen. Details:
+`docs/INFRASTRUKTUR_PFADE.md`.
 
 ### Traefik: "client version 1.24 is too old"
 Docker Engine 29.x unterstützt nur API ≥ 1.40 → `DOCKER_API_VERSION=1.40` in der compose-Datei.

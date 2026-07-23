@@ -38,12 +38,23 @@ services:
   # Datenbank — PostgreSQL 16 + TimescaleDB
   # ─────────────────────────────────────────
   timescaledb:
-    image: timescale/timescaledb-ha:pg16
+    # WICHTIG: Image auf feste Digest gepinnt. Der bewegliche Tag ":pg16" hat am 18.06.2026 im
+    # Hintergrund eine neue Image-Version gezogen, die ihr Datenverzeichnis von
+    # /var/lib/postgresql/data auf /home/postgres/pgdata/data verlegt hat -> der alte Bind-Mount
+    # zeigte ins Leere, die DB lief auf flüchtigem Container-Speicher und war nach dem nächsten
+    # Neu-Erstellen des Containers "weg" (Details: docs/INFRASTRUKTUR_PFADE.md). Feste Digest +
+    # korrekter Mount unten verhindern das. Zum bewussten Aktualisieren: Digest neu setzen.
+    image: timescale/timescaledb-ha:pg16@sha256:cbc43994559f407ebdf360f5254da044b05c65a2f8a8d18bc8119eef35ca5803
     container_name: timescaledb
     restart: always
     logging: *default-logging
     volumes:
-      - /opt/eeg/timescaledb:/var/lib/postgresql/data
+      # Persistentes Datenverzeichnis. Muss auf das echte PGDATA des timescaledb-ha-Images
+      # zeigen: /home/postgres/pgdata (PGDATA = /home/postgres/pgdata/data). NICHT auf
+      # /var/lib/postgresql/data -- das benutzt dieses Image NICHT (siehe Kommentar am image
+      # oben + docs/INFRASTRUKTUR_PFADE.md). Der Cluster liegt damit auf dem Host unter
+      # /opt/eeg/timescaledb/data.
+      - /opt/eeg/timescaledb:/home/postgres/pgdata
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     environment:
       POSTGRES_USER: ${DB_USER}

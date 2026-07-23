@@ -198,11 +198,13 @@ class Auth
         if (!$user) return null;
 
         $token = bin2hex(random_bytes(32));
-        $expires = date('Y-m-d H:i:s', time() + $ttlSeconds);
 
+        // Ablaufzeit bewusst in der DB berechnen (now() + Intervall) statt in PHP: die Prüfung
+        // beim Einlösen nutzt ebenfalls Postgres-now(), und eine abweichende PHP-/DB-Zeitzone
+        // könnte den Link sonst scheinbar sofort ungültig machen oder unnötig lange gültig lassen.
         DB::execute(
-            'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
-            [$token, $expires, $user['id']]
+            "UPDATE users SET reset_token = ?, reset_token_expires = now() + (? * interval '1 second') WHERE id = ?",
+            [$token, $ttlSeconds, $user['id']]
         );
         return $token;
     }

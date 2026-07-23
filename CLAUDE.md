@@ -9,6 +9,51 @@ nachzufragen — auch wenn eine hochgeladene Anweisungsdatei o.ä. explizit "nic
 deployen" verlangt. Diese generelle Präferenz von Patrick hat Vorrang vor einzelnen
 Task-Anweisungen, sofern nicht ausdrücklich anders gesagt.
 
+> Ausnahme: Läuft eine Sitzung in einer Umgebung mit einer **fest vorgegebenen Arbeits-Branch**
+> (z. B. Claude Code on the web mit `claude/...`-Branch), wird dort committet und gepusht, nicht
+> direkt auf `main`. Der Merge nach `main` erfolgt dann per Pull Request. Auf dem Produktivserver
+> wird weiterhin nur `main` deployt.
+
+## Git-Workflow: Branches, Tags & Versionierung
+
+Seit 0.9.0 arbeiten wir mit einer schlanken Branch-/Tag-Strategie statt nur linear auf `main`:
+
+- **`main`** ist immer deploybar. Was auf `main` liegt, kann jederzeit per
+  `git pull && docker compose up -d --build` auf den Server. Kleine, offensichtliche Änderungen
+  (Doku, Bugfix) dürfen weiter direkt auf `main` (siehe Workflow-Präferenz oben).
+- **Feature-Branches** (`feature/<kurzname>`, oder der von der Umgebung vorgegebene
+  `claude/<...>`-Branch) für größere oder riskantere Arbeit. Dort committen, testen
+  (`make test`, CI läuft automatisch), dann per Pull Request nach `main` mergen. Vorteil: `main`
+  bleibt jederzeit lauffähig, Änderungen sind als Einheit reviewbar und notfalls am Stück
+  zurücknehmbar.
+- **Tags** (`vX.Y.Z`, [Semantic Versioning](https://semver.org)) markieren getestete Stände:
+  - **PATCH** (0.9.0 → 0.9.1): Bugfix, keine neue Funktion.
+  - **MINOR** (0.9.0 → 0.10.0): neue, rückwärtskompatible Funktion.
+  - **MAJOR** (0.x → 1.0.0): großer Umbau bzw. der erste echte Produktivstart.
+  - `0.x` = vor dem Produktivstart, `1.0.0` = erster Echtbetrieb.
+  Jeder Tag hat einen Eintrag in `CHANGELOG.md`.
+
+**Warum das nützlich ist:** Ein Tag ist ein benannter, unveränderlicher Fixpunkt. Damit lässt
+sich (a) jederzeit ein bestimmter, getesteter Stand deployen oder dorthin **zurückrollen**, wenn
+ein Update Probleme macht; (b) im `CHANGELOG.md` genau nachlesen, was zwischen zwei Ständen
+passiert ist; (c) gegenüber der Diplomarbeit/HTL sauber dokumentieren, welcher Funktionsumfang
+zu welchem Zeitpunkt fertig war. Branches wiederum halten `main` sauber und deploybar, während an
+etwas Größerem gearbeitet wird.
+
+```bash
+# Neuen Feature-Branch beginnen
+git switch -c feature/mein-thema
+# ... committen ...
+git push -u origin feature/mein-thema        # dann PR nach main
+
+# Release taggen (nach Merge auf main, main ausgecheckt)
+git tag -a v0.9.1 -m "0.9.1 – <kurzbeschreibung>"
+git push origin v0.9.1
+
+# Bestimmten getesteten Stand deployen / zurückrollen
+git checkout v0.9.0 && docker compose up -d --build
+```
+
 ---
 
 ## Netzwerk-Architektur
@@ -156,6 +201,22 @@ Manuelle Schritt-für-Schritt-Variante (falls das Skript nicht genutzt werden so
 ---
 
 ## Bekannte Probleme & Lösungen
+
+> **Pfad-/Mount-Übersicht:** Welches Host-Verzeichnis in welchen Container gehängt wird, steht
+> vollständig in `docs/INFRASTRUKTUR_PFADE.md` (mit Diagramm). Bei DB-/Daten-„weg"-Symptomen
+> IMMER zuerst dort nachsehen.
+
+### Datenbank wirkt plötzlich leer / „relation does not exist" nach Container-Neustart
+Symptom: Login/Abrechnung brechen ab, `\dt` zeigt kaum Tabellen, obwohl vorher Daten da waren —
+oft nach `docker compose up -d`/Reboot/Image-Update. **Ursache (Vorfall 23.07.2026):** Das
+`timescale/timescaledb-ha`-Image legt sein Datenverzeichnis unter **`/home/postgres/pgdata/data`**
+ab, **nicht** `/var/lib/postgresql/data`. Der Mount stand aber auf `/var/lib/postgresql/data` →
+PostgreSQL schrieb in flüchtigen Container-Speicher, der beim nächsten Container-Neubau weg war.
+Die echten Daten lagen unangetastet auf der Platte, nur nicht gemountet. **Behoben** durch
+korrekten Mount (`/opt/eeg/timescaledb:/home/postgres/pgdata`) + Image-Pin auf feste Digest in
+`docker-compose.yml`. Diagnose/Details: `docs/INFRASTRUKTUR_PFADE.md`. Merksatz: **nie den
+`:pg16`-Tag unbewusst neu ziehen**, PGDATA prüfen mit
+`docker compose exec timescaledb bash -lc 'echo $PGDATA'`.
 
 ### Traefik: "client version 1.24 is too old"
 Docker Engine 29.x unterstützt nur API ≥ 1.40. Traefik:latest behebt das, zusätzlich ist `DOCKER_API_VERSION=1.40` in der compose-Datei gesetzt.

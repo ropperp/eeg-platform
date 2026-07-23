@@ -4,11 +4,22 @@ declare(strict_types=1);
 
 /**
  * Abrechnungslogik.
- * 60-Tage-Korrekturfenster ist hartcodiert — kein Override möglich.
- * Tarife und Steuern kommen immer aus der DB (historisiert).
+ * Die Freigabe hängt an der EDA-Datenqualität, nicht mehr an einem starren 60-Tage-Kalender
+ * (siehe finalize()/datenqualitaetProblem()). Tarife und Steuern kommen immer aus der DB
+ * (historisiert).
  */
 class Billing
 {
+    /**
+     * Für die Abrechnung verwendbare EDA-Wertekategorien (Datenqualität je Viertelstundenwert):
+     *   L1 = Echtwert, gemessen          -> belastbar (bester Wert)
+     *   L2 = Ersatzwert, belastbar       -> belastbar (ändert sich mit hoher Wahrsch. nicht mehr)
+     * NICHT enthalten: L3 = Ersatzwert, NICHT belastbar -> ändert sich sehr wahrscheinlich noch,
+     * laut EDA-Monatsreport ausdrücklich NICHT für die Abrechnung zu verwenden. Details:
+     * docs/EDA_DATENQUALITAET.md.
+     */
+    public const ABRECHNUNGS_QUALITY = ['L1', 'L2'];
+
     /**
      * Erstellt oder aktualisiert einen Abrechnungslauf für ein Quartal.
      * Prüft automatisch ob alle Voraussetzungen erfüllt sind.
@@ -108,7 +119,9 @@ class Billing
                          FROM eda_measurements
                          WHERE community_id = ? AND metering_point_id = ?
                            AND time >= ? AND time < ?::date + INTERVAL \'1 day\'
-                           AND quality IN (\'L2\', \'L3\')',
+                           -- Nur belastbare Werte abrechnen (L1/L2). L3 = nicht belastbarer
+                           -- Ersatzwert, laut EDA nicht abzurechnen (siehe ABRECHNUNGS_QUALITY).
+                           AND quality IN (\'L1\', \'L2\')',
                         [$run['community_id'], $mp['mp_id'], $run['period_from'], $run['period_to']]
                     );
 
@@ -186,8 +199,11 @@ class Billing
     }
 
     /**
-     * Gibt einen berechneten Abrechnungslauf endgültig frei (Status 'done'). Setzt das
-     * 60-Tage-Korrekturfenster hart durch (kein Override) -- vorher müssen die Entwürfe per
+     * Gibt einen berechneten Abrechnungslauf endgültig frei (Status 'done'). Voraussetzung ist
+     * jetzt die EDA-Datenqualität, nicht mehr ein starres 60-Tage-Kalenderfenster (siehe
+     * datenqualitaetProblem()): sobald die Werte belastbar sind (EDA-Monatsbericht meldet den
+     * Zeitraum als vollständig UND es liegen keine L3-Ersatzwerte mehr vor), darf sofort
+     * freigegeben werden -- auch früher als nach 60 Tagen. Vorher müssen die Entwürfe per
      * generateDrafts() erzeugt (Status 'ready') und ggf. manuell nachbearbeitet worden sein.
      */
     public static function finalize(string $billingRunId, string $releasedByUserId): void
@@ -197,17 +213,65 @@ class Billing
         if ($run['status'] !== 'ready') {
             throw new RuntimeException('Bitte zuerst die Rechnungen berechnen (Entwurf erstellen), dann freigeben.');
         }
-        $freigabeNach = new DateTimeImmutable($run['freigabe_nach']);
-        if (new DateTimeImmutable() < $freigabeNach) {
-            throw new RuntimeException(
-                '60-Tage-Korrekturfenster noch nicht abgelaufen. ' .
-                'Freigabe frühestens möglich ab ' . $freigabeNach->format('d.m.Y') . '.'
-            );
+        $problem = self::datenqualitaetProblem($billingRunId);
+        if ($problem !== null) {
+            throw new RuntimeException($problem);
         }
         DB::execute(
             "UPDATE billing_runs SET status = 'done', released_by = ?, released_at = now() WHERE id = ?",
             [$releasedByUserId, $billingRunId]
         );
+    }
+
+    /**
+     * Prüft, ob die Datenqualität des Zeitraums eine Freigabe (noch) verhindert. Ergebnis:
+     * eine deutsche Begründung, wenn NICHT freigegeben werden darf, sonst null (= freigebbar).
+     *
+     * Zwei Kriterien, beide müssen erfüllt sein:
+     *  1. Der aus dem EDA-Monatsbericht übernommene Gesamtstatus (billing_runs.eda_status) darf
+     *     nicht 'unvollstaendig' sein. 'unbekannt' (Ausgangswert) blockiert NICHT, damit ein
+     *     Lauf auch ohne gepflegten Status freigegeben werden kann, solange Kriterium 2 passt.
+     *  2. Im Abrechnungszeitraum dürfen keine nicht belastbaren Ersatzwerte (Qualität L3)
+     *     mehr vorliegen -- die ändern sich laut EDA mit hoher Wahrscheinlichkeit noch.
+     */
+    public static function datenqualitaetProblem(string $billingRunId): ?string
+    {
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$billingRunId]);
+        if (!$run) throw new RuntimeException('Abrechnungslauf nicht gefunden');
+
+        if (($run['eda_status'] ?? 'unbekannt') === 'unvollstaendig') {
+            return 'Der EDA-Monatsbericht weist die Werte für diesen Zeitraum als unvollständig '
+                 . 'bzw. nicht belastbar aus. Bitte erst freigeben, sobald ein Bericht den '
+                 . 'Zeitraum als vollständig meldet (Datenstatus im Abrechnungslauf setzen).';
+        }
+
+        DB::setCommunity($run['community_id']);
+        $l3 = DB::fetchOne(
+            "SELECT COUNT(*) AS n FROM eda_measurements
+             WHERE community_id = ? AND time >= ? AND time < ?::date + INTERVAL '1 day'
+               AND quality = 'L3'",
+            [$run['community_id'], $run['period_from'], $run['period_to']]
+        );
+        if ((int)($l3['n'] ?? 0) > 0) {
+            return 'Es liegen noch ' . (int)$l3['n'] . ' nicht belastbare Ersatzwerte (Qualität L3) '
+                 . 'im Abrechnungszeitraum vor. Diese ändern sich laut EDA mit hoher '
+                 . 'Wahrscheinlichkeit noch -- bitte den nächsten EDA-Monatsbericht abwarten, bis '
+                 . 'keine L3-Werte mehr gemeldet werden.';
+        }
+        return null;
+    }
+
+    /**
+     * Übernimmt den Datenqualitäts-Gesamtstatus aus dem EDA-Monatsbericht (Eder-XLSX) auf den
+     * Abrechnungslauf. Erlaubt: 'unbekannt' | 'vollstaendig' | 'unvollstaendig'.
+     */
+    public static function setEdaStatus(string $billingRunId, string $status): void
+    {
+        $allowed = ['unbekannt', 'vollstaendig', 'unvollstaendig'];
+        if (!in_array($status, $allowed, true)) {
+            throw new InvalidArgumentException('Ungültiger EDA-Datenstatus');
+        }
+        DB::execute('UPDATE billing_runs SET eda_status = ? WHERE id = ?', [$status, $billingRunId]);
     }
 
     /**

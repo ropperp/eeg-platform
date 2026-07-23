@@ -2784,6 +2784,27 @@ $router->post('/portal/billing/release', function () {
 });
 
 /**
+ * EDA-Datenqualitäts-Status eines Abrechnungslaufs setzen (aus dem Monatsbericht/Eder-XLSX
+ * übernommen). Ersetzt zusammen mit dem automatischen L3-Check die alte 60-Tage-Frist als
+ * Freigabe-Kriterium (siehe Billing::datenqualitaetProblem()).
+ */
+$router->post('/portal/billing/:id/eda-status', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
+    try {
+        Billing::setEdaStatus($params['id'], $_POST['eda_status'] ?? 'unbekannt');
+        logAudit($communityId, 'billing.eda_status', 'billing_run', $params['id'], 'EDA-Datenstatus auf "' . ($_POST['eda_status'] ?? '') . '" gesetzt');
+        header('Location: /portal/billing?success=1');
+    } catch (Throwable $e) {
+        header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
+    }
+    exit;
+});
+
+/**
  * Einzelbearbeitung einer Rechnung vor der Freigabe: nur solange der Abrechnungslauf im
  * Status 'ready' ist (nach der Berechnung, vor der endgültigen Freigabe). Zeigt alle
  * Positionen einer Rechnung und erlaubt Bearbeiten/Löschen/Hinzufügen; der Saldo wird nach
@@ -3622,7 +3643,8 @@ $router->post('/admin/mail-settings', function () {
 
     DB::execute(
         'UPDATE platform_mail_config
-         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?, updated_at = now()
+         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
+             backup_alert_email_1 = ?, backup_alert_email_2 = ?, updated_at = now()
          WHERE id = 1',
         [
             trim($_POST['tenant_id'] ?? '') ?: null,
@@ -3631,6 +3653,8 @@ $router->post('/admin/mail-settings', function () {
             trim($_POST['sender_address'] ?? '') ?: null,
             trim($_POST['reply_to'] ?? '') ?: null,
             trim($_POST['signature_html'] ?? '') ?: null,
+            trim($_POST['backup_alert_email_1'] ?? '') ?: null,
+            trim($_POST['backup_alert_email_2'] ?? '') ?: null,
         ]
     );
     logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Microsoft-Graph-Mailkonfiguration aktualisiert');
