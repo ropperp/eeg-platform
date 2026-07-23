@@ -88,6 +88,24 @@ Adresse). Sind beide leer, geht der Alarm an den ersten aktiven Platform-Admin. 
 Umgebungsvariable `BACKUP_ALERT_EMAIL` erzwingbar. Weil die Adressen in der DB stehen, wirken sie
 auch nach einem Umzug auf ein anderes Gerät ohne Code-Änderung.
 
+### Komplettsicherung in EINER Datei (empfohlen für „alles wiederherstellen")
+- **`backup-all.sh`** packt DB-Dump **und** alle Dateien in ein einziges Archiv
+  `backups/eeg_full_JJJJMMTT_HHMM.tar.gz` (mit `MANIFEST.txt`). Ideal zum Herunterladen/Aufbewahren.
+- **`restore.sh`** stellt daraus auf einem **frischen Gerät** alles wieder her (Datenbank +
+  Dateien, korrektes TimescaleDB-Verfahren):
+  ```bash
+  docker compose up -d               # Container starten (leere DB)
+  bash scripts/restore.sh backups/eeg_full_JJJJMMTT_HHMM.tar.gz
+  docker compose up -d --build       # Webapp neu bauen, dann Login testen
+  ```
+  `restore.sh` versteht auch einen reinen DB-Dump (`eeg_….dump`) — dann werden nur die
+  Datenbankinhalte wiederhergestellt.
+
+Optionaler Cron (zusätzlich, z.B. wöchentlich Sonntag 03:00 eine Komplettdatei):
+```
+0 3 * * 0 cd /opt/eeg-platform && bash scripts/backup-all.sh >> /opt/eeg-platform/backups/cron.log 2>&1
+```
+
 ### Was wird gesichert?
 - **`backup.sh`** → PostgreSQL-Dump (alle Mitglieder-, Vertrags-, Rechnungs-, Messdaten).
 - **`backup-storage.sh`** → **alle Dateien** unter `/opt/eeg/webapp-storage` (Uploads inkl.
