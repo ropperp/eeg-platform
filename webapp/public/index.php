@@ -3149,6 +3149,124 @@ $router->post('/portal/billing/invoices/:id/mark-paid', function ($params) {
 });
 
 /**
+ * Rücklastschrift melden: eine per SEPA eingezogene Rechnung wurde von der Bank zurückgebucht
+ * (R-Transaktion). Setzt payment_status='fehlgeschlagen' und merkt sich den Zeitpunkt -- danach
+ * kann gemahnt werden.
+ */
+$router->post('/portal/billing/invoices/:id/ruecklastschrift', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $inv = DB::fetchOne('SELECT * FROM invoices WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$inv) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+    DB::execute(
+        "UPDATE invoices SET payment_status = 'fehlgeschlagen', paid_at = NULL, ruecklastschrift_at = now()
+         WHERE id = ? AND community_id = ?",
+        [$params['id'], $communityId]
+    );
+    logAudit($communityId, 'billing.ruecklastschrift', 'invoice', $params['id'],
+        'Rücklastschrift zu Rechnung ' . $inv['rechnungsnummer'] . ' erfasst (Zahlung offen)');
+    header('Location: /portal/billing/invoices?success=1');
+    exit;
+});
+
+/**
+ * Nächste Mahnstufe auslösen: Stufe hochzählen (max. 3), konfigurierte Mahngebühr aufschlagen und
+ * die Zahlungserinnerung/Mahnung per E-Mail verschicken. Nur für freigegebene, noch offene bzw.
+ * fehlgeschlagene Rechnungen mit Forderung (Saldo > 0).
+ */
+$router->post('/portal/billing/invoices/:id/mahnung', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $inv = DB::fetchOne(
+        'SELECT i.*, br.status AS run_status, c.name AS eeg_name, c.iban AS eeg_iban, c.mahngebuehr_eur,
+                c.sepa_prenotification_days,
+                tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate,
+                m.first_name, m.last_name, m.company_name, m.salutation, m.titel, m.email_anrede_mode, m.email
+           FROM invoices i
+           JOIN billing_runs br ON br.id = i.billing_run_id
+           JOIN communities c ON c.id = i.community_id
+           JOIN members m ON m.id = i.member_id
+           LEFT JOIN LATERAL (
+               SELECT tax_model, tax_rate_percent FROM tax_config
+               WHERE community_id = i.community_id AND valid_from <= br.period_from
+               ORDER BY valid_from DESC LIMIT 1
+           ) tx ON true
+          WHERE i.id = ? AND i.community_id = ?',
+        [$params['id'], $communityId]
+    );
+    if (!$inv) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+    if (($inv['run_status'] ?? '') !== 'done') {
+        header('Location: /portal/billing/invoices?error=' . urlencode('Nur freigegebene Rechnungen können gemahnt werden.')); exit;
+    }
+    if ((float)$inv['saldo_eur'] <= 0) {
+        header('Location: /portal/billing/invoices?error=' . urlencode('Nur Rechnungen mit offener Forderung können gemahnt werden.')); exit;
+    }
+    if (in_array($inv['payment_status'], ['eingezogen', 'ueberwiesen'], true)) {
+        header('Location: /portal/billing/invoices?error=' . urlencode('Diese Rechnung ist bereits bezahlt.')); exit;
+    }
+    if ((int)$inv['mahnstufe'] >= 3) {
+        header('Location: /portal/billing/invoices?error=' . urlencode('Höchste Mahnstufe bereits erreicht – bitte weiteres Vorgehen (Inkasso o.ä.) außerhalb der Plattform klären.')); exit;
+    }
+
+    $neueStufe = (int)$inv['mahnstufe'] + 1;
+    $gebuehr   = round((float)($inv['mahngebuehr_eur'] ?? 0), 2);
+    $brutto    = taxBreakdown((float)$inv['saldo_eur'], $inv['eeg_tax_model'] ?? null, $inv['eeg_tax_rate'] ?? null)['brutto'];
+    $gebuehrSummeNeu = round((float)$inv['mahn_gebuehr_summe_eur'] + $gebuehr, 2);
+    $gesamt    = round($brutto + $gebuehrSummeNeu, 2);
+    $fristTage = (int)($inv['sepa_prenotification_days'] ?? 14);
+    $frist     = date('d.m.Y', strtotime('+' . max(7, $fristTage) . ' days'));
+
+    $mailError = null;
+    if (!empty($inv['email'])) {
+        try {
+            $anrede = mailSalutation($inv);
+            $mail = renderMailTemplate('mahnung', [
+                'anrede'          => htmlspecialchars($anrede['anrede']),
+                'nachname'        => htmlspecialchars($anrede['nachname']),
+                'eeg_name'        => htmlspecialchars((string)$inv['eeg_name']),
+                'rechnungsnummer' => htmlspecialchars((string)$inv['rechnungsnummer']),
+                'mahnstufe_text'  => htmlspecialchars(mahnstufeText($neueStufe)),
+                'betrag'          => number_format($brutto, 2, ',', '.'),
+                'gesamt'          => number_format($gesamt, 2, ',', '.'),
+                'gebuehr_zeile'   => $gebuehrSummeNeu > 0 ? '<br>Mahngebühren: ' . number_format($gebuehrSummeNeu, 2, ',', '.') . ' €' : '',
+                'ruecklast_hinweis' => !empty($inv['ruecklastschrift_at']) ? ' (die SEPA-Lastschrift wurde von Ihrer Bank zurückgebucht)' : '',
+                'frist'           => $frist,
+                'iban'            => htmlspecialchars((string)($inv['eeg_iban'] ?? '')),
+            ],
+                '{{mahnstufe_text}}: Rechnung {{rechnungsnummer}} – {{eeg_name}}',
+                '<p>{{anrede}} {{nachname}},</p>'
+                . '<p>zu Ihrer Rechnung <strong>{{rechnungsnummer}}</strong> ist bei uns bislang kein vollständiger Zahlungseingang verbucht{{ruecklast_hinweis}}.</p>'
+                . '<p>Offener Betrag: <strong>{{betrag}} €</strong>{{gebuehr_zeile}}<br>Bitte zu überweisen: <strong>{{gesamt}} €</strong></p>'
+                . '<p>Wir bitten Sie, den Betrag bis spätestens <strong>{{frist}}</strong> auf folgendes Konto zu überweisen:<br>'
+                . 'IBAN: {{iban}}<br>Verwendungszweck: {{rechnungsnummer}}</p>'
+                . '<p>Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.</p>'
+            );
+            Mailer::send($inv['email'], $mail['subject'], $mail['body']);
+        } catch (Throwable $e) {
+            $mailError = $e->getMessage();
+            error_log('Mahnung-Mail fehlgeschlagen für ' . $inv['rechnungsnummer'] . ': ' . $e->getMessage());
+        }
+    }
+
+    DB::execute(
+        'UPDATE invoices SET mahnstufe = ?, mahn_gebuehr_summe_eur = ?, letzte_mahnung_at = now() WHERE id = ? AND community_id = ?',
+        [$neueStufe, $gebuehrSummeNeu, $params['id'], $communityId]
+    );
+    logAudit($communityId, 'billing.mahnung', 'invoice', $params['id'],
+        mahnstufeText($neueStufe) . ' (Stufe ' . $neueStufe . ') zu Rechnung ' . $inv['rechnungsnummer']
+        . ' ausgelöst' . ($gebuehr > 0 ? ', Mahngebühr ' . number_format($gebuehr, 2, ',', '.') . ' €' : '')
+        . ($mailError ? ' – Mailversand fehlgeschlagen' : ''));
+
+    $msg = $mailError
+        ? 'Mahnstufe gesetzt, aber E-Mail-Versand fehlgeschlagen: ' . $mailError
+        : mahnstufeText($neueStufe) . ' verschickt.';
+    header('Location: /portal/billing/invoices?success=' . urlencode($msg));
+    exit;
+});
+
+/**
  * Einzelbearbeitung einer Rechnung vor der Freigabe: nur solange der Abrechnungslauf im
  * Status 'ready' ist (nach der Berechnung, vor der endgültigen Freigabe). Zeigt alle
  * Positionen einer Rechnung und erlaubt Bearbeiten/Löschen/Hinzufügen; der Saldo wird nach
@@ -3677,7 +3795,7 @@ $router->post('/portal/settings/community', function () {
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
-                                 sepa_pain_version=?, sepa_prenotification_days=?, contracts_enabled=? WHERE id=?',
+                                 sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -3693,6 +3811,7 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['creditor_id'] ?? '') ?: null,
             in_array($_POST['sepa_pain_version'] ?? '08', ['02', '08'], true) ? $_POST['sepa_pain_version'] : '08',
             max(1, min(60, (int)($_POST['sepa_prenotification_days'] ?? 14))),
+            max(0, (float)str_replace(',', '.', $_POST['mahngebuehr_eur'] ?? '0')),
             // Als 'true'/'false' binden, nicht als PHP-bool: PDO (pgsql, emulate_prepares=off)
             // schickt PHP-false als leeren String '', den eine boolean-Spalte ablehnt (22P02).
             !empty($_POST['contracts_enabled']) ? 'true' : 'false',
