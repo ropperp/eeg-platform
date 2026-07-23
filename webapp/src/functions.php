@@ -206,6 +206,20 @@ function sepaPain008Xml(
 }
 
 /**
+ * Bezeichnung einer Mahnstufe: 1 = Zahlungserinnerung, 2 = 1. Mahnung, 3+ = 2./letzte Mahnung.
+ * Stufe 0 (noch nicht gemahnt) ergibt einen leeren String.
+ */
+function mahnstufeText(int $stufe): string
+{
+    return match (true) {
+        $stufe <= 0 => '',
+        $stufe === 1 => 'Zahlungserinnerung',
+        $stufe === 2 => '1. Mahnung',
+        default => '2. Mahnung (letzte Aufforderung)',
+    };
+}
+
+/**
  * Baut die formelle E-Mail-Anrede eines Mitglieds: ['anrede' => 'Sehr geehrter Herr',
  * 'nachname' => '<Titel> <Nachname>']. Getrennt vom Geschlecht (salutation), das die Person
  * selbst angibt -- email_anrede_mode überschreibt nur die Anrede:

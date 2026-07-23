@@ -133,6 +133,7 @@
     'contract_einspeisung'  => 'Vertrag: nur Einspeisevereinbarung',
     'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
     'sepa_prenotification'  => 'SEPA-Vorabinformation (Pre-Notification)',
+    'mahnung'               => 'Zahlungserinnerung / Mahnung',
   ];
   // Vorlagen für die Vorschau (Betreff + Body je key).
   $previewTemplates = [];
@@ -204,7 +205,13 @@
     betrag: '68,55',
     abbuchung: '06.08.2026',
     mandatsreferenz: 'S00001F2026A100',
-    creditor_id: 'AT14EEG00000086499'
+    creditor_id: 'AT14EEG00000086499',
+    mahnstufe_text: 'Zahlungserinnerung',
+    gesamt: '73,55',
+    gebuehr_zeile: '<br>Mahngebühren: 5,00 €',
+    ruecklast_hinweis: ' (die SEPA-Lastschrift wurde von Ihrer Bank zurückgebucht)',
+    frist: '20.08.2026',
+    iban: 'AT31 2070 2000 0002 5460'
   };
 
   function mailPreviewFillVars(str) {
@@ -279,6 +286,8 @@
     Der Body darf einfaches HTML enthalten (z. B. <code>&lt;p&gt;</code>).
     Zusätzlich in der SEPA-Vorabinformation: <code>{{rechnungsnummer}}</code>, <code>{{betrag}}</code>,
     <code>{{abbuchung}}</code> (Abbuchungsdatum), <code>{{mandatsreferenz}}</code>, <code>{{creditor_id}}</code>.
+    In der Mahnung zusätzlich: <code>{{mahnstufe_text}}</code>, <code>{{gesamt}}</code>, <code>{{gebuehr_zeile}}</code>,
+    <code>{{ruecklast_hinweis}}</code>, <code>{{frist}}</code>, <code>{{iban}}</code>.
   </p>
   <?php $templateLabel = [
     'password_reset'       => 'Passwort zurücksetzen',
@@ -288,6 +297,7 @@
     'contract_einspeisung'  => 'Vertrag: nur Einspeisevereinbarung',
     'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
     'sepa_prenotification'  => 'SEPA-Vorabinformation (Pre-Notification)',
+    'mahnung'               => 'Zahlungserinnerung / Mahnung',
   ]; ?>
   <?php foreach ($mailTemplates as $t): ?>
     <form method="post" action="/admin/mail-templates" style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #e5e7eb">

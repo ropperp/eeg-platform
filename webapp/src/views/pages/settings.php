@@ -55,6 +55,11 @@
         <small style="color:var(--gray-600)">Standard 14 Tage; per Mandatstext oft auf 1 Tag verkürzbar. Bestimmt das Abbuchungsdatum in der Vorabinfo.</small>
       </div>
       <div class="form-group">
+        <label>Mahngebühr je Mahnung (€)</label>
+        <input type="text" name="mahngebuehr_eur" placeholder="0,00" value="<?= htmlspecialchars(number_format((float)($community['mahngebuehr_eur'] ?? 0), 2, ',', '.')) ?>">
+        <small style="color:var(--gray-600)">Wird bei jeder Zahlungserinnerung/Mahnung aufgeschlagen (0 = keine). In Österreich müssen Mahnspesen angemessen sein.</small>
+      </div>
+      <div class="form-group">
         <label>Bankname</label>
         <input type="text" name="bank_name" placeholder="z.B. Sparkasse Feldkirchen" value="<?= htmlspecialchars($community['bank_name'] ?? '') ?>">
       </div>

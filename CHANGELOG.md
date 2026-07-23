@@ -20,6 +20,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Rücklastschrift + Mahnwesen.** Wird ein SEPA-Einzug von der Bank zurückgebucht, meldet der
+  Obmann die **Rücklastschrift** (Rechnung wieder offen). Danach lässt sich stufenweise mahnen:
+  **Stufe 1 Zahlungserinnerung → 2 = 1. Mahnung → 3 = letzte Mahnung**, je mit E-Mail
+  (Vorlage `mahnung`, im Admin editierbar) und optionaler, je EEG konfigurierbarer **Mahngebühr**
+  (`communities.mahngebuehr_eur`), die sich aufsummiert. Die Mail nennt den offenen Brutto-Betrag,
+  die Gebühren, den Gesamtbetrag, eine Zahlungsfrist und die EEG-IBAN zur Überweisung. Neue
+  Spalten `invoices.mahnstufe`, `mahn_gebuehr_summe_eur`, `letzte_mahnung_at`, `ruecklastschrift_at`
+  (`migrate_20260814`); Aktionen direkt in der Rechnungsliste.
 - **Container-Healthchecks + Selbstheilung & Alarm.** Jetzt hat **jeder** Container einen
   Healthcheck (auch `traefik` per `--ping` und der `mqtt-subscriber` per Heartbeat-Datei) —
   `docker compose ps` zeigt für alle `healthy`/`unhealthy` statt nur „Up". Neuer Wächter

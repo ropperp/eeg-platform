@@ -141,6 +141,31 @@ $paymentMeta = [
               <button class="btn" style="background:none;color:var(--gray-600);padding:.2rem .35rem;font-size:.68rem" title="Zurücksetzen">↺</button>
             </form>
           <?php endif; ?>
+
+          <?php
+            // ── Rücklastschrift & Mahnwesen (nur freigegebene Rechnungen mit Forderung) ──
+            $mahnstufe = (int)($inv['mahnstufe'] ?? 0);
+            $mahnGebuehr = (float)($inv['mahn_gebuehr_summe_eur'] ?? 0);
+            $offeneForderung = $isReleased && $betrag > 0 && !in_array($ps, ['eingezogen', 'ueberwiesen'], true);
+          ?>
+          <?php if ($isReleased && $betrag > 0 && $ps === 'eingezogen'): ?>
+            <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/ruecklastschrift" style="display:inline"
+                  onsubmit="return confirm('Rücklastschrift erfassen? Der Einzug gilt dann als fehlgeschlagen (Zahlung wieder offen).')">
+              <button class="btn btn-tint-amber" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem" title="SEPA-Einzug von der Bank zurückgebucht">⚠ Rücklastschrift</button>
+            </form>
+          <?php endif; ?>
+          <?php if ($mahnstufe > 0): ?>
+            <div style="margin-top:.25rem">
+              <span class="badge badge-red" style="font-size:.68rem"><?= htmlspecialchars(mahnstufeText($mahnstufe)) ?></span>
+              <?php if ($mahnGebuehr > 0): ?><span style="font-size:.68rem;color:var(--gray-600)">+<?= number_format($mahnGebuehr, 2, ',', '.') ?> €</span><?php endif; ?>
+            </div>
+          <?php endif; ?>
+          <?php if ($offeneForderung && $mahnstufe < 3): ?>
+            <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mahnung" style="display:inline"
+                  onsubmit="return confirm('<?= htmlspecialchars(addslashes(['1' => 'Zahlungserinnerung', '2' => '1. Mahnung', '3' => '2. (letzte) Mahnung'][(string)($mahnstufe + 1)] ?? 'Mahnung')) ?> per E-Mail senden?')">
+              <button class="btn btn-tint-red" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem">📨 Mahnen (Stufe <?= $mahnstufe + 1 ?>)</button>
+            </form>
+          <?php endif; ?>
         </td>
         <td style="white-space:nowrap">
           <?php if ($inv['pdf_path']): ?>
