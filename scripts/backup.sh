@@ -67,9 +67,14 @@ BYTES=$(stat -c%s "$TMP" 2>/dev/null || echo 0)
 if [ "$BYTES" -lt "$MIN_BYTES" ]; then
     fail "Dump verdächtig klein (${BYTES} Byte < ${MIN_BYTES}). Vermutlich unvollständig."
 fi
-if ! $COMPOSE exec -T timescaledb pg_restore -l /dev/stdin < "$TMP" >/dev/null 2>&1; then
+# Gültigkeit: den Dump zum Prüfen in den Container kopieren. pg_restore -l braucht eine
+# SEEKBARE Datei -- über eine Pipe/stdin schlägt es bei custom-format (-Fc) immer fehl.
+docker cp "$TMP" timescaledb:/tmp/verify_dump >/dev/null 2>&1
+if ! $COMPOSE exec -T timescaledb pg_restore -l /tmp/verify_dump >/dev/null 2>&1; then
+    $COMPOSE exec -T timescaledb rm -f /tmp/verify_dump >/dev/null 2>&1
     fail "Dump ist nicht lesbar (pg_restore -l fehlgeschlagen -> beschädigt)."
 fi
+$COMPOSE exec -T timescaledb rm -f /tmp/verify_dump >/dev/null 2>&1
 
 # 3) Übernehmen + rotieren
 mv "$TMP" "$FINAL"

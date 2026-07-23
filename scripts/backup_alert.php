@@ -14,6 +14,10 @@ declare(strict_types=1);
  * Empfänger: Umgebungsvariable BACKUP_ALERT_EMAIL, sonst der erste Platform-Admin aus der DB.
  */
 
+// STDERR ist nicht in jeder PHP-SAPI vordefiniert (z.B. wenn das Skript per stdin an `php`
+// übergeben wird) -- in PHP 8 wäre der Zugriff auf eine undefinierte Konstante ein Fatal Error.
+if (!defined('STDERR')) { define('STDERR', fopen('php://stderr', 'w')); }
+
 require '/var/www/html/src/DB.php';
 require '/var/www/html/src/Mailer.php';
 
