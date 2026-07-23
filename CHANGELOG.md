@@ -20,6 +20,13 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Zwei-Faktor-Authentifizierung (TOTP), pro Konto ein-/ausschaltbar.** Optionaler zweiter Faktor
+  beim Login per 6-stelligem Code (RFC 6238, abhängigkeitsfrei; kompatibel mit Apple Passwörter,
+  Google Authenticator etc.). Aktivieren/Deaktivieren jederzeit selbst im Profil – beim Einrichten
+  wird der Code einmal bestätigt, bevor 2FA scharf geschaltet wird. Login ist dann zweistufig
+  (Passwort → Code). Neue Spalten `users.totp_secret`/`totp_enabled` (`migrate_20260816`),
+  TOTP-Kernfunktionen mit RFC-Testvektoren abgesichert (9 Tests). **Notfall-Reset** (App verloren):
+  `UPDATE users SET totp_enabled=false, totp_secret=NULL WHERE email='…';`.
 - **Audit-Log mit Vorher→Nachher-Werten.** Änderungen an Konfiguration/Stammdaten werden jetzt
   feldgenau protokolliert: **wer**, **wann**, **wo** und **welcher Wert von X auf Y** – lesbar
   („IBAN: „—" → „AT…"") und maschinenlesbar (`audit_log.aenderungen` JSONB, `migrate_20260815`).

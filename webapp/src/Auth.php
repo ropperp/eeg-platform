@@ -35,18 +35,32 @@ class Auth
         }
     }
 
-    public static function login(string $email, string $password): bool
+    /**
+     * Prüft nur E-Mail + Passwort (ohne Session zu setzen) und gibt bei Erfolg die für den
+     * weiteren Login-Fluss nötigen Felder zurück -- inkl. totp_enabled/totp_secret, damit der
+     * Aufrufer ggf. den zweiten Faktor abfragen kann. Rückgabe null bei falschen Daten.
+     */
+    public static function checkPassword(string $email, string $password): ?array
     {
         $user = DB::fetchOne(
-            'SELECT id, password_hash, first_name, last_name, active FROM users WHERE email = ?',
+            'SELECT id, password_hash, first_name, last_name, active, totp_enabled, totp_secret FROM users WHERE email = ?',
             [strtolower(trim($email))]
         );
-
         if (!$user || !$user['active'] || !password_verify($password, $user['password_hash'])) {
-            return false;
+            return null;
         }
+        return $user;
+    }
 
-        // Rollen laden — LEFT JOIN damit platform_admin (community_id = NULL) nicht fehlt
+    /**
+     * Baut die eingeloggte Session für einen bereits authentifizierten Benutzer auf (Rollen laden,
+     * Session-Variablen setzen, Last-Login, Session-ID erneuern). Wird nach erfolgreichem Passwort-
+     * (und ggf. TOTP-)Check aufgerufen.
+     */
+    public static function establishSession(string $userId): void
+    {
+        $user = DB::fetchOne('SELECT id, first_name, last_name, email FROM users WHERE id = ?', [$userId]);
+        if (!$user) return;
         $roles = DB::fetchAll(
             'SELECT ur.community_id, ur.role,
                     c.name AS community_name,
@@ -57,17 +71,26 @@ class Auth
              WHERE ur.user_id = ?',
             [$user['id']]
         );
-
         $_SESSION['user_id']     = $user['id'];
         $_SESSION['user_name']   = $user['first_name'] . ' ' . $user['last_name'];
-        $_SESSION['user_email']  = $email;
+        $_SESSION['user_email']  = $user['email'];
         $_SESSION['roles']       = $roles;
         $_SESSION['active_role'] = self::pickDefaultRole($roles);
 
-        // Last-Login aktualisieren
         DB::execute('UPDATE users SET last_login_at = now() WHERE id = ?', [$user['id']]);
-
         session_regenerate_id(true);
+    }
+
+    /**
+     * Ein-Schritt-Login ohne 2FA-Abfrage (Kompatibilität / interne Aufrufer). Der eigentliche
+     * Login-Fluss in index.php nutzt checkPassword() + establishSession(), um bei aktivem TOTP
+     * den zweiten Faktor dazwischenzuschalten.
+     */
+    public static function login(string $email, string $password): bool
+    {
+        $user = self::checkPassword($email, $password);
+        if (!$user) return false;
+        self::establishSession($user['id']);
         return true;
     }
 
