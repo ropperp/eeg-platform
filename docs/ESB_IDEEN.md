@@ -61,6 +61,44 @@ Verbrauchsanzeige aktuell nur als „🚧 in Bearbeitung"-Platzhalter, siehe
 
 ---
 
+### 3. EDA-Monatsexport-Import mit automatischem Zählpunkt-Abgleich
+**Idee (Patrick, 24.07.2026):** Beim Hochladen des **EDA-Monatsexports** (der Datei, die man
+ohnehin für die Quartalsabrechnung importiert) soll die Plattform die enthaltenen Zählpunkte
+automatisch mit dem eigenen Bestand abgleichen und Abweichungen klar melden — nicht nur eine
+generische Fehlermeldung, sondern jeweils **ausformuliert, warum** etwas nicht passt.
+
+**Gewünschtes Verhalten:**
+1. Alle Zählpunkte (Zählpunktnummern) aus der Datei extrahieren.
+2. Mit den in der EEG angelegten Zählpunkten abgleichen:
+   - **In der Datei, aber noch nicht angelegt →** automatisch anlegen (soweit eindeutig
+     möglich) und im Report auflisten, was neu angelegt wurde.
+   - **In der Plattform aktiv, aber in der Datei nicht enthalten („fehlt") →** Warnung mit
+     Begründung (z. B. „Zählpunkt AT00… ist bei uns aktiv, taucht im EDA-Export für diesen
+     Monat aber nicht auf — evtl. Abmeldung, Zählerwechsel oder Datenlücke; bitte prüfen.").
+   - **In der Datei, aber keinem Mitglied/keiner Anlage zuordenbar („zu viel") →** Warnung mit
+     Begründung (z. B. „Zählpunkt AT00… ist im EDA-Export, gehört aber zu keinem Mitglied dieser
+     EEG — gehört er hierher, fehlt eine Zuordnung; sonst ist es ein Fremd-Zählpunkt.").
+3. **Ergebnis als übersichtlicher Report:** Abschnitte „neu angelegt", „Warnungen (fehlt/zu
+   viel)", „Fehler", jeweils mit **verständlicher, ausformulierter Begründung** statt rohem
+   „Error". Import soll auch bei Warnungen durchlaufen, klare Fehler (unlesbare Datei, falsches
+   Format) sauber erklären.
+
+**Für die Umsetzung zu klären / berücksichtigen (Plattform-Seite):**
+- **Dateiformat des EDA-Monatsexports** genau festlegen (Eder-XLSX?): welche Spalten enthalten
+  Zählpunktnummer, Zeitraum, Werte, Wertekategorie (L1/L2/L3, siehe `docs/EDA_DATENQUALITAET.md`)?
+- **Zuordnung Zählpunkt → Mitglied** bei automatisch angelegten: welchem Mitglied zuordnen? Wohl
+  zunächst „offen/nicht zugeordnet" markieren und der Obmann verknüpft manuell — sonst rät die
+  Plattform falsch.
+- Aufsetzen auf dem bestehenden EDA-Import (`eda_imports`/`eda_measurements`, `migrate_20260716`)
+  und der Abrechnungs-Datenqualitätslogik (`Billing::datenqualitaetProblem()`).
+- Nachvollziehbarkeit: Import-Lauf + Ergebnis im **Audit-Log** festhalten (seit 2026-08-15 mit
+  Vorher/Nachher-Werten) — wer hat wann welche Zählpunkte automatisch angelegt.
+
+**Status:** noch nicht begonnen — Backlog. Nächster sinnvoller Schritt, sobald echte
+EDA-Exportdateien vorliegen (Format-Muster nötig).
+
+---
+
 ## Umgesetzt
 
 *(noch keine Einträge — sobald ein Punkt aus „Offen" fertig ist, hierher verschieben
