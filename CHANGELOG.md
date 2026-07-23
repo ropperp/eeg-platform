@@ -20,9 +20,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
-- **E-Mail-Vorschau (Smartphone + Laptop):** in den E-Mail-Einstellungen zeigt eine
-  Live-Vorschau, wie eine ausgehende Mail samt Signatur und Logo aussieht – in
-  Smartphone-Breite (375 px) und Laptop-Breite (≈820 px), aktualisiert sich beim Tippen.
+- **E-Mail-Vorschau je Vorlage (Smartphone + Laptop):** in den E-Mail-Einstellungen zeigt eine
+  Live-Vorschau, wie eine ausgehende Mail aussieht – in Smartphone-Breite (375 px) und
+  Laptop-Breite (≈820 px), aktualisiert beim Tippen. **Vorlagen-Auswahl** (Rechnung/Vorabinfo,
+  Passwort-Reset, Einladung, Verträge …) mit einem **Test-Nutzer**, der alle Platzhalter
+  (`{{vorname}}`, `{{betrag}}`, `{{link}}` …) mit Beispiel-Werten füllt.
+- **Signatur-Logo: Größe & Position steuerbar.** Breite/Höhe in Pixel einstellbar
+  (`platform_mail_config.signature_logo_width/height`; nur Breite oder Höhe → proportional).
+  Mit dem Platzhalter `{{logo}}` lässt sich das Bild an eine beliebige Stelle der Signatur
+  setzen (z. B. zwischen Grußformel und Impressum) statt nur ans Ende.
 - **Rechnungsliste in Brutto:** die Betrags-Spalte zeigt jetzt immer den Brutto-Betrag
   (bei Kleinunternehmer identisch mit netto, bei Standard inkl. USt) – konsistent mit
   Rechnung, SEPA-Einzug und Vorabinfo.

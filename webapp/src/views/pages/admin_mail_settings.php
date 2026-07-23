@@ -72,7 +72,8 @@
           <strong>alle</strong> E-Mails (Einladung, Passwort-Reset, Vertrags-/Rechnungsversand, Test-Mail) -- eine gemeinsame Signatur statt
           sie in jede einzelne Vorlage einzeln hineinzuschreiben, damit eine spätere Änderung (z.B. neue Telefonnummer) nur an einer
           Stelle gepflegt werden muss. Am einfachsten die gleiche Adresse wie bei "Antwort-an" nennen -- eine zusätzliche, dritte
-          Kontaktadresse würde nur verwirren.</small>
+          Kontaktadresse würde nur verwirren. <strong>Logo einfügen:</strong> schreibe <code>{{logo}}</code> genau an die Stelle,
+          an der das Bild erscheinen soll – z.&nbsp;B. <code>Mit freundlichen Grüßen,&lt;br&gt;Ihr Team Stromfueralle&lt;br&gt;{{logo}}&lt;br&gt;&lt;kleines Impressum&gt;</code>.</small>
       </div>
       <div class="form-group" style="grid-column:1 / -1">
         <label>Signatur-Logo / Bild (optional)</label>
@@ -86,9 +87,23 @@
           </label>
         <?php endif; ?>
         <input type="file" name="signature_logo" id="signature-logo-input" accept="image/png,image/jpeg,image/gif" onchange="onLogoPicked(event)">
-        <small style="color:var(--gray-600)">Wird als Bild unter die Signatur jeder E-Mail gesetzt (auch bei No-Reply-Absendern) — als
-          Inline-Anhang eingebettet, damit es in Outlook/Gmail zuverlässig angezeigt wird. PNG/JPG/GIF, max. 2 MB;
-          empfohlen eine Höhe um ~64&nbsp;px. Leer lassen = bestehendes Logo behalten.</small>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem">
+          <label style="font-size:.85rem;font-weight:normal">Breite (px)
+            <input type="number" name="signature_logo_width" id="signature-logo-width" min="0" max="1000" step="1"
+                   value="<?= htmlspecialchars((string)($mailConfig['signature_logo_width'] ?? '')) ?>"
+                   placeholder="auto" oninput="updateMailPreview()" style="width:100px;display:block">
+          </label>
+          <label style="font-size:.85rem;font-weight:normal">Höhe (px)
+            <input type="number" name="signature_logo_height" id="signature-logo-height" min="0" max="1000" step="1"
+                   value="<?= htmlspecialchars((string)($mailConfig['signature_logo_height'] ?? '')) ?>"
+                   placeholder="auto" oninput="updateMailPreview()" style="width:100px;display:block">
+          </label>
+        </div>
+        <small style="color:var(--gray-600)">Wird als Inline-Bild eingebettet (auch bei No-Reply-Absendern, zuverlässig in Outlook/Gmail).
+          PNG/JPG/GIF, max. 2 MB. <strong>Größe:</strong> nur Breite ODER nur Höhe angeben → skaliert proportional; beide → exakt Breite×Höhe;
+          beide leer → Standard (max. 64&nbsp;px hoch). <strong>Position:</strong> schreibe <code>{{logo}}</code> an die gewünschte Stelle im
+          Signaturfeld oben (z.&nbsp;B. zwischen Grußformel und Impressum) — ohne Platzhalter kommt das Logo ans Ende.
+          Leeres Datei-Feld = bestehendes Logo behalten.</small>
       </div>
       <div class="form-group">
         <label>Backup-Alarm an (Adresse 1)</label>
@@ -109,20 +124,49 @@
   $logoDataUri = !empty($mailConfig['signature_logo_base64'])
     ? 'data:' . ($mailConfig['signature_logo_type'] ?: 'image/png') . ';base64,' . $mailConfig['signature_logo_base64']
     : '';
+  // Labels der Vorlagen (wird weiter unten im Vorlagen-Block wiederverwendet).
+  $templateLabel = [
+    'password_reset'       => 'Passwort zurücksetzen',
+    'invite'                => 'Erstlogin-Einladung',
+    'member_deactivated'    => 'Mitglied deaktiviert ("Wirklich löschen")',
+    'contract_bezug'        => 'Vertrag: nur Bezugsvereinbarung',
+    'contract_einspeisung'  => 'Vertrag: nur Einspeisevereinbarung',
+    'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
+    'sepa_prenotification'  => 'SEPA-Vorabinformation (Pre-Notification)',
+  ];
+  // Vorlagen für die Vorschau (Betreff + Body je key).
+  $previewTemplates = [];
+  foreach ($mailTemplates as $t) {
+    $previewTemplates[$t['key']] = [
+      'subject' => $t['subject'],
+      'body'    => $t['body_html'],
+      'label'   => $templateLabel[$t['key']] ?? $t['key'],
+    ];
+  }
 ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.25rem">👀 Vorschau der E-Mail</h3>
-  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
-    So sieht eine ausgehende E-Mail mit deiner Signatur (und dem Logo) aus – live, während du oben tippst.
-    Der obere Beispieltext steht nur zur Veranschaulichung; entscheidend ist der Signatur-Teil darunter.
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
+    So sieht eine ausgehende E-Mail aus – live, während du oben tippst. Wähle eine Vorlage, um zu sehen, wie
+    Rechnungs-Mail, Passwort-Reset &amp; Co. mit deiner Signatur und dem Logo wirken. Die Platzhalter
+    (<code>{{vorname}}</code> usw.) sind mit Beispiel-Werten eines Test-Nutzers gefüllt.
   </p>
+  <div style="margin-bottom:1rem">
+    <label style="font-size:.85rem;font-weight:600;margin-right:.5rem">Vorlage:</label>
+    <select id="preview-template-select" onchange="updateMailPreview()" style="padding:.35rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
+      <option value="">— Beispiel-Text (nur Signatur testen) —</option>
+      <?php foreach ($previewTemplates as $key => $tpl): ?>
+        <option value="<?= htmlspecialchars($key) ?>"<?= $key === 'sepa_prenotification' ? ' selected' : '' ?>><?= htmlspecialchars($tpl['label']) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
   <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
     <div>
       <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600">📱 Smartphone (375&nbsp;px)</div>
       <div style="width:375px;max-width:100%;border:1px solid #d1d5db;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
         <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:10px 14px;font-size:12px;color:#374151">
           <div><strong>Von:</strong> EEG Strompool &lt;noreply@stromfueralle.at&gt;</div>
-          <div><strong>Betreff:</strong> Ihre Rechnung RC108175-2026-Q1-001</div>
+          <div><strong>Betreff:</strong> <span class="mail-preview-subject"></span></div>
         </div>
         <div class="mail-preview-body" style="padding:16px;background:#fff"></div>
       </div>
@@ -133,7 +177,7 @@
         <div style="width:820px">
           <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:12px 24px;font-size:13px;color:#374151">
             <div><strong>Von:</strong> EEG Strompool Feldkirchen Süd-West &lt;noreply@stromfueralle.at&gt;</div>
-            <div><strong>Betreff:</strong> Ihre Rechnung RC108175-2026-Q1-001</div>
+            <div><strong>Betreff:</strong> <span class="mail-preview-subject"></span></div>
           </div>
           <div class="mail-preview-body" style="padding:24px;background:#fff"></div>
         </div>
@@ -145,23 +189,64 @@
 <script>
   const mailPreviewInitialLogo = <?= json_encode($logoDataUri) ?>;
   let mailPreviewLogo = mailPreviewInitialLogo;
+  const mailPreviewTemplates = <?= json_encode($previewTemplates, JSON_UNESCAPED_UNICODE) ?>;
 
-  function buildMailPreviewHtml() {
+  // Test-Nutzer: deckt alle Platzhalter ab, die in den Vorlagen vorkommen können.
+  const mailPreviewTestUser = {
+    vorname: 'Max',
+    eeg_name: 'EEG Strompool Feldkirchen Süd-West',
+    link: 'https://portal.stromfueralle.at/portal/login',
+    gueltigkeit: '24 Stunden',
+    hinweis: '<p style="color:#b45309"><em>Hinweis: Eine zuvor gesendete Fassung wird damit ungültig.</em></p>',
+    rechnungsnummer: 'RC108175-2026-Q1-001',
+    betrag: '68,55',
+    abbuchung: '06.08.2026',
+    mandatsreferenz: 'S00001F2026A100',
+    creditor_id: 'AT14EEG00000086499'
+  };
+
+  function mailPreviewFillVars(str) {
+    // {{logo}} bewusst NICHT ersetzen -- wird separat als Bild behandelt.
+    return String(str).replace(/\{\{(\w+)\}\}/g, (m, k) =>
+      (k === 'logo') ? m : (k in mailPreviewTestUser ? mailPreviewTestUser[k] : m));
+  }
+  function mailPreviewLogoTag() {
+    if (!mailPreviewLogo) return '';
+    const w = parseInt((document.getElementById('signature-logo-width') || {}).value, 10);
+    const h = parseInt((document.getElementById('signature-logo-height') || {}).value, 10);
+    const parts = [];
+    if (w > 0) parts.push('width:' + w + 'px');
+    if (h > 0) parts.push('height:' + h + 'px');
+    const style = parts.length ? parts.join(';') : 'max-height:64px';
+    return '<img src="' + mailPreviewLogo + '" alt="" style="' + style + '">';
+  }
+  function buildMailPreview() {
+    const sel = document.getElementById('preview-template-select').value;
+    let subject, bodyHtml;
+    if (sel && mailPreviewTemplates[sel]) {
+      subject  = mailPreviewFillVars(mailPreviewTemplates[sel].subject);
+      bodyHtml = mailPreviewFillVars(mailPreviewTemplates[sel].body);
+    } else {
+      subject  = 'Beispiel-E-Mail';
+      bodyHtml = '<p>Hallo ' + mailPreviewTestUser.vorname + ',</p>'
+        + '<p>dies ist ein Beispieltext, damit du siehst, wie deine Signatur und das Logo darunter wirken.</p>';
+    }
     const sig = document.getElementById('signature-html-input').value || '';
-    const logo = mailPreviewLogo
-      ? '<br><img src="' + mailPreviewLogo + '" alt="" style="max-height:64px;margin-top:8px">'
-      : '';
-    return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111827">'
-      + '<p>Hallo Max Mustermann,</p>'
-      + '<p>anbei erhalten Sie Ihre Rechnung für das 1. Quartal 2026. Der Rechnungsbetrag wird per '
-      + 'SEPA-Lastschrift eingezogen – Sie müssen nichts weiter veranlassen.</p>'
-      + (sig ? '<br><br>' + sig : '')
-      + logo
-      + '</div>';
+    // Genau wie im echten Versand (Mailer::send): Signatur an den Body, dann {{logo}} ersetzen
+    // bzw. -- falls kein Platzhalter vorhanden -- das Logo ans Ende hängen.
+    let full = bodyHtml + (sig ? '<br><br>' + mailPreviewFillVars(sig) : '');
+    const img = mailPreviewLogoTag();
+    if (full.indexOf('{{logo}}') !== -1) {
+      full = full.split('{{logo}}').join(img);
+    } else if (img) {
+      full += '<br>' + img;
+    }
+    return { subject, html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111827">' + full + '</div>' };
   }
   function updateMailPreview() {
-    const html = buildMailPreviewHtml();
-    document.querySelectorAll('.mail-preview-body').forEach(el => { el.innerHTML = html; });
+    const p = buildMailPreview();
+    document.querySelectorAll('.mail-preview-body').forEach(el => { el.innerHTML = p.html; });
+    document.querySelectorAll('.mail-preview-subject').forEach(el => { el.textContent = p.subject; });
   }
   function onLogoPicked(e) {
     const f = e.target.files && e.target.files[0];

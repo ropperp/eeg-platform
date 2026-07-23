@@ -4042,11 +4042,19 @@ $router->post('/admin/mail-settings', function () {
         $logoBase64 = base64_encode((string)file_get_contents($_FILES['signature_logo']['tmp_name']));
         $logoType   = $info['mime'];
     }
+    // Logo-Größe (px). Leer/0/ungültig -> NULL (Standardgröße). Max. 1000 px als Sanity-Grenze.
+    $clampPx = function ($v): ?int {
+        $n = (int)$v;
+        return ($n > 0 && $n <= 1000) ? $n : null;
+    };
+    $logoWidth  = $clampPx($_POST['signature_logo_width']  ?? '');
+    $logoHeight = $clampPx($_POST['signature_logo_height'] ?? '');
 
     DB::execute(
         'UPDATE platform_mail_config
          SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
              signature_logo_base64 = ?, signature_logo_type = ?,
+             signature_logo_width = ?, signature_logo_height = ?,
              backup_alert_email_1 = ?, backup_alert_email_2 = ?, updated_at = now()
          WHERE id = 1',
         [
@@ -4058,6 +4066,8 @@ $router->post('/admin/mail-settings', function () {
             trim($_POST['signature_html'] ?? '') ?: null,
             $logoBase64,
             $logoType,
+            $logoWidth,
+            $logoHeight,
             trim($_POST['backup_alert_email_1'] ?? '') ?: null,
             trim($_POST['backup_alert_email_2'] ?? '') ?: null,
         ]
