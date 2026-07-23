@@ -66,6 +66,25 @@
   </form>
 </div>
 
+<div class="card" style="max-width:480px;margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">🔐 Zwei-Faktor-Authentifizierung</h3>
+  <?php if (!empty($profileUser['totp_enabled'])): ?>
+    <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+      <span class="badge badge-green">Aktiv</span> Bei jeder Anmeldung wird zusätzlich ein 6-stelliger Code abgefragt.
+    </p>
+    <form method="post" action="/portal/profile/2fa/disable"
+          onsubmit="return confirm('Zwei-Faktor-Authentifizierung wirklich ausschalten?')">
+      <button type="submit" class="btn btn-tint-red">2FA deaktivieren</button>
+    </form>
+  <?php else: ?>
+    <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+      Zusätzlicher Schutz beim Login per 6-stelligem Code (TOTP, z.&nbsp;B. Apple Passwörter oder Authenticator).
+      Jederzeit wieder abschaltbar.
+    </p>
+    <a href="/portal/profile/2fa/setup" class="btn btn-primary">2FA aktivieren</a>
+  <?php endif; ?>
+</div>
+
 <?php if ($profileMember): ?>
 <div class="card" style="max-width:480px;margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Meine Daten exportieren</h3>

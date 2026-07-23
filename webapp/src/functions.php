@@ -205,6 +205,84 @@ function sepaPain008Xml(
     return $xml;
 }
 
+// ─── TOTP (RFC 6238) für die optionale Zwei-Faktor-Authentifizierung ───────────────
+// Bewusst abhängigkeitsfrei (nur hash_hmac/random_bytes), damit keine Composer-Pakete nötig
+// sind und die Logik testbar bleibt. Kompatibel mit Apple Passwörter, Google Authenticator etc.
+
+/** Base32-Dekodierung (RFC 4648, ohne Padding) für den geteilten TOTP-Schlüssel. */
+function base32Decode(string $b32): string
+{
+    $map = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $b32 = strtoupper(preg_replace('/[^A-Za-z2-7]/', '', $b32));
+    $bits = '';
+    for ($i = 0, $n = strlen($b32); $i < $n; $i++) {
+        $bits .= str_pad(decbin(strpos($map, $b32[$i])), 5, '0', STR_PAD_LEFT);
+    }
+    $out = '';
+    foreach (str_split($bits, 8) as $chunk) {
+        if (strlen($chunk) === 8) $out .= chr(bindec($chunk));
+    }
+    return $out;
+}
+
+/** Base32-Kodierung (RFC 4648, ohne Padding) -- für die Anzeige neu erzeugter Secrets. */
+function base32Encode(string $bin): string
+{
+    $map = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $bits = '';
+    for ($i = 0, $n = strlen($bin); $i < $n; $i++) {
+        $bits .= str_pad(decbin(ord($bin[$i])), 8, '0', STR_PAD_LEFT);
+    }
+    $out = '';
+    foreach (str_split($bits, 5) as $chunk) {
+        $out .= $map[bindec(str_pad($chunk, 5, '0', STR_PAD_RIGHT))];
+    }
+    return $out;
+}
+
+/** Erzeugt den 6-stelligen TOTP-Code für einen bestimmten Zeitpunkt (Default: 30s-Fenster). */
+function totpCodeAt(string $secretBase32, int $timestamp, int $period = 30, int $digits = 6): string
+{
+    $counter = intdiv($timestamp, $period);
+    $binCounter = pack('N*', 0) . pack('N*', $counter);   // 8-Byte-Big-Endian-Zähler
+    $hash = hash_hmac('sha1', $binCounter, base32Decode($secretBase32), true);
+    $offset = ord($hash[strlen($hash) - 1]) & 0x0F;
+    $part = ((ord($hash[$offset]) & 0x7F) << 24)
+          | ((ord($hash[$offset + 1]) & 0xFF) << 16)
+          | ((ord($hash[$offset + 2]) & 0xFF) << 8)
+          |  (ord($hash[$offset + 3]) & 0xFF);
+    return str_pad((string)($part % (10 ** $digits)), $digits, '0', STR_PAD_LEFT);
+}
+
+/**
+ * Prüft einen eingegebenen TOTP-Code gegen das Secret, mit ±$window Zeitfenstern Toleranz
+ * (Standard 1 = ±30s, gleicht kleine Uhr-Abweichungen aus). Zeitkonstanter Vergleich.
+ */
+function totpVerify(string $secretBase32, string $code, ?int $timestamp = null, int $window = 1): bool
+{
+    $code = preg_replace('/\D/', '', $code);
+    if (strlen($code) !== 6) return false;
+    $timestamp = $timestamp ?? time();
+    for ($i = -$window; $i <= $window; $i++) {
+        if (hash_equals(totpCodeAt($secretBase32, $timestamp + $i * 30), $code)) return true;
+    }
+    return false;
+}
+
+/** Neues, zufälliges Base32-Secret (Standard 20 Byte = 160 Bit, wie in RFC 6238 empfohlen). */
+function totpGenerateSecret(int $bytes = 20): string
+{
+    return base32Encode(random_bytes($bytes));
+}
+
+/** otpauth://-URI zum Einrichten (QR-Code/Setup-Schlüssel in Apple Passwörter & Co.). */
+function totpProvisioningUri(string $secretBase32, string $account, string $issuer): string
+{
+    $label = rawurlencode($issuer . ':' . $account);
+    return 'otpauth://totp/' . $label . '?secret=' . $secretBase32
+        . '&issuer=' . rawurlencode($issuer) . '&algorithm=SHA1&digits=6&period=30';
+}
+
 /**
  * Normalisiert einen Wert für den Audit-Vergleich in einen gut lesbaren String: null/'' -> '',
  * bool -> 'ja'/'nein', DB-Bool-Strings 't'/'f' ebenso, Zahlen als String, sonst getrimmt.

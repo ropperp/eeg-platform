@@ -884,12 +884,40 @@ $router->get('/portal/login', function () {
 $router->post('/portal/login', function () {
     $email    = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
-    if (Auth::login($email, $password)) {
-        header('Location: /portal/dashboard');
-    } else {
+    $user = Auth::checkPassword($email, $password);
+    if (!$user) {
         $error = 'E-Mail oder Passwort falsch.';
         require ROOT . '/src/views/pages/login.php';
+        exit;
     }
+    // Zweiter Faktor aktiv? Dann Session NOCH NICHT aufbauen, sondern Code abfragen.
+    if (!empty($user['totp_enabled']) && !empty($user['totp_secret'])) {
+        $_SESSION['2fa_pending_user'] = $user['id'];
+        header('Location: /portal/login/2fa');
+        exit;
+    }
+    Auth::establishSession($user['id']);
+    header('Location: /portal/dashboard');
+    exit;
+});
+
+$router->get('/portal/login/2fa', function () {
+    if (empty($_SESSION['2fa_pending_user'])) { header('Location: /portal/login'); exit; }
+    require ROOT . '/src/views/pages/login_2fa.php';
+});
+
+$router->post('/portal/login/2fa', function () {
+    $uid = $_SESSION['2fa_pending_user'] ?? null;
+    if (!$uid) { header('Location: /portal/login'); exit; }
+    $u = DB::fetchOne('SELECT totp_secret FROM users WHERE id = ? AND active = true', [$uid]);
+    if ($u && !empty($u['totp_secret']) && totpVerify($u['totp_secret'], $_POST['code'] ?? '')) {
+        unset($_SESSION['2fa_pending_user']);
+        Auth::establishSession($uid);
+        header('Location: /portal/dashboard');
+        exit;
+    }
+    $error = 'Code ungültig oder abgelaufen. Bitte den aktuellen 6-stelligen Code eingeben.';
+    require ROOT . '/src/views/pages/login_2fa.php';
     exit;
 });
 
@@ -2671,7 +2699,7 @@ $router->get('/portal/members/:id/dsgvo-export', function ($params) {
 
 $router->get('/portal/profile', function () {
     Auth::requireLogin();
-    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path FROM users WHERE id = ?', [Auth::userId()]);
+    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
     if (!empty($_GET['success'])) { $success = $_GET['success']; }
     if (!empty($_GET['error'])) { $error = $_GET['error']; }
@@ -2693,7 +2721,7 @@ $router->post('/portal/profile', function () {
         $_SESSION['user_email'] = $email;
         $success = 'Daten wurden gespeichert.';
     }
-    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path FROM users WHERE id = ?', [Auth::userId()]);
+    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
     require ROOT . '/src/views/pages/profile.php';
 });
@@ -2715,6 +2743,50 @@ $router->post('/portal/profile/photo', function () {
     } else {
         header('Location: /portal/profile?error=' . urlencode('Profilbild konnte nicht gespeichert werden.'));
     }
+    exit;
+});
+
+/**
+ * 2FA-Einrichtung starten: erzeugt ein neues TOTP-Secret und legt es NUR in der Session ab
+ * (noch nicht in der DB / noch nicht aktiv). Erst nach erfolgreicher Code-Bestätigung wird es
+ * gespeichert und aktiviert -- so ist sichergestellt, dass die App den Code auch wirklich liefert.
+ */
+$router->get('/portal/profile/2fa/setup', function () {
+    Auth::requireLogin();
+    $secret = totpGenerateSecret();
+    $_SESSION['2fa_setup_secret'] = $secret;
+    $account = $_SESSION['user_email'] ?? 'konto';
+    $otpauthUri = totpProvisioningUri($secret, $account, 'Strom für alle');
+    require ROOT . '/src/views/pages/profile_2fa.php';
+});
+
+$router->post('/portal/profile/2fa/enable', function () {
+    Auth::requireLogin();
+    $secret = $_SESSION['2fa_setup_secret'] ?? '';
+    if ($secret === '') { header('Location: /portal/profile/2fa/setup'); exit; }
+    if (!totpVerify($secret, $_POST['code'] ?? '')) {
+        $account = $_SESSION['user_email'] ?? 'konto';
+        $otpauthUri = totpProvisioningUri($secret, $account, 'Strom für alle');
+        $error = 'Der Code stimmt nicht. Bitte den aktuellen 6-stelligen Code eingeben.';
+        require ROOT . '/src/views/pages/profile_2fa.php';
+        exit;
+    }
+    DB::execute('UPDATE users SET totp_secret = ?, totp_enabled = ? WHERE id = ?',
+        [$secret, 'true', Auth::userId()]);
+    unset($_SESSION['2fa_setup_secret']);
+    logAudit(null, 'user.2fa.enable', 'user', Auth::userId(), 'Zwei-Faktor-Authentifizierung (TOTP) aktiviert');
+    header('Location: /portal/profile?success=' . urlencode('Zwei-Faktor-Authentifizierung ist jetzt aktiv.'));
+    exit;
+});
+
+$router->post('/portal/profile/2fa/disable', function () {
+    Auth::requireLogin();
+    // Der Nutzer ist bereits authentifiziert -> Ausschalten ohne erneute Code-Abfrage (bewusst
+    // einfach gehalten, da häufiger Account-Wechsel gewünscht ist). Secret wird gelöscht, ein
+    // erneutes Aktivieren erzeugt ein frisches.
+    DB::execute("UPDATE users SET totp_enabled = 'false', totp_secret = NULL WHERE id = ?", [Auth::userId()]);
+    logAudit(null, 'user.2fa.disable', 'user', Auth::userId(), 'Zwei-Faktor-Authentifizierung (TOTP) deaktiviert');
+    header('Location: /portal/profile?success=' . urlencode('Zwei-Faktor-Authentifizierung wurde deaktiviert.'));
     exit;
 });
 
