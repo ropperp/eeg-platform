@@ -70,7 +70,7 @@ $paymentMeta = [
         <th>E-Mail</th>
         <th class="sortable" data-sort-key="quartal" data-sort-type="str" onclick="sortInvoices(this)">Quartal <span class="sort-arrow"></span></th>
         <th>Rechnungsnummer</th>
-        <th class="sortable" style="text-align:right" data-sort-key="betrag" data-sort-type="num" onclick="sortInvoices(this)">Betrag <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:right" data-sort-key="betrag" data-sort-type="num" onclick="sortInvoices(this)">Betrag (brutto) <span class="sort-arrow"></span></th>
         <th class="sortable" data-sort-key="erstellt" data-sort-type="str" onclick="sortInvoices(this)">Erstellt <span class="sort-arrow"></span></th>
         <th>Versendet</th>
         <th>Zahlung</th>
@@ -83,11 +83,11 @@ $paymentMeta = [
       <tr data-kdnr="<?= (int)($inv['kundennummer'] ?? 0) ?>"
           data-name="<?= htmlspecialchars(strtolower($name)) ?>"
           data-quartal="<?= htmlspecialchars($inv['quartal']) ?>"
-          data-betrag="<?= (float)$inv['saldo_eur'] ?>"
+          data-betrag="<?= (float)$inv['brutto_eur'] ?>"
           data-sort-kdnr="<?= (int)($inv['kundennummer'] ?? 0) ?>"
           data-sort-name="<?= htmlspecialchars(strtolower($name)) ?>"
           data-sort-quartal="<?= htmlspecialchars($inv['quartal']) ?>"
-          data-sort-betrag="<?= (float)$inv['saldo_eur'] ?>"
+          data-sort-betrag="<?= (float)$inv['brutto_eur'] ?>"
           data-sort-erstellt="<?= htmlspecialchars($inv['created_at']) ?>">
         <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($inv['kundennummer'] ?? '—')) ?></td>
         <td><?= htmlspecialchars($name) ?></td>
@@ -95,7 +95,7 @@ $paymentMeta = [
         <td><?= htmlspecialchars($inv['quartal']) ?></td>
         <td style="font-size:.8rem"><code><?= htmlspecialchars($inv['rechnungsnummer']) ?></code></td>
         <td style="text-align:right;white-space:nowrap">
-          <?php $betrag = (float)$inv['saldo_eur']; ?>
+          <?php $betrag = (float)$inv['brutto_eur']; ?>
           <span style="color:<?= $betrag < 0 ? '#16a34a' : '#111827' ?>"><?= number_format($betrag, 2, ',', '.') ?> €</span>
         </td>
         <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y', strtotime($inv['created_at'])) ?></td>

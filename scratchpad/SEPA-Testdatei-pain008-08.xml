@@ -2,8 +2,8 @@
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <CstmrDrctDbtInitn>
     <GrpHdr>
-      <MsgId>SFA-TEST-20260723174526</MsgId>
-      <CreDtTm>2026-07-23T17:45:26</CreDtTm>
+      <MsgId>SFA-TEST-20260723180641</MsgId>
+      <CreDtTm>2026-07-23T18:06:41</CreDtTm>
       <NbOfTxs>3</NbOfTxs>
       <CtrlSum>68.55</CtrlSum>
       <InitgPty>
@@ -11,7 +11,7 @@
       </InitgPty>
     </GrpHdr>
     <PmtInf>
-      <PmtInfId>SFA-TEST-20260723174526-1</PmtInfId>
+      <PmtInfId>SFA-TEST-20260723180641-1</PmtInfId>
       <PmtMtd>DD</PmtMtd>
       <NbOfTxs>3</NbOfTxs>
       <CtrlSum>68.55</CtrlSum>
@@ -72,7 +72,7 @@
         </Dbtr>
         <DbtrAcct>
           <Id>
-            <IBAN>AT022011100000001234</IBAN>
+            <IBAN>AT162011100000001234</IBAN>
           </Id>
         </DbtrAcct>
         <RmtInf>
@@ -102,7 +102,7 @@
         </Dbtr>
         <DbtrAcct>
           <Id>
-            <IBAN>AT483200000000005678</IBAN>
+            <IBAN>AT613200000000005678</IBAN>
           </Id>
         </DbtrAcct>
         <RmtInf>
@@ -130,7 +130,7 @@
         </Dbtr>
         <DbtrAcct>
           <Id>
-            <IBAN>AT611200000002731300</IBAN>
+            <IBAN>AT381200000002731300</IBAN>
           </Id>
         </DbtrAcct>
         <RmtInf>

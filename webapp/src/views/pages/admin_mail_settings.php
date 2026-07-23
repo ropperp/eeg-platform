@@ -67,7 +67,7 @@
       </div>
       <div class="form-group" style="grid-column:1 / -1">
         <label>Signatur (an jede E-Mail angehängt)</label>
-        <textarea name="signature_html" rows="4" placeholder="<p>Bei Fragen zu Rechnungen, Verträgen oder Vereinbarungen antworten Sie einfach auf diese E-Mail oder schreiben Sie an office@stromfueralle.at.<br>EEG Strompool Feldkirchen Süd-West</p>"><?= htmlspecialchars($mailConfig['signature_html'] ?? '') ?></textarea>
+        <textarea name="signature_html" id="signature-html-input" rows="4" oninput="updateMailPreview()" placeholder="<p>Bei Fragen zu Rechnungen, Verträgen oder Vereinbarungen antworten Sie einfach auf diese E-Mail oder schreiben Sie an office@stromfueralle.at.<br>EEG Strompool Feldkirchen Süd-West</p>"><?= htmlspecialchars($mailConfig['signature_html'] ?? '') ?></textarea>
         <small style="color:var(--gray-600)">Einfaches HTML möglich (z.B. <code>&lt;br&gt;</code>, <code>&lt;strong&gt;</code>). Gilt für
           <strong>alle</strong> E-Mails (Einladung, Passwort-Reset, Vertrags-/Rechnungsversand, Test-Mail) -- eine gemeinsame Signatur statt
           sie in jede einzelne Vorlage einzeln hineinzuschreiben, damit eine spätere Änderung (z.B. neue Telefonnummer) nur an einer
@@ -85,7 +85,7 @@
             <input type="checkbox" name="signature_logo_remove" value="1"> Logo entfernen
           </label>
         <?php endif; ?>
-        <input type="file" name="signature_logo" accept="image/png,image/jpeg,image/gif">
+        <input type="file" name="signature_logo" id="signature-logo-input" accept="image/png,image/jpeg,image/gif" onchange="onLogoPicked(event)">
         <small style="color:var(--gray-600)">Wird als Bild unter die Signatur jeder E-Mail gesetzt (auch bei No-Reply-Absendern) — als
           Inline-Anhang eingebettet, damit es in Outlook/Gmail zuverlässig angezeigt wird. PNG/JPG/GIF, max. 2 MB;
           empfohlen eine Höhe um ~64&nbsp;px. Leer lassen = bestehendes Logo behalten.</small>
@@ -104,6 +104,81 @@
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>
 </div>
+
+<?php
+  $logoDataUri = !empty($mailConfig['signature_logo_base64'])
+    ? 'data:' . ($mailConfig['signature_logo_type'] ?: 'image/png') . ';base64,' . $mailConfig['signature_logo_base64']
+    : '';
+?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.25rem">👀 Vorschau der E-Mail</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    So sieht eine ausgehende E-Mail mit deiner Signatur (und dem Logo) aus – live, während du oben tippst.
+    Der obere Beispieltext steht nur zur Veranschaulichung; entscheidend ist der Signatur-Teil darunter.
+  </p>
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
+    <div>
+      <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600">📱 Smartphone (375&nbsp;px)</div>
+      <div style="width:375px;max-width:100%;border:1px solid #d1d5db;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+        <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:10px 14px;font-size:12px;color:#374151">
+          <div><strong>Von:</strong> EEG Strompool &lt;noreply@stromfueralle.at&gt;</div>
+          <div><strong>Betreff:</strong> Ihre Rechnung RC108175-2026-Q1-001</div>
+        </div>
+        <div class="mail-preview-body" style="padding:16px;background:#fff"></div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600">💻 Laptop (≈820&nbsp;px)</div>
+      <div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+        <div style="width:820px">
+          <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:12px 24px;font-size:13px;color:#374151">
+            <div><strong>Von:</strong> EEG Strompool Feldkirchen Süd-West &lt;noreply@stromfueralle.at&gt;</div>
+            <div><strong>Betreff:</strong> Ihre Rechnung RC108175-2026-Q1-001</div>
+          </div>
+          <div class="mail-preview-body" style="padding:24px;background:#fff"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const mailPreviewInitialLogo = <?= json_encode($logoDataUri) ?>;
+  let mailPreviewLogo = mailPreviewInitialLogo;
+
+  function buildMailPreviewHtml() {
+    const sig = document.getElementById('signature-html-input').value || '';
+    const logo = mailPreviewLogo
+      ? '<br><img src="' + mailPreviewLogo + '" alt="" style="max-height:64px;margin-top:8px">'
+      : '';
+    return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111827">'
+      + '<p>Hallo Max Mustermann,</p>'
+      + '<p>anbei erhalten Sie Ihre Rechnung für das 1. Quartal 2026. Der Rechnungsbetrag wird per '
+      + 'SEPA-Lastschrift eingezogen – Sie müssen nichts weiter veranlassen.</p>'
+      + (sig ? '<br><br>' + sig : '')
+      + logo
+      + '</div>';
+  }
+  function updateMailPreview() {
+    const html = buildMailPreviewHtml();
+    document.querySelectorAll('.mail-preview-body').forEach(el => { el.innerHTML = html; });
+  }
+  function onLogoPicked(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) { mailPreviewLogo = mailPreviewInitialLogo; updateMailPreview(); return; }
+    const r = new FileReader();
+    r.onload = ev => { mailPreviewLogo = ev.target.result; updateMailPreview(); };
+    r.readAsDataURL(f);
+  }
+  // "Logo entfernen"-Checkbox berücksichtigen, falls vorhanden.
+  document.addEventListener('change', e => {
+    if (e.target && e.target.name === 'signature_logo_remove') {
+      mailPreviewLogo = e.target.checked ? '' : mailPreviewInitialLogo;
+      updateMailPreview();
+    }
+  });
+  updateMailPreview();
+</script>
 
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">E-Mail-Vorlagen</h3>
