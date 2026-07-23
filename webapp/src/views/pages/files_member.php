@@ -26,6 +26,7 @@
           <?php endif; ?>
         </td>
       </tr>
+      <?php if (contractsEnabled($member['community_id'])): ?>
       <tr>
         <th>Bezugsvereinbarung</th>
         <td>
@@ -52,6 +53,7 @@
           <?php endif; ?>
         </td>
       </tr>
+      <?php endif; ?>
       <tr>
         <th>Ausweisdokument</th>
         <td>

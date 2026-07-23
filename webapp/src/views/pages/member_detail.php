@@ -289,7 +289,7 @@ $contractTypes = [];
 if ($hasConsumer) $contractTypes['bezug']       = ['label' => 'Bezugsvereinbarung',    'color' => '#1d4ed8'];
 if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinbarung', 'color' => '#b45309'];
 ?>
-<?php if (!empty($contractTypes)): ?>
+<?php if (!empty($contractTypes) && contractsEnabled($member['community_id'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">📋 Vertragsstatus</h3>
   <div class="<?= count($contractTypes) === 1 ? '' : 'grid-2' ?>">

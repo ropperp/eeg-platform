@@ -3345,6 +3345,7 @@ $router->post('/portal/settings/signature', function () {
         exit;
     }
     DB::execute('UPDATE users SET signature_image = ? WHERE id = ?', [$signature, Auth::userId()]);
+    logAudit(Auth::activeCommunityId(), 'settings.signature', 'user', Auth::userId(), 'Manager-Unterschrift aktualisiert');
     header('Location: /portal/settings?success=1');
     exit;
 });
@@ -3382,6 +3383,9 @@ $router->post('/portal/settings/community', function () {
             $communityId,
         ]
     );
+    logAudit($communityId, 'community.update', 'community', $communityId,
+        'Stammdaten gespeichert (Verträge: ' . (!empty($_POST['contracts_enabled']) ? 'an' : 'aus')
+        . ', Gläubiger-ID: ' . (trim($_POST['creditor_id'] ?? '') !== '' ? 'gesetzt' : 'leer') . ')');
     header('Location: /portal/settings?success=1');
     exit;
 });
@@ -3401,6 +3405,11 @@ $router->post('/portal/settings/tariff', function () {
             (float)str_replace(',', '.', $_POST['mitgliedsbeitrag_eur'] ?? '0'),
         ]
     );
+    logAudit($communityId, 'tariff.update', 'community', $communityId,
+        'Neuer Tarif gültig ab ' . ($_POST['valid_from'] ?? date('Y-m-d')) . ': Bezug '
+        . str_replace(',', '.', $_POST['bezug_ct_kwh'] ?? '0') . ' ct/kWh, Einspeisung '
+        . str_replace(',', '.', $_POST['einspeisung_ct_kwh'] ?? '0') . ' ct/kWh, Mitgliedsbeitrag '
+        . str_replace(',', '.', $_POST['mitgliedsbeitrag_eur'] ?? '0') . ' €/Jahr');
     header('Location: /portal/settings?success=1');
     exit;
 });
@@ -3431,6 +3440,9 @@ $router->post('/portal/settings/tax', function () {
             trim($_POST['uid_number'] ?? '') ?: null,
         ]
     );
+    logAudit($communityId, 'tax.update', 'community', $communityId,
+        'Steuermodell "' . $taxModel . '"' . ($taxRate !== null ? ' (' . $taxRate . ' %)' : '')
+        . ' gültig ab ' . ($_POST['valid_from'] ?? date('Y-m-d')));
     header('Location: /portal/settings?success=1');
     exit;
 });
