@@ -20,6 +20,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Audit-Log mit Vorher→Nachher-Werten.** Änderungen an Konfiguration/Stammdaten werden jetzt
+  feldgenau protokolliert: **wer**, **wann**, **wo** und **welcher Wert von X auf Y** – lesbar
+  („IBAN: „—" → „AT…"") und maschinenlesbar (`audit_log.aenderungen` JSONB, `migrate_20260815`).
+  Instrumentiert: EEG-Stammdaten, Mitglied-Bearbeitung, E-Mail-Vorlagen und Mail-Konfiguration
+  (sensible Werte wie Client-Secret/Logo werden nur als „geändert" vermerkt, nie im Klartext).
+  Der bestehende Markdown-Export enthält die Diffs automatisch mit.
 - **Jahresübersicht pro Mitglied.** Eine druckbare Zusammenfassung aller Rechnungen eines
   Kalenderjahres (Quartale Q1–Q4) mit Netto/USt/Brutto je Rechnung, Zahlungsstatus/Mahnstufe und
   Jahressummen. Erreichbar für den Obmann (`/portal/members/:id/jahresuebersicht`, Button am
@@ -106,6 +112,8 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **E-Mail-Vorlagen SEPA-Vorabinfo & Mahnung im Admin editierbar.** Beide Keys fehlten in der
+  Whitelist der Vorlagen-Speicherroute – ein Speichern lief auf HTTP 400. Ergänzt.
 - **SEPA-Test-XML: Beispiel-IBANs prüfziffern-gültig.** Die Debtor-IBANs der Testdatei waren
   frei erfunden und wurden vom Bank-Prüftool (zu Recht) als ungültig abgewiesen – jetzt
   Mod-97-korrekte AT-Test-IBANs. Zusätzlich überspringt der echte SEPA-Export Mitglieder mit

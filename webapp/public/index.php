@@ -570,6 +570,31 @@ function logAudit(?string $communityId, string $aktion, ?string $entityTyp, ?str
     }
 }
 
+/**
+ * Audit-Eintrag mit strukturierten Vorher/Nachher-Werten. $changes stammt aus auditDiff()
+ * (Feld-Key => ['label','von','auf']). Ist nichts geändert, wird bewusst NICHTS protokolliert
+ * (kein Rauschen). Die Änderungen landen sowohl lesbar in beschreibung als auch maschinenlesbar
+ * in der JSONB-Spalte aenderungen (für Export/spätere Auswertung).
+ */
+function logAuditDiff(?string $communityId, string $aktion, ?string $entityTyp, ?string $entityId, array $changes, string $prefix = ''): void
+{
+    if (empty($changes)) return;
+    $beschreibung = trim($prefix !== '' ? $prefix . ' ' . auditChangesText($changes) : auditChangesText($changes));
+    try {
+        DB::execute(
+            'INSERT INTO audit_log (community_id, user_id, aktion, entity_typ, entity_id, beschreibung, aenderungen)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$communityId, Auth::userId(), $aktion, $entityTyp, $entityId, $beschreibung,
+             json_encode(array_values($changes), JSON_UNESCAPED_UNICODE)]
+        );
+    } catch (Throwable $e) {
+        error_log('[audit_log] ' . $e->getMessage());
+        // Fallback ohne JSONB (z.B. wenn Migration noch nicht eingespielt), damit die Änderung
+        // wenigstens als Freitext dokumentiert bleibt.
+        logAudit($communityId, $aktion, $entityTyp, $entityId, $beschreibung);
+    }
+}
+
 // Domain-Trennung: stromfueralle.at (+ www) zeigt NUR die öffentliche Marketing-Seite,
 // portal.stromfueralle.at NUR Login/Backoffice (/portal/*, /admin/*). Traefik routet beide
 // Hosts auf denselben Container/Code -- die eigentliche Trennung passiert hier per Redirect.
@@ -1696,8 +1721,24 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
-    logAudit($member['community_id'], 'member.update', 'member', $params['id'],
-        'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' bearbeitet');
+    $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
+    $memberChanges = auditDiff($member, $memberAfter ?? [], [
+        'salutation' => 'Anrede', 'titel' => 'Titel', 'first_name' => 'Vorname', 'last_name' => 'Nachname',
+        'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
+        'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
+        'konto_adresse' => 'Konto-Adresse', 'mandatsreferenz' => 'Mandatsreferenz', 'member_since' => 'Mitglied seit',
+        'member_until' => 'Mitglied bis', 'geburtsdatum' => 'Geburtsdatum', 'stromlieferant' => 'Stromlieferant',
+        'speicher_status' => 'Speicher', 'speicher_kwh' => 'Speicher kWh', 'andere_eeg' => 'Andere EEG',
+        'andere_eeg_name' => 'Andere-EEG-Name', 'email_anrede_mode' => 'E-Mail-Anrede-Modus',
+    ]);
+    $memberName = trim(($memberAfter['first_name'] ?? '') . ' ' . ($memberAfter['last_name'] ?? ''));
+    if (!empty($memberChanges)) {
+        logAuditDiff($member['community_id'], 'member.update', 'member', $params['id'], $memberChanges,
+            'Mitglied ' . $memberName . ':');
+    } else {
+        logAudit($member['community_id'], 'member.update', 'member', $params['id'],
+            'Mitglied ' . $memberName . ' gespeichert (keine Änderung)');
+    }
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
 });
@@ -3873,6 +3914,7 @@ $router->post('/portal/settings/community', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    $auditBefore = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
@@ -3899,9 +3941,17 @@ $router->post('/portal/settings/community', function () {
             $communityId,
         ]
     );
-    logAudit($communityId, 'community.update', 'community', $communityId,
-        'Stammdaten gespeichert (Verträge: ' . (!empty($_POST['contracts_enabled']) ? 'an' : 'aus')
-        . ', Gläubiger-ID: ' . (trim($_POST['creditor_id'] ?? '') !== '' ? 'gesetzt' : 'leer') . ')');
+    $auditAfter = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    logAuditDiff($communityId, 'community.update', 'community', $communityId,
+        auditDiff($auditBefore ?? [], $auditAfter ?? [], [
+            'name' => 'Name', 'address' => 'Adresse', 'iban' => 'IBAN', 'bic' => 'BIC',
+            'zvr_number' => 'ZVR', 'marktpartner_id' => 'Marktpartner-ID', 'dashboard_url' => 'Dashboard-URL',
+            'bank_name' => 'Bankname', 'account_holder' => 'Kontoinhaber', 'contact_phone' => 'Telefon',
+            'contact_email' => 'Kontakt-E-Mail', 'creditor_id' => 'Gläubiger-ID',
+            'sepa_pain_version' => 'SEPA-Format', 'sepa_prenotification_days' => 'SEPA-Vorlauftage',
+            'mahngebuehr_eur' => 'Mahngebühr', 'contracts_enabled' => 'Verträge aktiv',
+        ]),
+        'EEG-Stammdaten:');
     header('Location: /portal/settings?success=1');
     exit;
 });
@@ -4227,12 +4277,19 @@ $router->post('/admin/mail-templates', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $key = $_POST['key'] ?? '';
-    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both'], true)) { http_response_code(400); return; }
+    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both', 'sepa_prenotification', 'mahnung'], true)) { http_response_code(400); return; }
+    $tplBefore = DB::fetchOne('SELECT subject, body_html FROM platform_mail_templates WHERE key = ?', [$key]);
     DB::execute(
         'UPDATE platform_mail_templates SET subject = ?, body_html = ?, updated_at = now() WHERE key = ?',
         [trim($_POST['subject'] ?? ''), $_POST['body_html'] ?? '', $key]
     );
-    logAudit(null, 'mail_template.update', 'platform_mail_templates', $key, 'E-Mail-Vorlage "' . $key . '" aktualisiert');
+    $tplAfter = DB::fetchOne('SELECT subject, body_html FROM platform_mail_templates WHERE key = ?', [$key]);
+    $tplChanges = auditDiff($tplBefore ?? [], $tplAfter ?? [], ['subject' => 'Betreff', 'body_html' => 'Text (HTML)']);
+    if (!empty($tplChanges)) {
+        logAuditDiff(null, 'mail_template.update', 'platform_mail_templates', $key, $tplChanges, 'E-Mail-Vorlage „' . $key . '":');
+    } else {
+        logAudit(null, 'mail_template.update', 'platform_mail_templates', $key, 'E-Mail-Vorlage "' . $key . '" gespeichert (keine Änderung)');
+    }
     header('Location: /admin/mail-settings?success=1');
     exit;
 });
@@ -4244,7 +4301,7 @@ $router->post('/admin/mail-settings', function () {
     // Client-Secret nur überschreiben, wenn tatsächlich ein neuer Wert eingegeben wurde --
     // das Feld wird beim Laden nie im Klartext vorbefüllt, ein leeres Absenden darf das
     // gespeicherte Secret also nicht versehentlich löschen.
-    $current = DB::fetchOne('SELECT client_secret, signature_logo_base64, signature_logo_type FROM platform_mail_config WHERE id = 1');
+    $current = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
     $newSecret = trim($_POST['client_secret'] ?? '');
     $clientSecret = $newSecret !== '' ? $newSecret : ($current['client_secret'] ?? null);
 
@@ -4296,7 +4353,27 @@ $router->post('/admin/mail-settings', function () {
             trim($_POST['backup_alert_email_2'] ?? '') ?: null,
         ]
     );
-    logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Microsoft-Graph-Mailkonfiguration aktualisiert');
+    $mailAfter = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    // Sensible Werte (Secret, Logo-Rohdaten) werden NICHT im Klartext protokolliert -- nur, DASS
+    // sie geändert wurden. Deshalb secret/logo aus dem eigentlichen Diff heraushalten und separat
+    // als Ja/Nein-Änderung behandeln.
+    $mailChanges = auditDiff($current ?? [], $mailAfter ?? [], [
+        'tenant_id' => 'Tenant-ID', 'client_id' => 'Client-ID', 'sender_address' => 'Absenderadresse',
+        'reply_to' => 'Antwort-an', 'signature_html' => 'Signatur',
+        'signature_logo_width' => 'Logo-Breite', 'signature_logo_height' => 'Logo-Höhe',
+        'backup_alert_email_1' => 'Alarm-E-Mail 1', 'backup_alert_email_2' => 'Alarm-E-Mail 2',
+    ]);
+    if (($current['client_secret'] ?? null) !== ($mailAfter['client_secret'] ?? null)) {
+        $mailChanges['client_secret'] = ['label' => 'Client-Secret', 'von' => '(verborgen)', 'auf' => '(geändert)'];
+    }
+    if (($current['signature_logo_base64'] ?? null) !== ($mailAfter['signature_logo_base64'] ?? null)) {
+        $mailChanges['signature_logo'] = ['label' => 'Signatur-Logo', 'von' => (empty($current['signature_logo_base64']) ? 'kein' : 'vorhanden'), 'auf' => (empty($mailAfter['signature_logo_base64']) ? 'entfernt' : 'gesetzt')];
+    }
+    if (!empty($mailChanges)) {
+        logAuditDiff(null, 'mail_config.update', 'platform_mail_config', '1', $mailChanges, 'Mail-Konfiguration:');
+    } else {
+        logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Mail-Konfiguration gespeichert (keine Änderung)');
+    }
     header('Location: /admin/mail-settings?success=1');
     exit;
 });
