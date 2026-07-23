@@ -84,6 +84,19 @@ function passwordResetLink(string $token): string
 }
 
 /**
+ * Sind Verträge (Bezugsvereinbarung/Einspeisevertrag) für diese EEG aktiviert? Ist der Schalter
+ * aus (communities.contracts_enabled = false), werden alle Vertragsfunktionen in Portal und
+ * Obmann-Ansicht ausgeblendet und die Vertragsrouten gesperrt (die Beitrittserklärung genügt als
+ * Vertrag + SEPA-Mandat). Standard true.
+ */
+function contractsEnabled(?string $communityId): bool
+{
+    if (!$communityId) return true;
+    $row = DB::fetchOne('SELECT contracts_enabled FROM communities WHERE id = ?', [$communityId]);
+    return $row === null ? true : (bool)$row['contracts_enabled'];
+}
+
+/**
  * Lädt eine System-Mail-Vorlage (Betreff + HTML-Body) aus platform_mail_templates und ersetzt
  * {{platzhalter}} durch $vars. Fällt auf den mitgegebenen Standardtext zurück, falls im
  * Platform-Admin noch keine eigene Vorlage gespeichert wurde (z.B. direkt nach der Migration).
@@ -1107,6 +1120,7 @@ $router->get('/portal/my/contract/bezug', function () {
     Auth::requireLogin();
     $member = currentMemberFull();
     if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    if (!contractsEnabled($member['community_id'])) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
 
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], 'consumer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert.'; return; }
@@ -1123,6 +1137,7 @@ $router->get('/portal/my/contract/einspeisung', function () {
     Auth::requireLogin();
     $member = currentMemberFull();
     if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    if (!contractsEnabled($member['community_id'])) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
 
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], 'producer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert.'; return; }
@@ -1948,6 +1963,7 @@ function bezugsvereinbarungVars(array $member, array $community, ?array $tariff,
 
 $router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    if (!contractsEnabled(Auth::activeCommunityId())) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
     $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
 
@@ -1998,6 +2014,7 @@ function contractInvalidationNote(int $version): string
 
 $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    if (!contractsEnabled(Auth::activeCommunityId())) { header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Verträge sind in dieser EEG deaktiviert.')); exit; }
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
 
@@ -2136,6 +2153,7 @@ function einspeisevereinbarungVars(array $member, array $community, ?array $tari
 
 $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    if (!contractsEnabled(Auth::activeCommunityId())) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
     $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
 
@@ -2170,6 +2188,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
 
 $router->post('/portal/members/:id/contract/einspeisung/send', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    if (!contractsEnabled(Auth::activeCommunityId())) { header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Verträge sind in dieser EEG deaktiviert.')); exit; }
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
 
@@ -2223,6 +2242,7 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
  */
 $router->post('/portal/members/:id/contract/send-both', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    if (!contractsEnabled(Auth::activeCommunityId())) { header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode('Verträge sind in dieser EEG deaktiviert.')); exit; }
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
 
@@ -3330,7 +3350,7 @@ $router->post('/portal/settings/community', function () {
     DB::setCommunity($communityId);
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
-                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=? WHERE id=?',
+                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=?, contracts_enabled=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -3343,6 +3363,7 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['account_holder'] ?? '') ?: null,
             trim($_POST['contact_phone'] ?? '') ?: null,
             trim($_POST['contact_email'] ?? '') ?: null,
+            !empty($_POST['contracts_enabled']),
             $communityId,
         ]
     );

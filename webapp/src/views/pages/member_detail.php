@@ -22,7 +22,7 @@
   <div style="margin-left:auto;display:flex;gap:.5rem">
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
-    <?php if ($hasConsumer): ?>
+    <?php if ($hasConsumer && contractsEnabled($member['community_id'])): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
        class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem">📄 Bezugsvereinbarung</a>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/send" style="display:inline"
@@ -36,7 +36,7 @@
     </form>
     <?php endif; ?>
     <?php endif; ?>
-    <?php if ($hasProducer): ?>
+    <?php if ($hasProducer && contractsEnabled($member['community_id'])): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
        class="btn" style="background:#b45309;color:#fff;font-size:.8rem">☀️ Einspeisevereinbarung</a>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/send" style="display:inline"
@@ -50,7 +50,7 @@
     </form>
     <?php endif; ?>
     <?php endif; ?>
-    <?php if ($hasConsumer && $hasProducer): ?>
+    <?php if ($hasConsumer && $hasProducer && contractsEnabled($member['community_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/send-both" style="display:inline"
           onsubmit="return confirm('Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
       <button type="submit" class="btn" style="background:#ecfdf5;color:#047857;font-size:.8rem">📧 Beide gemeinsam senden</button>

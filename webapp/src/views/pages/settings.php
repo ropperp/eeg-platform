@@ -59,6 +59,16 @@
         <input type="text" name="dashboard_url" placeholder="https://portal.stromfueralle.at/portal/login" value="<?= htmlspecialchars($community['dashboard_url'] ?? '') ?>">
         <small style="color:var(--gray-600)">Frei änderbar, falls sich die Verlinkung ändert. Leer lassen für den Standard-Link.</small>
       </div>
+      <div class="form-group" style="grid-column:1 / -1;border-top:1px solid var(--gray-200);padding-top:1rem">
+        <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+          <input type="checkbox" name="contracts_enabled" value="1" style="width:auto"
+                 <?= !empty($community['contracts_enabled']) ? 'checked' : '' ?>>
+          <span>Verträge verwenden (Bezugsvereinbarung &amp; Einspeisevertrag)</span>
+        </label>
+        <small style="color:var(--gray-600)">Aus = kein separater Vertrag. Sinnvoll, wenn die Beitrittserklärung bereits als
+          Vertrag und SEPA-Mandat dient. Dann werden im Mitglieder-Portal und in der Obmann-Ansicht alle Vertragsfunktionen
+          (Ansehen, Unterschreiben, Senden) ausgeblendet.</small>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Stammdaten speichern</button>
   </form>

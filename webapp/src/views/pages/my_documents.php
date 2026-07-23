@@ -12,7 +12,7 @@
   <div class="alert" style="margin-bottom:1rem;background:#eff6ff;color:#1d4ed8"><?= htmlspecialchars($info) ?></div>
 <?php endif; ?>
 
-<?php if ($hasConsumer || $hasProducer): ?>
+<?php if (($hasConsumer || $hasProducer) && contractsEnabled($member['community_id'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Meine Verträge</h3>
   <div style="display:flex;flex-direction:column;gap:.75rem">
