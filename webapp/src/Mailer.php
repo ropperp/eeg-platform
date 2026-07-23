@@ -70,12 +70,27 @@ class Mailer
         $fullBody = $htmlBody . (!empty($cfg['signature_html']) ? '<br><br>' . $cfg['signature_html'] : '');
 
         // Optionales Signatur-Logo: als Inline-Anhang (Content-ID) einbetten und per <img src=
-        // "cid:...">  in der Signatur referenzieren. Inline-CID wird von Outlook/Gmail deutlich
-        // zuverlässiger angezeigt als ein data:-URI und funktioniert auch bei No-Reply-Absendern.
+        // "cid:...">  referenzieren. Inline-CID wird von Outlook/Gmail deutlich zuverlässiger
+        // angezeigt als ein data:-URI und funktioniert auch bei No-Reply-Absendern.
+        // Platzierung: steht der Platzhalter {{logo}} im (Signatur-)Text, wird das Logo GENAU
+        // dort eingesetzt (z.B. zwischen Grußformel und Impressum) -- sonst wie bisher am Ende.
+        // Größe: signature_logo_width/-height (px, optional); ohne Angaben Standard max. 64 px hoch.
         $inlineAttachments = [];
         if (!empty($cfg['signature_logo_base64'])) {
             $cid = 'signaturelogo';
-            $fullBody .= '<br><img src="cid:' . $cid . '" alt="" style="max-height:64px;margin-top:8px">';
+            $w = (int)($cfg['signature_logo_width'] ?? 0);
+            $h = (int)($cfg['signature_logo_height'] ?? 0);
+            $styleParts = [];
+            if ($w > 0) $styleParts[] = 'width:' . $w . 'px';
+            if ($h > 0) $styleParts[] = 'height:' . $h . 'px';
+            $style = $styleParts ? implode(';', $styleParts) : 'max-height:64px';
+            $logoImg = '<img src="cid:' . $cid . '" alt="" style="' . $style . '">';
+
+            if (strpos($fullBody, '{{logo}}') !== false) {
+                $fullBody = str_replace('{{logo}}', $logoImg, $fullBody);
+            } else {
+                $fullBody .= '<br>' . $logoImg;
+            }
             $inlineAttachments[] = [
                 '@odata.type'  => '#microsoft.graph.fileAttachment',
                 'name'         => 'logo',
@@ -84,6 +99,10 @@ class Mailer
                 'isInline'     => true,
                 'contentId'    => $cid,
             ];
+        } else {
+            // Kein Logo hinterlegt: einen evtl. vorhandenen {{logo}}-Platzhalter entfernen,
+            // damit er nicht als Rohtext in der Mail steht.
+            $fullBody = str_replace('{{logo}}', '', $fullBody);
         }
 
         $message = [
