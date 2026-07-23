@@ -69,6 +69,23 @@ class Mailer
         // codiert (Platform-Admin -> E-Mail-Einstellungen).
         $fullBody = $htmlBody . (!empty($cfg['signature_html']) ? '<br><br>' . $cfg['signature_html'] : '');
 
+        // Optionales Signatur-Logo: als Inline-Anhang (Content-ID) einbetten und per <img src=
+        // "cid:...">  in der Signatur referenzieren. Inline-CID wird von Outlook/Gmail deutlich
+        // zuverlässiger angezeigt als ein data:-URI und funktioniert auch bei No-Reply-Absendern.
+        $inlineAttachments = [];
+        if (!empty($cfg['signature_logo_base64'])) {
+            $cid = 'signaturelogo';
+            $fullBody .= '<br><img src="cid:' . $cid . '" alt="" style="max-height:64px;margin-top:8px">';
+            $inlineAttachments[] = [
+                '@odata.type'  => '#microsoft.graph.fileAttachment',
+                'name'         => 'logo',
+                'contentType'  => $cfg['signature_logo_type'] ?: 'image/png',
+                'contentBytes' => $cfg['signature_logo_base64'],
+                'isInline'     => true,
+                'contentId'    => $cid,
+            ];
+        }
+
         $message = [
             'subject'      => $subject,
             'body'         => ['contentType' => 'HTML', 'content' => $fullBody],
@@ -80,16 +97,18 @@ class Mailer
         if (!empty($cfg['reply_to'])) {
             $message['replyTo'] = [['emailAddress' => ['address' => $cfg['reply_to']]]];
         }
-        if (!empty($attachments)) {
-            $message['attachments'] = array_map(
-                fn(array $a) => [
-                    '@odata.type'  => '#microsoft.graph.fileAttachment',
-                    'name'         => $a['name'],
-                    'contentType'  => $a['contentType'],
-                    'contentBytes' => base64_encode($a['content']),
-                ],
-                $attachments
-            );
+        $fileAttachments = array_map(
+            fn(array $a) => [
+                '@odata.type'  => '#microsoft.graph.fileAttachment',
+                'name'         => $a['name'],
+                'contentType'  => $a['contentType'],
+                'contentBytes' => base64_encode($a['content']),
+            ],
+            $attachments
+        );
+        $allAttachments = array_merge($inlineAttachments, $fileAttachments);
+        if (!empty($allAttachments)) {
+            $message['attachments'] = $allAttachments;
         }
 
         $payload = json_encode([

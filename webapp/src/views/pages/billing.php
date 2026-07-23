@@ -37,6 +37,18 @@ ob_start();
   </a>
 </div>
 
+<div class="card" style="margin-bottom:1rem">
+  <h3 style="margin-bottom:.25rem">🏦 SEPA-Test-XML</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
+    Erzeugt eine SEPA-Lastschriftdatei (<code>pain.008</code>) mit <strong>Beispieldaten</strong> — zum Hochladen ins
+    Prüf-/Banking-Tool deiner Bank, noch <strong>bevor</strong> echte Abrechnungsdaten vorliegen. Verwendet eure
+    hinterlegte Gläubiger-ID/IBAN (falls gesetzt); es entsteht kein Datenbankeintrag und keine echte Abbuchung.
+  </p>
+  <a href="/portal/billing/sepa-test-xml" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
+    ⬇️ SEPA-Test-XML herunterladen
+  </a>
+</div>
+
 <!-- Suche -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center">

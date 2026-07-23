@@ -204,3 +204,29 @@ function sepaPain008Xml(
 
     return $xml;
 }
+
+/**
+ * Umsatzsteuer-Aufteilung für einen Netto-Betrag. Die Tarife der Plattform sind grundsätzlich
+ * netto hinterlegt. Bei 'kleinunternehmer' (§ 6 Abs 1 Z 27 UStG) fällt keine USt an, netto =
+ * brutto. Bei 'standard' wird der USt-Satz (Default 20 %) auf den Netto-Betrag aufgeschlagen.
+ * 'brutto' ist der tatsächlich zu zahlende bzw. einzuziehende Betrag (auch für SEPA/Vorabinfo).
+ * Funktioniert vorzeichenrichtig: bei negativem Netto (Guthaben/Einspeisung) ist auch die USt
+ * negativ, brutto = netto * (1 + Satz).
+ * Rückgabe: ['model','rate','netto','ust','brutto'] (Beträge auf 2 Nachkommastellen gerundet).
+ */
+function taxBreakdown(float $netto, ?string $model, $rate): array
+{
+    $model = $model === 'standard' ? 'standard' : 'kleinunternehmer';
+    $ratePct = $model === 'standard'
+        ? (float)str_replace(',', '.', (string)($rate ?? 20))
+        : 0.0;
+    $netto = round($netto, 2);
+    $ust   = round($netto * $ratePct / 100, 2);
+    return [
+        'model'  => $model,
+        'rate'   => $ratePct,
+        'netto'  => $netto,
+        'ust'    => $ust,
+        'brutto' => round($netto + $ust, 2),
+    ];
+}

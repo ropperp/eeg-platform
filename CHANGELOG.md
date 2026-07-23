@@ -20,6 +20,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Steuer netto/brutto (USt-Ausweis):** neben der Kleinunternehmerregelung jetzt ein
+  Standard-Pfad mit Umsatzsteuer (Default 20 %, je EEG einstellbar). Tarife bleiben netto;
+  bei „Standard" weist die Rechnung Netto, USt und Brutto aus, und **SEPA-Einzug wie
+  Vorabinfo verwenden den Brutto-Betrag**. Zentral in der getesteten Funktion `taxBreakdown()`
+  (7 Tests). Kleinunternehmer bleibt Default — für bestehende EEGs ändert sich nichts.
+- **SEPA-Test-XML mit Beispieldaten** (`/portal/billing/sepa-test-xml`, Button in der
+  Abrechnung): erzeugt eine `pain.008`-Datei mit Platzhalter-Schuldnern zum Prüfen im
+  Bank-/Banking-Tool, **bevor** echte EDA-Daten vorliegen — nutzt die hinterlegte
+  Gläubiger-ID/IBAN, ohne DB-Eintrag oder echten Einzug.
+- **Logo/Bild in der E-Mail-Signatur:** im Platform-Admin (E-Mail-Einstellungen) hochladbar,
+  wird als Inline-Bild (Content-ID) unter jede ausgehende Mail gesetzt — auch bei
+  No-Reply-Absendern in Outlook/Gmail zuverlässig sichtbar. In der DB als Base64 gehalten
+  (`platform_mail_config.signature_logo_*`), übersteht so einen Geräteumzug.
 - **SEPA-Lastschrift-Export (pain.008):** je freigegebenem Abrechnungslauf eine
   Sammellastschrift als XML herunterladbar (`/portal/billing/:id/sepa-xml`). Format pro EEG
   umschaltbar zwischen `pain.008.001.08` (Standard) und `.02` (`communities.sepa_pain_version`),
