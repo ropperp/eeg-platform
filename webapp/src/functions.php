@@ -117,3 +117,90 @@ function rechnungPositionenLatex(array $items, string $label, bool $gutschrift):
     }, $items);
     return implode("\n  \\arrayrulecolor{rulegray}\\hline\n", $zeilen);
 }
+
+/**
+ * Erzeugt eine SEPA-Basislastschrift (SDD CORE) als pain.008-XML — die Datei, die der Obmann in
+ * sein Online-Banking hochlädt. Version umschaltbar: '08' = pain.008.001.08 (neu, Standard),
+ * '02' = pain.008.001.02 (alt). Reine Funktion (kein DB/HTTP) -> automatisiert testbar.
+ *
+ * WICHTIG (Compliance): Das Zielformat muss zu dem passen, was die konkrete Bank akzeptiert.
+ * Vor dem Echtbetrieb die erzeugte Datei mit dem Prüf-/Testtool der Bank validieren.
+ *
+ * @param array $creditor ['name','iban','bic'(optional),'creditor_id']
+ * @param array $txns Liste von ['end_to_end_id','amount'(float>0),'mandate_ref','mandate_date'(Y-m-d),
+ *                    'debtor_name','debtor_iban','debtor_bic'(optional),'remittance']
+ * @param string $collectionDate Fälligkeit/Einzugsdatum (Y-m-d)
+ * @param string $version '08' oder '02'
+ * @param string $seqType SEPA-Sequenztyp: FRST | RCUR | OOFF | FNAL
+ * @param string $msgId eindeutige Nachrichten-ID (Default: generiert)
+ */
+function sepaPain008Xml(
+    array $creditor, array $txns, string $collectionDate,
+    string $version = '08', string $seqType = 'RCUR', string $msgId = ''
+): string {
+    $version = $version === '02' ? '02' : '08';
+    $x = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    $money = fn($v) => number_format((float)$v, 2, '.', '');
+    $ns = 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.' . $version;
+    // BIC-Element heißt in .02 <BIC>, in der 2019er-Fassung .08 <BICFI>.
+    $bicTag = $version === '02' ? 'BIC' : 'BICFI';
+    $agent = function (?string $bic) use ($x, $bicTag): string {
+        $bic = trim((string)$bic);
+        return $bic !== ''
+            ? "<FinInstnId><{$bicTag}>" . $x($bic) . "</{$bicTag}></FinInstnId>"
+            : '<FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>';
+    };
+
+    $msgId  = $msgId !== '' ? $msgId : ('SFA-' . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6));
+    $creDt  = date('Y-m-d\TH:i:s');
+    $nbTx   = count($txns);
+    $ctrl   = $money(array_sum(array_map(fn($t) => (float)$t['amount'], $txns)));
+
+    $txXml = '';
+    foreach ($txns as $t) {
+        $txXml .=
+            '<DrctDbtTxInf>'
+          .   '<PmtId><EndToEndId>' . $x($t['end_to_end_id'] ?? 'NOTPROVIDED') . '</EndToEndId></PmtId>'
+          .   '<InstdAmt Ccy="EUR">' . $money($t['amount']) . '</InstdAmt>'
+          .   '<DrctDbtTx><MndtRltdInf>'
+          .     '<MndtId>' . $x($t['mandate_ref']) . '</MndtId>'
+          .     '<DtOfSgntr>' . $x($t['mandate_date']) . '</DtOfSgntr>'
+          .   '</MndtRltdInf></DrctDbtTx>'
+          .   '<DbtrAgt>' . $agent($t['debtor_bic'] ?? '') . '</DbtrAgt>'
+          .   '<Dbtr><Nm>' . $x($t['debtor_name']) . '</Nm></Dbtr>'
+          .   '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $t['debtor_iban'])) . '</IBAN></Id></DbtrAcct>'
+          .   '<RmtInf><Ustrd>' . $x($t['remittance'] ?? '') . '</Ustrd></RmtInf>'
+          . '</DrctDbtTxInf>';
+    }
+
+    $xml =
+        '<?xml version="1.0" encoding="UTF-8"?>'
+      . '<Document xmlns="' . $ns . '" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+      . '<CstmrDrctDbtInitn>'
+      .   '<GrpHdr>'
+      .     '<MsgId>' . $x($msgId) . '</MsgId>'
+      .     '<CreDtTm>' . $creDt . '</CreDtTm>'
+      .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
+      .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
+      .     '<InitgPty><Nm>' . $x($creditor['name']) . '</Nm></InitgPty>'
+      .   '</GrpHdr>'
+      .   '<PmtInf>'
+      .     '<PmtInfId>' . $x($msgId) . '-1</PmtInfId>'
+      .     '<PmtMtd>DD</PmtMtd>'
+      .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
+      .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
+      .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl><LclInstrm><Cd>CORE</Cd></LclInstrm>'
+      .       '<SeqTp>' . $x($seqType) . '</SeqTp></PmtTpInf>'
+      .     '<ReqdColltnDt>' . $x($collectionDate) . '</ReqdColltnDt>'
+      .     '<Cdtr><Nm>' . $x($creditor['name']) . '</Nm></Cdtr>'
+      .     '<CdtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $creditor['iban'])) . '</IBAN></Id></CdtrAcct>'
+      .     '<CdtrAgt>' . $agent($creditor['bic'] ?? '') . '</CdtrAgt>'
+      .     '<ChrgBr>SLEV</ChrgBr>'
+      .     '<CdtrSchmeId><Id><PrvtId><Othr><Id>' . $x($creditor['creditor_id']) . '</Id>'
+      .       '<SchmeNm><Prtry>SEPA</Prtry></SchmeNm></Othr></PrvtId></Id></CdtrSchmeId>'
+      .     $txXml
+      .   '</PmtInf>'
+      . '</CstmrDrctDbtInitn></Document>';
+
+    return $xml;
+}
