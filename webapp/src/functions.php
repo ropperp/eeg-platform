@@ -206,6 +206,56 @@ function sepaPain008Xml(
 }
 
 /**
+ * Normalisiert einen Wert für den Audit-Vergleich in einen gut lesbaren String: null/'' -> '',
+ * bool -> 'ja'/'nein', DB-Bool-Strings 't'/'f' ebenso, Zahlen als String, sonst getrimmt.
+ */
+function auditNormalizeValue($v): string
+{
+    if ($v === null) return '';
+    if (is_bool($v)) return $v ? 'ja' : 'nein';
+    $s = trim((string)$v);
+    if ($s === 't' || $s === 'true')  return 'ja';
+    if ($s === 'f' || $s === 'false') return 'nein';
+    return $s;
+}
+
+/**
+ * Vergleicht zwei Datensätze (vorher/nachher) feldweise und liefert je geändertem Feld
+ * ['label' => Anzeigename, 'von' => alt, 'auf' => neu]. Nur Felder aus $labels werden geprüft
+ * (so bleiben interne/sensible Spalten außen vor); zusätzlich schützt $ignore einzelne Keys.
+ * Rückgabe ist nach Feld-Key indiziert und enthält nur tatsächliche Änderungen.
+ */
+function auditDiff(array $before, array $after, array $labels, array $ignore = []): array
+{
+    $changes = [];
+    foreach ($labels as $key => $label) {
+        if (in_array($key, $ignore, true)) continue;
+        if (!array_key_exists($key, $after)) continue;
+        $von = auditNormalizeValue($before[$key] ?? null);
+        $auf = auditNormalizeValue($after[$key]);
+        if ($von !== $auf) {
+            $changes[$key] = ['label' => $label, 'von' => $von, 'auf' => $auf];
+        }
+    }
+    return $changes;
+}
+
+/**
+ * Formatiert einen Änderungssatz (aus auditDiff) als lesbaren Satz:
+ * „Name: „Alt" → „Neu"; IBAN: „—" → „AT..."". Leere Werte werden als „—" dargestellt.
+ */
+function auditChangesText(array $changes): string
+{
+    $parts = [];
+    foreach ($changes as $c) {
+        $von = $c['von'] === '' ? '—' : $c['von'];
+        $auf = $c['auf'] === '' ? '—' : $c['auf'];
+        $parts[] = $c['label'] . ': „' . $von . '" → „' . $auf . '"';
+    }
+    return implode('; ', $parts);
+}
+
+/**
  * Bezeichnung einer Mahnstufe: 1 = Zahlungserinnerung, 2 = 1. Mahnung, 3+ = 2./letzte Mahnung.
  * Stufe 0 (noch nicht gemahnt) ergibt einen leeren String.
  */
