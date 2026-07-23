@@ -2769,7 +2769,8 @@ $router->get('/portal/billing/invoices', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $invoices = DB::fetchAll(
-        'SELECT i.*, br.quartal, br.status AS run_status, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email
+        'SELECT i.*, br.quartal, br.status AS run_status, m.kundennummer, m.first_name, m.last_name,
+                m.company_name, m.email, m.member_iban, m.mandatsreferenz
          FROM invoices i
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN members m ON m.id = i.member_id
@@ -2778,6 +2779,11 @@ $router->get('/portal/billing/invoices', function () {
         [$communityId]
     );
     $quartalFilter = $_GET['quartal'] ?? '';
+    // Fortschritt der Zahlungsabwicklung nur über bereits freigegebene Rechnungen (run_status
+    // 'done') -- Entwürfe zählen nicht als "offen".
+    $released = array_filter($invoices, fn($i) => ($i['run_status'] ?? '') === 'done');
+    $paymentDone = count(array_filter($released, fn($i) => in_array($i['payment_status'] ?? 'offen', ['eingezogen', 'ueberwiesen'], true)));
+    $paymentTotal = count($released);
     require ROOT . '/src/views/pages/billing_invoices.php';
 });
 
@@ -2807,7 +2813,20 @@ $router->post('/portal/billing/release', function () {
     try {
         Billing::finalize($runId, Auth::userId());
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Abrechnungslauf freigegeben');
-        header('Location: /portal/billing?success=1');
+        // Mit der Freigabe gilt die Rechnung als erstellt -- für alle einzuziehenden Salden
+        // (saldo > 0) geht am selben Tag die SEPA-Vorabinformation (Pre-Notification) raus, in
+        // der das voraussichtliche Abbuchungsdatum (= Rechnungsdatum + Vorlauftage der EEG)
+        // angekündigt wird. Der Versand läuft in einem eigenen try, damit ein Mail-/DB-Problem
+        // die bereits erfolgreiche Freigabe nicht als "fehlgeschlagen" erscheinen lässt.
+        $msg = 'Freigegeben.';
+        try {
+            $preInfo = sendSepaPrenotifications($communityId, $runId);
+            if ($preInfo > 0) $msg = 'Freigegeben. ' . $preInfo . ' SEPA-Vorabinformation(en) versendet.';
+        } catch (Throwable $e) {
+            error_log('SEPA-Vorabinfo (Lauf ' . $runId . '): ' . $e->getMessage());
+            $msg = 'Freigegeben. Hinweis: SEPA-Vorabinformationen konnten nicht versendet werden.';
+        }
+        header('Location: /portal/billing?success=' . urlencode($msg));
     } catch (Throwable $e) {
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Freigabe fehlgeschlagen: ' . $e->getMessage(), true);
         header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
@@ -2833,6 +2852,187 @@ $router->post('/portal/billing/:id/eda-status', function ($params) {
     } catch (Throwable $e) {
         header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
     }
+    exit;
+});
+
+/**
+ * Sammelt die für einen freigegebenen Abrechnungslauf einzuziehenden Rechnungen (saldo > 0)
+ * inkl. der SEPA-Mandatsdaten des jeweiligen Mitglieds. Rechnungen ohne verwertbares Mandat
+ * (fehlende IBAN oder Mandatsreferenz) werden separat unter 'ohne_mandat' zurückgegeben, damit
+ * der Obmann sie nicht stillschweigend übergeht.
+ * Rückgabe: ['creditor' => [...], 'txns' => [...], 'ohne_mandat' => [...]].
+ */
+function sepaCollectionData(string $communityId, string $runId): array
+{
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $rows = DB::fetchAll(
+        "SELECT i.rechnungsnummer, i.saldo_eur, br.quartal,
+                m.first_name, m.last_name, m.company_name, m.member_iban, m.member_bic,
+                m.mandatsreferenz,
+                COALESCE(m.sepa_mandate_date, m.beitrittsdatum, m.member_since, CURRENT_DATE) AS mandate_date
+           FROM invoices i
+           JOIN billing_runs br ON br.id = i.billing_run_id
+           JOIN members m ON m.id = i.member_id
+          WHERE i.billing_run_id = ? AND i.community_id = ? AND i.saldo_eur > 0
+          ORDER BY m.kundennummer",
+        [$runId, $communityId]
+    );
+    $txns = [];
+    $ohneMandat = [];
+    foreach ($rows as $r) {
+        $name = trim(($r['company_name'] ?: '') ?: ($r['first_name'] . ' ' . $r['last_name']));
+        $iban = trim((string)$r['member_iban']);
+        $ref  = trim((string)$r['mandatsreferenz']);
+        if ($iban === '' || $ref === '') {
+            $ohneMandat[] = ['name' => $name, 'rechnungsnummer' => $r['rechnungsnummer'], 'saldo' => (float)$r['saldo_eur']];
+            continue;
+        }
+        $txns[] = [
+            'end_to_end_id' => $r['rechnungsnummer'],
+            'amount'        => (float)$r['saldo_eur'],
+            'mandate_ref'   => $ref,
+            'mandate_date'  => substr((string)$r['mandate_date'], 0, 10),
+            'debtor_name'   => $name,
+            'debtor_iban'   => $iban,
+            'debtor_bic'    => trim((string)$r['member_bic']),
+            'remittance'    => 'Rechnung ' . $r['rechnungsnummer'] . ' (' . $r['quartal'] . ') ' . ($community['name'] ?? ''),
+        ];
+    }
+    $creditor = [
+        'name'        => $community['name'] ?? '',
+        'iban'        => trim((string)($community['iban'] ?? '')),
+        'bic'         => trim((string)($community['bic'] ?? '')),
+        'creditor_id' => trim((string)($community['creditor_id'] ?? '')),
+    ];
+    return ['creditor' => $creditor, 'txns' => $txns, 'ohne_mandat' => $ohneMandat, 'community' => $community];
+}
+
+/**
+ * Versendet die SEPA-Vorabinformation für alle noch nicht vorab-informierten, einzuziehenden
+ * Rechnungen (saldo > 0, Mandat vorhanden) eines freigegebenen Laufs. Gibt die Anzahl
+ * tatsächlich versendeter Mails zurück. Setzt invoices.prenotified_at, damit bei einer
+ * erneuten Freigabe/Verarbeitung keine Doppel-Mail entsteht.
+ */
+function sendSepaPrenotifications(string $communityId, string $runId): int
+{
+    DB::setCommunity($communityId);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $days = (int)($community['sepa_prenotification_days'] ?? 14);
+    $abbuchung = date('d.m.Y', strtotime('+' . $days . ' days'));
+    $rows = DB::fetchAll(
+        "SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal,
+                m.first_name, m.email, m.mandatsreferenz, m.member_iban
+           FROM invoices i
+           JOIN billing_runs br ON br.id = i.billing_run_id
+           JOIN members m ON m.id = i.member_id
+          WHERE i.billing_run_id = ? AND i.community_id = ? AND i.saldo_eur > 0
+            AND i.prenotified_at IS NULL",
+        [$runId, $communityId]
+    );
+    $sent = 0;
+    foreach ($rows as $r) {
+        $ref = trim((string)$r['mandatsreferenz']);
+        $iban = trim((string)$r['member_iban']);
+        if (empty($r['email']) || $ref === '' || $iban === '') continue;
+        try {
+            $mail = renderMailTemplate('sepa_prenotification', [
+                'vorname'        => htmlspecialchars((string)$r['first_name']),
+                'eeg_name'       => htmlspecialchars((string)($community['name'] ?? '')),
+                'rechnungsnummer'=> htmlspecialchars((string)$r['rechnungsnummer']),
+                'betrag'         => number_format((float)$r['saldo_eur'], 2, ',', '.'),
+                'abbuchung'      => $abbuchung,
+                'mandatsreferenz'=> htmlspecialchars($ref),
+                'creditor_id'    => htmlspecialchars((string)($community['creditor_id'] ?? '')),
+            ],
+                'SEPA-Vorabinformation zu Rechnung {{rechnungsnummer}} – {{eeg_name}}',
+                '<p>Hallo {{vorname}},</p>'
+                . '<p>Ihre Rechnung <strong>{{rechnungsnummer}}</strong> über <strong>{{betrag}} €</strong> wird '
+                . 'im Wege des SEPA-Lastschriftverfahrens am <strong>{{abbuchung}}</strong> von Ihrem Konto eingezogen. '
+                . 'Sie müssen nichts weiter veranlassen.</p>'
+                . '<p>Mandatsreferenz: {{mandatsreferenz}}<br>Gläubiger-ID: {{creditor_id}}</p>'
+                . '<p>Diese E-Mail gilt als Vorabankündigung (Pre-Notification) im Sinne des SEPA-Lastschriftverfahrens.</p>'
+            );
+            Mailer::send($r['email'], $mail['subject'], $mail['body']);
+            DB::execute('UPDATE invoices SET prenotified_at = now() WHERE id = ?', [$r['id']]);
+            $sent++;
+        } catch (Throwable $e) {
+            error_log('SEPA-Vorabinfo fehlgeschlagen für Rechnung ' . $r['rechnungsnummer'] . ': ' . $e->getMessage());
+        }
+    }
+    return $sent;
+}
+
+/**
+ * SEPA-Sammellastschrift (pain.008) für einen freigegebenen Abrechnungslauf herunterladen.
+ * Enthält nur einzuziehende Rechnungen (saldo > 0) mit gültigem Mandat. Format (.08/.02) und
+ * Gläubiger-ID stammen aus den EEG-Einstellungen.
+ */
+$router->get('/portal/billing/:id/sepa-xml', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$run) { http_response_code(404); echo 'Abrechnungslauf nicht gefunden'; return; }
+    if ($run['status'] !== 'done') {
+        header('Location: /portal/billing?error=' . urlencode('SEPA-Datei erst nach der Freigabe verfügbar.')); exit;
+    }
+    $data = sepaCollectionData($communityId, $params['id']);
+    $community = $data['community'];
+    if ($data['creditor']['creditor_id'] === '' || $data['creditor']['iban'] === '') {
+        header('Location: /portal/billing/invoices?quartal=' . urlencode($run['quartal'])
+            . '&error=' . urlencode('Bitte zuerst Gläubiger-ID und EEG-IBAN in den Einstellungen hinterlegen.')); exit;
+    }
+    if (empty($data['txns'])) {
+        header('Location: /portal/billing/invoices?quartal=' . urlencode($run['quartal'])
+            . '&error=' . urlencode('Keine einzuziehenden Rechnungen mit gültigem SEPA-Mandat in diesem Lauf.')); exit;
+    }
+    $version = ($community['sepa_pain_version'] ?? '08') === '02' ? '02' : '08';
+    $days    = (int)($community['sepa_prenotification_days'] ?? 14);
+    // Abbuchungsdatum = Rechnungsdatum (Freigabe) + Vorlauftage, passend zur Vorabinformation.
+    // Liegt dieser Tag bereits in der Vergangenheit, frühestens übermorgen einziehen.
+    $collect = date('Y-m-d', strtotime(($run['released_at'] ?: 'now') . ' +' . $days . ' days'));
+    if ($collect < date('Y-m-d', strtotime('+2 days'))) {
+        $collect = date('Y-m-d', strtotime('+2 days'));
+    }
+    $msgId = 'SFA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-' . date('YmdHis');
+    $xml = sepaPain008Xml($data['creditor'], $data['txns'], $collect, $version, 'RCUR', $msgId);
+    logAudit($communityId, 'billing.sepa_export', 'billing_run', $params['id'],
+        'SEPA-XML (pain.008.001.' . $version . ') mit ' . count($data['txns']) . ' Lastschrift(en) erzeugt');
+    $fname = 'SEPA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-pain008-' . $version . '.xml';
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $fname . '"');
+    header('Content-Length: ' . strlen($xml));
+    echo $xml;
+    exit;
+});
+
+/**
+ * Zahlungsstatus einer einzelnen Rechnung setzen: positive Salden nach erfolgtem SEPA-Einzug
+ * auf 'eingezogen', negative Salden nach erfolgter Überweisung durch den Obmann auf
+ * 'ueberwiesen' -- erst dann gilt die Rechnung als erledigt. 'offen' setzt zurück.
+ */
+$router->post('/portal/billing/invoices/:id/mark-paid', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $inv = DB::fetchOne('SELECT * FROM invoices WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$inv) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+    $status = $_POST['payment_status'] ?? '';
+    $saldo  = (float)$inv['saldo_eur'];
+    // Plausibilität: einziehen nur bei Forderung (>0), überweisen nur bei Guthaben (<0).
+    $allowed = ($status === 'eingezogen' && $saldo > 0)
+            || ($status === 'ueberwiesen' && $saldo < 0)
+            || ($status === 'fehlgeschlagen')
+            || ($status === 'offen');
+    if (!$allowed) {
+        header('Location: /portal/billing/invoices?error=' . urlencode('Ungültiger Zahlungsstatus für diese Rechnung.')); exit;
+    }
+    $paidAt = in_array($status, ['eingezogen', 'ueberwiesen'], true) ? 'now()' : 'NULL';
+    DB::execute("UPDATE invoices SET payment_status = ?, paid_at = $paidAt WHERE id = ? AND community_id = ?",
+        [$status, $params['id'], $communityId]);
+    logAudit($communityId, 'billing.payment_status', 'invoice', $params['id'],
+        'Zahlungsstatus von Rechnung ' . $inv['rechnungsnummer'] . ' auf "' . $status . '" gesetzt');
+    header('Location: /portal/billing/invoices?success=1');
     exit;
 });
 

@@ -8,6 +8,18 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-23 (abends) — Claude Code — Claude Opus 4.8
+**Auftrag:** SEPA-Lastschrift-Abwicklung fertigstellen: Sammellastschrift (pain.008) je
+freigegebenem Abrechnungslauf herunterladbar, Aufteilung Einzug (Saldo > 0) vs. Überweisung
+durch den Obmann (Saldo < 0), Zahlungsstatus-Verfolgung unter *Rechnungen* und eine
+SEPA-Vorabinformation per Mail bei der Freigabe (Abbuchung = Rechnungsdatum + 14 Tage).
+**Ergebnis:** Neue Routen `/portal/billing/:id/sepa-xml` (nutzt die getestete
+`sepaPain008Xml()`, Format `.08`/`.02` je EEG) und `/portal/billing/invoices/:id/mark-paid`;
+Zahlungsstatus-Spalte + Fortschritt „X von Y erledigt" in `billing_invoices.php`; Vorabinfo-Mail
+bei der Freigabe (`sendSepaPrenotifications()`, Vorlage `sepa_prenotification` in
+`migrate_20260810.sql`, im Admin editierbar). Alle 33 Tests grün, PHP-Lint sauber. CHANGELOG
+(Unreleased) und Doku ergänzt.
+
 ## 2026-07-23 (nachmittags) — Claude Code — Claude Opus 4.8
 **Auftrag:** Produktions-Notfall: nach Deploy + Container-Neubau wirkte die Datenbank leer
 (Login/Abrechnung defekt). Ursache finden, Daten retten, dauerhaft absichern; außerdem tägliche

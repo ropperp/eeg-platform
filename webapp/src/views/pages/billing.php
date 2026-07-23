@@ -121,6 +121,7 @@ ob_start();
             <?php endif; ?>
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
+            <a href="/portal/billing/<?= $run['id'] ?>/sepa-xml" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem">⬇️ SEPA-XML</a>
           <?php endif; ?>
           <?php if (Auth::isManager()): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"
