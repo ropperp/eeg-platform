@@ -3362,7 +3362,7 @@ $router->post('/portal/settings/community', function () {
     DB::setCommunity($communityId);
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
-                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=?, contracts_enabled=? WHERE id=?',
+                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?, contracts_enabled=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -3375,6 +3375,7 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['account_holder'] ?? '') ?: null,
             trim($_POST['contact_phone'] ?? '') ?: null,
             trim($_POST['contact_email'] ?? '') ?: null,
+            trim($_POST['creditor_id'] ?? '') ?: null,
             // Als 'true'/'false' binden, nicht als PHP-bool: PDO (pgsql, emulate_prepares=off)
             // schickt PHP-false als leeren String '', den eine boolean-Spalte ablehnt (22P02).
             !empty($_POST['contracts_enabled']) ? 'true' : 'false',

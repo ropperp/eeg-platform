@@ -36,6 +36,11 @@
         <input type="text" name="bic" value="<?= htmlspecialchars($community['bic'] ?? '') ?>">
       </div>
       <div class="form-group">
+        <label>Gläubiger-ID (Creditor Identifier)</label>
+        <input type="text" name="creditor_id" placeholder="AT12ZZZ00000000000" value="<?= htmlspecialchars($community['creditor_id'] ?? '') ?>">
+        <small style="color:var(--gray-600)">Für SEPA-Lastschriften. Bei der OeNB beantragt, Format z.B. <code>AT..ZZZ...</code></small>
+      </div>
+      <div class="form-group">
         <label>Bankname</label>
         <input type="text" name="bank_name" placeholder="z.B. Sparkasse Feldkirchen" value="<?= htmlspecialchars($community['bank_name'] ?? '') ?>">
       </div>
