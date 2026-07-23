@@ -97,6 +97,8 @@
     <code>{{hinweis}}</code> wird bei Vertrags-Mails automatisch mit dem Ungültigkeits-Hinweis befüllt,
     falls eine zuvor gesendete Fassung durch eine korrigierte ersetzt wird, sonst bleibt es leer).
     Der Body darf einfaches HTML enthalten (z. B. <code>&lt;p&gt;</code>).
+    Zusätzlich in der SEPA-Vorabinformation: <code>{{rechnungsnummer}}</code>, <code>{{betrag}}</code>,
+    <code>{{abbuchung}}</code> (Abbuchungsdatum), <code>{{mandatsreferenz}}</code>, <code>{{creditor_id}}</code>.
   </p>
   <?php $templateLabel = [
     'password_reset'       => 'Passwort zurücksetzen',
@@ -105,6 +107,7 @@
     'contract_bezug'        => 'Vertrag: nur Bezugsvereinbarung',
     'contract_einspeisung'  => 'Vertrag: nur Einspeisevereinbarung',
     'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
+    'sepa_prenotification'  => 'SEPA-Vorabinformation (Pre-Notification)',
   ]; ?>
   <?php foreach ($mailTemplates as $t): ?>
     <form method="post" action="/admin/mail-templates" style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #e5e7eb">

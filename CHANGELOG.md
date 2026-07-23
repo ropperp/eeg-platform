@@ -19,6 +19,33 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Neu / Funktionen
+- **SEPA-Lastschrift-Export (pain.008):** je freigegebenem Abrechnungslauf eine
+  Sammellastschrift als XML herunterladbar (`/portal/billing/:id/sepa-xml`). Format pro EEG
+  umschaltbar zwischen `pain.008.001.08` (Standard) und `.02` (`communities.sepa_pain_version`),
+  Gläubiger-ID in den EEG-Einstellungen. Es werden nur einzuziehende Rechnungen (Saldo > 0) mit
+  gültigem Mandat aufgenommen; Mandatsreferenz stammt aus `members.mandatsreferenz`. Reine,
+  getestete Generatorfunktion `sepaPain008Xml()` (5 Tests). **Vor dem ersten Echt-Einzug mit dem
+  Prüftool der Bank validieren.**
+- **Einzug vs. Überweisung nach Vorzeichen + Zahlungsstatus:** unter *Rechnungen* zeigt jede
+  freigegebene Rechnung ihren Zahlungsstatus (offen / eingezogen / überwiesen). Positive Salden
+  werden per SEPA eingezogen und nach Bankbestätigung als „eingezogen" markiert, negative Salden
+  (EEG schuldet dem Mitglied) vom Obmann überwiesen und als „überwiesen" markiert. Fortschritts-
+  anzeige „X von Y erledigt" — der Abrechnungsprozess gilt erst als abgeschlossen, wenn alle
+  Rechnungen erledigt sind (`invoices.payment_status`, `paid_at`).
+- **SEPA-Vorabinformation (Pre-Notification):** bei der Freigabe eines Laufs geht am selben Tag
+  an jedes einzuziehende Mitglied eine Mail mit dem Abbuchungsdatum raus (= Rechnungsdatum +
+  Vorlauftage der EEG, Default **14**, `communities.sepa_prenotification_days`). Vorlage im
+  Platform-Admin editierbar (`sepa_prenotification`), `invoices.prenotified_at` verhindert
+  Doppel-Mails.
+- **Audit-Log als Markdown exportierbar** (`/admin/log/export`) — wer/wann/was, für spätere
+  Auswertung (auch per KI). Konfigurations-/Einstellungsänderungen werden protokolliert.
+- **Verträge pro EEG abschaltbar** (`communities.contracts_enabled`): blendet Bezugs-/
+  Einspeisevereinbarung überall aus (Mitglieder-Portal, Obmann-Ansichten, Dateien, Vertrags-
+  status), wenn eine EEG ohne separate Verträge arbeitet.
+- **Preisliste mit Tarif-Historie:** die öffentliche Preisliste zeigt neben dem aktuellen Tarif
+  eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
+
 ### Behoben / Betrieb (Vorfall 23.07.2026)
 - **DB-Datenverlust-Fallstrick behoben:** `timescaledb-ha`-Mount auf das echte PGDATA
   (`/opt/eeg/timescaledb:/home/postgres/pgdata`) korrigiert und Image auf feste Digest gepinnt.
