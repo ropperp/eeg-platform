@@ -14,6 +14,8 @@
       <?php endforeach; ?>
     </select>
     <span style="font-size:.8rem;color:var(--gray-600)">Letzte 500 Einträge</span>
+    <a href="/admin/log/export<?= ($_GET['community_id'] ?? '') !== '' ? '?community_id=' . urlencode($_GET['community_id']) : '' ?>"
+       class="btn" style="margin-left:auto;background:var(--gray-100);color:var(--gray-700);padding:.4rem .8rem;font-size:.85rem">⬇️ Als Markdown exportieren</a>
   </form>
 </div>
 

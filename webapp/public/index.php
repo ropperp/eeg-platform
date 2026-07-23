@@ -3363,7 +3363,8 @@ $router->post('/portal/settings/community', function () {
     DB::setCommunity($communityId);
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
-                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?, contracts_enabled=? WHERE id=?',
+                                 bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
+                                 sepa_pain_version=?, sepa_prenotification_days=?, contracts_enabled=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -3377,6 +3378,8 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['contact_phone'] ?? '') ?: null,
             trim($_POST['contact_email'] ?? '') ?: null,
             trim($_POST['creditor_id'] ?? '') ?: null,
+            in_array($_POST['sepa_pain_version'] ?? '08', ['02', '08'], true) ? $_POST['sepa_pain_version'] : '08',
+            max(1, min(60, (int)($_POST['sepa_prenotification_days'] ?? 14))),
             // Als 'true'/'false' binden, nicht als PHP-bool: PDO (pgsql, emulate_prepares=off)
             // schickt PHP-false als leeren String '', den eine boolean-Spalte ablehnt (22P02).
             !empty($_POST['contracts_enabled']) ? 'true' : 'false',
@@ -3630,6 +3633,49 @@ $router->get('/admin/log', function () {
     );
     $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
     require ROOT . '/src/views/pages/admin_log.php';
+});
+
+/**
+ * Audit-Log als Markdown exportieren (Download) -- zum Archivieren oder späteren Auswerten
+ * (auch per KI): wer hat wann was geändert. Respektiert den EEG-Filter, exportiert aber ohne
+ * das 500-Zeilen-Limit der Ansicht.
+ */
+$router->get('/admin/log/export', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $filterCommunity = $_GET['community_id'] ?? '';
+    $params = []; $where = '1=1';
+    if ($filterCommunity !== '') { $where .= ' AND al.community_id = ?'; $params[] = $filterCommunity; }
+    $entries = DB::fetchAll(
+        "SELECT al.*, u.first_name, u.last_name, u.email, c.name AS community_name
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+         LEFT JOIN communities c ON c.id = al.community_id
+         WHERE $where ORDER BY al.created_at DESC",
+        $params
+    );
+    $esc = fn($s) => str_replace(['|', "\r", "\n"], ['\\|', '', ' '], (string)$s);
+    $md  = "# Audit-Log – stromfueralle.at\n\n";
+    $md .= 'Exportiert am ' . date('d.m.Y H:i') . ' · ' . count($entries) . " Einträge"
+         . ($filterCommunity !== '' ? ' · gefiltert nach einer EEG' : '') . "\n\n";
+    $md .= "| Datum/Zeit | Benutzer | EEG | Aktion | Objekt | Beschreibung | Fehler |\n";
+    $md .= "|---|---|---|---|---|---|---|\n";
+    foreach ($entries as $e) {
+        $user = trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['email'] ?? 'System');
+        $obj  = trim(($e['entity_typ'] ?? '') . ' ' . ($e['entity_id'] ?? ''));
+        $md .= '| ' . date('d.m.Y H:i:s', strtotime($e['created_at']))
+             . ' | ' . $esc($user)
+             . ' | ' . $esc($e['community_name'] ?? '—')
+             . ' | ' . $esc($e['aktion'])
+             . ' | ' . $esc($obj)
+             . ' | ' . $esc($e['beschreibung'])
+             . ' | ' . (!empty($e['ist_fehler']) ? '⚠️ Fehler' : '')
+             . " |\n";
+    }
+    header('Content-Type: text/markdown; charset=utf-8');
+    header('Content-Disposition: attachment; filename="audit-log-' . date('Ymd_His') . '.md"');
+    echo $md;
+    exit;
 });
 
 // ─── Admin: E-Mail-Einstellungen (Microsoft Graph) ──────

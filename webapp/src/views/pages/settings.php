@@ -41,6 +41,20 @@
         <small style="color:var(--gray-600)">Für SEPA-Lastschriften. Bei der OeNB beantragt, Format z.B. <code>AT..ZZZ...</code></small>
       </div>
       <div class="form-group">
+        <label>SEPA-XML-Format</label>
+        <select name="sepa_pain_version" style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px;width:100%">
+          <?php $sv = $community['sepa_pain_version'] ?? '08'; ?>
+          <option value="08" <?= $sv === '08' ? 'selected' : '' ?>>pain.008.001.08 (neu, Standard)</option>
+          <option value="02" <?= $sv === '02' ? 'selected' : '' ?>>pain.008.001.02 (alt)</option>
+        </select>
+        <small style="color:var(--gray-600)">Muss zu dem passen, was deine Bank beim Upload akzeptiert.</small>
+      </div>
+      <div class="form-group">
+        <label>SEPA-Vorlauftage (Vorabinfo → Abbuchung)</label>
+        <input type="number" name="sepa_prenotification_days" min="1" max="60" value="<?= htmlspecialchars((string)($community['sepa_prenotification_days'] ?? 14)) ?>">
+        <small style="color:var(--gray-600)">Standard 14 Tage; per Mandatstext oft auf 1 Tag verkürzbar. Bestimmt das Abbuchungsdatum in der Vorabinfo.</small>
+      </div>
+      <div class="form-group">
         <label>Bankname</label>
         <input type="text" name="bank_name" placeholder="z.B. Sparkasse Feldkirchen" value="<?= htmlspecialchars($community['bank_name'] ?? '') ?>">
       </div>
