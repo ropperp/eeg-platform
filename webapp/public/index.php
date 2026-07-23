@@ -990,14 +990,15 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
                 c.contact_email AS eeg_contact_email, c.bank_name AS eeg_bank_name,
                 c.account_holder AS eeg_account_holder,
                 tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur,
-                tx.uid_number AS eeg_uid_number
+                tx.uid_number AS eeg_uid_number, tx.tax_model AS eeg_tax_model,
+                tx.tax_rate_percent AS eeg_tax_rate
          FROM invoices i
          JOIN members m ON m.id = i.member_id
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN communities c ON c.id = br.community_id
          LEFT JOIN tariff_config tc ON tc.community_id = c.id AND tc.valid_from <= br.period_from
          LEFT JOIN LATERAL (
-             SELECT uid_number FROM tax_config
+             SELECT uid_number, tax_model, tax_rate_percent FROM tax_config
              WHERE community_id = c.id AND valid_from <= br.period_from
              ORDER BY valid_from DESC LIMIT 1
          ) tx ON true
@@ -1038,11 +1039,24 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
     $bezugZp     = count($bezugItems) === 1 ? trim((string)($bezugItems[0]['zaehlpunkt_nr'] ?? '')) : '';
     $einspZp     = count($einspeisungItems) === 1 ? trim((string)($einspeisungItems[0]['zaehlpunkt_nr'] ?? '')) : '';
 
+    // Steuer: Tarife sind netto. Kleinunternehmer -> keine USt (netto = brutto). Standard ->
+    // USt-Satz auf den Netto-Saldo aufschlagen; brutto ist der real zu zahlende/einzuziehende
+    // Betrag. taxBreakdown() zentralisiert die Rechnung (getestet, auch von SEPA/Vorabinfo genutzt).
+    $tax = taxBreakdown((float)$invoice['saldo_eur'], $invoice['eeg_tax_model'] ?? null, $invoice['eeg_tax_rate'] ?? null);
     // RAW_: LaTeX-Befehle direkt übergeben — service.js darf diese NICHT escapen.
     // 4-Spalten-Tabelle (Position / Menge / Tarif / Betrag), Steuerzeile spannt alle 4 Spalten:
-    $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
-    // Paragraph am Seitenende:
-    $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+    if ($tax['model'] === 'standard') {
+        $ustFmt = number_format($tax['ust'], 2, ',', '.');
+        $nettoFmt = number_format($tax['netto'], 2, ',', '.');
+        $satzFmt = rtrim(rtrim(number_format($tax['rate'], 2, ',', '.'), '0'), ',');
+        $steuerZeile = '\\multicolumn{3}{r}{\\footnotesize Netto} & \\footnotesize EUR ' . $nettoFmt . ' \\\\'
+            . '\\multicolumn{3}{r}{\\footnotesize zzgl.\\,' . $satzFmt . '\\,\\% USt} & \\footnotesize EUR ' . $ustFmt . ' \\\\';
+        $steuerText  = 'Im Rechnungsbetrag sind ' . $satzFmt . '\\,\\% Umsatzsteuer (EUR ' . $ustFmt . ') enthalten.';
+    } else {
+        $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
+        // Paragraph am Seitenende:
+        $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
+    }
 
     // Anzeigename: abweichender Rechnungsname > Firma > Titel + Vor-/Nachname
     $anzeigeName = ($invoice['invoice_name'] ?? '')
@@ -1054,7 +1068,9 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
     $eegAdrTeile = array_map('trim', explode(',', $invoice['eeg_address'] ?? '', 2));
 
     // Zahlungstext (RAW = wird nicht escaped, texEscape() für dynamische Teile!)
-    $saldoVal  = (float)$invoice['saldo_eur'];
+    // Der real zu zahlende/einzuziehende Betrag ist der Brutto-Betrag (bei Kleinunternehmer
+    // identisch mit netto, bei Standard inkl. USt).
+    $saldoVal  = (float)$tax['brutto'];
     $betragFmt = number_format(abs($saldoVal), 2, ',', '.');
     $faellig   = date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days'));
     $ibanEnd   = !empty($invoice['member_iban'])
@@ -1110,8 +1126,8 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'RAW_BEZUG_POSITIONEN_LISTE'       => rechnungPositionenLatex($bezugItems, 'Energiebezug aus der Gemeinschaft', false),
         'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true),
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
-        'SUMME_NETTO'           => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
-        'SUMME_BRUTTO'          => number_format((float)$invoice['saldo_eur'], 2, ',', '.'),
+        'SUMME_NETTO'           => number_format($tax['netto'], 2, ',', '.'),
+        'SUMME_BRUTTO'          => number_format($tax['brutto'], 2, ',', '.'),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
@@ -2617,9 +2633,16 @@ $router->get('/portal/billing/preview', function () {
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $tax = DB::fetchOne('SELECT * FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
 
-    $steuerZeile = '';
-    $steuerText  = '';
-    if (($tax['tax_model'] ?? 'kleinunternehmer') === 'kleinunternehmer') {
+    // Beispiel-Netto der Vorschau (Summe der Beispielpositionen) durch die konfigurierte
+    // Steuerlogik schicken, damit die Vorschau Kleinunternehmer vs. Standard (mit USt) zeigt.
+    $tbPreview = taxBreakdown(49.04, $tax['tax_model'] ?? null, $tax['tax_rate_percent'] ?? null);
+    if ($tbPreview['model'] === 'standard') {
+        $ustFmt = number_format($tbPreview['ust'], 2, ',', '.');
+        $satzFmt = rtrim(rtrim(number_format($tbPreview['rate'], 2, ',', '.'), '0'), ',');
+        $steuerZeile = '\\multicolumn{3}{r}{\\footnotesize Netto} & \\footnotesize EUR ' . number_format($tbPreview['netto'], 2, ',', '.') . ' \\\\'
+            . '\\multicolumn{3}{r}{\\footnotesize zzgl.\\,' . $satzFmt . '\\,\\% USt} & \\footnotesize EUR ' . $ustFmt . ' \\\\';
+        $steuerText  = 'Im Rechnungsbetrag sind ' . $satzFmt . '\\,\\% Umsatzsteuer (EUR ' . $ustFmt . ') enthalten.';
+    } else {
         $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
         $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
     }
@@ -2672,12 +2695,12 @@ $router->get('/portal/billing/preview', function () {
         'RAW_BEZUG_POSITIONEN_LISTE'       => $bezugListe,
         'RAW_EINSPEISUNG_POSITIONEN_LISTE' => $einspListe,
         'MITGLIEDSBEITRAG'      => '15,00',
-        'SUMME_NETTO'           => '49,04',
-        'SUMME_BRUTTO'          => '49,04',
+        'SUMME_NETTO'           => number_format($tbPreview['netto'], 2, ',', '.'),
+        'SUMME_BRUTTO'          => number_format($tbPreview['brutto'], 2, ',', '.'),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => $extraItemsLatex,
-        'RAW_ZAHLUNG_TEXT'      => 'Der Rechnungsbetrag von \\textbf{EUR 49,04} wird gemäß SEPA-Lastschriftmandat'
+        'RAW_ZAHLUNG_TEXT'      => 'Der Rechnungsbetrag von \\textbf{EUR ' . number_format($tbPreview['brutto'], 2, ',', '.') . '} wird gemäß SEPA-Lastschriftmandat'
             . ' (Mandatsreferenz \\textbf{MUSTER-MANDAT-001}) am \\textbf{' . date('d.m.Y', strtotime('+14 days')) . '}'
             . ' von Ihrem Konto eingezogen. Sie müssen nichts weiter veranlassen.'
             . ' Diese Rechnung gilt zugleich als Vorabankündigung (Pre-Notification) im Sinne des SEPA-Lastschriftverfahrens.',
@@ -2865,6 +2888,13 @@ $router->post('/portal/billing/:id/eda-status', function ($params) {
 function sepaCollectionData(string $communityId, string $runId): array
 {
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $run = DB::fetchOne('SELECT period_from FROM billing_runs WHERE id = ?', [$runId]);
+    // Für den Einzug zählt der Brutto-Betrag (bei Standard inkl. USt) -- gleiche Steuerlogik
+    // wie auf der Rechnung, damit Rechnung, SEPA und Vorabinfo denselben Betrag ausweisen.
+    $tx = DB::fetchOne(
+        'SELECT tax_model, tax_rate_percent FROM tax_config WHERE community_id = ? AND valid_from <= ? ORDER BY valid_from DESC LIMIT 1',
+        [$communityId, $run['period_from'] ?? date('Y-m-d')]
+    );
     $rows = DB::fetchAll(
         "SELECT i.rechnungsnummer, i.saldo_eur, br.quartal,
                 m.first_name, m.last_name, m.company_name, m.member_iban, m.member_bic,
@@ -2883,13 +2913,14 @@ function sepaCollectionData(string $communityId, string $runId): array
         $name = trim(($r['company_name'] ?: '') ?: ($r['first_name'] . ' ' . $r['last_name']));
         $iban = trim((string)$r['member_iban']);
         $ref  = trim((string)$r['mandatsreferenz']);
+        $brutto = taxBreakdown((float)$r['saldo_eur'], $tx['tax_model'] ?? null, $tx['tax_rate_percent'] ?? null)['brutto'];
         if ($iban === '' || $ref === '') {
-            $ohneMandat[] = ['name' => $name, 'rechnungsnummer' => $r['rechnungsnummer'], 'saldo' => (float)$r['saldo_eur']];
+            $ohneMandat[] = ['name' => $name, 'rechnungsnummer' => $r['rechnungsnummer'], 'saldo' => $brutto];
             continue;
         }
         $txns[] = [
             'end_to_end_id' => $r['rechnungsnummer'],
-            'amount'        => (float)$r['saldo_eur'],
+            'amount'        => $brutto,
             'mandate_ref'   => $ref,
             'mandate_date'  => substr((string)$r['mandate_date'], 0, 10),
             'debtor_name'   => $name,
@@ -2920,7 +2951,7 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
     $days = (int)($community['sepa_prenotification_days'] ?? 14);
     $abbuchung = date('d.m.Y', strtotime('+' . $days . ' days'));
     $rows = DB::fetchAll(
-        "SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal,
+        "SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal, br.period_from,
                 m.first_name, m.email, m.mandatsreferenz, m.member_iban
            FROM invoices i
            JOIN billing_runs br ON br.id = i.billing_run_id
@@ -2929,17 +2960,23 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
             AND i.prenotified_at IS NULL",
         [$runId, $communityId]
     );
+    // USt-Modell einmal für den Lauf bestimmen (Betrag in der Vorabinfo = Brutto).
+    $tx = DB::fetchOne(
+        'SELECT tax_model, tax_rate_percent FROM tax_config WHERE community_id = ? AND valid_from <= ? ORDER BY valid_from DESC LIMIT 1',
+        [$communityId, $rows[0]['period_from'] ?? date('Y-m-d')]
+    );
     $sent = 0;
     foreach ($rows as $r) {
         $ref = trim((string)$r['mandatsreferenz']);
         $iban = trim((string)$r['member_iban']);
         if (empty($r['email']) || $ref === '' || $iban === '') continue;
+        $brutto = taxBreakdown((float)$r['saldo_eur'], $tx['tax_model'] ?? null, $tx['tax_rate_percent'] ?? null)['brutto'];
         try {
             $mail = renderMailTemplate('sepa_prenotification', [
                 'vorname'        => htmlspecialchars((string)$r['first_name']),
                 'eeg_name'       => htmlspecialchars((string)($community['name'] ?? '')),
                 'rechnungsnummer'=> htmlspecialchars((string)$r['rechnungsnummer']),
-                'betrag'         => number_format((float)$r['saldo_eur'], 2, ',', '.'),
+                'betrag'         => number_format($brutto, 2, ',', '.'),
                 'abbuchung'      => $abbuchung,
                 'mandatsreferenz'=> htmlspecialchars($ref),
                 'creditor_id'    => htmlspecialchars((string)($community['creditor_id'] ?? '')),
@@ -3001,6 +3038,44 @@ $router->get('/portal/billing/:id/sepa-xml', function ($params) {
     $fname = 'SEPA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-pain008-' . $version . '.xml';
     header('Content-Type: application/xml; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $fname . '"');
+    header('Content-Length: ' . strlen($xml));
+    echo $xml;
+    exit;
+});
+
+/**
+ * SEPA-Test-XML mit Beispieldaten herunterladen -- damit die EEG die Datei schon beim
+ * Bank-/Prüftool testen kann, BEVOR echte Abrechnungsdaten (EDA) vorliegen. Nutzt die echte
+ * Gläubiger-Konfiguration der EEG (Name/IBAN/BIC/Gläubiger-ID), falls hinterlegt, sonst
+ * Platzhalter; die Schuldner sind reine Beispiel-Datensätze. Es entsteht kein Datenbankeintrag
+ * und kein echter Einzug.
+ */
+$router->get('/portal/billing/sepa-test-xml', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $c = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $version = ($c['sepa_pain_version'] ?? '08') === '02' ? '02' : '08';
+    $days    = (int)($c['sepa_prenotification_days'] ?? 14);
+    $creditor = [
+        'name'        => trim((string)($c['name'] ?? '')) ?: 'Beispiel-EEG',
+        'iban'        => trim((string)($c['iban'] ?? '')) ?: 'AT611904300234573201',
+        'bic'         => trim((string)($c['bic'] ?? '')) ?: 'BKAUATWW',
+        'creditor_id' => trim((string)($c['creditor_id'] ?? '')) ?: 'AT12ZZZ00000000001',
+    ];
+    $txns = [
+        ['end_to_end_id' => 'TEST-2026-Q1-001', 'amount' => 42.50, 'mandate_ref' => 'S00001F2026A100', 'mandate_date' => '2026-01-15',
+         'debtor_name' => 'Max Mustermann', 'debtor_iban' => 'AT022011100000001234', 'debtor_bic' => 'GIBAATWWXXX', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
+        ['end_to_end_id' => 'TEST-2026-Q1-002', 'amount' => 18.90, 'mandate_ref' => 'S00002F2026A101', 'mandate_date' => '2026-02-01',
+         'debtor_name' => 'Anna Beispiel', 'debtor_iban' => 'AT483200000000005678', 'debtor_bic' => '', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
+        ['end_to_end_id' => 'TEST-2026-Q1-003', 'amount' => 7.15, 'mandate_ref' => 'S00003F2026A102', 'mandate_date' => '2026-03-10',
+         'debtor_name' => 'Familie Test', 'debtor_iban' => 'AT611200000002731300', 'debtor_bic' => 'BKAUATWW', 'remittance' => 'TESTRECHNUNG 2026-Q1 (keine echte Abbuchung)'],
+    ];
+    $collect = date('Y-m-d', strtotime('+' . max($days, 2) . ' days'));
+    $xml = sepaPain008Xml($creditor, $txns, $collect, $version, 'RCUR', 'SFA-TEST-' . date('YmdHis'));
+    logAudit($communityId, 'billing.sepa_test_export', 'community', $communityId, 'SEPA-Test-XML (pain.008.001.' . $version . ') erzeugt');
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Content-Disposition: attachment; filename="SEPA-Testdatei-pain008-' . $version . '.xml"');
     header('Content-Length: ' . strlen($xml));
     echo $xml;
     exit;
@@ -3931,13 +4006,33 @@ $router->post('/admin/mail-settings', function () {
     // Client-Secret nur überschreiben, wenn tatsächlich ein neuer Wert eingegeben wurde --
     // das Feld wird beim Laden nie im Klartext vorbefüllt, ein leeres Absenden darf das
     // gespeicherte Secret also nicht versehentlich löschen.
-    $current = DB::fetchOne('SELECT client_secret FROM platform_mail_config WHERE id = 1');
+    $current = DB::fetchOne('SELECT client_secret, signature_logo_base64, signature_logo_type FROM platform_mail_config WHERE id = 1');
     $newSecret = trim($_POST['client_secret'] ?? '');
     $clientSecret = $newSecret !== '' ? $newSecret : ($current['client_secret'] ?? null);
+
+    // Signatur-Logo: bestehendes behalten, per Checkbox entfernen oder durch Upload ersetzen.
+    $logoBase64 = $current['signature_logo_base64'] ?? null;
+    $logoType   = $current['signature_logo_type'] ?? null;
+    if (!empty($_POST['signature_logo_remove'])) {
+        $logoBase64 = null;
+        $logoType   = null;
+    }
+    if (!empty($_FILES['signature_logo']) && $_FILES['signature_logo']['error'] === UPLOAD_ERR_OK) {
+        if ($_FILES['signature_logo']['size'] > 2 * 1024 * 1024) {
+            header('Location: /admin/mail-settings?error=' . urlencode('Logo zu groß (max. 2 MB).')); exit;
+        }
+        $info = @getimagesize($_FILES['signature_logo']['tmp_name']);
+        if ($info === false || !in_array($info['mime'], ['image/png', 'image/jpeg', 'image/gif'], true)) {
+            header('Location: /admin/mail-settings?error=' . urlencode('Datei ist kein gültiges Bild (PNG/JPG/GIF).')); exit;
+        }
+        $logoBase64 = base64_encode((string)file_get_contents($_FILES['signature_logo']['tmp_name']));
+        $logoType   = $info['mime'];
+    }
 
     DB::execute(
         'UPDATE platform_mail_config
          SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
+             signature_logo_base64 = ?, signature_logo_type = ?,
              backup_alert_email_1 = ?, backup_alert_email_2 = ?, updated_at = now()
          WHERE id = 1',
         [
@@ -3947,6 +4042,8 @@ $router->post('/admin/mail-settings', function () {
             trim($_POST['sender_address'] ?? '') ?: null,
             trim($_POST['reply_to'] ?? '') ?: null,
             trim($_POST['signature_html'] ?? '') ?: null,
+            $logoBase64,
+            $logoType,
             trim($_POST['backup_alert_email_1'] ?? '') ?: null,
             trim($_POST['backup_alert_email_2'] ?? '') ?: null,
         ]

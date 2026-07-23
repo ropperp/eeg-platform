@@ -39,7 +39,7 @@
     Benötigt eine Azure-AD-App-Registrierung mit Anwendungsberechtigung <code>Mail.Send</code> (Admin-Zustimmung erteilt)
     für die Absenderadresse. Diese Werte werden nur in der Datenbank gespeichert, nie im Repo.
   </p>
-  <form method="post" action="/admin/mail-settings">
+  <form method="post" action="/admin/mail-settings" enctype="multipart/form-data">
     <div class="grid-2">
       <div class="form-group">
         <label>Tenant-ID</label>
@@ -73,6 +73,22 @@
           sie in jede einzelne Vorlage einzeln hineinzuschreiben, damit eine spätere Änderung (z.B. neue Telefonnummer) nur an einer
           Stelle gepflegt werden muss. Am einfachsten die gleiche Adresse wie bei "Antwort-an" nennen -- eine zusätzliche, dritte
           Kontaktadresse würde nur verwirren.</small>
+      </div>
+      <div class="form-group" style="grid-column:1 / -1">
+        <label>Signatur-Logo / Bild (optional)</label>
+        <?php if (!empty($mailConfig['signature_logo_base64'])): ?>
+          <div style="margin:.25rem 0 .5rem;padding:.5rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:6px;display:inline-block">
+            <img src="data:<?= htmlspecialchars($mailConfig['signature_logo_type'] ?: 'image/png') ?>;base64,<?= htmlspecialchars($mailConfig['signature_logo_base64']) ?>"
+                 alt="Signatur-Logo" style="max-height:64px;display:block">
+          </div>
+          <label style="display:block;font-weight:normal;font-size:.85rem;margin:.25rem 0">
+            <input type="checkbox" name="signature_logo_remove" value="1"> Logo entfernen
+          </label>
+        <?php endif; ?>
+        <input type="file" name="signature_logo" accept="image/png,image/jpeg,image/gif">
+        <small style="color:var(--gray-600)">Wird als Bild unter die Signatur jeder E-Mail gesetzt (auch bei No-Reply-Absendern) — als
+          Inline-Anhang eingebettet, damit es in Outlook/Gmail zuverlässig angezeigt wird. PNG/JPG/GIF, max. 2 MB;
+          empfohlen eine Höhe um ~64&nbsp;px. Leer lassen = bestehendes Logo behalten.</small>
       </div>
       <div class="form-group">
         <label>Backup-Alarm an (Adresse 1)</label>

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <CstmrDrctDbtInitn>
+    <GrpHdr>
+      <MsgId>SFA-TEST-20260723174526</MsgId>
+      <CreDtTm>2026-07-23T17:45:26</CreDtTm>
+      <NbOfTxs>3</NbOfTxs>
+      <CtrlSum>68.55</CtrlSum>
+      <InitgPty>
+        <Nm>EEG Strompool Feldkirchen Süd-West</Nm>
+      </InitgPty>
+    </GrpHdr>
+    <PmtInf>
+      <PmtInfId>SFA-TEST-20260723174526-1</PmtInfId>
+      <PmtMtd>DD</PmtMtd>
+      <NbOfTxs>3</NbOfTxs>
+      <CtrlSum>68.55</CtrlSum>
+      <PmtTpInf>
+        <SvcLvl>
+          <Cd>SEPA</Cd>
+        </SvcLvl>
+        <LclInstrm>
+          <Cd>CORE</Cd>
+        </LclInstrm>
+        <SeqTp>RCUR</SeqTp>
+      </PmtTpInf>
+      <ReqdColltnDt>2026-08-06</ReqdColltnDt>
+      <Cdtr>
+        <Nm>EEG Strompool Feldkirchen Süd-West</Nm>
+      </Cdtr>
+      <CdtrAcct>
+        <Id>
+          <IBAN>AT611904300234573201</IBAN>
+        </Id>
+      </CdtrAcct>
+      <CdtrAgt>
+        <FinInstnId>
+          <BICFI>BKAUATWW</BICFI>
+        </FinInstnId>
+      </CdtrAgt>
+      <ChrgBr>SLEV</ChrgBr>
+      <CdtrSchmeId>
+        <Id>
+          <PrvtId>
+            <Othr>
+              <Id>AT12ZZZ00000000001</Id>
+              <SchmeNm>
+                <Prtry>SEPA</Prtry>
+              </SchmeNm>
+            </Othr>
+          </PrvtId>
+        </Id>
+      </CdtrSchmeId>
+      <DrctDbtTxInf>
+        <PmtId>
+          <EndToEndId>RC108175-2026-Q1-001</EndToEndId>
+        </PmtId>
+        <InstdAmt Ccy="EUR">42.50</InstdAmt>
+        <DrctDbtTx>
+          <MndtRltdInf>
+            <MndtId>S00001F2026A100</MndtId>
+            <DtOfSgntr>2026-01-15</DtOfSgntr>
+          </MndtRltdInf>
+        </DrctDbtTx>
+        <DbtrAgt>
+          <FinInstnId>
+            <BICFI>GIBAATWWXXX</BICFI>
+          </FinInstnId>
+        </DbtrAgt>
+        <Dbtr>
+          <Nm>Max Mustermann</Nm>
+        </Dbtr>
+        <DbtrAcct>
+          <Id>
+            <IBAN>AT022011100000001234</IBAN>
+          </Id>
+        </DbtrAcct>
+        <RmtInf>
+          <Ustrd>Rechnung RC108175-2026-Q1-001 (2026-Q1) EEG Strompool Feldkirchen</Ustrd>
+        </RmtInf>
+      </DrctDbtTxInf>
+      <DrctDbtTxInf>
+        <PmtId>
+          <EndToEndId>RC108175-2026-Q1-002</EndToEndId>
+        </PmtId>
+        <InstdAmt Ccy="EUR">18.90</InstdAmt>
+        <DrctDbtTx>
+          <MndtRltdInf>
+            <MndtId>S00002F2026A101</MndtId>
+            <DtOfSgntr>2026-02-01</DtOfSgntr>
+          </MndtRltdInf>
+        </DrctDbtTx>
+        <DbtrAgt>
+          <FinInstnId>
+            <Othr>
+              <Id>NOTPROVIDED</Id>
+            </Othr>
+          </FinInstnId>
+        </DbtrAgt>
+        <Dbtr>
+          <Nm>Anna Beispiel</Nm>
+        </Dbtr>
+        <DbtrAcct>
+          <Id>
+            <IBAN>AT483200000000005678</IBAN>
+          </Id>
+        </DbtrAcct>
+        <RmtInf>
+          <Ustrd>Rechnung RC108175-2026-Q1-002 (2026-Q1) EEG Strompool Feldkirchen</Ustrd>
+        </RmtInf>
+      </DrctDbtTxInf>
+      <DrctDbtTxInf>
+        <PmtId>
+          <EndToEndId>RC108175-2026-Q1-003</EndToEndId>
+        </PmtId>
+        <InstdAmt Ccy="EUR">7.15</InstdAmt>
+        <DrctDbtTx>
+          <MndtRltdInf>
+            <MndtId>S00003F2026A102</MndtId>
+            <DtOfSgntr>2026-03-10</DtOfSgntr>
+          </MndtRltdInf>
+        </DrctDbtTx>
+        <DbtrAgt>
+          <FinInstnId>
+            <BICFI>BKAUATWW</BICFI>
+          </FinInstnId>
+        </DbtrAgt>
+        <Dbtr>
+          <Nm>Familie Test</Nm>
+        </Dbtr>
+        <DbtrAcct>
+          <Id>
+            <IBAN>AT611200000002731300</IBAN>
+          </Id>
+        </DbtrAcct>
+        <RmtInf>
+          <Ustrd>Rechnung RC108175-2026-Q1-003 (2026-Q1) EEG Strompool Feldkirchen</Ustrd>
+        </RmtInf>
+      </DrctDbtTxInf>
+    </PmtInf>
+  </CstmrDrctDbtInitn>
+</Document>
