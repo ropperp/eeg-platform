@@ -87,7 +87,7 @@
           <?php if (!$isRevoked): ?>
           <form method="post" action="/portal/my/api-keys/<?= $k['id'] ?>/revoke"
                 onsubmit="return confirm('API-Key „<?= htmlspecialchars(addslashes($k['name'])) ?>&#8220; wirklich widerrufen? Jede Anwendung, die ihn nutzt, verliert damit sofort den Zugriff.')">
-            <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c;font-size:.78rem;padding:.3rem .6rem">Widerrufen</button>
+            <button type="submit" class="btn btn-tint-red" style="font-size:.78rem;padding:.3rem .6rem">Widerrufen</button>
           </form>
           <?php endif; ?>
         </td>

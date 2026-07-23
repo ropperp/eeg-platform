@@ -138,7 +138,7 @@ ob_start();
           <?php if (Auth::isManager()): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"
                   onsubmit="return confirmDangerDelete('Abrechnungslauf <?= htmlspecialchars(addslashes($run['quartal'])) ?> inkl. aller zugehörigen Rechnungen')">
-              <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c;padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem">🗑️</button>
+              <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem">🗑️</button>
             </form>
           <?php endif; ?>
         </td>

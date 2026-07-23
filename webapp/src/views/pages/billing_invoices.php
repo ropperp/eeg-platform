@@ -119,14 +119,14 @@ $paymentMeta = [
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
                     onsubmit="return confirm('Rechnung als per SEPA eingezogen markieren? Bitte erst bestätigen, wenn die Lastschrift bei der Bank tatsächlich durchgelaufen ist.')">
                 <input type="hidden" name="payment_status" value="eingezogen">
-                <button class="btn" style="background:#dcfce7;color:#15803d;padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"
+                <button class="btn btn-tint-green" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"
                         <?= $hasMandat ? '' : 'disabled title="Kein SEPA-Mandat (IBAN/Mandatsreferenz fehlt)"' ?>>✓ eingezogen</button>
               </form>
             <?php elseif ($betrag < 0): ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
                     onsubmit="return confirm('Rechnung als an das Mitglied überwiesen markieren?')">
                 <input type="hidden" name="payment_status" value="ueberwiesen">
-                <button class="btn" style="background:#dbeafe;color:#1d4ed8;padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem">✓ überwiesen</button>
+                <button class="btn btn-tint-blue" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem">✓ überwiesen</button>
               </form>
             <?php else: ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline">

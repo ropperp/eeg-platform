@@ -111,7 +111,7 @@
     <input type="file" name="logo" accept=".png,.jpg,.jpeg" required>
     <button type="submit" class="btn btn-primary">Hochladen</button>
     <?php if ($hasCustomLogo): ?>
-      <button type="submit" formaction="/portal/settings/logo/delete" formnovalidate class="btn" style="background:#fee2e2;color:#b91c1c">Entfernen (Standard-Logo verwenden)</button>
+      <button type="submit" formaction="/portal/settings/logo/delete" formnovalidate class="btn btn-tint-red">Entfernen (Standard-Logo verwenden)</button>
     <?php endif; ?>
   </form>
 </div>
@@ -233,7 +233,7 @@
       <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700)" onclick="clearSettingsSignature()">Löschen</button>
       <button type="submit" class="btn btn-primary">Unterschrift speichern</button>
       <?php if (!empty($myUser['signature_image'])): ?>
-        <button type="submit" formaction="/portal/settings/signature/delete" formnovalidate class="btn" style="background:#fee2e2;color:#b91c1c">Unterschrift entfernen</button>
+        <button type="submit" formaction="/portal/settings/signature/delete" formnovalidate class="btn btn-tint-red">Unterschrift entfernen</button>
       <?php endif; ?>
     </div>
   </form>

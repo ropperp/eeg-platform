@@ -71,7 +71,7 @@ $editable = $invoice['run_status'] === 'ready';
         </td>
         <td style="white-space:nowrap">
           <button type="submit" form="upd-<?= $it['id'] ?>" class="btn btn-secondary" style="padding:.3rem .6rem;font-size:.8rem">Speichern</button>
-          <button type="submit" form="del-<?= $it['id'] ?>" class="btn" style="background:#fee2e2;color:#b91c1c;padding:.3rem .5rem;font-size:.8rem">✕</button>
+          <button type="submit" form="del-<?= $it['id'] ?>" class="btn btn-tint-red" style="padding:.3rem .5rem;font-size:.8rem">✕</button>
         </td>
       </tr>
     <?php endforeach; ?>

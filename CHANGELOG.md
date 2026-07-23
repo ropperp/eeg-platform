@@ -20,6 +20,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Container-Healthchecks + Selbstheilung & Alarm.** Jetzt hat **jeder** Container einen
+  Healthcheck (auch `traefik` per `--ping` und der `mqtt-subscriber` per Heartbeat-Datei) —
+  `docker compose ps` zeigt für alle `healthy`/`unhealthy` statt nur „Up". Neuer Wächter
+  `scripts/health_monitor.sh` (als Cron auf dem Host): startet einen unhealthy/gestoppten Dienst
+  1–2× automatisch neu und alarmiert bei anhaltendem Problem das Admin-Postfach
+  (`scripts/health_alert.php`, gleiche Microsoft-Graph-Anbindung wie der Backup-Alarm),
+  mit 6-h-Cooldown gegen Mail-/Neustart-Fluten.
+- **Dark-Mode-Kontrast der Aktions-Buttons behoben.** Getönte Buttons (grün/blau/amber/rot)
+  waren als feste Inline-Farben gesetzt und schalteten im Dark Mode nicht mit (heller Button auf
+  dunklem Grund, schlechter Kontrast). Neue Klassen `.btn-tint-*` mit eigener Hell- und
+  Dunkel-Variante; alle betroffenen Buttons (Mitglied-Aktionen, Zahlungsstatus, Freigeben/Ablehnen …)
+  darauf umgestellt.
 - **Formelle E-Mail-Anrede + Anrede-Modus je Mitglied.** Alle Mitglieder-Mails (Einladung,
   Vertrag, Deaktivierung, SEPA-Vorabinfo) verwenden jetzt `{{anrede}} {{nachname}}`
   („Sehr geehrter Herr Lorenz") statt „Hallo {{vorname}}". Neues Feld **E-Mail-Anrede** am

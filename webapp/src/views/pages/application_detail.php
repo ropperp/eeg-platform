@@ -114,7 +114,7 @@ ob_start();
           onsubmit="return confirm('Beitrittserklärung wirklich ablehnen?')">
       <input type="text" name="ablehnungsgrund" placeholder="Ablehnungsgrund (optional)"
              style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px">
-      <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c">❌ Ablehnen</button>
+      <button type="submit" class="btn btn-tint-red">❌ Ablehnen</button>
     </form>
   </div>
 </div>

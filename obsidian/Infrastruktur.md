@@ -175,6 +175,21 @@ Bei neuen DB-Migrations:
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
 ```
 
+## Container-Healthchecks & Selbstheilung
+
+Jeder Container hat einen `healthcheck` (in `docker-compose.yml`) — `docker compose ps` zeigt für
+alle `healthy`/`unhealthy` statt nur „Up", inkl. `traefik` (`--ping`) und `mqtt-subscriber`
+(Heartbeat-Datei `/tmp/mqtt_subscriber_healthy`, solange die MQTT-Verbindung steht).
+
+`scripts/health_monitor.sh` (Host-Cron): startet unhealthy/gestoppte Dienste 1–2× automatisch neu
+und alarmiert bei anhaltendem Problem das Admin-Postfach (`scripts/health_alert.php`, gleiche
+Microsoft-Graph-Anbindung wie der Backup-Alarm), mit 6-h-Cooldown je Dienst gegen Mail-Fluten.
+
+Einrichten (einmalig, Host):
+```bash
+( crontab -l 2>/dev/null; echo "*/5 * * * * cd /opt/eeg-platform && bash scripts/health_monitor.sh >> /var/log/eeg-health.log 2>&1" ) | crontab -
+```
+
 ## Bekannte Probleme & Lösungen
 
 > **Pfad-/Mount-Übersicht:** vollständig in `docs/INFRASTRUKTUR_PFADE.md` (mit Diagramm). Bei
