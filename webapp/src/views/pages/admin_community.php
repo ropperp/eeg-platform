@@ -94,7 +94,7 @@
   </p>
   <form method="post" action="/admin/communities/<?= $community['id'] ?>/delete"
         onsubmit="return confirmDangerDelete('EEG <?= htmlspecialchars(addslashes($community['name'])) ?> inkl. aller <?= count($members) ?> Mitglieder, Verträge und Rechnungen')">
-    <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c">🗑️ EEG endgültig löschen</button>
+    <button type="submit" class="btn btn-tint-red">🗑️ EEG endgültig löschen</button>
   </form>
 </div>
 

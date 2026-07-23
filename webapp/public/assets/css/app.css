@@ -116,6 +116,26 @@ a:hover { text-decoration: underline; }
 .btn-danger:hover { background: #b91c1c; }
 .btn-lg { padding: .75rem 1.75rem; font-size: 1rem; }
 
+/* Getönte Aktions-Buttons (dezente Farbflächen). Früher als fixe Inline-Hex-Werte gesetzt,
+   die im Dark Mode nicht mitschalteten (heller Button + dunkler Text = Fremdkörper/mieser
+   Kontrast auf dunklem Hintergrund). Jetzt als Klassen mit eigener Hell- UND Dunkel-Variante. */
+.btn-tint-green { background: #ecfdf5; color: #047857; }
+.btn-tint-blue  { background: #e0f2fe; color: #0369a1; }
+.btn-tint-amber { background: #fef3c7; color: #92400e; }
+.btn-tint-red   { background: #fee2e2; color: #b91c1c; }
+.btn-tint-green:hover { background: #d1fae5; }
+.btn-tint-blue:hover  { background: #bae6fd; }
+.btn-tint-amber:hover { background: #fde68a; }
+.btn-tint-red:hover   { background: #fecaca; }
+[data-theme="dark"] .btn-tint-green { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .btn-tint-blue  { background: #0c4a6e; color: #7dd3fc; }
+[data-theme="dark"] .btn-tint-amber { background: #451a03; color: #fcd34d; }
+[data-theme="dark"] .btn-tint-red   { background: #450a0a; color: #fca5a5; }
+[data-theme="dark"] .btn-tint-green:hover { background: #065f46; }
+[data-theme="dark"] .btn-tint-blue:hover  { background: #075985; }
+[data-theme="dark"] .btn-tint-amber:hover { background: #5c2409; }
+[data-theme="dark"] .btn-tint-red:hover   { background: #5c1010; }
+
 /* ─── Cards ──────────────────────────────────────── */
 .card {
   background: var(--white);

@@ -21,6 +21,7 @@ services:
     logging: *default-logging
     command:
       - "--api.insecure=false"
+      - "--ping=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -31,6 +32,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/eeg/traefik/letsencrypt:/letsencrypt
+    healthcheck:
+      # `--ping=true` aktiviert den internen /ping-Endpoint; `traefik healthcheck` fragt ihn ab.
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - eeg-net
 
@@ -133,6 +141,14 @@ services:
         condition: service_healthy
       timescaledb:
         condition: service_healthy
+    healthcheck:
+      # Der Subscriber hat keinen HTTP-Endpunkt -> Heartbeat-Datei (main.py schreibt sie, solange
+      # die MQTT-Verbindung steht). Gesund, wenn die Datei jünger als 90 s ist.
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if os.path.exists('/tmp/mqtt_subscriber_healthy') and time.time()-os.path.getmtime('/tmp/mqtt_subscriber_healthy')<90 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     networks:
       - eeg-net
 

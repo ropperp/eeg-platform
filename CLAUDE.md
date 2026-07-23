@@ -480,6 +480,29 @@ docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrat
 
 ---
 
+## Container-Healthchecks & Selbstheilung
+
+Jeder Container hat einen `healthcheck` (in `docker-compose.yml`), damit `docker compose ps` für
+alle `healthy`/`unhealthy` statt nur „Up" zeigt — inkl. `traefik` (via `--ping`) und
+`mqtt-subscriber` (schreibt eine Heartbeat-Datei `/tmp/mqtt_subscriber_healthy`, solange die
+MQTT-Verbindung steht).
+
+`scripts/health_monitor.sh` ist der Wächter (läuft als Host-Cron, nicht im Container): findet er
+einen Dienst `unhealthy`/gestoppt, startet er ihn **1–2× automatisch neu**; bleibt es dabei, geht
+eine Alarm-Mail ans Admin-Postfach (`scripts/health_alert.php`, gleiche Microsoft-Graph-Anbindung
+wie der Backup-Alarm — Empfänger = `backup_alert_email_1/2` bzw. erster Platform-Admin). Eine
+Cooldown-Datei je Dienst (`/opt/eeg/health-monitor/<svc>.alerted`, Standard 6 h) verhindert
+Neustart-/Mail-Fluten.
+
+Einrichten (einmalig, auf dem Host):
+```bash
+# alle 5 Minuten prüfen
+( crontab -l 2>/dev/null; echo "*/5 * * * * cd /opt/eeg-platform && bash scripts/health_monitor.sh >> /var/log/eeg-health.log 2>&1" ) | crontab -
+```
+Manuell testen: `cd /opt/eeg-platform && bash scripts/health_monitor.sh`.
+
+---
+
 ## Obsidian-Sync
 
 `/obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks lokalen Obsidian-Vault

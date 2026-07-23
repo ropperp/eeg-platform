@@ -53,7 +53,7 @@
     <?php if ($hasConsumer && $hasProducer && contractsEnabled($member['community_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/send-both" style="display:inline"
           onsubmit="return confirm('Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
-      <button type="submit" class="btn" style="background:#ecfdf5;color:#047857;font-size:.8rem">📧 Beide gemeinsam senden</button>
+      <button type="submit" class="btn btn-tint-green" style="font-size:.8rem">📧 Beide gemeinsam senden</button>
     </form>
     <?php endif; ?>
     <?php if (!empty($application)): ?>
@@ -67,23 +67,23 @@
        title="Alle gespeicherten Daten dieses Mitglieds als JSON (DSGVO-Auskunftsersuchen, Art. 15)">🔐 DSGVO-Export</a>
     <?php if (!empty($member['user_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
-      <button type="submit" class="btn" style="background:#e0f2fe;color:#0369a1;font-size:.8rem">🔑 Passwort zurücksetzen</button>
+      <button type="submit" class="btn btn-tint-blue" style="font-size:.8rem">🔑 Passwort zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php if (Auth::isPlatformAdmin()): ?>
       <?php if ($member['status'] === 'inactive'): ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/reactivate" style="display:inline"
             onsubmit="return confirm('Mitgliedschaft von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wieder freigeben?')">
-        <button type="submit" class="btn" style="background:#dcfce7;color:#15803d;font-size:.8rem">✅ Freigeben</button>
+        <button type="submit" class="btn btn-tint-green" style="font-size:.8rem">✅ Freigeben</button>
       </form>
       <?php else: ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
             onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
-        <button type="submit" class="btn" style="background:#fef3c7;color:#92400e;font-size:.8rem">🔒 Login löschen</button>
+        <button type="submit" class="btn btn-tint-amber" style="font-size:.8rem">🔒 Login löschen</button>
       </form>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/deactivate" style="display:inline"
             onsubmit="return confirmDangerDelete('Mitglied <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wirklich — Daten/Verträge/Dateien bleiben aus Aufbewahrungspflicht erhalten, der Login wird gesperrt und eine Benachrichtigung per E-Mail verschickt')">
-        <button type="submit" class="btn" style="background:#fee2e2;color:#b91c1c;font-size:.8rem">🗑️ Wirklich löschen</button>
+        <button type="submit" class="btn btn-tint-red" style="font-size:.8rem">🗑️ Wirklich löschen</button>
       </form>
       <?php endif; ?>
     <?php endif; ?>

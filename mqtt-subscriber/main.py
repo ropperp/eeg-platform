@@ -12,6 +12,7 @@ Payload: {"pp": 1200, "pm": 0, "ep": 21000000, "em": 6900000, "znr": "1121268533
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 
@@ -37,6 +38,28 @@ DB_NAME = os.environ["DB_NAME"]
 db_pool: ThreadedConnectionPool | None = None
 community_cache: dict[str, str] = {}        # slug → community_id (UUID)
 metering_point_cache: dict[str, str] = {}  # "community_id:znr" → metering_point UUID
+
+# Heartbeat für den Docker-Healthcheck: solange die MQTT-Verbindung steht, wird diese Datei
+# regelmäßig aktualisiert. Der Healthcheck (docker-compose.yml) gilt als gesund, wenn die Datei
+# jünger als 90 s ist. So bekommt auch dieser Container (ohne HTTP-Endpunkt) ein echtes
+# healthy/unhealthy statt nur "running".
+HEARTBEAT_FILE = "/tmp/mqtt_subscriber_healthy"
+_connected = False
+
+
+def touch_heartbeat() -> None:
+    try:
+        with open(HEARTBEAT_FILE, "w") as f:
+            f.write(str(time.time()))
+    except OSError as e:
+        log.warning("Heartbeat konnte nicht geschrieben werden: %s", e)
+
+
+def heartbeat_loop() -> None:
+    while True:
+        if _connected:
+            touch_heartbeat()
+        time.sleep(20)
 
 
 def get_db_pool() -> ThreadedConnectionPool:
@@ -160,7 +183,10 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
 
 
 def on_connect(client, userdata, flags, rc, properties=None) -> None:
+    global _connected
     if rc == 0:
+        _connected = True
+        touch_heartbeat()
         log.info("Verbunden mit MQTT-Broker %s:%s", MQTT_HOST, MQTT_PORT)
         client.subscribe("eeg/+/meter/+/live", qos=1)
         log.info("Subscribed auf eeg/+/meter/+/live")
@@ -169,6 +195,8 @@ def on_connect(client, userdata, flags, rc, properties=None) -> None:
 
 
 def on_disconnect(client, userdata, disconnect_flags, rc, properties=None) -> None:
+    global _connected
+    _connected = False
     if rc != 0:
         log.warning("MQTT-Verbindung unterbrochen (rc=%s), reconnect in 5s...", rc)
 
@@ -196,6 +224,9 @@ def main() -> None:
     client.on_message = on_message
 
     client.reconnect_delay_set(min_delay=1, max_delay=30)
+
+    # Heartbeat-Thread starten (Daemon -> endet mit dem Prozess).
+    threading.Thread(target=heartbeat_loop, daemon=True).start()
 
     while True:
         try:
