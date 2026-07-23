@@ -74,6 +74,16 @@
           Stelle gepflegt werden muss. Am einfachsten die gleiche Adresse wie bei "Antwort-an" nennen -- eine zusätzliche, dritte
           Kontaktadresse würde nur verwirren.</small>
       </div>
+      <div class="form-group">
+        <label>Backup-Alarm an (Adresse 1)</label>
+        <input type="email" name="backup_alert_email_1" value="<?= htmlspecialchars($mailConfig['backup_alert_email_1'] ?? '') ?>" placeholder="office@stromfueralle.at">
+        <small style="color:var(--gray-600)">Schlägt das nächtliche Backup fehl, geht eine Warn-Mail an diese Adresse(n). Leer = an den ersten Platform-Admin.</small>
+      </div>
+      <div class="form-group">
+        <label>Backup-Alarm an (Adresse 2)</label>
+        <input type="email" name="backup_alert_email_2" value="<?= htmlspecialchars($mailConfig['backup_alert_email_2'] ?? '') ?>" placeholder="patrick.ropper@gmail.com">
+        <small style="color:var(--gray-600)">Optionale zweite Empfängeradresse für den Backup-Alarm.</small>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>

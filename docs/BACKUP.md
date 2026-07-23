@@ -80,8 +80,22 @@ docker compose exec -T -e ALERT_REASON="Testalarm (manuell ausgelöst)" webapp \
   php < scripts/backup_alert.php
 ```
 Kommt keine Mail an, ist der Microsoft-Graph-Versand nicht konfiguriert (Platform-Admin →
-E-Mail-Einstellungen) oder es existiert kein aktiver Platform-Admin als Empfänger. Empfänger
-lässt sich alternativ per Umgebungsvariable `BACKUP_ALERT_EMAIL` fest vorgeben.
+E-Mail-Einstellungen) oder es existiert kein aktiver Platform-Admin als Empfänger.
+
+**Empfänger des Alarms** kommen aus **Platform-Admin → E-Mail-Einstellungen** (zwei frei
+konfigurierbare Felder „Backup-Alarm an" — z. B. `office@stromfueralle.at` und die private
+Adresse). Sind beide leer, geht der Alarm an den ersten aktiven Platform-Admin. Alternativ per
+Umgebungsvariable `BACKUP_ALERT_EMAIL` erzwingbar. Weil die Adressen in der DB stehen, wirken sie
+auch nach einem Umzug auf ein anderes Gerät ohne Code-Änderung.
+
+### Was wird gesichert?
+- **`backup.sh`** → PostgreSQL-Dump (alle Mitglieder-, Vertrags-, Rechnungs-, Messdaten).
+- **`backup-storage.sh`** → **alle Dateien** unter `/opt/eeg/webapp-storage` (Uploads inkl.
+  Ausweis-Scans und **Beitrittserklärungen = SEPA-Mandate**, Profilbilder, **generierte
+  Vertrags-/Rechnungs-PDFs** unter `pdfs/`) — ohne die nach dem Import redundanten EDA-XLSX.
+  Prüft, dass das Archiv wirklich Dateien enthält (früher entstand hier ein leeres 45-Byte-Archiv).
+- **`sync-to-nas.sh`** → kopiert beides per rsync auf die Synology (zweites Gerät).
+Alle drei alarmieren bei Fehlschlag per E-Mail.
 
 ---
 

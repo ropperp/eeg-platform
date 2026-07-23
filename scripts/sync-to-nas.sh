@@ -18,31 +18,45 @@
 #       ssh-copy-id -i ~/.ssh/id_ed25519_nas.pub NAS_USER@NAS_HOST
 #   - rsync auf dem EEG-Server installiert (bei Debian/Raspberry Pi OS meist vorinstalliert)
 
-set -euo pipefail
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 NAS_HOST="${NAS_HOST:-HIER_NAS_HOSTNAME_ODER_IP}"
 NAS_USER="${NAS_USER:-HIER_NAS_BENUTZER}"
 NAS_PATH="${NAS_PATH:-/volume1/eeg-backup}"
 NAS_SSH_KEY="${NAS_SSH_KEY:-$HOME/.ssh/id_ed25519_nas}"
 
-BACKUP_DIR="$(dirname "$0")/../backups"
+BACKUP_DIR="${REPO_ROOT}/backups"
+COMPOSE="docker compose"
+
+# Bei Fehler eine Alarm-Mail ans Admin-Postfach senden (die externe NAS-Kopie ist der eigentliche
+# Katastrophenschutz -- fällt sie unbemerkt aus, liegt am Ende alles nur auf dem Pi).
+fail() {
+    local reason="$1"
+    echo "[sync-to-nas] FEHLER: ${reason}"
+    ( cd "$REPO_ROOT" && $COMPOSE exec -T -e ALERT_REASON="NAS-Sync: ${reason}" -e ALERT_HOST="$(hostname)" \
+        webapp php < "${REPO_ROOT}/scripts/backup_alert.php" 2>>"${BACKUP_DIR}/.alert.log" ) \
+      && echo "[sync-to-nas] Alarm-Mail ausgelöst." \
+      || echo "[sync-to-nas] Alarm-Mail konnte NICHT gesendet werden."
+    exit 1
+}
 
 if [[ "${NAS_HOST}" == "HIER_NAS_HOSTNAME_ODER_IP" ]]; then
-  echo "[sync-to-nas] FEHLER: NAS_HOST nicht gesetzt. Siehe Kommentar am Dateianfang oder"
-  echo "[sync-to-nas] die Variablen NAS_HOST/NAS_USER/NAS_PATH als Env-Variablen mitgeben."
-  exit 1
+  fail "NAS_HOST nicht gesetzt (NAS_HOST/NAS_USER/NAS_PATH als Env-Variablen mitgeben)."
 fi
 
 if [[ ! -d "${BACKUP_DIR}" ]] || [[ -z "$(ls -A "${BACKUP_DIR}" 2>/dev/null)" ]]; then
-  echo "[sync-to-nas] Keine Backups in ${BACKUP_DIR} gefunden -- erst backup.sh/backup-storage.sh ausführen."
-  exit 1
+  fail "Keine Backups in ${BACKUP_DIR} gefunden -- erst backup.sh/backup-storage.sh ausführen."
 fi
 
 echo "[sync-to-nas] Synchronisiere ${BACKUP_DIR}/ -> ${NAS_USER}@${NAS_HOST}:${NAS_PATH}/"
 
-rsync -avz --progress \
-  -e "ssh -i ${NAS_SSH_KEY} -o StrictHostKeyChecking=accept-new" \
-  "${BACKUP_DIR}/" \
-  "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/"
+if ! rsync -avz \
+      -e "ssh -i ${NAS_SSH_KEY} -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=20" \
+      "${BACKUP_DIR}/" \
+      "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/"; then
+  fail "rsync zur NAS fehlgeschlagen (NAS erreichbar? SSH-Key gültig? Pfad vorhanden?)."
+fi
 
 echo "[sync-to-nas] Fertig."

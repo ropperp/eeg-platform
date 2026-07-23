@@ -3643,7 +3643,8 @@ $router->post('/admin/mail-settings', function () {
 
     DB::execute(
         'UPDATE platform_mail_config
-         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?, updated_at = now()
+         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
+             backup_alert_email_1 = ?, backup_alert_email_2 = ?, updated_at = now()
          WHERE id = 1',
         [
             trim($_POST['tenant_id'] ?? '') ?: null,
@@ -3652,6 +3653,8 @@ $router->post('/admin/mail-settings', function () {
             trim($_POST['sender_address'] ?? '') ?: null,
             trim($_POST['reply_to'] ?? '') ?: null,
             trim($_POST['signature_html'] ?? '') ?: null,
+            trim($_POST['backup_alert_email_1'] ?? '') ?: null,
+            trim($_POST['backup_alert_email_2'] ?? '') ?: null,
         ]
     );
     logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Microsoft-Graph-Mailkonfiguration aktualisiert');

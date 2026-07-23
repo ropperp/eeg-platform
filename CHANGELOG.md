@@ -30,6 +30,17 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   inkl. Prüfschritt „ist der Cron wirklich installiert".
 - **Neue Doku** `docs/INFRASTRUKTUR_PFADE.md`: vollständige Pfad-/Mount-Übersicht mit Diagramm
   und Erklärung des PGDATA-Fallstricks; in CLAUDE.md + Obsidian verlinkt.
+- **Backup-Prüfung repariert:** `backup.sh` verwarf gültige Dumps fälschlich (pg_restore -l über
+  eine Pipe schlägt bei custom-format immer fehl); jetzt Prüfung über eine seekbare Datei.
+  `backup_alert.php` crashte an nicht definiertem `STDERR` (Aufruf per stdin).
+- **Datei-Backup repariert & erweitert:** `backup-storage.sh` sicherte nur `uploads/avatars` +
+  `uploads/members` (Ergebnis: leeres 45-Byte-Archiv). Jetzt wird **das komplette**
+  `webapp-storage` gesichert (inkl. `pdfs/` mit Verträgen/Rechnungen und den
+  Beitrittserklärungen = SEPA-Mandaten), mit Inhalts-Prüfung und Fehler-Alarm.
+- **NAS-Sync** (`sync-to-nas.sh`) alarmiert jetzt ebenfalls per E-Mail bei Fehlschlag.
+- **Alarm-Empfänger konfigurierbar** (Platform-Admin → E-Mail-Einstellungen, zwei Felder;
+  `migrate_20260806`), damit die Alarmierung nach einem Geräteumzug ohne Code-Änderung
+  weiterläuft.
 
 ## [0.9.1] – 2026-07-23
 ### Geändert
