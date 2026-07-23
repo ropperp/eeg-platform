@@ -53,12 +53,12 @@ echo "dtparam=watchdog=on" | sudo tee -a /boot/firmware/config.txt   # ältere O
 # (danach einmal neu starten, damit /dev/watchdog erscheint)
 
 # 2. systemd den Watchdog bedienen + bei komplettem Hänger neu starten lassen
-sudo tee -a /etc/systemd/system.conf.d/watchdog.conf >/dev/null <<'EOF'
+sudo mkdir -p /etc/systemd/system.conf.d
+sudo tee /etc/systemd/system.conf.d/watchdog.conf >/dev/null <<'EOF'
 [Manager]
 RuntimeWatchdogSec=15
 RebootWatchdogSec=2min
 EOF
-sudo mkdir -p /etc/systemd/system.conf.d
 sudo systemctl daemon-reexec
 ```
 
