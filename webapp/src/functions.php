@@ -205,6 +205,17 @@ function sepaPain008Xml(
     return $xml;
 }
 
+/**
+ * Entfernt übrig gebliebene {{platzhalter}} aus einem Text. Sicherheitsnetz für den Mailversand:
+ * verwendet eine Vorlage einen Platzhalter, den die auslösende Stelle nicht befüllt, soll beim
+ * Empfänger lieber eine Lücke stehen als roher Vorlagen-Code („{{anrede}} {{nachname}},").
+ * Ein evtl. vorangehendes Leerzeichen wird mitgenommen, damit keine doppelten Leerzeichen bleiben.
+ */
+function stripUnresolvedPlaceholders(string $s): string
+{
+    return trim(preg_replace('/\s*\{\{\s*\w+\s*\}\}/', '', $s));
+}
+
 // ─── TOTP (RFC 6238) für die optionale Zwei-Faktor-Authentifizierung ───────────────
 // Bewusst abhängigkeitsfrei (nur hash_hmac/random_bytes), damit keine Composer-Pakete nötig
 // sind und die Logik testbar bleibt. Kompatibel mit Apple Passwörter, Google Authenticator etc.

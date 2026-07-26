@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-24 (nachts) — Claude Code — Claude Opus 4.8
+**Auftrag:** Nachweisen, dass die Sicherungen wirklich laufen (inkl. Alarm ins Admin-Postfach),
+Zähler- und Mitgliederdaten sicher abdecken, Stammdaten von den (später großen) Messwerten
+trennen und eine Wiederherstellungs-Möglichkeit auf der Plattform. Außerdem Bugfix: in der
+Passwort-vergessen-Mail standen rohe Platzhalter statt der Anrede.
+**Ergebnis:** Bugfix — Reset-Route übergibt jetzt anrede/nachname (`salutationVarsForEmail()`),
+plus generelles Sicherheitsnetz `stripUnresolvedPlaceholders()` im Mailer (4 Tests); functions.php
+zusätzlich in den Alarm-Skripten eingebunden. Backup: `backup.sh` erzeugt zusätzlich einen
+Stammdaten-Dump (`eeg_stamm_*.dump`, ohne Messwerte, Tabellenliste dynamisch = alle public-Tabellen
+minus Hypertables), beide Dumps werden validiert, `last_backup.json` als Statusdatei. `restore.sh`
+erkennt den Stammdaten-Dump und ersetzt nur dessen Tabellen (`--clean --if-exists`), Messwerte
+bleiben erhalten. Neue Admin-Seite `/admin/backups` (Backup-Verzeichnis `:ro` gemountet): warnt
+sichtbar bei überfälliger Sicherung, listet alle Sicherungen mit Restore-Befehl. Bewusst KEIN
+ausführender Restore-Button in der Web-UI (bräuchte Docker-Zugriff der Webapp = Host-Übernahme bei
+einer einzigen Web-Lücke) — begründet in docs/BACKUP.md und auf der Seite selbst.
+Hinweis festgehalten: Messwerte sind Hypertables und nicht einzeln dumpbar → im Volldump.
+Alle 70 Tests grün.
+
 ## 2026-07-24 (spätabends) — Claude Code — Claude Opus 4.8
 **Auftrag:** Punkt 4 von 4: TOTP-2FA mit Ein-/Ausschalter (Passkeys später).
 **Ergebnis:** Abhängigkeitsfreie TOTP-Funktionen (base32, totpCodeAt/Verify, Provisioning-URI),

@@ -18,6 +18,7 @@ declare(strict_types=1);
 // übergeben wird) -- in PHP 8 wäre der Zugriff auf eine undefinierte Konstante ein Fatal Error.
 if (!defined('STDERR')) { define('STDERR', fopen('php://stderr', 'w')); }
 
+require '/var/www/html/src/functions.php';
 require '/var/www/html/src/DB.php';
 require '/var/www/html/src/Mailer.php';
 

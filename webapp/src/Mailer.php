@@ -105,6 +105,13 @@ class Mailer
             $fullBody = str_replace('{{logo}}', '', $fullBody);
         }
 
+        // Sicherheitsnetz: übrig gebliebene {{platzhalter}} entfernen. Wird in einer Vorlage ein
+        // Platzhalter verwendet, den die auslösende Stelle nicht befüllt (z.B. {{anrede}} in der
+        // Passwort-Reset-Vorlage), stand er bisher als Rohtext in der Mail beim Empfänger.
+        // Lieber eine Lücke als "{{anrede}} {{nachname}}," in der Anrede.
+        $fullBody = stripUnresolvedPlaceholders($fullBody);
+        $subject  = stripUnresolvedPlaceholders($subject);
+
         $message = [
             'subject'      => $subject,
             'body'         => ['contentType' => 'HTML', 'content' => $fullBody],
