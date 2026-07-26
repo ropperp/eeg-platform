@@ -185,6 +185,10 @@ services:
       # LaTeX-Vorlagen unter /admin/templates herunter-/hochladen, latex-service liest von
       # dort beim PDF-Rendern.
       - /opt/eeg/latex-templates:/var/www/html/latex-templates
+      # NUR LESEND (:ro): die Backup-Übersicht unter /admin/backups zeigt an, ob die nächtliche
+      # Sicherung wirklich läuft (Alter, Größe, Dateien). Bewusst read-only -- die Webapp soll
+      # Backups anzeigen, aber niemals verändern oder löschen können.
+      - ./backups:/var/www/html/backups:ro
     labels:
       - "traefik.enable=true"
       # Alle Routen laufen über web (HTTP) — nginx macht SSL davor

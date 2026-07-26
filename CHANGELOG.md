@@ -20,6 +20,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Backup-Übersicht im Admin (`/admin/backups`).** Zeigt, ob die nächtliche Sicherung wirklich
+  läuft: Zeitpunkt/Alter der letzten erfolgreichen Sicherung (grün) bzw. eine deutliche Warnung,
+  wenn sie **überfällig** ist (> 26 h), dazu alle vorhandenen Sicherungen mit Größe, Alter und dem
+  fertigen Wiederherstellungs-Befehl. Das Backup-Verzeichnis ist dafür **nur lesend** (`:ro`) in
+  den webapp-Container eingebunden — die Weboberfläche kann Backups anzeigen, aber nie verändern.
+- **Getrennte Sicherung von Stammdaten und Messwerten.** `scripts/backup.sh` erzeugt jetzt
+  zusätzlich einen kleinen **Stammdaten-Dump** (`eeg_stamm_*.dump`: Mitglieder, Rechnungen,
+  Verträge, Zählpunkte, Konfiguration — ohne Messwerte). Damit lassen sich die kritischen Daten
+  wiederherstellen, **ohne** die großen Messwerte anzufassen: `restore.sh` erkennt diesen Dump und
+  ersetzt gezielt nur die enthaltenen Tabellen, die Messwert-Hypertables bleiben erhalten.
+  Beide Dumps werden auf Gültigkeit geprüft; scheitert einer, geht die Alarm-Mail ans Admin-Postfach.
+  (Messwerte sind TimescaleDB-Hypertables und lassen sich nicht zuverlässig einzeln dumpen — sie
+  stecken weiterhin im vollständigen Dump; Begründung in `docs/BACKUP.md`.)
 - **Zwei-Faktor-Authentifizierung (TOTP), pro Konto ein-/ausschaltbar.** Optionaler zweiter Faktor
   beim Login per 6-stelligem Code (RFC 6238, abhängigkeitsfrei; kompatibel mit Apple Passwörter,
   Google Authenticator etc.). Aktivieren/Deaktivieren jederzeit selbst im Profil – beim Einrichten
@@ -119,6 +132,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **Rohe Platzhalter in der Passwort-Reset-Mail.** Die Vorlage nutzte `{{anrede}} {{nachname}}`,
+  die Reset-Route übergab diese Werte aber nicht — beim Empfänger stand wörtlich
+  „{{anrede}} {{nachname}},". Die Werte werden jetzt übergeben (aus dem Mitgliedsdatensatz, sonst
+  neutral aus dem Login-Konto). Zusätzlich als generelles Sicherheitsnetz: **unbefüllte
+  Platzhalter werden vor dem Versand entfernt**, damit nie wieder Vorlagen-Code in einer Mail
+  landet (`stripUnresolvedPlaceholders()`, 4 Tests).
 - **E-Mail-Vorlagen SEPA-Vorabinfo & Mahnung im Admin editierbar.** Beide Keys fehlten in der
   Whitelist der Vorlagen-Speicherroute – ein Speichern lief auf HTTP 400. Ergänzt.
 - **SEPA-Test-XML: Beispiel-IBANs prüfziffern-gültig.** Die Debtor-IBANs der Testdatei waren

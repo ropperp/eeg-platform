@@ -16,7 +16,33 @@ Die Dump-Dateien enthalten **echte Mitgliederdaten** (Namen, Adressen, IBAN, Ene
 bash scripts/backup.sh
 ```
 
-Erzeugt: `backups/eeg_YYYYMMDD_HHMM.dump` (PostgreSQL custom format, komprimiert)
+Erzeugt **zwei** Dumps (PostgreSQL custom format, komprimiert):
+
+| Datei | Inhalt | Zweck |
+|-------|--------|-------|
+| `backups/eeg_JJJJMMTT_HHMM.dump` | **alles**, inkl. Messwerte | Rundum-Absicherung |
+| `backups/eeg_stamm_JJJJMMTT_HHMM.dump` | **nur Stammdaten**: Mitglieder, Rechnungen, Verträge, Zählpunkte, Konfiguration – **ohne** Messwerte | schnelle, kleine Wiederherstellung der kritischen Daten |
+
+Zusätzlich schreibt jeder erfolgreiche Lauf `backups/last_backup.json` — daraus speist sich die
+Backup-Übersicht im Admin-Bereich (**/admin/backups**), die sichtbar warnt, wenn die letzte
+Sicherung überfällig ist.
+
+### Warum zwei Dumps? (Stammdaten vs. Messwerte)
+
+Mitgliederdaten und Messwerte liegen technisch in **einer** PostgreSQL-Datenbank — TimescaleDB ist
+nur eine *Erweiterung* darin, keine zweite Datenbank. Getrennt werden deshalb die **Sicherungen**:
+
+- Die **Messwerte** (`esp_measurements`, `eda_measurements`) wachsen mit jeder Messung stark an,
+  die **Stammdaten** bleiben klein. Der Stammdaten-Dump ist damit klein genug, um ihn häufig und
+  überall aufzubewahren.
+- Beim Wiederherstellen des Stammdaten-Dumps bleiben die **Messwerte unangetastet** (siehe Restore
+  unten) — genau der Fall „nur die Mitgliederdaten sind kaputt".
+- **Technische Einschränkung, bewusst so gelöst:** Die Messwert-Tabellen sind TimescaleDB-*Hypertables*.
+  Deren Daten liegen physisch in Chunk-Tabellen unter `_timescaledb_internal`, weshalb sich
+  Hypertables **nicht** zuverlässig einzeln per `pg_dump -t` sichern lassen. Die Messwerte stecken
+  daher im vollständigen Dump (und in der Komplettsicherung), nicht in einem eigenen Messwert-Dump.
+  Sollten die Messwerte irgendwann zu groß für den täglichen Volldump werden, ist der nächste
+  Schritt ein eigener Export je Zeitraum/Chunk statt eines Gesamt-Dumps.
 
 Das custom-Format (`-Fc`) ist komprimierter als Plain-SQL und erlaubt selektives Restore einzelner Tabellen mit `pg_restore -t tabellenname`.
 
@@ -181,10 +207,31 @@ rclone copy /opt/eeg-platform/backups/ remote:eeg-backups/
 ## Restore
 
 ```bash
+# a) NUR Stammdaten (Mitglieder/Rechnungen/Verträge) -- Messwerte bleiben erhalten:
+bash scripts/restore.sh backups/eeg_stamm_20260620_0230.dump
+
+# b) Datenbank vollständig (inkl. Messwerte) -- Datenbank wird neu aufgebaut:
 bash scripts/restore.sh backups/eeg_20260620_0230.dump
+
+# c) Komplettsicherung (Datenbank + Dateien/PDFs/Uploads):
+bash scripts/restore.sh backups/eeg_full_20260620_0230.tar.gz
 ```
 
-Das Skript fragt vor dem Überschreiben zur Bestätigung (`ja` eingeben).
+Das Skript erkennt die Art der Sicherung am Dateinamen und fragt vor dem Überschreiben zur
+Bestätigung (`JA` eingeben).
+
+> **Wichtig zum Stammdaten-Restore (a):** Hier wird die Datenbank **nicht** gelöscht und neu
+> angelegt — es werden gezielt nur die im Dump enthaltenen Tabellen ersetzt
+> (`pg_restore --clean --if-exists`). Die Messwert-Hypertables bleiben dadurch vollständig
+> erhalten. Dateien (Beitrittserklärungen, PDFs, Uploads) sind in diesem Dump **nicht** enthalten —
+> dafür die Komplettsicherung (c) verwenden.
+
+> **Warum gibt es keinen „Wiederherstellen"-Knopf in der Weboberfläche?** Die Übersicht unter
+> **/admin/backups** zeigt Stand und fertigen Befehl, ausgeführt wird aber bewusst auf dem Server.
+> Damit die Webanwendung eine Wiederherstellung selbst auslösen könnte, bräuchte sie Zugriff auf die
+> Docker-Steuerung des Hosts — eine einzige Lücke in der Weboberfläche würde dann reichen, um den
+> Server zu übernehmen oder alle Daten zu löschen. Das Backup-Verzeichnis ist deshalb auch nur
+> **lesend** (`:ro`) in den webapp-Container eingebunden.
 
 **Manuell** (ohne Bestätigung, z. B. in Automatisierung):
 

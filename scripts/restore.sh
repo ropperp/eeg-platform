@@ -40,6 +40,33 @@ read -r -p "Wirklich fortfahren? Tippe 'JA': " ok
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 DBDUMP=""; STORAGE=""
 
+# ── Sonderfall: Stammdaten-Dump (eeg_stamm_*.dump) ───────────────────────────────
+# Enthält NUR Mitglieder/Rechnungen/Verträge/Konfiguration, KEINE Messwerte. Deshalb darf
+# hier die Datenbank NICHT gelöscht und neu angelegt werden -- sonst wären die Messwerte
+# (Hypertables) weg. Stattdessen werden gezielt nur die im Dump enthaltenen Tabellen
+# ersetzt; die Messwerte bleiben unangetastet.
+case "$(basename "$SRC")" in
+  eeg_stamm_*.dump)
+    echo "[restore] Erkannt: STAMMDATEN-Dump (Mitglieder/Rechnungen/Verträge/Konfiguration)."
+    echo "[restore] Messwerte (esp_measurements/eda_measurements) bleiben unverändert erhalten."
+    echo "[restore] Warte auf timescaledb ..."
+    until $COMPOSE exec -T timescaledb pg_isready -U eeg >/dev/null 2>&1; do sleep 2; done
+    docker cp "$SRC" timescaledb:/tmp/restore_stamm.dump
+    # --clean --if-exists: ersetzt genau die im Dump enthaltenen Tabellen (drop+create),
+    # alles andere in der Datenbank bleibt bestehen.
+    $COMPOSE exec -T timescaledb pg_restore -U eeg -d eeg_platform --no-owner --clean --if-exists \
+        /tmp/restore_stamm.dump || true
+    $COMPOSE exec -T timescaledb rm -f /tmp/restore_stamm.dump >/dev/null 2>&1 || true
+    echo "[restore] Kontrolle:"
+    $COMPOSE exec -T timescaledb psql -U eeg -d eeg_platform -c \
+      "SELECT 'members' t, count(*) FROM members UNION ALL SELECT 'invoices', count(*) FROM invoices UNION ALL SELECT 'users', count(*) FROM users;"
+    echo "[restore] Hinweis: Dateien (Uploads/PDFs) sind in diesem Dump NICHT enthalten --"
+    echo "[restore] dafür die Komplettsicherung eeg_full_*.tar.gz verwenden."
+    echo "[restore] Fertig."
+    exit 0
+    ;;
+esac
+
 case "$SRC" in
     *.tar.gz)
         echo "[restore] Entpacke Komplettsicherung ..."

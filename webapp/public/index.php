@@ -101,6 +101,32 @@ function contractsEnabled(?string $communityId): bool
  * {{platzhalter}} durch $vars. Fällt auf den mitgegebenen Standardtext zurück, falls im
  * Platform-Admin noch keine eigene Vorlage gespeichert wurde (z.B. direkt nach der Migration).
  */
+/**
+ * Liefert ['anrede','nachname'] für eine E-Mail-Adresse -- bevorzugt aus dem Mitgliedsdatensatz
+ * (mit Geschlecht/Anrede-Modus), sonst aus dem Login-Konto (dann neutral „Guten Tag <Nachname>").
+ * Nötig, damit auch Vorlagen ohne Mitgliedskontext (z.B. Passwort-Reset) {{anrede}}/{{nachname}}
+ * verwenden können, ohne dass rohe Platzhalter in der Mail landen.
+ */
+function salutationVarsForEmail(string $email): array
+{
+    $email = strtolower(trim($email));
+    try {
+        $m = DB::fetchOne(
+            'SELECT salutation, titel, first_name, last_name, company_name, email_anrede_mode
+               FROM members WHERE lower(email) = ? ORDER BY created_at LIMIT 1',
+            [$email]
+        );
+        if (!$m) {
+            $u = DB::fetchOne('SELECT first_name, last_name FROM users WHERE lower(email) = ?', [$email]);
+            $m = $u ? ['last_name' => $u['last_name'], 'email_anrede_mode' => 'auto'] : [];
+        }
+    } catch (Throwable $e) {
+        $m = [];
+    }
+    $s = mailSalutation($m);
+    return ['anrede' => htmlspecialchars($s['anrede']), 'nachname' => htmlspecialchars($s['nachname'])];
+}
+
 function renderMailTemplate(string $key, array $vars, string $fallbackSubject, string $fallbackBody): array
 {
     $tpl = DB::fetchOne('SELECT subject, body_html FROM platform_mail_templates WHERE key = ?', [$key]);
@@ -938,11 +964,11 @@ $router->post('/portal/forgot-password', function () {
         try {
             $user = DB::fetchOne('SELECT first_name FROM users WHERE email = ?', [$email]);
             $link = htmlspecialchars(passwordResetLink($token));
-            $mail = renderMailTemplate('password_reset', [
+            $mail = renderMailTemplate('password_reset', array_merge([
                 'vorname'     => htmlspecialchars($user['first_name'] ?? ''),
                 'link'        => $link,
                 'gueltigkeit' => 'Stunde',
-            ],
+            ], salutationVarsForEmail($email)),
                 'Passwort zurücksetzen – Strom für alle',
                 '<p>Liebes Mitglied,</p>'
                 . '<p>über folgenden Link können Sie innerhalb der nächsten {{gueltigkeit}} ein neues Passwort vergeben:</p>'
@@ -1878,8 +1904,11 @@ $router->post('/portal/members/:id/reset-password', function ($params) {
     $token = Auth::createResetToken($loginEmail, 600);
     try {
         $link = htmlspecialchars(passwordResetLink($token));
+        $anrede = mailSalutation($member);
         $mail = renderMailTemplate('password_reset', [
             'vorname'     => htmlspecialchars($member['first_name']),
+            'anrede'      => htmlspecialchars($anrede['anrede']),
+            'nachname'    => htmlspecialchars($anrede['nachname']),
             'link'        => $link,
             'gueltigkeit' => '10 Minuten',
         ],
@@ -4321,6 +4350,43 @@ $router->get('/admin/mail-settings', function () {
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
     try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
     require ROOT . '/src/views/pages/admin_mail_settings.php';
+});
+
+/**
+ * Backup-Übersicht: zeigt, ob die nächtliche Sicherung wirklich läuft (Alter/Größe der letzten
+ * Dumps) und welche Sicherungen zum Wiederherstellen bereitliegen. Liest das Backup-Verzeichnis
+ * NUR LESEND (Mount `:ro` in docker-compose.yml) -- die Webapp kann Backups also anzeigen, aber
+ * nie verändern oder löschen.
+ */
+$router->get('/admin/backups', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+
+    $dir = '/var/www/html/backups';
+    $status = null;
+    if (is_readable($dir . '/last_backup.json')) {
+        $status = json_decode((string)file_get_contents($dir . '/last_backup.json'), true) ?: null;
+    }
+    // Sicherungen einsammeln und nach Art gruppieren.
+    $arten = [
+        'stamm' => ['label' => 'Stammdaten (Mitglieder, Rechnungen, Verträge)', 'glob' => 'eeg_stamm_*.dump', 'dateien' => []],
+        'voll'  => ['label' => 'Datenbank vollständig (inkl. Messwerte)',        'glob' => 'eeg_2*.dump',      'dateien' => []],
+        'full'  => ['label' => 'Komplettsicherung (Datenbank + Dateien)',        'glob' => 'eeg_full_*.tar.gz','dateien' => []],
+    ];
+    $dirLesbar = is_dir($dir) && is_readable($dir);
+    if ($dirLesbar) {
+        foreach ($arten as $key => $art) {
+            foreach (glob($dir . '/' . $art['glob']) ?: [] as $pfad) {
+                $arten[$key]['dateien'][] = [
+                    'name'  => basename($pfad),
+                    'bytes' => filesize($pfad) ?: 0,
+                    'zeit'  => filemtime($pfad) ?: 0,
+                ];
+            }
+            usort($arten[$key]['dateien'], fn($a, $b) => $b['zeit'] <=> $a['zeit']);
+        }
+    }
+    require ROOT . '/src/views/pages/admin_backups.php';
 });
 
 /**

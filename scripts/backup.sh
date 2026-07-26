@@ -81,10 +81,84 @@ mv "$TMP" "$FINAL"
 SIZE=$(du -sh "$FINAL" | cut -f1)
 log "OK: $(basename "$FINAL") (${SIZE})"
 
-# Alte Dumps aufräumen (die neuesten $KEEP behalten)
-ls -1t "${BACKUP_DIR}"/eeg_*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
-    log "Entferne alten Dump: $(basename "$old")"
-    rm -f "$old"
+# ─────────────────────────────────────────────────────────────────────────────
+# 4) ZUSÄTZLICH: getrennter Stammdaten-Dump (Mitglieder, Rechnungen, Verträge,
+#    Zählpunkte, Konfiguration ...) OHNE die Messwert-Hypertables.
+#
+#    Warum getrennt? Die Messwerte (esp_measurements/eda_measurements) wachsen mit jeder
+#    Sekunden-/Viertelstundenmessung stark an, die Stammdaten bleiben klein. Mit diesem
+#    zweiten Dump lassen sich Mitglieder-/Abrechnungsdaten wiederherstellen, OHNE die
+#    riesigen Messwerte mitzuschleppen -- und umgekehrt bleibt der Verlust von Messwerten
+#    verkraftbar, ohne die Mitgliederdaten zu gefährden.
+#
+#    Wichtig/technisch: esp_measurements und eda_measurements sind TimescaleDB-*Hypertables*.
+#    Deren echte Daten liegen in Chunk-Tabellen unter _timescaledb_internal, weshalb sich
+#    Hypertables NICHT zuverlässig einzeln per `pg_dump -t` sichern lassen. Deshalb:
+#      * Messwerte  -> stecken im vollständigen Dump oben (eeg_*.dump)
+#      * Stammdaten -> zusätzlich hier als eigener, kleiner Dump (eeg_stamm_*.dump)
+#    Die Tabellenliste wird dynamisch ermittelt (alle public-Tabellen minus Hypertables),
+#    damit sie beim Erweitern des Schemas nicht veraltet.
+# ─────────────────────────────────────────────────────────────────────────────
+STAMM_FINAL="${BACKUP_DIR}/eeg_stamm_${TIMESTAMP}.dump"
+STAMM_TMP="${BACKUP_DIR}/.eeg_stamm_${TIMESTAMP}.dump.part"
+
+TABLE_ARGS="$($COMPOSE exec -T timescaledb psql -U eeg -d eeg_platform -At -c "
+    SELECT string_agg('-t public.' || quote_ident(tablename), ' ' ORDER BY tablename)
+      FROM pg_tables
+     WHERE schemaname = 'public'
+       AND tablename NOT IN (
+           SELECT hypertable_name FROM timescaledb_information.hypertables
+            WHERE hypertable_schema = 'public'
+       );" 2>/dev/null | tr -d '\r')"
+
+if [ -z "$TABLE_ARGS" ]; then
+    # Kein harter Abbruch: der vollständige Dump oben ist bereits gesichert. Aber melden,
+    # denn ohne Stammdaten-Dump fehlt die schnelle "nur Mitgliederdaten"-Wiederherstellung.
+    log "WARNUNG: Tabellenliste für den Stammdaten-Dump konnte nicht ermittelt werden -- übersprungen."
+else
+    # shellcheck disable=SC2086
+    $COMPOSE exec -T timescaledb pg_dump -U eeg -d eeg_platform -Fc $TABLE_ARGS > "$STAMM_TMP"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        rm -f "$STAMM_TMP"
+        fail "Stammdaten-Dump (Mitglieder/Rechnungen ohne Messwerte) fehlgeschlagen."
+    fi
+    STAMM_BYTES=$(stat -c%s "$STAMM_TMP" 2>/dev/null || echo 0)
+    if [ "$STAMM_BYTES" -lt "$MIN_BYTES" ]; then
+        rm -f "$STAMM_TMP"
+        fail "Stammdaten-Dump verdächtig klein (${STAMM_BYTES} Byte). Vermutlich unvollständig."
+    fi
+    docker cp "$STAMM_TMP" timescaledb:/tmp/verify_stamm >/dev/null 2>&1
+    if ! $COMPOSE exec -T timescaledb pg_restore -l /tmp/verify_stamm >/dev/null 2>&1; then
+        $COMPOSE exec -T timescaledb rm -f /tmp/verify_stamm >/dev/null 2>&1
+        rm -f "$STAMM_TMP"
+        fail "Stammdaten-Dump ist nicht lesbar (pg_restore -l fehlgeschlagen -> beschädigt)."
+    fi
+    $COMPOSE exec -T timescaledb rm -f /tmp/verify_stamm >/dev/null 2>&1
+    mv "$STAMM_TMP" "$STAMM_FINAL"
+    log "OK: $(basename "$STAMM_FINAL") ($(du -sh "$STAMM_FINAL" | cut -f1), nur Stammdaten)"
+fi
+
+# Alte Dumps aufräumen (die neuesten $KEEP je Art behalten)
+for pattern in 'eeg_2*.dump' 'eeg_stamm_*.dump'; do
+    ls -1t "${BACKUP_DIR}"/$pattern 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+        log "Entferne alten Dump: $(basename "$old")"
+        rm -f "$old"
+    done
 done
+
+# Statusdatei für die Backup-Übersicht im Admin-Bereich (/admin/backups). Wird bei JEDEM
+# erfolgreichen Lauf neu geschrieben -- fehlt sie oder ist sie alt, war das letzte Backup nicht
+# erfolgreich (die Admin-Seite warnt dann sichtbar).
+cat > "${BACKUP_DIR}/last_backup.json" <<EOF
+{
+  "zeitpunkt": "$(date '+%Y-%m-%d %H:%M:%S')",
+  "unix": $(date +%s),
+  "voll_datei": "$(basename "$FINAL")",
+  "voll_bytes": $(stat -c%s "$FINAL" 2>/dev/null || echo 0),
+  "stamm_datei": "$( [ -f "$STAMM_FINAL" ] && basename "$STAMM_FINAL" || echo '' )",
+  "stamm_bytes": $( [ -f "$STAMM_FINAL" ] && stat -c%s "$STAMM_FINAL" || echo 0 ),
+  "host": "$(hostname)"
+}
+EOF
 
 log "Fertig."
