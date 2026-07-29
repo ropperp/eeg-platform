@@ -1,10 +1,10 @@
 <?php $pageTitle = 'Mitglieder'; ob_start();
 $statusBadge = ['none' => 'gray', 'created' => 'yellow', 'signed' => 'green'];
-$statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unterschr.'];
+$statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('check') . ' Unterschr.'];
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-  <h2>👥 Mitglieder</h2>
+  <h2><?= icon('users-three') ?> Mitglieder</h2>
   <a href="/portal/members/new" class="btn btn-primary">+ Mitglied anlegen</a>
 </div>
 
@@ -16,7 +16,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
 
 <?php if (!empty($successTempPw)): ?>
   <div class="card" style="margin-bottom:1.5rem;border:2px solid #16a34a">
-    <h3 style="color:#15803d;margin-bottom:.75rem">✅ Mitglied angelegt — Login-Daten</h3>
+    <h3 style="color:#15803d;margin-bottom:.75rem"><?= icon('check-circle') ?> Mitglied angelegt — Login-Daten</h3>
     <?php if (!empty($successInviteError)): ?>
       <p style="margin-bottom:.5rem;color:#b91c1c;font-size:.85rem">Einladungs-E-Mail konnte nicht verschickt werden: <code style="font-size:.78rem"><?= htmlspecialchars($successInviteError) ?></code></p>
     <?php endif; ?>
@@ -39,7 +39,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
       <option value="">Alle Status</option>
       <option value="active">Aktiv</option>
       <option value="pending">Ausstehend</option>
-      <option value="inactive">🗄️ Archiviert</option>
+      <option value="inactive">Archiviert</option>
     </select>
     <select id="filter-contract" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Verträge</option>
@@ -115,7 +115,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         <td style="font-size:.85rem;white-space:nowrap"><?= $m['member_since'] ? date('d.m.Y', strtotime($m['member_since'])) : '—' ?></td>
         <td>
           <?php $sb = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
-          <?php $sl = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => '🗄️ Archiviert']; ?>
+          <?php $sl = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => icon('archive') . ' Archiviert']; ?>
           <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= $sl[$m['status']] ?? htmlspecialchars($m['status']) ?></span>
         </td>
         <td style="text-align:center">
@@ -134,9 +134,9 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => '✓ Unter
         </td>
         <td style="text-align:center">
           <?php if ($viaOnline): ?>
-            <span class="badge badge-blue" style="font-size:.68rem" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
+            <span class="badge badge-blue" style="font-size:.68rem" title="Über das Online-Beitrittsformular eingereicht"><?= icon('globe') ?> Online</span>
           <?php else: ?>
-            <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail">✉️ Offline</span>
+            <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail"><?= icon('envelope-simple') ?> Offline</span>
           <?php endif; ?>
         </td>
         <td style="white-space:nowrap">

@@ -368,9 +368,9 @@ ob_start();
     if (raw === '') { feedback.textContent = ''; return; }
     const grouped = formatIbanGroups(raw);
     if (ibanChecksumValid(raw)) {
-      feedback.innerHTML = '<span style="color:#16a34a">✓ ' + grouped + ' — IBAN gültig</span>';
+      feedback.innerHTML = '<span style="color:#16a34a;display:inline-flex;align-items:center;gap:.3rem"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-check-circle"></use></svg> ' + grouped + ' — IBAN gültig</span>';
     } else {
-      feedback.innerHTML = '<span style="color:#dc2626">✗ ' + grouped + ' — IBAN ungültig (Prüfsumme stimmt nicht)</span>';
+      feedback.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:.3rem"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-x-circle"></use></svg> ' + grouped + ' — IBAN ungültig (Prüfsumme stimmt nicht)</span>';
     }
   }
   document.getElementById('member_iban').addEventListener('input', updateIbanFeedback);
