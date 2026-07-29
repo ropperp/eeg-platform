@@ -5,7 +5,7 @@ ob_start();
 
 <div style="min-height:80vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">
-    <h1 style="font-size:1.5rem;margin-bottom:.25rem">🔐 Bestätigung</h1>
+    <h1 style="font-size:1.5rem;margin-bottom:.25rem"><?= icon('lock-key') ?> Bestätigung</h1>
     <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
       Gib den aktuellen 6-stelligen Code aus deiner Authenticator-/Passwörter-App ein.
     </p>

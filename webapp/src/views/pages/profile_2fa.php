@@ -7,7 +7,7 @@ ob_start();
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/portal/profile" style="color:var(--gray-600);text-decoration:none">← Profil</a>
-  <h2 style="margin:0">🔐 Zwei-Faktor-Authentifizierung einrichten</h2>
+  <h2 style="margin:0"><?= icon('lock-key') ?> Zwei-Faktor-Authentifizierung einrichten</h2>
 </div>
 
 <?php if (!empty($error)): ?>

@@ -1,6 +1,6 @@
 <?php $pageTitle = 'API-Zugänge'; ob_start(); ?>
 
-<h2 style="margin-bottom:.5rem">🔌 API-Zugänge</h2>
+<h2 style="margin-bottom:.5rem"><?= icon('plug') ?> API-Zugänge</h2>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
   Persönliche API-Keys für die künftige Smart-Home-Anbindung (eigene Bezugs-/Einspeiseleistung
   und Gemeinschafts-Autarkie in Echtzeit).
@@ -14,7 +14,7 @@
 
 <?php if (!empty($newApiKey)): ?>
 <div class="card" style="margin-bottom:1.5rem;border:2px solid #16a34a">
-  <h3 style="color:#15803d;margin-bottom:.75rem">✅ API-Key erstellt</h3>
+  <h3 style="color:#15803d;margin-bottom:.75rem"><?= icon('check-circle') ?> API-Key erstellt</h3>
   <p style="margin-bottom:.5rem;font-size:.85rem">
     Bitte jetzt kopieren -- aus Sicherheitsgründen wird dieser Key nur dieses eine Mal angezeigt:
   </p>

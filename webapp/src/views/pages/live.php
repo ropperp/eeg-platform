@@ -6,7 +6,7 @@ ob_start();
 
 <div style="padding:3rem 0;background:var(--white);border-bottom:1px solid var(--gray-200)">
   <div class="container" style="text-align:center">
-    <h1 style="font-size:1.75rem;margin-bottom:.5rem">⚡ Live-Energiedaten</h1>
+    <h1 style="font-size:1.75rem;margin-bottom:.5rem"><?= icon('lightning') ?> Live-Energiedaten</h1>
     <p style="color:var(--gray-600)">Suchen Sie eine Energiegemeinschaft um ihre aktuellen Daten zu sehen.</p>
 
     <div class="search-wrap" style="margin-top:1.5rem">
@@ -62,7 +62,7 @@ ob_start();
   </div>
 
   <div id="no-selection" style="text-align:center;padding:4rem;color:var(--gray-600)">
-    <div style="font-size:3rem;margin-bottom:1rem">🔍</div>
+    <div style="font-size:3rem;margin-bottom:1rem"><?= icon('magnifying-glass') ?></div>
     <p>Geben Sie den Namen einer Energiegemeinschaft ein um die Echtzeit-Daten zu sehen.</p>
   </div>
 </div>

@@ -1,7 +1,7 @@
 <?php $pageTitle = 'Passwort ändern'; ob_start(); ?>
 
 <div style="max-width:480px">
-  <h2 style="margin-bottom:1.5rem">🔑 Passwort ändern</h2>
+  <h2 style="margin-bottom:1.5rem"><?= icon('key') ?> Passwort ändern</h2>
 
   <?php if (!empty($success)): ?>
     <div class="alert alert-success" style="margin-bottom:1rem"><?= htmlspecialchars($success) ?></div>
