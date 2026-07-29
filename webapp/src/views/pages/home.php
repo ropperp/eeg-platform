@@ -20,42 +20,42 @@ ob_start();
     <h2 class="reveal" style="text-align:center;font-size:1.75rem;margin-bottom:3rem">Was die Plattform bietet</h2>
     <div class="grid-3 reveal-grid">
       <div class="card">
-        <div class="feature-icon">⚡</div>
+        <div class="feature-icon"><?= icon('lightning') ?></div>
         <h3>Echtzeit-Monitoring</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
           Sehen Sie live, wie viel Energie Ihre Gemeinschaft gerade erzeugt und verbraucht — direkt vom Smart Meter.
         </p>
       </div>
       <div class="card">
-        <div class="feature-icon">💶</div>
+        <div class="feature-icon"><?= icon('currency-eur') ?></div>
         <h3>Automatische Abrechnung</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
           Quartalsabrechnung auf Basis offizieller EDA-Daten. PDF-Rechnungen werden automatisch generiert und versendet.
         </p>
       </div>
       <div class="card">
-        <div class="feature-icon">👥</div>
+        <div class="feature-icon"><?= icon('users-three') ?></div>
         <h3>Mitgliederverwaltung</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
           Mitglieder anlegen, Zählpunkte zuordnen, Vertragsunterlagen per Knopfdruck generieren und versenden.
         </p>
       </div>
       <div class="card">
-        <div class="feature-icon">🔒</div>
+        <div class="feature-icon"><?= icon('shield-check') ?></div>
         <h3>DSGVO-konform</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
           Energiedaten sind personenbezogen — jeder sieht nur seine eigenen Daten. Hosting in Österreich/DACH.
         </p>
       </div>
       <div class="card">
-        <div class="feature-icon">🏢</div>
+        <div class="feature-icon"><?= icon('buildings') ?></div>
         <h3>Multi-EEG fähig</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
           Eine Plattform für beliebig viele Gemeinschaften. Vollständige Datentrennung zwischen den Mandanten.
         </p>
       </div>
       <div class="card">
-        <div class="feature-icon">📊</div>
+        <div class="feature-icon"><?= icon('chart-bar') ?></div>
         <h3>Öffentliches Dashboard</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
           Zeigen Sie der Öffentlichkeit Ihre Autarkie-Quote und Gesamterzeugung — ohne Personendaten.
@@ -82,7 +82,7 @@ ob_start();
 <section style="padding:4rem 0;background:var(--white);border-top:1px solid var(--gray-200)">
   <div class="container reveal" style="max-width:720px">
     <div style="text-align:center;margin-bottom:1.5rem">
-      <div class="feature-icon" style="margin:0 auto">📡</div>
+      <div class="feature-icon" style="margin:0 auto"><?= icon('broadcast') ?></div>
       <h2 style="font-size:1.5rem;margin-top:1rem">Echtzeit-Energie: sehen, wann Strom gebraucht wird</h2>
     </div>
     <p style="color:var(--gray-600);margin-bottom:1rem">

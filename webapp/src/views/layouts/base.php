@@ -6,6 +6,10 @@
   <title><?= htmlspecialchars($pageTitle ?? 'Strom für alle') ?></title>
   <link rel="stylesheet" href="/assets/css/app.css?v=<?= @filemtime(ROOT . '/public/assets/css/app.css') ?: time() ?>">
   <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
+  <!-- Markiert synchron (vor dem ersten Malen), dass JS verfügbar ist -- app.css nutzt das,
+       um z.B. den Hero-Text erst dann per CSS auszublenden, wenn tatsächlich eine Animation
+       (site-animations.js, unten) übernehmen wird. Ohne JS bleibt alles normal sichtbar. -->
+  <script>document.documentElement.classList.add('js-anim');</script>
 </head>
 <body>
 
@@ -16,8 +20,9 @@
       <img src="/logo-dark.png" alt="Strom für alle" class="logo-img logo-img-dark">
     </a>
     <nav>
-      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
-              style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
+      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
+        <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
+      </button>
       <a href="<?= htmlspecialchars(marketingUrl('/live')) ?>">Live-Anzeige</a>
       <a href="<?= htmlspecialchars(marketingUrl('/rc108175/kontakt')) ?>">Kontakt</a>
       <?php if (Auth::check()): ?>
@@ -51,16 +56,18 @@
   </div>
 </footer>
 
+<script src="/assets/js/vendor/gsap.min.js"></script>
+<script src="/assets/js/vendor/ScrollTrigger.min.js"></script>
+<script src="/assets/js/site-animations.js"></script>
 <script>
 function toggleDark() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const next = isDark ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('darkMode', next === 'dark' ? '1' : '0');
-  document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️' : '🌙';
+  // Icon-Umschaltung (Mond/Sonne) läuft rein über CSS anhand [data-theme], siehe app.css --
+  // kein Textaustausch mehr nötig.
 }
-document.getElementById('theme-toggle').textContent =
-  document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
 
 // Scroll-Reveal: Elemente mit .reveal/.reveal-grid blenden beim Scrollen sanft ein
 // (siehe app.css). Läuft auf jeder Seite, die dieses Layout nutzt, ist aber ein reines
