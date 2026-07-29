@@ -4003,9 +4003,63 @@ $router->post('/portal/eda/upload', function () {
     } else {
         logAudit($communityId, 'eda.import', null, null,
             'EDA-Import: ' . ($result['records'] ?? '?') . ' Datensätze importiert' . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''));
+        // Je automatisch angelegtem Zählpunkt einen eigenen, gezielt auffindbaren Audit-Log-
+        // Eintrag -- wer/wann nachvollziehbar pro Zählpunkt statt nur in der Sammel-Zeile oben.
+        foreach ($result['neu_angelegt'] ?? [] as $neu) {
+            logAudit($communityId, 'eda.metering_point.autocreate', 'metering_point', $neu['metering_point_id'] ?? null,
+                'Zählpunkt ' . $neu['zaehlpunkt_nr'] . ' automatisch aus EDA-Import angelegt (Typ-Vermutung: '
+                . $neu['type_guess'] . '), noch keinem Mitglied zugeordnet.');
+        }
     }
 
     require ROOT . '/src/views/pages/eda_upload.php';
+});
+
+/**
+ * Zählpunkte, die per automatischem EDA-Import-Abgleich angelegt wurden (siehe
+ * eda-parser/parser.py, docs/ESB_IDEEN.md Punkt 3), aber noch keinem Mitglied zugeordnet sind
+ * -- der Obmann weist sie hier einem bestehenden Mitglied zu, korrigiert bei Bedarf den Typ und
+ * aktiviert den Zählpunkt (erst dann nimmt er an einer Abrechnung teil).
+ */
+$router->get('/portal/metering-points/unassigned', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $unassigned = DB::fetchAll(
+        'SELECT * FROM metering_points WHERE community_id = ? AND member_id IS NULL ORDER BY registered_at DESC',
+        [$communityId]
+    );
+    $members = DB::fetchAll(
+        "SELECT id, first_name, last_name, kundennummer FROM members WHERE community_id = ? AND status = 'active' ORDER BY last_name, first_name",
+        [$communityId]
+    );
+    require ROOT . '/src/views/pages/metering_points_unassigned.php';
+});
+
+$router->post('/portal/metering-points/:id/assign', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $mp = DB::fetchOne('SELECT * FROM metering_points WHERE id = ? AND community_id = ? AND member_id IS NULL', [$params['id'], $communityId]);
+    if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden oder bereits zugeordnet.'; return; }
+
+    $memberId = $_POST['member_id'] ?? '';
+    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$memberId, $communityId]);
+    if (!$member) {
+        header('Location: /portal/metering-points/unassigned?error=' . urlencode('Bitte ein gültiges Mitglied auswählen.'));
+        exit;
+    }
+    $type = in_array($_POST['type'] ?? '', ['consumer', 'producer', 'prosumer'], true) ? $_POST['type'] : $mp['type'];
+
+    DB::execute(
+        'UPDATE metering_points SET member_id = ?, type = ?, active = true WHERE id = ? AND community_id = ?',
+        [$memberId, $type, $params['id'], $communityId]
+    );
+    logAudit($communityId, 'metering_point.assign', 'metering_point', $params['id'],
+        'Zählpunkt ' . $mp['zaehlpunkt_nr'] . ' (aus EDA-Import) einem Mitglied zugeordnet und aktiviert (Typ: ' . $type . ').');
+    header('Location: /portal/metering-points/unassigned?success=1');
+    exit;
 });
 
 // ─── Portal: Einstellungen ──────────────────────────────

@@ -2,14 +2,15 @@
 
 <h2 style="margin-bottom:.5rem"><?= icon('plug') ?> API-Zugänge</h2>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
-  Persönliche API-Keys für die künftige Smart-Home-Anbindung (eigene Bezugs-/Einspeiseleistung
-  und Gemeinschafts-Autarkie in Echtzeit).
+  Persönliche API-Keys für die Smart-Home-Anbindung (eigene Bezugs-/Einspeiseleistung
+  und Gemeinschafts-Autarkie in Echtzeit, z. B. für Node-RED).
 </p>
 
 <div class="alert" style="margin-bottom:1.5rem;background:#eff6ff;color:#1d4ed8">
-  ℹ️ Die Live-Energiedaten-API ist noch in Vorbereitung und liefert aktuell noch keine Daten.
-  Sie können Ihre API-Keys aber schon jetzt anlegen -- sie funktionieren automatisch, sobald
-  die Schnittstelle verfügbar ist.
+  <?= icon('info') ?> <code>GET /api/v1/live</code> liefert Bezug/Einspeisung in Watt (sobald Sie
+  eine eigene Ausleseeinheit haben) und die Autarkiequote der Gemeinschaft --
+  Bearer-Authentifizierung mit einem der API-Keys unten. Testen lässt sich die Authentifizierung
+  auch mit <code>GET /api/v1/me</code>.
 </div>
 
 <?php if (!empty($newApiKey)): ?>

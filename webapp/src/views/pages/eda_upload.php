@@ -12,6 +12,22 @@
     <?= number_format($result['records'], 0, ',', '.') ?> Datensätze importiert
     (<?= htmlspecialchars($result['period_from']) ?> – <?= htmlspecialchars($result['period_to']) ?>).
   </div>
+  <?php if (!empty($result['neu_angelegt'])): ?>
+    <div class="card" style="margin-bottom:1.5rem;border:1px solid #93c5fd">
+      <h3 style="margin-bottom:.5rem"><?= icon('plus') ?> Neu angelegt (<?= count($result['neu_angelegt']) ?>)</h3>
+      <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:.75rem">
+        Diese Zählpunkte waren im Export enthalten, aber bei uns noch nicht registriert -- sie
+        sind jetzt angelegt, aber noch keinem Mitglied zugeordnet und noch nicht aktiv.
+      </p>
+      <ul style="font-size:.875rem;padding-left:1.25rem">
+        <?php foreach ($result['neu_angelegt'] as $n): ?>
+          <li><code style="font-size:.78rem"><?= htmlspecialchars($n['zaehlpunkt_nr']) ?></code>
+            (Typ-Vermutung: <?= $n['type_guess'] === 'producer' ? 'Einspeisung' : 'Bezug' ?>)</li>
+        <?php endforeach; ?>
+      </ul>
+      <a href="/portal/metering-points/unassigned" class="btn btn-primary" style="margin-top:.75rem">Jetzt zuordnen</a>
+    </div>
+  <?php endif; ?>
   <?php if (!empty($result['warnings'])): ?>
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:.75rem"><?= icon('warning-circle') ?> Warnungen</h3>
@@ -52,7 +68,7 @@
 </div>
 
 <div class="card" style="margin-top:1.5rem">
-  <h3 style="margin-bottom:.75rem">ℹ️ Wichtiger Hinweis</h3>
+  <h3 style="margin-bottom:.75rem"><?= icon('info') ?> Wichtiger Hinweis</h3>
   <p style="font-size:.875rem;color:var(--gray-600)">
     Die EDA-Daten sind die <strong>einzige rechtlich bindende Abrechnungsgrundlage</strong>.
     Nach erfolgreichem Import prüft das System automatisch ob alle Zählpunkte vollständig (COMPLETE)

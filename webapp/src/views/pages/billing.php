@@ -223,7 +223,7 @@ function filterBilling() {
 </script>
 
 <div class="card" style="margin-top:1.5rem">
-  <h3 style="margin-bottom:.75rem">ℹ️ Freigabe nach EDA-Datenqualität</h3>
+  <h3 style="margin-bottom:.75rem"><?= icon('info') ?> Freigabe nach EDA-Datenqualität</h3>
   <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:.5rem">
     Eine Abrechnung darf freigegeben werden, sobald die Messwerte belastbar sind – nicht mehr erst nach einer
     starren 60-Tage-Frist. Die EDA kennzeichnet jeden Viertelstundenwert mit einer Wertekategorie:
