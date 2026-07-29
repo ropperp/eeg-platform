@@ -4096,6 +4096,7 @@ $router->post('/portal/settings/community', function () {
     $auditBefore = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
+                                 aufteilungsschluessel_info=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
                                  sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=? WHERE id=?',
         [
@@ -4106,6 +4107,7 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['zvr_number'] ?? '') ?: null,
             trim($_POST['marktpartner_id'] ?? '') ?: null,
             trim($_POST['dashboard_url'] ?? '') ?: null,
+            trim($_POST['aufteilungsschluessel_info'] ?? '') ?: null,
             trim($_POST['bank_name'] ?? '') ?: null,
             trim($_POST['account_holder'] ?? '') ?: null,
             trim($_POST['contact_phone'] ?? '') ?: null,
@@ -4125,6 +4127,7 @@ $router->post('/portal/settings/community', function () {
         auditDiff($auditBefore ?? [], $auditAfter ?? [], [
             'name' => 'Name', 'address' => 'Adresse', 'iban' => 'IBAN', 'bic' => 'BIC',
             'zvr_number' => 'ZVR', 'marktpartner_id' => 'Marktpartner-ID', 'dashboard_url' => 'Dashboard-URL',
+            'aufteilungsschluessel_info' => 'Aufteilungsschlüssel (Info)',
             'bank_name' => 'Bankname', 'account_holder' => 'Kontoinhaber', 'contact_phone' => 'Telefon',
             'contact_email' => 'Kontakt-E-Mail', 'creditor_id' => 'Gläubiger-ID',
             'sepa_pain_version' => 'SEPA-Format', 'sepa_prenotification_days' => 'SEPA-Vorlauftage',
