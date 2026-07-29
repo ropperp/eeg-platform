@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 700" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#0f2647"/>
+      <stop offset="38%" stop-color="#3a4d7a"/>
+      <stop offset="62%" stop-color="#e8794f"/>
+      <stop offset="82%" stop-color="#f7b955"/>
+      <stop offset="100%" stop-color="#ffd98a"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#fff3c4" stop-opacity=".95"/>
+      <stop offset="35%" stop-color="#ffd27a" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#ffd27a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hillsFar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7a5a63"/>
+      <stop offset="100%" stop-color="#5c4350"/>
+    </linearGradient>
+    <linearGradient id="hillsNear" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f3d2c"/>
+      <stop offset="100%" stop-color="#08251b"/>
+    </linearGradient>
+    <linearGradient id="panelSheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5b8cae"/>
+      <stop offset="100%" stop-color="#274a63"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="700" fill="url(#sky)"/>
+
+  <!-- Sun -->
+  <circle cx="1180" cy="430" r="220" fill="url(#sunGlow)"/>
+  <circle cx="1180" cy="430" r="70" fill="#fff6da"/>
+
+  <!-- Clouds -->
+  <g fill="#ffe9cf" opacity=".38">
+    <ellipse cx="260" cy="150" rx="120" ry="26"/>
+    <ellipse cx="340" cy="135" rx="90" ry="22"/>
+    <ellipse cx="180" cy="140" rx="70" ry="18"/>
+  </g>
+  <g fill="#fff1de" opacity=".3">
+    <ellipse cx="820" cy="95" rx="150" ry="24"/>
+    <ellipse cx="920" cy="110" rx="100" ry="20"/>
+  </g>
+  <g fill="#ffe3c2" opacity=".25">
+    <ellipse cx="1420" cy="180" rx="130" ry="22"/>
+    <ellipse cx="1500" cy="165" rx="80" ry="18"/>
+  </g>
+
+  <!-- Far hills -->
+  <path d="M0,470 C220,410 430,455 640,420 C860,383 1040,440 1260,405 C1400,382 1520,410 1600,395 L1600,700 L0,700 Z" fill="url(#hillsFar)" opacity=".55"/>
+
+  <!-- Power pylons with catenary lines (behind mid hills, in front of far hills) -->
+  <g stroke="#0b1a2b" stroke-width="4" fill="none" opacity=".9">
+    <!-- Pylon 1 -->
+    <g transform="translate(430,300)">
+      <path d="M-70,240 L-18,0 L18,0 L70,240 M-46,240 L46,-6 M46,240 L-46,-6
+               M-52,60 L52,60 M-58,120 L58,120 M-64,180 L64,180
+               M-90,0 L-18,0 M90,0 L18,0 M-100,-14 L-90,0 L-100,14
+               M100,-14 L90,0 L100,14"/>
+    </g>
+    <!-- Pylon 2 -->
+    <g transform="translate(760,330)">
+      <path d="M-58,210 L-14,0 L14,0 L58,210 M-38,210 L38,-6 M38,210 L-38,-6
+               M-42,50 L42,50 M-48,100 L48,100 M-52,155 L52,155
+               M-74,0 L-14,0 M74,0 L14,0 M-82,-12 L-74,0 L-82,12
+               M82,-12 L74,0 L82,12"/>
+    </g>
+    <!-- Pylon 3 (smaller, distant) -->
+    <g transform="translate(1020,350)" opacity=".75">
+      <path d="M-42,150 L-10,0 L10,0 L42,150 M-27,150 L27,-4 M27,150 L-27,-4
+               M-30,36 L30,36 M-34,72 L34,72 M-38,111 L38,111
+               M-54,0 L-10,0 M54,0 L10,0"/>
+    </g>
+  </g>
+  <g stroke="#0b1a2b" stroke-width="2.5" fill="none" opacity=".85">
+    <path d="M320,300 C380,340 380,340 430,300"/>
+    <path d="M430,300 C540,360 640,360 760,330"/>
+    <path d="M760,330 C860,365 940,365 1020,350"/>
+    <path d="M1020,350 C1090,368 1140,368 1200,358"/>
+    <path d="M340,286 C390,322 390,322 448,286"/>
+    <path d="M448,286 C550,342 650,342 778,314"/>
+    <path d="M778,314 C870,346 950,346 1038,334"/>
+  </g>
+
+  <!-- Mid hills -->
+  <path d="M0,560 C260,500 420,545 660,510 C900,475 1080,530 1320,500 C1440,486 1520,505 1600,495 L1600,700 L0,700 Z" fill="#123a2e" opacity=".8"/>
+
+  <!-- PV panel array on the near slope -->
+  <g transform="translate(1080,545) rotate(-9)">
+    <g fill="url(#panelSheen)" stroke="#132f3d" stroke-width="2">
+      <rect x="0"   y="0" width="86" height="46" rx="3"/>
+      <rect x="94"  y="0" width="86" height="46" rx="3"/>
+      <rect x="188" y="0" width="86" height="46" rx="3"/>
+      <rect x="282" y="0" width="86" height="46" rx="3"/>
+      <rect x="0"   y="54" width="86" height="46" rx="3"/>
+      <rect x="94"  y="54" width="86" height="46" rx="3"/>
+      <rect x="188" y="54" width="86" height="46" rx="3"/>
+      <rect x="282" y="54" width="86" height="46" rx="3"/>
+    </g>
+    <g stroke="#0d2430" stroke-width="1.2" opacity=".6">
+      <line x1="43"  y1="0" x2="43"  y2="46"/>
+      <line x1="137" y1="0" x2="137" y2="46"/>
+      <line x1="231" y1="0" x2="231" y2="46"/>
+      <line x1="325" y1="0" x2="325" y2="46"/>
+      <line x1="43"  y1="54" x2="43"  y2="100"/>
+      <line x1="137" y1="54" x2="137" y2="100"/>
+      <line x1="231" y1="54" x2="231" y2="100"/>
+      <line x1="325" y1="54" x2="325" y2="100"/>
+    </g>
+    <rect x="150" y="100" width="8" height="34" fill="#0d2430"/>
+  </g>
+
+  <!-- Foreground hill (brand green, grounds the composition) -->
+  <path d="M0,700 L0,610 C180,565 360,600 560,580 C820,555 1000,610 1220,585 C1380,566 1500,600 1600,585 L1600,700 Z" fill="url(#hillsNear)"/>
+</svg>

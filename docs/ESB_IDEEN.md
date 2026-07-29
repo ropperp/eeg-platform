@@ -51,13 +51,14 @@ abrufbar machen — z. B. für Node-RED oder andere Smart-Home-Systeme des Mitgl
 - Test-Endpoint `GET /api/v1/me` (Bearer-Token-Auth gegen den erzeugten API-Key) —
   funktioniert bereits, wurde erfolgreich in Node-RED getestet.
 
-**Noch offen:** die eigentlichen Live-Daten-Endpoints (z. B. `GET /api/v1/live` mit
-Bezug/Einspeisung in Watt + Autarkie-Quote der Community). Bewusst zurückgestellt, bis
-die Zähler-/Dashboard-Pipeline produktionsreif ist (das Mitglieder-Dashboard zeigt die
-Verbrauchsanzeige aktuell nur als „🚧 in Bearbeitung"-Platzhalter, siehe
-`member_dashboard.php`) — sonst müsste die API zweimal gebaut werden.
+**Umgesetzt (2026-07-29):** `GET /api/v1/live` liefert jetzt Bezug/Einspeisung des
+Mitglieds in Watt (aus `esp_measurements`, letzte 2 Minuten) + die Autarkie-Quote der
+gesamten Community, gleiches Bearer-Token-Auth-Muster wie `/api/v1/me`. Gibt `0`-Werte
+zurück statt eines Fehlers, solange das Mitglied noch keine eigene Ausleseeinheit hat.
+Baut auf der EDA-basierten Verbrauchsanzeige im Mitglieder-Dashboard auf (nicht mehr nur
+Platzhalter, siehe `member_dashboard.php`).
 
-**Status:** zurückgestellt, siehe Platform-Task #64.
+**Status:** erledigt, siehe Platform-Task #64 (jetzt abgeschlossen) und #83.
 
 ---
 
@@ -101,5 +102,11 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
-*(noch keine Einträge — sobald ein Punkt aus „Offen" fertig ist, hierher verschieben
-mit kurzem Verweis auf Commit/PR.)*
+- **Punkt 2 (API-Schnittstelle für Live-Energiedaten):** `GET /api/v1/live` -- Details siehe
+  Eintrag oben unter Punkt 2 (Nummerierung bewusst nicht verschoben, da im Code/anderen Docs
+  darauf verwiesen wird). 2026-07-29.
+- **ESB-Online-/Zuletzt-online-Tracking** (Grundlage für Punkt 1): `metering_points.esb_online`
+  / `esb_last_seen_at`, gespeist über den bereits vom ESP32-Sketch gesendeten
+  Status-Heartbeat (`eeg/{rc}/meter/{znr}/status`). WLAN-Diagnosefelder (`wifi_ssid`, `wifi_ip`,
+  `wifi_password_enc`, siehe Punkt 1) sind schemaseitig + im mqtt-subscriber vorbereitet, warten
+  aber noch darauf, dass die Firmware sie tatsächlich mitschickt. 2026-07-29.

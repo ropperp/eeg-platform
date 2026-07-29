@@ -73,6 +73,25 @@ ob_start();
       Die <strong>EEG Strompool Feldkirchen Süd-West</strong> (ZVR 1778816746) läuft als erste Gemeinschaft
       auf dieser Plattform und liefert live Daten aus Kärnten.
     </p>
+    <!-- Live-Kennzahlen: bewusst per Client-Fetch (gleicher /api/live/:slug-Endpoint wie die
+         /live-Seite) statt einer direkten DB-Abfrage hier -- die Startseite bleibt so komplett
+         statisch/DB-unabhängig (robust, auch wenn die DB mal down ist); schlägt der Abruf fehl,
+         bleibt die Zeile einfach unsichtbar (kein kaputtes UI). Die Zahlen zählen beim
+         Erscheinen sanft hoch (siehe site-animations.js), respektiert prefers-reduced-motion. -->
+    <div id="pilot-live-stats" class="grid-3" style="max-width:640px;margin:0 auto 2rem;display:none">
+      <div>
+        <div class="stat-value" data-live-value="bezug_w" style="font-size:1.5rem;color:#dc2626">0</div>
+        <div style="font-size:.78rem;color:var(--gray-600)">W Bezug gerade</div>
+      </div>
+      <div>
+        <div class="stat-value" data-live-value="einspeisung_w" style="font-size:1.5rem;color:#16a34a">0</div>
+        <div style="font-size:.78rem;color:var(--gray-600)">W Einspeisung gerade</div>
+      </div>
+      <div>
+        <div class="stat-value" data-live-value="autarkie_pct" style="font-size:1.5rem;color:var(--green-dark)">0</div>
+        <div style="font-size:.78rem;color:var(--gray-600)">% Autarkie</div>
+      </div>
+    </div>
     <a href="/live?eeg=strompool-feldkirchen" class="btn btn-primary btn-lg">Echtzeit-Daten ansehen</a>
     <a href="/infoblatt.pdf" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">Infoblatt (PDF)</a>
   </div>

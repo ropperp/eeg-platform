@@ -144,6 +144,7 @@
       <?php
         $pendingApplications = 0;
         $offeneNotifications = 0;
+        $unassignedMeteringPoints = 0;
         if ($ar['community_id'] ?? null) {
           DB::setCommunity($ar['community_id']);
           $pendingApplications = (int)DB::fetchOne(
@@ -152,6 +153,10 @@
           )['cnt'];
           $offeneNotifications = (int)DB::fetchOne(
               "SELECT COUNT(*) AS cnt FROM notifications WHERE community_id = ? AND status = 'offen'",
+              [$ar['community_id']]
+          )['cnt'];
+          $unassignedMeteringPoints = (int)DB::fetchOne(
+              "SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND member_id IS NULL",
               [$ar['community_id']]
           )['cnt'];
         }
@@ -171,6 +176,12 @@
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('folder-open') ?></span><span class="sidebar-text">EDA-Import</span>
       </a>
+      <?php if ($unassignedMeteringPoints > 0): ?>
+      <a href="/portal/metering-points/unassigned" class="<?= str_contains($_SERVER['REQUEST_URI'], 'metering-points') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('warning-circle') ?></span><span class="sidebar-text">Zählpunkte ohne Zuordnung</span>
+        <span class="badge badge-yellow" style="margin-left:.4rem"><?= $unassignedMeteringPoints ?></span>
+      </a>
+      <?php endif; ?>
       <a href="/portal/settings" class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('gear') ?></span><span class="sidebar-text">Einstellungen</span>
       </a>

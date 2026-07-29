@@ -59,3 +59,28 @@ test('Einspeisung: Minuszeichen, kein Sublabel wenn Zählpunkt leer', function (
     assertFalse(str_contains($out, 'Zählpunkt:'), 'kein Zählpunkt-Sublabel bei leerer Nummer');
 });
 test('Leere Positionsliste ergibt leeren String', fn() => assertSame('', rechnungPositionenLatex([], 'X', false)));
+
+// encryptSecret()/decryptSecret() -- AES-256-CBC-Verschlüsselung fürs ESB-WLAN-Passwort.
+test('encryptSecret()/decryptSecret() Round-Trip liefert Original zurück', function () {
+    $plain = 'Mein-WLAN-Passwort-123!';
+    $enc = encryptSecret($plain);
+    assertFalse($enc === $plain, 'verschlüsselter Wert darf nicht dem Klartext entsprechen');
+    assertSame($plain, decryptSecret($enc));
+});
+test('encryptSecret() liefert bei gleichem Klartext unterschiedliche Ciphertexte (zufälliger IV)', function () {
+    $a = encryptSecret('gleicher-text');
+    $b = encryptSecret('gleicher-text');
+    assertFalse($a === $b, 'IV muss zufällig sein, sonst gleicher Ciphertext bei gleichem Klartext');
+});
+test('decryptSecret() liefert leeren String bei leerem/kaputtem Wert', function () {
+    assertSame('', decryptSecret(null));
+    assertSame('', decryptSecret(''));
+    assertSame('', decryptSecret('kein-gueltiges-base64!!!'));
+});
+
+// monatsLabel() -- deutscher Monatsname + Jahr fürs Mitglieder-Dashboard (Verbrauchsverlauf).
+test('monatsLabel() formatiert Monat und Jahr auf Deutsch', function () {
+    assertSame('Juni 2026', monatsLabel('2026-06-01 00:00:00+00'));
+    assertSame('Jänner 2027', monatsLabel('2027-01-15'));
+    assertSame('Dezember 2025', monatsLabel('2025-12-01'));
+});

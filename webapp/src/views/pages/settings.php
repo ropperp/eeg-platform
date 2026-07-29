@@ -20,6 +20,15 @@
         <input type="text" name="marktpartner_id" value="<?= htmlspecialchars($community['marktpartner_id'] ?? '') ?>">
       </div>
       <div class="form-group">
+        <label>Aufteilungsschlüssel (Info)</label>
+        <input type="text" name="aufteilungsschluessel_info" placeholder="z.B. dynamisch nach Verbrauch"
+               value="<?= htmlspecialchars($community['aufteilungsschluessel_info'] ?? '') ?>">
+        <small style="color:var(--gray-600)">Rein dokumentarisch -- welches Modell (statisch/dynamisch) bei
+          Kärnten Netz für diese EEG hinterlegt ist. Ohne Einfluss auf die Abrechnung: der Netzbetreiber
+          wendet den Schlüssel selbst an und liefert bereits aufgeteilte Werte, siehe
+          <code>docs/AUFTEILUNGSSCHLUESSEL.md</code>.</small>
+      </div>
+      <div class="form-group">
         <label>ZVR-Zahl</label>
         <input type="text" name="zvr_number" value="<?= htmlspecialchars($community['zvr_number'] ?? '') ?>">
       </div>

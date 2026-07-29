@@ -1072,7 +1072,7 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
                 c.zvr_number AS eeg_zvr, c.contact_phone AS eeg_contact_phone,
                 c.contact_email AS eeg_contact_email, c.bank_name AS eeg_bank_name,
-                c.account_holder AS eeg_account_holder,
+                c.account_holder AS eeg_account_holder, c.creditor_id AS eeg_creditor_id,
                 tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur,
                 tx.uid_number AS eeg_uid_number, tx.tax_model AS eeg_tax_model,
                 tx.tax_rate_percent AS eeg_tax_rate
@@ -1168,7 +1168,9 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         $summeLabel = 'Ihr Guthaben';
     } elseif (!empty($invoice['mandatsreferenz'])) {
         $zahlungText = 'Der Rechnungsbetrag von \\textbf{EUR ' . $betragFmt . '} wird gemäß SEPA-Lastschriftmandat'
-            . ' (Mandatsreferenz \\textbf{' . texEscape($invoice['mandatsreferenz']) . '}) am \\textbf{' . $faellig . '}'
+            . ' (Mandatsreferenz \\textbf{' . texEscape($invoice['mandatsreferenz']) . '}'
+            . (!empty($invoice['eeg_creditor_id']) ? ', Gläubiger-ID \\textbf{' . texEscape($invoice['eeg_creditor_id']) . '}' : '')
+            . ') am \\textbf{' . $faellig . '}'
             . ($ibanEnd ? ' von Ihrem Konto mit der Endung \\textbf{' . $ibanEnd . '}' : ' von Ihrem Konto')
             . ' eingezogen. Sie müssen nichts weiter veranlassen.'
             . ' Diese Rechnung gilt zugleich als Vorabankündigung (Pre-Notification)'
@@ -1538,10 +1540,9 @@ $router->post('/portal/my/api-keys/:id/revoke', function ($params) {
 });
 
 /**
- * Erster Test-Endpoint der künftigen Smart-Home-API: prüft nur, ob ein API-Key gültig ist,
- * und gibt Basisinfos zurück -- noch KEINE Energiedaten (die kommen erst mit Task
- * "API-Schnittstelle für Live-Energiedaten", siehe /portal/my/api-keys). Dient zum Testen der
- * Authentifizierung z.B. mit Node-RED, bevor es echte Daten gibt.
+ * Test-Endpoint der Smart-Home-API: prüft nur, ob ein API-Key gültig ist, und gibt Basisinfos
+ * zurück -- keine Energiedaten (die liefert /api/v1/live, siehe unten). Dient zum Testen der
+ * Authentifizierung z.B. mit Node-RED, bevor man die Live-Daten abruft.
  *
  * Kein DB::setCommunity() vorab -- der Key wird bewusst GLOBAL per Hash gesucht (die Community
  * ist ja erst das Ergebnis der Suche), member_api_keys hat deshalb auch keine Community-RLS
@@ -1574,7 +1575,59 @@ $router->get('/api/v1/me', function () {
         'status'    => 'ok',
         'member'    => $key['first_name'] . ' ' . $key['last_name'],
         'community' => $key['community_name'],
-        'note'      => 'Authentifizierung erfolgreich. Live-Energiedaten-Endpoints folgen in Kürze.',
+        'note'      => 'Authentifizierung erfolgreich. Live-Energiedaten: GET /api/v1/live.',
+    ]);
+});
+
+/**
+ * Live-Energiedaten fürs Smart-Home des Mitglieds (Node-RED etc., siehe docs/ESB_IDEEN.md
+ * Punkt 2): eigener Bezug/Einspeisung in Watt (letzte 2 Minuten, gleiches Fenster wie
+ * /api/live/:slug) + Autarkiequote der gesamten Community. Gibt 0/null-Werte zurück statt
+ * eines Fehlers, wenn das Mitglied noch keine Ausleseeinheit hat -- ein Smart-Home-Skript
+ * soll bei "noch keine Daten" nicht mit einem HTTP-Fehler abbrechen müssen.
+ */
+$router->get('/api/v1/live', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (!preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Fehlender oder ungültiger Authorization-Header. Erwartet: "Bearer <API-Key>".']);
+        return;
+    }
+    $hash = hash('sha256', trim($m[1]));
+    $key = DB::fetchOne(
+        'SELECT k.*, m.id AS member_id FROM member_api_keys k JOIN members m ON m.id = k.member_id WHERE k.key_hash = ?',
+        [$hash]
+    );
+    if (!$key || $key['revoked_at'] || ($key['expires_at'] && strtotime($key['expires_at']) < time())) {
+        http_response_code(401);
+        echo json_encode(['error' => 'API-Key ungültig, widerrufen oder abgelaufen.']);
+        return;
+    }
+    DB::execute('UPDATE member_api_keys SET last_used_at = now() WHERE id = ?', [$key['id']]);
+
+    $own = DB::fetchOne(
+        "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
+         FROM esp_measurements
+         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+           AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)",
+        [$key['community_id'], $key['member_id']]
+    );
+
+    $community = DB::fetchOne(
+        "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
+         FROM esp_measurements WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+        [$key['community_id']]
+    );
+    $communityBezug = (int)($community['bezug_w'] ?? 0);
+    $communityEinsp = (int)($community['einspeisung_w'] ?? 0);
+    $autarkie = $communityBezug > 0 ? min(100, round($communityEinsp / $communityBezug * 100)) : 0;
+
+    echo json_encode([
+        'status'                => 'ok',
+        'bezug_w'               => (int)($own['bezug_w'] ?? 0),
+        'einspeisung_w'         => (int)($own['einspeisung_w'] ?? 0),
+        'community_autarkie_pct' => $autarkie,
     ]);
 });
 
@@ -1945,6 +1998,31 @@ $router->get('/portal/members/:id', function ($params) {
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
     require ROOT . '/src/views/pages/member_detail.php';
+});
+
+/**
+ * WLAN-Diagnoseinfos eines Zählpunkts (SSID/IP/Passwort) auf Abruf statt beim Seitenaufbau
+ * mitzuschicken -- das entschlüsselte Passwort landet so nicht unnötig im initialen HTML
+ * (z.B. Browser-Cache, Screenshot der Seite), sondern nur wenn Obmann/Admin aktiv auf
+ * "WLAN-Info anzeigen" klicken. Siehe docs/ESB_IDEEN.md Punkt 1.
+ */
+$router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    header('Content-Type: application/json; charset=UTF-8');
+    $mp = DB::fetchOne(
+        'SELECT mp.wifi_ssid, mp.wifi_ip, mp.wifi_password_enc, mp.community_id
+         FROM metering_points mp WHERE mp.id = ? AND mp.member_id = ?',
+        [$params['mpid'], $params['id']]
+    );
+    if (!$mp) { http_response_code(404); echo json_encode(['error' => 'Zählpunkt nicht gefunden']); return; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
+        http_response_code(403); echo json_encode(['error' => 'Kein Zugriff']); return;
+    }
+    echo json_encode([
+        'ssid'     => $mp['wifi_ssid'] ?? '',
+        'ip'       => $mp['wifi_ip'] ?? '',
+        'password' => decryptSecret($mp['wifi_password_enc']),
+    ]);
 });
 
 $router->post('/portal/members/:id/files', function ($params) {
@@ -3925,9 +4003,63 @@ $router->post('/portal/eda/upload', function () {
     } else {
         logAudit($communityId, 'eda.import', null, null,
             'EDA-Import: ' . ($result['records'] ?? '?') . ' Datensätze importiert' . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''));
+        // Je automatisch angelegtem Zählpunkt einen eigenen, gezielt auffindbaren Audit-Log-
+        // Eintrag -- wer/wann nachvollziehbar pro Zählpunkt statt nur in der Sammel-Zeile oben.
+        foreach ($result['neu_angelegt'] ?? [] as $neu) {
+            logAudit($communityId, 'eda.metering_point.autocreate', 'metering_point', $neu['metering_point_id'] ?? null,
+                'Zählpunkt ' . $neu['zaehlpunkt_nr'] . ' automatisch aus EDA-Import angelegt (Typ-Vermutung: '
+                . $neu['type_guess'] . '), noch keinem Mitglied zugeordnet.');
+        }
     }
 
     require ROOT . '/src/views/pages/eda_upload.php';
+});
+
+/**
+ * Zählpunkte, die per automatischem EDA-Import-Abgleich angelegt wurden (siehe
+ * eda-parser/parser.py, docs/ESB_IDEEN.md Punkt 3), aber noch keinem Mitglied zugeordnet sind
+ * -- der Obmann weist sie hier einem bestehenden Mitglied zu, korrigiert bei Bedarf den Typ und
+ * aktiviert den Zählpunkt (erst dann nimmt er an einer Abrechnung teil).
+ */
+$router->get('/portal/metering-points/unassigned', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $unassigned = DB::fetchAll(
+        'SELECT * FROM metering_points WHERE community_id = ? AND member_id IS NULL ORDER BY registered_at DESC',
+        [$communityId]
+    );
+    $members = DB::fetchAll(
+        "SELECT id, first_name, last_name, kundennummer FROM members WHERE community_id = ? AND status = 'active' ORDER BY last_name, first_name",
+        [$communityId]
+    );
+    require ROOT . '/src/views/pages/metering_points_unassigned.php';
+});
+
+$router->post('/portal/metering-points/:id/assign', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $mp = DB::fetchOne('SELECT * FROM metering_points WHERE id = ? AND community_id = ? AND member_id IS NULL', [$params['id'], $communityId]);
+    if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden oder bereits zugeordnet.'; return; }
+
+    $memberId = $_POST['member_id'] ?? '';
+    $member = DB::fetchOne('SELECT id FROM members WHERE id = ? AND community_id = ?', [$memberId, $communityId]);
+    if (!$member) {
+        header('Location: /portal/metering-points/unassigned?error=' . urlencode('Bitte ein gültiges Mitglied auswählen.'));
+        exit;
+    }
+    $type = in_array($_POST['type'] ?? '', ['consumer', 'producer', 'prosumer'], true) ? $_POST['type'] : $mp['type'];
+
+    DB::execute(
+        'UPDATE metering_points SET member_id = ?, type = ?, active = true WHERE id = ? AND community_id = ?',
+        [$memberId, $type, $params['id'], $communityId]
+    );
+    logAudit($communityId, 'metering_point.assign', 'metering_point', $params['id'],
+        'Zählpunkt ' . $mp['zaehlpunkt_nr'] . ' (aus EDA-Import) einem Mitglied zugeordnet und aktiviert (Typ: ' . $type . ').');
+    header('Location: /portal/metering-points/unassigned?success=1');
+    exit;
 });
 
 // ─── Portal: Einstellungen ──────────────────────────────
@@ -4018,6 +4150,7 @@ $router->post('/portal/settings/community', function () {
     $auditBefore = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     DB::execute(
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
+                                 aufteilungsschluessel_info=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
                                  sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=? WHERE id=?',
         [
@@ -4028,6 +4161,7 @@ $router->post('/portal/settings/community', function () {
             trim($_POST['zvr_number'] ?? '') ?: null,
             trim($_POST['marktpartner_id'] ?? '') ?: null,
             trim($_POST['dashboard_url'] ?? '') ?: null,
+            trim($_POST['aufteilungsschluessel_info'] ?? '') ?: null,
             trim($_POST['bank_name'] ?? '') ?: null,
             trim($_POST['account_holder'] ?? '') ?: null,
             trim($_POST['contact_phone'] ?? '') ?: null,
@@ -4047,6 +4181,7 @@ $router->post('/portal/settings/community', function () {
         auditDiff($auditBefore ?? [], $auditAfter ?? [], [
             'name' => 'Name', 'address' => 'Adresse', 'iban' => 'IBAN', 'bic' => 'BIC',
             'zvr_number' => 'ZVR', 'marktpartner_id' => 'Marktpartner-ID', 'dashboard_url' => 'Dashboard-URL',
+            'aufteilungsschluessel_info' => 'Aufteilungsschlüssel (Info)',
             'bank_name' => 'Bankname', 'account_holder' => 'Kontoinhaber', 'contact_phone' => 'Telefon',
             'contact_email' => 'Kontakt-E-Mail', 'creditor_id' => 'Gläubiger-ID',
             'sepa_pain_version' => 'SEPA-Format', 'sepa_prenotification_days' => 'SEPA-Vorlauftage',

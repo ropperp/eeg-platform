@@ -184,28 +184,85 @@ def import_to_db(
     filename: str,
     user_id: str | None,
 ) -> dict:
+    """
+    Siehe docs/ESB_IDEEN.md Punkt 3: gleicht die im EDA-Export enthaltenen Zählpunkte mit dem
+    Bestand ab und meldet Abweichungen ausformuliert statt nur mit einer knappen Log-Zeile.
+
+    - Zählpunkte, die bei uns AKTIV registriert sind, im Export aber fehlen -> Warnung.
+    - Zählpunkte, die im Export auftauchen, aber bei uns unbekannt sind -> werden automatisch
+      angelegt (member_id NULL, active=false), damit ihre Energiedaten nicht verloren gehen,
+      aber OHNE sie irgendeinem Mitglied zuzuordnen oder aktiv/abrechenbar zu machen -- das
+      würde falsch raten. Ein Obmann muss sie manuell zuordnen und prüfen/aktivieren (siehe
+      /portal/metering-points/unassigned).
+    """
     warnings = []
+    neu_angelegt = []
     total_records = 0
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        # Registrierte Zählpunkte der Community laden
+        # Registrierte Zählpunkte der Community laden (auch inaktive, damit ein bereits
+        # deaktivierter/noch nicht zugeordneter Zählpunkt nicht ein zweites Mal angelegt wird)
         cur.execute(
-            "SELECT id, zaehlpunkt_nr FROM metering_points WHERE community_id = %s AND active = true",
+            "SELECT id, zaehlpunkt_nr FROM metering_points WHERE community_id = %s",
             (community_id,)
         )
         registered = {row["zaehlpunkt_nr"]: str(row["id"]) for row in cur.fetchall()}
 
-    zp_in_xlsx = {d.zaehlpunkt_nr for d in data}
-    zp_registered = set(registered.keys())
+        cur.execute(
+            "SELECT id, zaehlpunkt_nr FROM metering_points WHERE community_id = %s AND active = true",
+            (community_id,)
+        )
+        aktiv = {row["zaehlpunkt_nr"] for row in cur.fetchall()}
 
-    # Fehlende Zählpunkte: in DB registriert, aber nicht in XLSX
-    for missing in zp_registered - zp_in_xlsx:
-        warnings.append(f"Zählpunkt {missing} in DB registriert, aber nicht in XLSX")
+    zp_in_xlsx = {d.zaehlpunkt_nr for d in data}
+
+    # Fehlende Zählpunkte: bei uns AKTIV, aber nicht im Export enthalten.
+    for missing in aktiv - zp_in_xlsx:
+        warnings.append(
+            f"Zählpunkt {missing} ist bei uns aktiv, taucht im EDA-Export für diesen Zeitraum "
+            "aber nicht auf — evtl. Abmeldung, Zählerwechsel oder Datenlücke; bitte prüfen."
+        )
         log.warning("Fehlender Zählpunkt: %s", missing)
 
-    # Unbekannte Zählpunkte: in XLSX, aber nicht in DB registriert (kein Fehler, nur Info)
-    for unknown in zp_in_xlsx - zp_registered:
-        log.info("Zählpunkt %s in XLSX, aber nicht in DB registriert — wird übersprungen", unknown)
+    # Unbekannte Zählpunkte: im Export enthalten, bei uns noch gar nicht registriert ->
+    # automatisch anlegen, aber bewusst inaktiv und ohne Mitglied-Zuordnung.
+    with conn.cursor() as cur:
+        for mp_data in data:
+            zp = mp_data.zaehlpunkt_nr
+            if zp in registered:
+                continue
+
+            erzeugung_summe = float(mp_data.timeseries["kwh_erzeugung"].sum()) if not mp_data.timeseries.empty else 0.0
+            teilnahme_summe = float(mp_data.timeseries["kwh_teilnahme"].sum()) if not mp_data.timeseries.empty else 0.0
+            type_guess = "producer" if erzeugung_summe > teilnahme_summe else "consumer"
+
+            cur.execute(
+                """
+                INSERT INTO metering_points
+                    (community_id, member_id, zaehlpunkt_nr, meter_code, type, active, registered_at)
+                VALUES (%s, NULL, %s, %s, %s, false, CURRENT_DATE)
+                RETURNING id
+                """,
+                (community_id, zp, mp_data.meter_code, type_guess)
+            )
+            new_id = str(cur.fetchone()[0])
+            registered[zp] = new_id
+            neu_angelegt.append({
+                "zaehlpunkt_nr": zp,
+                "meter_code": mp_data.meter_code,
+                "type_guess": type_guess,
+                "metering_point_id": new_id,
+            })
+            log.warning("Zählpunkt %s automatisch angelegt (Typ-Vermutung: %s, unzugeordnet)", zp, type_guess)
+
+    # Eine zusammenfassende Warnung (nicht pro Zählpunkt -- die Details stehen im eigenen
+    # "Neu angelegt"-Abschnitt der UI) sorgt dafür, dass der Import trotzdem als "warning" statt
+    # "ok" markiert wird, solange noch etwas zuzuordnen ist.
+    if neu_angelegt:
+        warnings.append(
+            f"{len(neu_angelegt)} neu angelegte, noch nicht zugeordnete Zählpunkte "
+            "(siehe Abschnitt „Neu angelegt\" oben)."
+        )
 
     period_from = None
     period_to = None
@@ -284,8 +341,8 @@ def import_to_db(
             """
             INSERT INTO eda_imports
                 (community_id, imported_by, filename, period_from, period_to,
-                 records_imported, warnings, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 records_imported, warnings, neu_angelegt, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
             (
@@ -296,18 +353,23 @@ def import_to_db(
                 period_to,
                 total_records,
                 json.dumps(warnings),
+                json.dumps(neu_angelegt),
                 "warning" if warnings else "ok",
             )
         )
         import_id = cur.fetchone()[0]
 
     conn.commit()
-    log.info("Import abgeschlossen: %d Datensätze, %d Warnungen (Import-ID: %s)", total_records, len(warnings), import_id)
+    log.info(
+        "Import abgeschlossen: %d Datensätze, %d Warnungen, %d neu angelegt (Import-ID: %s)",
+        total_records, len(warnings), len(neu_angelegt), import_id
+    )
 
     return {
         "import_id": str(import_id),
         "records": total_records,
         "warnings": warnings,
+        "neu_angelegt": neu_angelegt,
         "period_from": str(period_from) if period_from else None,
         "period_to": str(period_to) if period_to else None,
     }

@@ -11,6 +11,31 @@ $mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE commu
 $lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = ? ORDER BY imported_at DESC LIMIT 1', [$communityId]);
 $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? AND status IN ('pending','ready') ORDER BY quartal DESC LIMIT 1", [$communityId]);
 
+// ─── Status-Kachelzeile: Betriebsreife auf einen Blick (letzter EDA-Import, letztes
+// Backup, ESB online/offline, offene Rechnungen) -- siehe diplomarbeit-berater-Vorschlag. ───
+$esbStats = DB::fetchOne(
+    "SELECT COUNT(*) FILTER (WHERE esb_last_seen_at IS NOT NULL) AS bekannt,
+            COUNT(*) FILTER (WHERE esb_online) AS online
+     FROM metering_points WHERE community_id = ? AND active = true",
+    [$communityId]
+);
+$openInvoices = DB::fetchOne(
+    "SELECT COUNT(*) AS cnt, COALESCE(SUM(saldo_eur) FILTER (WHERE saldo_eur > 0), 0) AS summe
+     FROM invoices
+     WHERE community_id = ? AND sent_at IS NOT NULL
+       AND COALESCE(payment_status, 'offen') NOT IN ('eingezogen', 'ueberwiesen')",
+    [$communityId]
+);
+// Backup-Status ist plattformweit (kein Community-Bezug), aber für den Obmann relevant genug,
+// um hier mit angezeigt zu werden -- gleiche Datei wie /admin/backups (nur lesend gemountet).
+$backupStatus = null;
+$backupFile = '/var/www/html/backups/last_backup.json';
+if (is_readable($backupFile)) {
+    $backupStatus = json_decode((string)file_get_contents($backupFile), true) ?: null;
+}
+$backupAgeHours = $backupStatus && !empty($backupStatus['unix'])
+    ? (time() - (int)$backupStatus['unix']) / 3600 : null;
+
 // Community-Gesamtleistung live
 $live = DB::fetchOne(
     "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
@@ -39,6 +64,50 @@ ob_start();
       <?= $pendingCount ?>
     </div>
     <div class="stat-label">Ausstehende Beitritte</div>
+  </div>
+</div>
+
+<!-- Status-Kachelzeile: Betriebsreife auf einen Blick -->
+<div class="grid-4" style="margin-bottom:2rem">
+  <div class="card" style="padding:1rem">
+    <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('folder-open') ?> Letzter EDA-Import</div>
+    <?php if ($lastImport): ?>
+      <div style="font-weight:700"><?= date('d.m.Y', strtotime($lastImport['imported_at'])) ?></div>
+      <span class="badge badge-<?= $lastImport['status'] === 'ok' ? 'green' : 'yellow' ?>" style="margin-top:.25rem;display:inline-block"><?= $lastImport['status'] ?></span>
+    <?php else: ?>
+      <div style="font-weight:700;color:var(--gray-600)">—</div>
+    <?php endif; ?>
+  </div>
+  <div class="card" style="padding:1rem">
+    <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('floppy-disk') ?> Letztes Backup</div>
+    <?php if ($backupAgeHours !== null): ?>
+      <div style="font-weight:700"><?= date('d.m.Y H:i', (int)$backupStatus['unix']) ?></div>
+      <span class="badge badge-<?= $backupAgeHours <= 26 ? 'green' : 'red' ?>" style="margin-top:.25rem;display:inline-block">
+        <?= $backupAgeHours <= 26 ? 'aktuell' : 'überfällig' ?>
+      </span>
+    <?php else: ?>
+      <div style="font-weight:700;color:var(--gray-600)">Kein Status verfügbar</div>
+    <?php endif; ?>
+  </div>
+  <div class="card" style="padding:1rem">
+    <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('plug') ?> ESB online</div>
+    <?php if (($esbStats['bekannt'] ?? 0) > 0): ?>
+      <div style="font-weight:700"><?= $esbStats['online'] ?> von <?= $esbStats['bekannt'] ?></div>
+      <span class="badge badge-<?= $esbStats['online'] == $esbStats['bekannt'] ? 'green' : ($esbStats['online'] > 0 ? 'yellow' : 'red') ?>" style="margin-top:.25rem;display:inline-block">
+        <?= $esbStats['online'] ?> online
+      </span>
+    <?php else: ?>
+      <div style="font-weight:700;color:var(--gray-600)">Noch keine ESB</div>
+    <?php endif; ?>
+  </div>
+  <div class="card" style="padding:1rem">
+    <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('receipt') ?> Offene Rechnungen</div>
+    <div style="font-weight:700"><?= $openInvoices['cnt'] ?? 0 ?></div>
+    <?php if (($openInvoices['cnt'] ?? 0) > 0): ?>
+      <span class="badge badge-yellow" style="margin-top:.25rem;display:inline-block"><?= number_format((float)($openInvoices['summe'] ?? 0), 2, ',', '.') ?> €</span>
+    <?php else: ?>
+      <span class="badge badge-green" style="margin-top:.25rem;display:inline-block">alles beglichen</span>
+    <?php endif; ?>
   </div>
 </div>
 
