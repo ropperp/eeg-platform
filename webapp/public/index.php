@@ -1072,7 +1072,7 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
                 c.zvr_number AS eeg_zvr, c.contact_phone AS eeg_contact_phone,
                 c.contact_email AS eeg_contact_email, c.bank_name AS eeg_bank_name,
-                c.account_holder AS eeg_account_holder,
+                c.account_holder AS eeg_account_holder, c.creditor_id AS eeg_creditor_id,
                 tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur,
                 tx.uid_number AS eeg_uid_number, tx.tax_model AS eeg_tax_model,
                 tx.tax_rate_percent AS eeg_tax_rate
@@ -1168,7 +1168,9 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         $summeLabel = 'Ihr Guthaben';
     } elseif (!empty($invoice['mandatsreferenz'])) {
         $zahlungText = 'Der Rechnungsbetrag von \\textbf{EUR ' . $betragFmt . '} wird gemäß SEPA-Lastschriftmandat'
-            . ' (Mandatsreferenz \\textbf{' . texEscape($invoice['mandatsreferenz']) . '}) am \\textbf{' . $faellig . '}'
+            . ' (Mandatsreferenz \\textbf{' . texEscape($invoice['mandatsreferenz']) . '}'
+            . (!empty($invoice['eeg_creditor_id']) ? ', Gläubiger-ID \\textbf{' . texEscape($invoice['eeg_creditor_id']) . '}' : '')
+            . ') am \\textbf{' . $faellig . '}'
             . ($ibanEnd ? ' von Ihrem Konto mit der Endung \\textbf{' . $ibanEnd . '}' : ' von Ihrem Konto')
             . ' eingezogen. Sie müssen nichts weiter veranlassen.'
             . ' Diese Rechnung gilt zugleich als Vorabankündigung (Pre-Notification)'
