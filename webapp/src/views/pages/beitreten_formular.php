@@ -14,7 +14,7 @@ ob_start();
   <?php if ($hasDownloadPdf): ?>
     <p style="margin-bottom:1.5rem">
       <a href="<?= htmlspecialchars($downloadPdf) ?>" class="btn" style="background:var(--gray-100);color:var(--gray-700)" download>
-        📄 Beitrittsformular herunterladen (falls Sie es lieber ausdrucken &amp; per Post/E-Mail schicken möchten)
+        <?= icon('file-text') ?> Beitrittsformular herunterladen (falls Sie es lieber ausdrucken &amp; per Post/E-Mail schicken möchten)
       </a>
     </p>
   <?php endif; ?>
