@@ -208,8 +208,13 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
 /* ─── Grid ───────────────────────────────────────── */
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 @media (max-width: 768px) {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .grid-4 { grid-template-columns: 1fr; }
 }
 
 /* ─── Stat-Kacheln ───────────────────────────────── */
