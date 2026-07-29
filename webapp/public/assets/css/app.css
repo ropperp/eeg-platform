@@ -293,18 +293,17 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
 }
 .hero .btn-outline:hover { background: rgba(255,255,255,.1); }
 
-/* Sanftes Einblenden beim Laden -- rein CSS, kein JS nötig, kurzer, dezenter Versatz je Element */
-.hero h1, .hero p, .hero a.btn {
+/* Hero-Einstieg: standardmäßig sofort sichtbar (funktioniert ohne JS). Nur wenn JS aktiv ist
+   (Klasse "js-anim" wird synchron in <head> gesetzt, siehe layouts) UND GSAP darauf noch vor
+   dem Malen des Elements bestätigt, dass es die Animation übernimmt (site-animations.js),
+   wird kurz auf unsichtbar geschaltet und per GSAP-Timeline eingeblendet -- siehe dort für die
+   genaue Abfolge. So gibt es weder einen Sichtbarkeits-Sprung noch dauerhaft unsichtbare
+   Inhalte, falls GSAP aus irgendeinem Grund nicht lädt (dann bleibt einfach "js-anim" ungenutzt).
+   Ersetzt die frühere reine @keyframes-Lösung, die keine Stagger-/Easing-Feinsteuerung erlaubte. */
+html.js-anim .hero h1,
+html.js-anim .hero p,
+html.js-anim .hero a.btn {
   opacity: 0;
-  animation: hero-in .7s ease forwards;
-}
-.hero h1     { animation-delay: .05s; }
-.hero p      { animation-delay: .18s; }
-.hero a.btn:nth-of-type(1) { animation-delay: .3s; }
-.hero a.btn:nth-of-type(2) { animation-delay: .38s; }
-@keyframes hero-in {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ─── Scroll-Reveal (z.B. Startseite): sanftes Einblenden beim Scrollen ── */
@@ -339,15 +338,45 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
   }
 }
 
+/* ─── Icons (Phosphor-Sprite, siehe icon() in functions.php) ────── */
+.icon {
+  width: 1em; height: 1em;
+  display: inline-block; flex-shrink: 0;
+  vertical-align: -0.125em;
+  fill: currentColor;
+}
+
+/* Hell/Dunkel-Umschalter: zeigt je nach [data-theme] Mond ODER Sonne (reines CSS, kein
+   JS-Textaustausch mehr nötig -- siehe layouts/base.php und portal.php). */
+.theme-toggle-btn {
+  background: none; border: none; cursor: pointer;
+  padding: .25rem .3rem; border-radius: 6px;
+  display: inline-flex; align-items: center;
+  color: var(--gray-700);
+  transition: color .15s ease, transform .3s ease;
+}
+.theme-toggle-btn:hover { color: var(--green-dark); transform: rotate(-12deg); }
+.theme-toggle-btn .icon { width: 1.15rem; height: 1.15rem; }
+.theme-toggle-btn .theme-icon-sun { display: none; }
+[data-theme="dark"] .theme-toggle-btn .theme-icon-moon { display: none; }
+[data-theme="dark"] .theme-toggle-btn .theme-icon-sun { display: inline-block; }
+
+#sidebar-toggle .icon { width: 1.2rem; height: 1.2rem; }
+
 /* ─── Features ───────────────────────────────────── */
 .features { padding: 5rem 0; }
 .feature-icon {
   width: 48px; height: 48px;
   background: var(--green-light);
+  color: var(--green-dark);
   border-radius: var(--radius);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; margin-bottom: 1rem;
+  margin-bottom: 1rem;
+  transition: transform .25s ease, box-shadow .25s ease;
 }
+.feature-icon .icon { width: 26px; height: 26px; }
+.card:hover .feature-icon { transform: scale(1.08) rotate(-4deg); box-shadow: 0 6px 16px rgba(22,163,74,.18); }
+[data-theme="dark"] .feature-icon { color: #86efac; }
 
 /* ─── Footer ─────────────────────────────────────── */
 footer {

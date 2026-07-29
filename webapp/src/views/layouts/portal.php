@@ -13,7 +13,7 @@
   <div class="container inner">
     <div style="display:flex;align-items:center;gap:1rem">
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
-              style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;font-size:1.2rem;color:var(--gray-600);line-height:1">☰</button>
+              style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;color:var(--gray-600);line-height:1"><?= icon('list') ?></button>
       <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">
         <img src="/logo-light.png" alt="Strom für alle" class="logo-img logo-img-light">
         <img src="/logo-dark.png" alt="Strom für alle" class="logo-img logo-img-dark">
@@ -64,8 +64,9 @@
       <?php endif; ?>
 
       <!-- Dark-Mode-Toggle -->
-      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten"
-              style="background:none;border:none;cursor:pointer;font-size:1.15rem;padding:.25rem .3rem;border-radius:6px;line-height:1">🌙</button>
+      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
+        <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
+      </button>
 
       <!-- Profil-Dropdown -->
       <?php
@@ -239,16 +240,14 @@ function confirmDangerDelete(itemLabel) {
 }
 
 // ─── Dark-Mode-Toggle ─────────────────────────────────────────────
+// Icon-Umschaltung (Mond/Sonne) läuft rein über CSS anhand [data-theme] (siehe app.css),
+// kein Textaustausch mehr nötig.
 function toggleDark() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const next = isDark ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('darkMode', next === 'dark' ? '1' : '0');
-  document.getElementById('theme-toggle').textContent = next === 'dark' ? '☀️' : '🌙';
 }
-// Initiales Icon setzen
-document.getElementById('theme-toggle').textContent =
-  document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
 </script>
 
 </body>

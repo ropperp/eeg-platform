@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-29 — Claude Code — Claude Sonnet 5
+**Auftrag:** Vor jeder Änderung committen/sicherbar machen; passende, hochwertige
+Animationsbibliotheken (z. B. Motion/GSAP) für dezente Übergänge/Hover-/Scroll-Effekte
+vorschlagen; alle generischen Emojis durch ein einheitliches, professionelles Icon-Set
+(z. B. Phosphor Icons) ersetzen; schrittweise mit Vorschau nach jedem größeren Schritt,
+jede Änderung einzeln rückgängig machbar.
+**Ergebnis:** Phase 1 (Startseite + gemeinsamer Theme-Toggle): selbst gehostetes
+Phosphor-Icon-Sprite (`webapp/public/assets/icons/phosphor-sprite.svg`) + neuer Helfer
+`icon()` in `functions.php` (3 neue Tests), ersetzt Emojis im Theme-Toggle, Sidebar-Menü
+und auf der Startseite (7 Icons). GSAP 3.12.5 + ScrollTrigger self-hosted unter
+`assets/js/vendor/` (kein CDN), neues `site-animations.js` blendet den Hero-Text auf der
+Startseite sanft ein — bewusst nur dort, Portal/Admin bleiben animationsfrei
+(schnelles CRUD-Arbeiten soll nicht ausgebremst werden). Progressive-Enhancement-Muster:
+`js-anim`-Klasse synchron in `<head>` gesetzt, CSS blendet nur dann aus, Script entfernt
+die Klasse wieder falls GSAP nicht lädt — nie dauerhaft unsichtbarer Inhalt. Per Playwright
+in Light/Dark/Hover visuell geprüft (dabei einen `.from()`-vs-`.fromTo()`-Bug gefunden und
+vor dem Commit behoben). Alle 73 Tests grün, gecommittet auf
+`claude/stromfueralle-footer-pages-trqb5c`. Offen: Phase 2 (verbleibende Emojis in
+~42 weiteren Dateien: Rechtstexte, Beitreten-Flow, Portal/Admin-Backoffice) nach Rückmeldung.
+
 ## 2026-07-24 (nachts) — Claude Code — Claude Opus 4.8
 **Auftrag:** Nachweisen, dass die Sicherungen wirklich laufen (inkl. Alarm ins Admin-Postfach),
 Zähler- und Mitgliederdaten sicher abdecken, Stammdaten von den (später großen) Messwerten

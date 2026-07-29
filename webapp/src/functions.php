@@ -10,6 +10,26 @@ declare(strict_types=1);
  */
 
 /**
+ * Rendert ein Phosphor-Icon aus dem selbst gehosteten Sprite
+ * (webapp/public/assets/icons/phosphor-sprite.svg) als <svg>-Snippet. Ersetzt die früher
+ * verwendeten Emojis durch ein einheitliches, professionelles Icon-Set (siehe CHANGELOG).
+ *
+ * Nutzt <use href="..."> statt eines Icon-Fonts oder Web-Components-Scripts -- kein externer
+ * CDN-Request nötig (eine Datei, einmal vom Browser gecacht), Farbe folgt automatisch über
+ * `currentColor` dem umgebenden Text (inkl. Dark Mode, ohne eigene Theming-Logik).
+ *
+ * @param string $name    Icon-Name ohne "ph-"-Präfix, z.B. "lightning", "check-circle".
+ * @param string $classes Zusätzliche CSS-Klassen (neben der Basis-Klasse "icon").
+ */
+function icon(string $name, string $classes = ''): string
+{
+    $cls = trim('icon ' . $classes);
+    return '<svg class="' . htmlspecialchars($cls) . '" aria-hidden="true" focusable="false">'
+        . '<use href="/assets/icons/phosphor-sprite.svg#ph-' . htmlspecialchars($name) . '"></use>'
+        . '</svg>';
+}
+
+/**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
  */
