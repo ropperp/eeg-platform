@@ -53,7 +53,7 @@ $jahresBasis = $isSelf ? '/portal/my/jahresuebersicht' : '/portal/members/' . $m
         <a href="<?= $jahresBasis . '/' . (int)$y ?>" class="<?= (int)$y === (int)$jahr ? 'active' : '' ?>"><?= (int)$y ?></a>
       <?php endforeach; endif; ?>
     </div>
-    <button onclick="window.print()">🖨️ Drucken / als PDF speichern</button>
+    <button onclick="window.print()"><?= icon('printer') ?> Drucken / als PDF speichern</button>
   </div>
 
   <div class="sheet">
