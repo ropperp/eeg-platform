@@ -1538,10 +1538,9 @@ $router->post('/portal/my/api-keys/:id/revoke', function ($params) {
 });
 
 /**
- * Erster Test-Endpoint der künftigen Smart-Home-API: prüft nur, ob ein API-Key gültig ist,
- * und gibt Basisinfos zurück -- noch KEINE Energiedaten (die kommen erst mit Task
- * "API-Schnittstelle für Live-Energiedaten", siehe /portal/my/api-keys). Dient zum Testen der
- * Authentifizierung z.B. mit Node-RED, bevor es echte Daten gibt.
+ * Test-Endpoint der Smart-Home-API: prüft nur, ob ein API-Key gültig ist, und gibt Basisinfos
+ * zurück -- keine Energiedaten (die liefert /api/v1/live, siehe unten). Dient zum Testen der
+ * Authentifizierung z.B. mit Node-RED, bevor man die Live-Daten abruft.
  *
  * Kein DB::setCommunity() vorab -- der Key wird bewusst GLOBAL per Hash gesucht (die Community
  * ist ja erst das Ergebnis der Suche), member_api_keys hat deshalb auch keine Community-RLS
@@ -1574,7 +1573,59 @@ $router->get('/api/v1/me', function () {
         'status'    => 'ok',
         'member'    => $key['first_name'] . ' ' . $key['last_name'],
         'community' => $key['community_name'],
-        'note'      => 'Authentifizierung erfolgreich. Live-Energiedaten-Endpoints folgen in Kürze.',
+        'note'      => 'Authentifizierung erfolgreich. Live-Energiedaten: GET /api/v1/live.',
+    ]);
+});
+
+/**
+ * Live-Energiedaten fürs Smart-Home des Mitglieds (Node-RED etc., siehe docs/ESB_IDEEN.md
+ * Punkt 2): eigener Bezug/Einspeisung in Watt (letzte 2 Minuten, gleiches Fenster wie
+ * /api/live/:slug) + Autarkiequote der gesamten Community. Gibt 0/null-Werte zurück statt
+ * eines Fehlers, wenn das Mitglied noch keine Ausleseeinheit hat -- ein Smart-Home-Skript
+ * soll bei "noch keine Daten" nicht mit einem HTTP-Fehler abbrechen müssen.
+ */
+$router->get('/api/v1/live', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (!preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Fehlender oder ungültiger Authorization-Header. Erwartet: "Bearer <API-Key>".']);
+        return;
+    }
+    $hash = hash('sha256', trim($m[1]));
+    $key = DB::fetchOne(
+        'SELECT k.*, m.id AS member_id FROM member_api_keys k JOIN members m ON m.id = k.member_id WHERE k.key_hash = ?',
+        [$hash]
+    );
+    if (!$key || $key['revoked_at'] || ($key['expires_at'] && strtotime($key['expires_at']) < time())) {
+        http_response_code(401);
+        echo json_encode(['error' => 'API-Key ungültig, widerrufen oder abgelaufen.']);
+        return;
+    }
+    DB::execute('UPDATE member_api_keys SET last_used_at = now() WHERE id = ?', [$key['id']]);
+
+    $own = DB::fetchOne(
+        "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
+         FROM esp_measurements
+         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+           AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)",
+        [$key['community_id'], $key['member_id']]
+    );
+
+    $community = DB::fetchOne(
+        "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
+         FROM esp_measurements WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+        [$key['community_id']]
+    );
+    $communityBezug = (int)($community['bezug_w'] ?? 0);
+    $communityEinsp = (int)($community['einspeisung_w'] ?? 0);
+    $autarkie = $communityBezug > 0 ? min(100, round($communityEinsp / $communityBezug * 100)) : 0;
+
+    echo json_encode([
+        'status'                => 'ok',
+        'bezug_w'               => (int)($own['bezug_w'] ?? 0),
+        'einspeisung_w'         => (int)($own['einspeisung_w'] ?? 0),
+        'community_autarkie_pct' => $autarkie,
     ]);
 });
 
