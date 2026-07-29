@@ -10,7 +10,7 @@ ob_start();
   <?php $sb = ['pending' => 'yellow', 'approved' => 'green', 'rejected' => 'gray']; ?>
   <span class="badge badge-<?= $sb[$a['status']] ?? 'gray' ?>"><?= htmlspecialchars($a['status']) ?></span>
   <a href="/portal/applications/<?= $a['id'] ?>/formular" target="_blank"
-     class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:auto">🖨️ Formular ausdrucken (PDF)</a>
+     class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:auto"><?= icon('printer') ?> Formular ausdrucken (PDF)</a>
 </div>
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem">
@@ -66,7 +66,7 @@ ob_start();
     <ul style="padding-left:1.2rem">
       <?php foreach ($consentLabels as $field => $label): ?>
         <li style="font-size:.85rem;margin-bottom:.3rem">
-          <?= in_array($a[$field], [true, 't', '1', 1], true) ? '✅' : '❌' ?> <?= htmlspecialchars($label) ?>
+          <?= in_array($a[$field], [true, 't', '1', 1], true) ? icon('check-circle') : icon('x-circle') ?> <?= htmlspecialchars($label) ?>
         </li>
       <?php endforeach; ?>
     </ul>
@@ -108,13 +108,13 @@ ob_start();
           <option value="familie">Sehr geehrte Familie</option>
         </select>
       </label>
-      <button type="submit" class="btn btn-primary">✅ Freigeben &amp; Mitglied anlegen</button>
+      <button type="submit" class="btn btn-primary"><?= icon('check-circle') ?> Freigeben &amp; Mitglied anlegen</button>
     </form>
     <form method="post" action="/portal/applications/<?= $a['id'] ?>/reject" style="display:flex;gap:.5rem;align-items:center"
           onsubmit="return confirm('Beitrittserklärung wirklich ablehnen?')">
       <input type="text" name="ablehnungsgrund" placeholder="Ablehnungsgrund (optional)"
              style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px">
-      <button type="submit" class="btn btn-tint-red">❌ Ablehnen</button>
+      <button type="submit" class="btn btn-tint-red"><?= icon('x-circle') ?> Ablehnen</button>
     </form>
   </div>
 </div>

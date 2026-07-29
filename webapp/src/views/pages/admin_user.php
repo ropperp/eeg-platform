@@ -68,7 +68,7 @@
   <h3 style="margin-bottom:1rem;color:#b91c1c">Gefahrenzone</h3>
   <form method="post" action="/admin/users/<?= $user['id'] ?>/delete"
         onsubmit="return confirmDangerDelete('Benutzer <?= htmlspecialchars(addslashes($user['first_name'] . ' ' . $user['last_name'])) ?> (<?= htmlspecialchars(addslashes($user['email'])) ?>) inkl. aller Rollenzuweisungen')">
-    <button type="submit" class="btn btn-tint-red">🗑️ Benutzer löschen</button>
+    <button type="submit" class="btn btn-tint-red"><?= icon('trash') ?> Benutzer löschen</button>
   </form>
 </div>
 <?php endif; ?>

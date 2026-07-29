@@ -1,6 +1,6 @@
 <?php $pageTitle = 'EDA-Daten importieren'; ob_start(); ?>
 
-<h2 style="margin-bottom:1.5rem">📂 EDA-Daten importieren</h2>
+<h2 style="margin-bottom:1.5rem"><?= icon('folder-open') ?> EDA-Daten importieren</h2>
 
 <?php if (!empty($error)): ?>
   <div class="alert alert-error" style="margin-bottom:1rem"><?= $error ?></div>
@@ -14,7 +14,7 @@
   </div>
   <?php if (!empty($result['warnings'])): ?>
     <div class="card" style="margin-bottom:1.5rem">
-      <h3 style="margin-bottom:.75rem">⚠️ Warnungen</h3>
+      <h3 style="margin-bottom:.75rem"><?= icon('warning-circle') ?> Warnungen</h3>
       <ul style="font-size:.875rem;color:#92400e;padding-left:1.25rem">
         <?php foreach ($result['warnings'] as $w): ?>
           <li><?= htmlspecialchars($w) ?></li>
@@ -37,7 +37,7 @@
            style="border:2px dashed #d1d5db;border-radius:8px;padding:2.5rem 2rem;cursor:pointer;
                   display:inline-block;min-width:360px;transition:border-color .2s"
            onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#d1d5db'">
-        <div style="font-size:2.5rem;margin-bottom:.75rem">📄</div>
+        <div style="font-size:2.5rem;margin-bottom:.75rem"><?= icon('file-text') ?></div>
         <div style="font-weight:600;margin-bottom:.25rem">XLSX hier ablegen oder klicken</div>
         <div style="font-size:.8rem;color:var(--gray-600)">Maximale Dateigröße: 20 MB</div>
       </div>

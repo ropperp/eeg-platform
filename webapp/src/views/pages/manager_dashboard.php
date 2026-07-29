@@ -45,7 +45,7 @@ ob_start();
 <!-- Live-Daten -->
 <div class="grid-2" style="margin-bottom:2rem">
   <div class="card">
-    <h3 style="margin-bottom:1rem">⚡ Live-Leistung</h3>
+    <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Live-Leistung</h3>
     <div style="display:flex;gap:2rem">
       <div>
         <div style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
@@ -60,11 +60,11 @@ ob_start();
   </div>
 
   <div class="card">
-    <h3 style="margin-bottom:1rem">📋 Schnellzugriff</h3>
+    <h3 style="margin-bottom:1rem"><?= icon('clipboard-text') ?> Schnellzugriff</h3>
     <div style="display:flex;flex-direction:column;gap:.5rem">
-      <a href="/portal/members" class="btn btn-secondary">👥 Mitgliederliste</a>
-      <a href="/portal/eda/upload" class="btn btn-secondary">📂 EDA-Daten importieren</a>
-      <a href="/portal/billing" class="btn btn-secondary">💶 Abrechnung</a>
+      <a href="/portal/members" class="btn btn-secondary"><?= icon('users-three') ?> Mitgliederliste</a>
+      <a href="/portal/eda/upload" class="btn btn-secondary"><?= icon('folder-open') ?> EDA-Daten importieren</a>
+      <a href="/portal/billing" class="btn btn-secondary"><?= icon('currency-eur') ?> Abrechnung</a>
     </div>
   </div>
 </div>
@@ -72,7 +72,7 @@ ob_start();
 <!-- Abrechnungsstatus -->
 <?php if ($openBilling): ?>
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:.75rem">💶 Abrechnung <?= htmlspecialchars($openBilling['quartal']) ?></h3>
+  <h3 style="margin-bottom:.75rem"><?= icon('currency-eur') ?> Abrechnung <?= htmlspecialchars($openBilling['quartal']) ?></h3>
   <?php if ($openBilling['status'] === 'ready'): ?>
     <div class="alert alert-success">Alle Daten vollständig — Abrechnung kann freigegeben werden.</div>
     <a href="/portal/billing" class="btn btn-primary">Jetzt freigeben</a>
@@ -86,7 +86,7 @@ ob_start();
 
 <!-- Letzter EDA-Import -->
 <div class="card">
-  <h3 style="margin-bottom:.75rem">📂 Letzter EDA-Import</h3>
+  <h3 style="margin-bottom:.75rem"><?= icon('folder-open') ?> Letzter EDA-Import</h3>
   <?php if ($lastImport): ?>
     <table>
       <tr><th>Datei</th><td><?= htmlspecialchars($lastImport['filename']) ?></td></tr>

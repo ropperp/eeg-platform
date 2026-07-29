@@ -3,7 +3,7 @@ $pageTitle = 'Rechnungen';
 ob_start();
 ?>
 
-<h2 style="margin-bottom:1rem">🧾 Rechnungen</h2>
+<h2 style="margin-bottom:1rem"><?= icon('receipt') ?> Rechnungen</h2>
 
 <?php if (!empty($_GET['error'])): ?>
   <div class="alert alert-error"><?= htmlspecialchars($_GET['error']) ?></div>
@@ -16,16 +16,16 @@ ob_start();
 // Zahlungsstatus-Metadaten: Label + Badge-Farbe.
 $paymentMeta = [
     'offen'          => ['Offen', 'gray'],
-    'eingezogen'     => ['✓ Eingezogen', 'green'],
-    'ueberwiesen'    => ['✓ Überwiesen', 'green'],
-    'fehlgeschlagen' => ['⚠ Fehlgeschlagen', 'red'],
+    'eingezogen'     => [icon('check') . ' Eingezogen', 'green'],
+    'ueberwiesen'    => [icon('check') . ' Überwiesen', 'green'],
+    'fehlgeschlagen' => [icon('warning-circle') . ' Fehlgeschlagen', 'red'],
 ];
 ?>
 
 <!-- Fortschritt der Zahlungsabwicklung (nur freigegebene Rechnungen) -->
 <?php if ($paymentTotal > 0): ?>
   <div class="card" style="margin-bottom:1rem;padding:.85rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-    <div style="font-size:1.4rem"><?= $paymentDone === $paymentTotal ? '✅' : '⏳' ?></div>
+    <div style="font-size:1.4rem"><?= $paymentDone === $paymentTotal ? icon('check-circle') : icon('hourglass') ?></div>
     <div style="flex:1;min-width:220px">
       <strong><?= $paymentDone ?> von <?= $paymentTotal ?></strong> freigegebenen Rechnungen erledigt
       (eingezogen&nbsp;/&nbsp;überwiesen).
@@ -101,7 +101,7 @@ $paymentMeta = [
         <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y', strtotime($inv['created_at'])) ?></td>
         <td>
           <?php if ($inv['sent_at']): ?>
-            <span class="badge badge-green">✓ <?= date('d.m.Y', strtotime($inv['sent_at'])) ?></span>
+            <span class="badge badge-green"><?= icon('check') ?> <?= date('d.m.Y', strtotime($inv['sent_at'])) ?></span>
           <?php else: ?>
             <span class="badge badge-gray">Nicht versendet</span>
           <?php endif; ?>
@@ -120,13 +120,13 @@ $paymentMeta = [
                     onsubmit="return confirm('Rechnung als per SEPA eingezogen markieren? Bitte erst bestätigen, wenn die Lastschrift bei der Bank tatsächlich durchgelaufen ist.')">
                 <input type="hidden" name="payment_status" value="eingezogen">
                 <button class="btn btn-tint-green" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"
-                        <?= $hasMandat ? '' : 'disabled title="Kein SEPA-Mandat (IBAN/Mandatsreferenz fehlt)"' ?>>✓ eingezogen</button>
+                        <?= $hasMandat ? '' : 'disabled title="Kein SEPA-Mandat (IBAN/Mandatsreferenz fehlt)"' ?>><?= icon('check') ?> eingezogen</button>
               </form>
             <?php elseif ($betrag < 0): ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
                     onsubmit="return confirm('Rechnung als an das Mitglied überwiesen markieren?')">
                 <input type="hidden" name="payment_status" value="ueberwiesen">
-                <button class="btn btn-tint-blue" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem">✓ überwiesen</button>
+                <button class="btn btn-tint-blue" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"><?= icon('check') ?> überwiesen</button>
               </form>
             <?php else: ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline">
@@ -151,7 +151,7 @@ $paymentMeta = [
           <?php if ($isReleased && $betrag > 0 && $ps === 'eingezogen'): ?>
             <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/ruecklastschrift" style="display:inline"
                   onsubmit="return confirm('Rücklastschrift erfassen? Der Einzug gilt dann als fehlgeschlagen (Zahlung wieder offen).')">
-              <button class="btn btn-tint-amber" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem" title="SEPA-Einzug von der Bank zurückgebucht">⚠ Rücklastschrift</button>
+              <button class="btn btn-tint-amber" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem" title="SEPA-Einzug von der Bank zurückgebucht"><?= icon('warning-circle') ?> Rücklastschrift</button>
             </form>
           <?php endif; ?>
           <?php if ($mahnstufe > 0): ?>
@@ -163,18 +163,18 @@ $paymentMeta = [
           <?php if ($offeneForderung && $mahnstufe < 3): ?>
             <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mahnung" style="display:inline"
                   onsubmit="return confirm('<?= htmlspecialchars(addslashes(['1' => 'Zahlungserinnerung', '2' => '1. Mahnung', '3' => '2. (letzte) Mahnung'][(string)($mahnstufe + 1)] ?? 'Mahnung')) ?> per E-Mail senden?')">
-              <button class="btn btn-tint-red" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem">📨 Mahnen (Stufe <?= $mahnstufe + 1 ?>)</button>
+              <button class="btn btn-tint-red" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"><?= icon('envelope-simple') ?> Mahnen (Stufe <?= $mahnstufe + 1 ?>)</button>
             </form>
           <?php endif; ?>
         </td>
         <td style="white-space:nowrap">
           <?php if ($inv['pdf_path']): ?>
-            <a href="/portal/invoices/<?= $inv['id'] ?>/pdf" target="_blank" style="font-size:.8rem">📄 Ansehen</a>
+            <a href="/portal/invoices/<?= $inv['id'] ?>/pdf" target="_blank" style="font-size:.8rem"><?= icon('file-text') ?> Ansehen</a>
           <?php else: ?>
             <span style="font-size:.78rem;color:var(--gray-600)">wird erstellt…</span>
           <?php endif; ?>
           <?php if (($inv['run_status'] ?? '') === 'ready'): ?>
-            · <a href="/portal/billing/invoices/<?= $inv['id'] ?>/edit" style="font-size:.8rem">📝 Bearbeiten</a>
+            · <a href="/portal/billing/invoices/<?= $inv['id'] ?>/edit" style="font-size:.8rem"><?= icon('note-pencil') ?> Bearbeiten</a>
           <?php endif; ?>
         </td>
       </tr>

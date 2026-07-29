@@ -50,7 +50,7 @@
 <div class="print-bar no-print">
   <a href="/portal/members/<?= $member['id'] ?>">← Zurück</a>
   <span>Vertrag für <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></span>
-  <button onclick="window.print()">🖨️ Drucken / Als PDF speichern</button>
+  <button onclick="window.print()"><?= icon('printer') ?> Drucken / Als PDF speichern</button>
 </div>
 
 <div class="page">
@@ -123,7 +123,7 @@
   <h2>§ 3 Registrierte Zählpunkte</h2>
   <p class="legal-text" style="margin-bottom:6pt">Folgende Zählpunkte des Mitglieds werden in die EEG eingebracht:</p>
   <?php if (empty($metering_points)): ?>
-    <p class="legal-text" style="color:#c00">⚠️ Noch keine Zählpunkte registriert. Bitte vor Vertragsunterzeichnung eintragen.</p>
+    <p class="legal-text" style="color:#c00"><?= icon('warning-circle') ?> Noch keine Zählpunkte registriert. Bitte vor Vertragsunterzeichnung eintragen.</p>
   <?php else: ?>
     <table>
       <thead>
@@ -175,7 +175,7 @@
     Aktuelle Tarife sind jederzeit im Mitgliederportal einsehbar.
   </p>
   <?php else: ?>
-    <p class="legal-text" style="color:#c00">⚠️ Kein Tarif hinterlegt. Bitte in den Einstellungen eintragen.</p>
+    <p class="legal-text" style="color:#c00"><?= icon('warning-circle') ?> Kein Tarif hinterlegt. Bitte in den Einstellungen eintragen.</p>
   <?php endif; ?>
 
   <!-- Laufzeit -->

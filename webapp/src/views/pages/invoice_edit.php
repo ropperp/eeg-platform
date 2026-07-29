@@ -11,7 +11,7 @@ $editable = $invoice['run_status'] === 'ready';
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
   <a href="/portal/billing/invoices?quartal=<?= urlencode($invoice['quartal']) ?>" style="color:var(--gray-600);text-decoration:none">← Rechnungen</a>
-  <h2 style="margin:0">📝 Rechnung <?= htmlspecialchars($invoice['rechnungsnummer']) ?></h2>
+  <h2 style="margin:0"><?= icon('note-pencil') ?> Rechnung <?= htmlspecialchars($invoice['rechnungsnummer']) ?></h2>
 </div>
 
 <p style="color:var(--gray-600);font-size:.9rem;margin-bottom:1rem">
@@ -29,7 +29,7 @@ $editable = $invoice['run_status'] === 'ready';
 
 <?php if (!$editable): ?>
   <div class="alert alert-warning">Diese Rechnung gehört zu einem bereits freigegebenen Abrechnungslauf und kann nicht mehr bearbeitet werden.</div>
-  <a href="/portal/invoices/<?= $invoice['id'] ?>/pdf" target="_blank" class="btn btn-secondary" style="margin-top:1rem">📄 Rechnung als PDF ansehen</a>
+  <a href="/portal/invoices/<?= $invoice['id'] ?>/pdf" target="_blank" class="btn btn-secondary" style="margin-top:1rem"><?= icon('file-text') ?> Rechnung als PDF ansehen</a>
 <?php else: ?>
 
 <?php // Formulare außerhalb der Tabelle deklarieren; die Felder in den Zellen referenzieren sie
@@ -71,7 +71,7 @@ $editable = $invoice['run_status'] === 'ready';
         </td>
         <td style="white-space:nowrap">
           <button type="submit" form="upd-<?= $it['id'] ?>" class="btn btn-secondary" style="padding:.3rem .6rem;font-size:.8rem">Speichern</button>
-          <button type="submit" form="del-<?= $it['id'] ?>" class="btn btn-tint-red" style="padding:.3rem .5rem;font-size:.8rem">✕</button>
+          <button type="submit" form="del-<?= $it['id'] ?>" class="btn btn-tint-red" style="padding:.3rem .5rem;font-size:.8rem"><?= icon('x') ?></button>
         </td>
       </tr>
     <?php endforeach; ?>
@@ -101,7 +101,7 @@ $editable = $invoice['run_status'] === 'ready';
   <p style="color:var(--gray-600);font-size:.8rem;margin-top:.5rem">Negativer Betrag = Gutschrift/Rabatt zugunsten des Mitglieds.</p>
 </div>
 
-<a href="/portal/invoices/<?= $invoice['id'] ?>/pdf" target="_blank" class="btn btn-secondary">📄 Rechnung als PDF ansehen</a>
+<a href="/portal/invoices/<?= $invoice['id'] ?>/pdf" target="_blank" class="btn btn-secondary"><?= icon('file-text') ?> Rechnung als PDF ansehen</a>
 
 <?php endif; ?>
 

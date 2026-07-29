@@ -5,7 +5,7 @@ ob_start();
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/portal/my/documents" style="color:var(--gray-600);text-decoration:none">← Zurück zu meinen Dokumenten</a>
-  <h2 style="margin:0">✍️ <?= htmlspecialchars(contractTypeLabel($type)) ?> unterschreiben</h2>
+  <h2 style="margin:0"><?= icon('signature') ?> <?= htmlspecialchars(contractTypeLabel($type)) ?> unterschreiben</h2>
 </div>
 
 <?php if (!empty($_GET['error'])): ?>
@@ -19,7 +19,7 @@ ob_start();
   </p>
   <iframe src="/portal/my/contract/<?= htmlspecialchars($type) ?>" style="width:100%;height:480px;border:1px solid var(--gray-200);border-radius:8px"></iframe>
   <p style="margin-top:.5rem">
-    <a href="/portal/my/contract/<?= htmlspecialchars($type) ?>" target="_blank" style="font-size:.85rem">📄 In neuem Tab öffnen</a>
+    <a href="/portal/my/contract/<?= htmlspecialchars($type) ?>" target="_blank" style="font-size:.85rem"><?= icon('file-text') ?> In neuem Tab öffnen</a>
   </p>
 </div>
 
@@ -38,7 +38,7 @@ ob_start();
     </div>
     <input type="hidden" name="signature_image" id="signature_image">
 
-    <button type="submit" class="btn btn-primary">✅ Jetzt verbindlich unterschreiben und freigeben</button>
+    <button type="submit" class="btn btn-primary"><?= icon('check-circle') ?> Jetzt verbindlich unterschreiben und freigeben</button>
   </form>
 </div>
 

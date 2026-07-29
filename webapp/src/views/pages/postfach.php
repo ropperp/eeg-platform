@@ -1,6 +1,6 @@
 <?php $pageTitle = 'Postfach'; ob_start(); ?>
 
-<h2 style="margin-bottom:1.5rem">📬 Postfach</h2>
+<h2 style="margin-bottom:1.5rem"><?= icon('envelope-simple') ?> Postfach</h2>
 
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>

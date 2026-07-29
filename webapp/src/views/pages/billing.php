@@ -3,7 +3,7 @@ $pageTitle = 'Abrechnung';
 ob_start();
 ?>
 
-<h2 style="margin-bottom:1.5rem">💶 Abrechnung</h2>
+<h2 style="margin-bottom:1.5rem"><?= icon('currency-eur') ?> Abrechnung</h2>
 
 <?php if (!empty($error)): ?>
   <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
@@ -27,7 +27,7 @@ ob_start();
 </div>
 
 <div class="card" style="margin-bottom:1rem">
-  <h3 style="margin-bottom:.25rem">🧪 Test-Vorschau</h3>
+  <h3 style="margin-bottom:.25rem"><?= icon('flask') ?> Test-Vorschau</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
     Zeigt, wie eine Rechnung aussieht -- mit Platzhalter-Werten statt echten Mitgliedsdaten. Erzeugt keinen
     Datenbankeintrag, ideal um das Layout bzw. eine neue LaTeX-Vorlage zu prüfen.
@@ -38,14 +38,14 @@ ob_start();
 </div>
 
 <div class="card" style="margin-bottom:1rem">
-  <h3 style="margin-bottom:.25rem">🏦 SEPA-Test-XML</h3>
+  <h3 style="margin-bottom:.25rem"><?= icon('bank') ?> SEPA-Test-XML</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
     Erzeugt eine SEPA-Lastschriftdatei (<code>pain.008</code>) mit <strong>Beispieldaten</strong> — zum Hochladen ins
     Prüf-/Banking-Tool deiner Bank, noch <strong>bevor</strong> echte Abrechnungsdaten vorliegen. Verwendet eure
     hinterlegte Gläubiger-ID/IBAN (falls gesetzt); es entsteht kein Datenbankeintrag und keine echte Abbuchung.
   </p>
   <a href="/portal/billing/sepa-test-xml" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
-    ⬇️ SEPA-Test-XML herunterladen
+    <?= icon('arrow-down') ?> SEPA-Test-XML herunterladen
   </a>
 </div>
 
@@ -113,32 +113,32 @@ ob_start();
             <form method="post" action="/portal/billing/generate" style="display:inline"
                   onsubmit="return confirm('Rechnungen für dieses Quartal aus den EDA-Daten berechnen? Sie können danach jede Rechnung noch einzeln anpassen.')">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-              <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">🧮 Rechnungen berechnen</button>
+              <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem"><?= icon('calculator') ?> Rechnungen berechnen</button>
             </form>
           <?php elseif ($run['status'] === 'ready'): ?>
-            <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem">📝 Prüfen/Bearbeiten</a>
+            <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem"><?= icon('note-pencil') ?> Prüfen/Bearbeiten</a>
             <form method="post" action="/portal/billing/generate" style="display:inline"
                   onsubmit="return confirm('Neu berechnen? Manuelle Änderungen an den Rechnungen dieses Laufs gehen dabei verloren.')">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-              <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.35rem .6rem;font-size:.8rem">🔄 Neu</button>
+              <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.35rem .6rem;font-size:.8rem"><?= icon('arrow-clockwise') ?> Neu</button>
             </form>
             <?php if ($freigabeErlaubt): ?>
               <form method="post" action="/portal/billing/release" style="display:inline"
                     onsubmit="return confirm('Abrechnung endgültig freigeben? Dieser Schritt kann nicht rückgängig gemacht werden. Voraussetzung: die EDA-Werte sind belastbar (keine L3-Werte mehr).')">
                 <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
-                <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">✅ Freigeben</button>
+                <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem"><?= icon('check-circle') ?> Freigeben</button>
               </form>
             <?php else: ?>
               <span style="font-size:.8rem;color:var(--gray-600)">Freigabe gesperrt: EDA-Daten unvollständig</span>
             <?php endif; ?>
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
-            <a href="/portal/billing/<?= $run['id'] ?>/sepa-xml" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem">⬇️ SEPA-XML</a>
+            <a href="/portal/billing/<?= $run['id'] ?>/sepa-xml" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('arrow-down') ?> SEPA-XML</a>
           <?php endif; ?>
           <?php if (Auth::isManager()): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"
                   onsubmit="return confirmDangerDelete('Abrechnungslauf <?= htmlspecialchars(addslashes($run['quartal'])) ?> inkl. aller zugehörigen Rechnungen')">
-              <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem">🗑️</button>
+              <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('trash') ?></button>
             </form>
           <?php endif; ?>
         </td>
@@ -148,7 +148,7 @@ ob_start();
           <td colspan="6" style="background:var(--gray-50)">
             <details>
               <summary style="cursor:pointer;font-size:.85rem;color:var(--gray-700)">
-                ➕ Zusatzpositionen (<?= count($extraItemsByRun[$run['id']] ?? []) ?>) -- z.B. einmaliger Rabatt für dieses Quartal
+                <?= icon('plus') ?> Zusatzpositionen (<?= count($extraItemsByRun[$run['id']] ?? []) ?>) -- z.B. einmaliger Rabatt für dieses Quartal
               </summary>
               <div style="padding:.75rem 0 .5rem">
                 <?php if (!empty($extraItemsByRun[$run['id']])): ?>
@@ -166,7 +166,7 @@ ob_start();
                           <td>
                             <form method="post" action="/portal/billing/<?= $run['id'] ?>/extra-items/<?= $ei['id'] ?>/delete"
                                   onsubmit="return confirm('Zusatzposition wirklich entfernen?')">
-                              <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;font-size:.85rem">✕</button>
+                              <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;font-size:.85rem"><?= icon('x') ?></button>
                             </form>
                           </td>
                         </tr>

@@ -26,7 +26,7 @@ ob_start();
   Historie dieser Datei vor diesem Commit) hier wieder einsetzen.
 -->
 <div class="card" style="margin-bottom:1.5rem;text-align:center;padding:2.5rem 1.5rem">
-  <div style="font-size:2rem;margin-bottom:.5rem">🚧</div>
+  <div style="font-size:2rem;margin-bottom:.5rem"><?= icon('wrench') ?></div>
   <h3 style="margin-bottom:.5rem">Verbrauchsanzeige in Bearbeitung</h3>
   <p style="color:var(--gray-600);font-size:.9rem;max-width:32rem;margin:0 auto">
     Die Anzeige Ihres tagesaktuellen Verbrauchs, Ihrer Einspeisung und der Gemeinschafts-Autarkie
@@ -39,8 +39,8 @@ ob_start();
   <h3 style="margin-bottom:.75rem">Mein Zählpunkt</h3>
   <p style="font-size:.875rem;color:var(--gray-600)"><?= htmlspecialchars($member['zaehlpunkt_nr'] ?? '—') ?></p>
   <p style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
-    <a href="/portal/invoices" class="btn btn-secondary">🧾 Meine Rechnungen</a>
-    <a href="/portal/my/documents" class="btn btn-secondary">📄 Meine Dokumente</a>
+    <a href="/portal/invoices" class="btn btn-secondary"><?= icon('receipt') ?> Meine Rechnungen</a>
+    <a href="/portal/my/documents" class="btn btn-secondary"><?= icon('file-text') ?> Meine Dokumente</a>
   </p>
 </div>
 

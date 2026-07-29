@@ -1,7 +1,7 @@
 <?php $pageTitle = 'Dateien'; ob_start(); ?>
 
 <div style="display:flex;align-items:center;margin-bottom:1.5rem">
-  <h2>📁 Dateien</h2>
+  <h2><?= icon('folder-simple') ?> Dateien</h2>
 </div>
 
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
@@ -31,7 +31,7 @@
           <?php endif; ?>
         </td>
         <td style="font-size:.85rem"><?= htmlspecialchars($m['email']) ?></td>
-        <td><a href="/portal/files/<?= $m['id'] ?>" style="font-size:.85rem">📁 Dateien ansehen</a></td>
+        <td><a href="/portal/files/<?= $m['id'] ?>" style="font-size:.85rem"><?= icon('folder-simple') ?> Dateien ansehen</a></td>
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>

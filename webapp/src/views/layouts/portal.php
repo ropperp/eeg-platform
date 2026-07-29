@@ -42,7 +42,7 @@
             <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>"
               <?= ($r === Auth::activeRole()) ? 'selected' : '' ?>>
               <?php if ($r['role'] === 'platform_admin'): ?>
-                🔧 Plattform-Admin
+                <?= icon('wrench') ?> Plattform-Admin
               <?php else: ?>
                 <?= htmlspecialchars($r['community_name'] ?? '') ?> (<?= $r['role'] ?>)
               <?php endif; ?>
@@ -94,10 +94,10 @@
           <span class="profile-avatar"><img src="<?= htmlspecialchars($navAvatarUrl) ?>" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;display:block"></span>
         </button>
         <div class="profile-dropdown" id="profile-dropdown">
-          <a href="/portal/profile">✏️ Daten ändern</a>
-          <a href="/portal/password">🔑 Passwort ändern</a>
+          <a href="/portal/profile"><?= icon('pencil-simple') ?> Daten ändern</a>
+          <a href="/portal/password"><?= icon('key') ?> Passwort ändern</a>
           <hr style="margin:.3rem 0;border-color:#f3f4f6">
-          <a href="/portal/logout" style="color:#dc2626">🚪 Abmelden</a>
+          <a href="/portal/logout" style="color:#dc2626"><?= icon('sign-out') ?> Abmelden</a>
         </div>
       </div>
     </nav>
@@ -109,37 +109,37 @@
     <?php if ($activeRoleName === 'platform_admin'): ?>
       <p class="sidebar-label">Plattform</p>
       <a href="/admin" class="<?= $_SERVER['REQUEST_URI'] === '/admin' || str_contains($_SERVER['REQUEST_URI'], '/admin/communities') || str_contains($_SERVER['REQUEST_URI'], '/admin/users') ? 'active' : '' ?>">
-        <span class="sidebar-icon">🔧</span><span class="sidebar-text">Administration</span>
+        <span class="sidebar-icon"><?= icon('wrench') ?></span><span class="sidebar-text">Administration</span>
       </a>
       <a href="/admin/log" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/log') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📋</span><span class="sidebar-text">Aktivitätslog</span>
+        <span class="sidebar-icon"><?= icon('clipboard-text') ?></span><span class="sidebar-text">Aktivitätslog</span>
       </a>
       <a href="/admin/mail-settings" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/mail-settings') ? 'active' : '' ?>">
-        <span class="sidebar-icon">✉️</span><span class="sidebar-text">E-Mail-Einstellungen</span>
+        <span class="sidebar-icon"><?= icon('envelope-simple') ?></span><span class="sidebar-text">E-Mail-Einstellungen</span>
       </a>
       <a href="/admin/templates" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/templates') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📁</span><span class="sidebar-text">Dateien</span>
+        <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
       </a>
       <a href="/admin/backups" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/backups') ? 'active' : '' ?>">
-        <span class="sidebar-icon">💾</span><span class="sidebar-text">Backups</span>
+        <span class="sidebar-icon"><?= icon('floppy-disk') ?></span><span class="sidebar-text">Backups</span>
       </a>
 
     <?php elseif ($isManager): ?>
       <p class="sidebar-label">Verwaltung</p>
       <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📊</span><span class="sidebar-text">Übersicht</span>
+        <span class="sidebar-icon"><?= icon('chart-bar') ?></span><span class="sidebar-text">Übersicht</span>
       </a>
       <a href="/portal/members" class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">
-        <span class="sidebar-icon">👥</span><span class="sidebar-text">Mitglieder</span>
+        <span class="sidebar-icon"><?= icon('users-three') ?></span><span class="sidebar-text">Mitglieder</span>
       </a>
       <a href="/portal/files" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/files') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📁</span><span class="sidebar-text">Dateien</span>
+        <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
       </a>
       <a href="/portal/billing" class="<?= $_SERVER['REQUEST_URI'] === '/portal/billing' || str_starts_with($_SERVER['REQUEST_URI'], '/portal/billing?') ? 'active' : '' ?>">
-        <span class="sidebar-icon">💶</span><span class="sidebar-text">Abrechnung</span>
+        <span class="sidebar-icon"><?= icon('currency-eur') ?></span><span class="sidebar-text">Abrechnung</span>
       </a>
       <a href="/portal/billing/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/billing/invoices') ? 'active' : '' ?>">
-        <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
+        <span class="sidebar-icon"><?= icon('receipt') ?></span><span class="sidebar-text">Rechnungen</span>
       </a>
       <?php
         $pendingApplications = 0;
@@ -157,44 +157,44 @@
         }
       ?>
       <a href="/portal/applications" class="<?= str_contains($_SERVER['REQUEST_URI'], 'applications') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📥</span><span class="sidebar-text">Neuanmeldungen</span>
+        <span class="sidebar-icon"><?= icon('download-simple') ?></span><span class="sidebar-text">Neuanmeldungen</span>
         <?php if ($pendingApplications > 0): ?>
           <span class="badge badge-yellow" style="margin-left:.4rem"><?= $pendingApplications ?></span>
         <?php endif; ?>
       </a>
       <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], 'postfach') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📬</span><span class="sidebar-text">Postfach</span>
+        <span class="sidebar-icon"><?= icon('envelope-simple') ?></span><span class="sidebar-text">Postfach</span>
         <?php if ($offeneNotifications > 0): ?>
           <span class="badge badge-yellow" style="margin-left:.4rem"><?= $offeneNotifications ?></span>
         <?php endif; ?>
       </a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📂</span><span class="sidebar-text">EDA-Import</span>
+        <span class="sidebar-icon"><?= icon('folder-open') ?></span><span class="sidebar-text">EDA-Import</span>
       </a>
       <a href="/portal/settings" class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">
-        <span class="sidebar-icon">⚙️</span><span class="sidebar-text">Einstellungen</span>
+        <span class="sidebar-icon"><?= icon('gear') ?></span><span class="sidebar-text">Einstellungen</span>
       </a>
 
       <?php if ($isPlatformAdmin): ?>
         <hr style="margin:1rem 0;border-color:#e5e7eb">
         <a href="/admin">
-          <span class="sidebar-icon">🔧</span><span class="sidebar-text">Admin</span>
+          <span class="sidebar-icon"><?= icon('wrench') ?></span><span class="sidebar-text">Admin</span>
         </a>
       <?php endif; ?>
 
     <?php else: ?>
       <p class="sidebar-label">Mitglied</p>
       <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📊</span><span class="sidebar-text">Mein Verbrauch</span>
+        <span class="sidebar-icon"><?= icon('chart-bar') ?></span><span class="sidebar-text">Mein Verbrauch</span>
       </a>
       <a href="/portal/my/documents" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/documents') ? 'active' : '' ?>">
-        <span class="sidebar-icon">📄</span><span class="sidebar-text">Meine Dokumente</span>
+        <span class="sidebar-icon"><?= icon('file-text') ?></span><span class="sidebar-text">Meine Dokumente</span>
       </a>
       <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
-        <span class="sidebar-icon">🧾</span><span class="sidebar-text">Rechnungen</span>
+        <span class="sidebar-icon"><?= icon('receipt') ?></span><span class="sidebar-text">Rechnungen</span>
       </a>
       <a href="/portal/my/api-keys" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/api-keys') ? 'active' : '' ?>">
-        <span class="sidebar-icon">🔌</span><span class="sidebar-text">API-Zugänge</span>
+        <span class="sidebar-icon"><?= icon('plug') ?></span><span class="sidebar-text">API-Zugänge</span>
       </a>
     <?php endif; ?>
   </aside>

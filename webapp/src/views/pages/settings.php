@@ -1,6 +1,6 @@
 <?php $pageTitle = 'EEG-Einstellungen'; ob_start(); ?>
 
-<h2 style="margin-bottom:1.5rem">⚙️ EEG-Einstellungen</h2>
+<h2 style="margin-bottom:1.5rem"><?= icon('gear') ?> EEG-Einstellungen</h2>
 
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Einstellungen gespeichert.</div>
@@ -134,7 +134,7 @@
   <?php endif; ?>
   <form method="post" action="/portal/settings/tariff">
     <p style="font-size:.8rem;color:#92400e;margin-bottom:1rem">
-      ⚠️ Ein neuer Tarif wird ab dem angegebenen Datum gültig. Der alte Tarif bleibt für vergangene Abrechnungen erhalten.
+      <?= icon('warning-circle') ?> Ein neuer Tarif wird ab dem angegebenen Datum gültig. Der alte Tarif bleibt für vergangene Abrechnungen erhalten.
     </p>
     <div class="grid-2">
       <div class="form-group">
@@ -181,7 +181,7 @@
   <?php endif; ?>
   <form method="post" action="/portal/settings/tax" style="margin-top:1rem">
     <p style="font-size:.8rem;color:#92400e;margin-bottom:1rem">
-      ⚠️ Eine neue Steuerkonfiguration wird ab dem angegebenen Datum gültig und historisiert,
+      <?= icon('warning-circle') ?> Eine neue Steuerkonfiguration wird ab dem angegebenen Datum gültig und historisiert,
       damit bereits erstellte Rechnungen korrekt bleiben.
     </p>
     <div class="grid-2">

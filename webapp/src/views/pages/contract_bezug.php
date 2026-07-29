@@ -43,7 +43,7 @@
 <div class="print-bar no-print">
   <a href="/portal/members/<?= $member['id'] ?>">← Zurück</a>
   <span>Bezugsvereinbarung — <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></span>
-  <button onclick="window.print()">🖨️ Drucken / Als PDF speichern</button>
+  <button onclick="window.print()"><?= icon('printer') ?> Drucken / Als PDF speichern</button>
 </div>
 
 <div class="page">
@@ -96,7 +96,7 @@
     </tbody>
   </table>
   <?php else: ?>
-  <p style="color:#c00;margin-top:6pt">⚠️ Noch kein Bezugs-Zählpunkt registriert (Typ: Bezug).</p>
+  <p style="color:#c00;margin-top:6pt"><?= icon('warning-circle') ?> Noch kein Bezugs-Zählpunkt registriert (Typ: Bezug).</p>
   <?php endif; ?>
 
   <p>1.3 Das Mitglied stimmt ausdrücklich zu, dass der zuständige Netzbetreiber den Energiebezug der Verbrauchsanlage mit einem geeigneten Messgerät misst und diese Daten für die Energieverteilung und Verrechnung innerhalb der EEG verarbeitet.</p>
@@ -127,7 +127,7 @@
     </tbody>
   </table>
   <?php else: ?>
-  <p style="color:#c00">⚠️ Kein Tarif hinterlegt.</p>
+  <p style="color:#c00"><?= icon('warning-circle') ?> Kein Tarif hinterlegt.</p>
   <?php endif; ?>
   <p>3.2 Sämtliche genannten Entgelte verstehen sich exklusive der allenfalls anfallenden Umsatzsteuer sowie sonstiger öffentlicher Steuern, Abgaben und Gebühren.</p>
   <p>3.3 Abrechnung und Fälligkeit erfolgen gemäß den Bestimmungen der EEG quartalsweise. Bei Zahlungsverzug gelten 4 % Verzugszinsen p.a. als vereinbart.</p>

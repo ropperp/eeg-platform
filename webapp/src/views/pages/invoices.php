@@ -1,6 +1,6 @@
 <?php $pageTitle = 'Meine Rechnungen'; ob_start(); ?>
 
-<h2 style="margin-bottom:1.5rem">🧾 Meine Rechnungen</h2>
+<h2 style="margin-bottom:1.5rem"><?= icon('receipt') ?> Meine Rechnungen</h2>
 
 <div class="card">
   <table>
@@ -20,7 +20,7 @@
         <td>
           <?php if ($inv['pdf_path']): ?>
             <a href="/portal/invoices/<?= $inv['id'] ?>/pdf" class="btn btn-secondary" style="padding:.3rem .6rem;font-size:.8rem">
-              ⬇ PDF
+              <?= icon('arrow-down') ?> PDF
             </a>
           <?php else: ?>
             <span style="font-size:.8rem;color:var(--gray-600)">wird erstellt…</span>

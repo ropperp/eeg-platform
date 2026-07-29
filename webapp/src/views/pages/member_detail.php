@@ -7,86 +7,86 @@
          alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">
     <button type="button" onclick="document.getElementById('photo-dialog').showModal()"
             title="Profilbild ändern"
-            style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--gray-100);border:1px solid var(--gray-200);font-size:.6rem;line-height:1;cursor:pointer;padding:0">✏️</button>
+            style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--gray-100);border:1px solid var(--gray-200);line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center"><?= icon('pencil-simple') ?></button>
   </div>
   <h2 style="margin:0"><?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></h2>
   <span class="badge badge-gray" style="font-weight:700;color:#15803d">KdNr <?= htmlspecialchars((string)($member['kundennummer'] ?? '—')) ?></span>
-  <?php $statusLabelTop = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => '🗄️ Archiviert']; ?>
+  <?php $statusLabelTop = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => icon('archive') . ' Archiviert']; ?>
   <?php $statusBadgeTop = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
   <span class="badge badge-<?= $statusBadgeTop[$member['status']] ?? 'yellow' ?>"><?= $statusLabelTop[$member['status']] ?? htmlspecialchars($member['status']) ?></span>
   <?php if (!empty($application)): ?>
-  <span class="badge badge-blue" title="Über das Online-Beitrittsformular eingereicht">🌐 Online</span>
+  <span class="badge badge-blue" title="Über das Online-Beitrittsformular eingereicht"><?= icon('globe') ?> Online</span>
   <?php else: ?>
-  <span class="badge badge-gray" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail">✉️ Offline</span>
+  <span class="badge badge-gray" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail"><?= icon('envelope-simple') ?> Offline</span>
   <?php endif; ?>
   <div style="margin-left:auto;display:flex;gap:.5rem">
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php if ($hasConsumer && contractsEnabled($member['community_id'])): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
-       class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem">📄 Bezugsvereinbarung</a>
+       class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem"><?= icon('file-text') ?> Bezugsvereinbarung</a>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/send" style="display:inline"
           onsubmit="return confirm('Bezugsvereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
-      <button type="submit" class="btn" style="background:#eff6ff;color:#1d4ed8;font-size:.8rem">✉️ Jetzt senden</button>
+      <button type="submit" class="btn" style="background:#eff6ff;color:#1d4ed8;font-size:.8rem"><?= icon('envelope-simple') ?> Jetzt senden</button>
     </form>
     <?php if (!empty($member['contract_bezug_sent_at'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/reset" style="display:inline"
           onsubmit="return confirm('Bezugsvereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
-      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem">🔄 Zurücksetzen</button>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem"><?= icon('arrow-clockwise') ?> Zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php endif; ?>
     <?php if ($hasProducer && contractsEnabled($member['community_id'])): ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
-       class="btn" style="background:#b45309;color:#fff;font-size:.8rem">☀️ Einspeisevereinbarung</a>
+       class="btn" style="background:#b45309;color:#fff;font-size:.8rem"><?= icon('sun') ?> Einspeisevereinbarung</a>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/send" style="display:inline"
           onsubmit="return confirm('Einspeisevereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
-      <button type="submit" class="btn" style="background:#fffbeb;color:#b45309;font-size:.8rem">✉️ Jetzt senden</button>
+      <button type="submit" class="btn" style="background:#fffbeb;color:#b45309;font-size:.8rem"><?= icon('envelope-simple') ?> Jetzt senden</button>
     </form>
     <?php if (!empty($member['contract_einspeisung_sent_at'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/reset" style="display:inline"
           onsubmit="return confirm('Einspeisevereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
-      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem">🔄 Zurücksetzen</button>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem"><?= icon('arrow-clockwise') ?> Zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php endif; ?>
     <?php if ($hasConsumer && $hasProducer && contractsEnabled($member['community_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/send-both" style="display:inline"
           onsubmit="return confirm('Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
-      <button type="submit" class="btn btn-tint-green" style="font-size:.8rem">📧 Beide gemeinsam senden</button>
+      <button type="submit" class="btn btn-tint-green" style="font-size:.8rem"><?= icon('envelope-simple') ?> Beide gemeinsam senden</button>
     </form>
     <?php endif; ?>
     <?php if (!empty($application)): ?>
     <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank"
-       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem">🖨️ Formular ausdrucken (PDF)</a>
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"><?= icon('printer') ?> Formular ausdrucken (PDF)</a>
     <?php endif; ?>
     <a href="/portal/members/<?= $member['id'] ?>/edit"
-       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem">✏️ Bearbeiten</a>
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"><?= icon('pencil-simple') ?> Bearbeiten</a>
     <a href="/portal/members/<?= $member['id'] ?>/dsgvo-export"
        class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"
-       title="Alle gespeicherten Daten dieses Mitglieds als JSON (DSGVO-Auskunftsersuchen, Art. 15)">🔐 DSGVO-Export</a>
+       title="Alle gespeicherten Daten dieses Mitglieds als JSON (DSGVO-Auskunftsersuchen, Art. 15)"><?= icon('lock-key') ?> DSGVO-Export</a>
     <a href="/portal/members/<?= $member['id'] ?>/jahresuebersicht" target="_blank"
        class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"
-       title="Alle Rechnungen eines Jahres als druckbare Übersicht">📅 Jahresübersicht</a>
+       title="Alle Rechnungen eines Jahres als druckbare Übersicht"><?= icon('calendar-blank') ?> Jahresübersicht</a>
     <?php if (!empty($member['user_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-password" style="display:inline">
-      <button type="submit" class="btn btn-tint-blue" style="font-size:.8rem">🔑 Passwort zurücksetzen</button>
+      <button type="submit" class="btn btn-tint-blue" style="font-size:.8rem"><?= icon('key') ?> Passwort zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php if (Auth::isPlatformAdmin()): ?>
       <?php if ($member['status'] === 'inactive'): ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/reactivate" style="display:inline"
             onsubmit="return confirm('Mitgliedschaft von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wieder freigeben?')">
-        <button type="submit" class="btn btn-tint-green" style="font-size:.8rem">✅ Freigeben</button>
+        <button type="submit" class="btn btn-tint-green" style="font-size:.8rem"><?= icon('check-circle') ?> Freigeben</button>
       </form>
       <?php else: ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
             onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
-        <button type="submit" class="btn btn-tint-amber" style="font-size:.8rem">🔒 Login löschen</button>
+        <button type="submit" class="btn btn-tint-amber" style="font-size:.8rem"><?= icon('lock-key') ?> Login löschen</button>
       </form>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/deactivate" style="display:inline"
             onsubmit="return confirmDangerDelete('Mitglied <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wirklich — Daten/Verträge/Dateien bleiben aus Aufbewahrungspflicht erhalten, der Login wird gesperrt und eine Benachrichtigung per E-Mail verschickt')">
-        <button type="submit" class="btn btn-tint-red" style="font-size:.8rem">🗑️ Wirklich löschen</button>
+        <button type="submit" class="btn btn-tint-red" style="font-size:.8rem"><?= icon('trash') ?> Wirklich löschen</button>
       </form>
       <?php endif; ?>
     <?php endif; ?>
@@ -125,7 +125,7 @@
 
 <?php if (!empty($successTempPw)): ?>
   <div class="card" style="margin-bottom:1.5rem;border:2px solid #16a34a">
-    <h3 style="color:#15803d;margin-bottom:.75rem">✅ Freigegeben — Login-Daten</h3>
+    <h3 style="color:#15803d;margin-bottom:.75rem"><?= icon('check-circle') ?> Freigegeben — Login-Daten</h3>
     <?php if (!empty($successInviteError)): ?>
       <p style="margin-bottom:.5rem;color:#b91c1c;font-size:.85rem">Einladungs-E-Mail konnte nicht verschickt werden: <code style="font-size:.78rem"><?= htmlspecialchars($successInviteError) ?></code></p>
     <?php endif; ?>
@@ -191,7 +191,7 @@
                 <span style="color:var(--gray-600);font-size:.8rem">—</span>
               <?php endif; ?>
             </td>
-            <td><?= $mp['type'] === 'consumer' ? '⬇️ Bezug' : '⬆️ Einspeisung' ?></td>
+            <td><?= $mp['type'] === 'consumer' ? icon('arrow-down') . ' Bezug' : icon('arrow-up') . ' Einspeisung' ?></td>
             <td style="font-size:.78rem;color:var(--gray-600)">
               <?php if ($mp['type'] === 'consumer'): ?>
                 <?= $mp['jahresverbrauch_kwh'] ? number_format((float)$mp['jahresverbrauch_kwh'], 0, ',', '.') . ' kWh/Jahr' : '—' ?>
@@ -202,10 +202,10 @@
             </td>
             <td style="white-space:nowrap">
               <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>')"
-                      style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--gray-600)">✏️</button>
+                      style="background:none;border:none;cursor:pointer;color:var(--gray-600)"><?= icon('pencil-simple') ?></button>
               <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">
                 <button type="submit" onclick="return confirm('Zählpunkt wirklich deaktivieren?')"
-                        style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#ef4444">🗑️</button>
+                        style="background:none;border:none;cursor:pointer;color:#ef4444"><?= icon('trash') ?></button>
               </form>
             </td>
           </tr>
@@ -232,8 +232,8 @@
         <div class="form-group" style="margin-bottom:0">
           <label style="font-size:.8rem">Typ</label>
           <select name="type" id="add-mp-type" onchange="toggleMpTypeFields('add')">
-            <option value="consumer">⬇️ Bezug</option>
-            <option value="producer">⬆️ Einspeisung</option>
+            <option value="consumer">Bezug</option>
+            <option value="producer">Einspeisung</option>
           </select>
         </div>
         <button type="submit" class="btn btn-primary" style="height:38px">+ Hinzufügen</button>
@@ -294,7 +294,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
 ?>
 <?php if (!empty($contractTypes) && contractsEnabled($member['community_id'])): ?>
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:1rem">📋 Vertragsstatus</h3>
+  <h3 style="margin-bottom:1rem"><?= icon('clipboard-text') ?> Vertragsstatus</h3>
   <div class="<?= count($contractTypes) === 1 ? '' : 'grid-2' ?>">
     <?php
     $statusLabels = ['none' => 'Nicht erstellt', 'created' => 'Erstellt', 'signed' => 'Unterschrieben'];
@@ -311,12 +311,12 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
       <?php $signedAt = $member['contract_' . $type . '_signed_at'] ?? null; ?>
       <?php if ($signedAt): ?>
         <p style="font-size:.78rem;color:#15803d;margin:0">
-          ✍️ Digital unterschrieben am <?= date('d.m.Y H:i', strtotime($signedAt)) ?> im Mitgliederportal — gültig und sicher abgelegt.
+          <?= icon('signature') ?> Digital unterschrieben am <?= date('d.m.Y H:i', strtotime($signedAt)) ?> im Mitgliederportal — gültig und sicher abgelegt.
         </p>
       <?php elseif ($sentAt): ?>
         <p style="font-size:.78rem;color:var(--gray-600);margin:0">
-          📨 Versendet am <?= date('d.m.Y H:i', strtotime($sentAt)) ?> — wartet auf digitale Unterschrift durch das Mitglied.
-          Für Korrekturen oben bei „Jetzt senden" auf „🔄 Zurücksetzen" klicken.
+          <?= icon('envelope-simple') ?> Versendet am <?= date('d.m.Y H:i', strtotime($sentAt)) ?> — wartet auf digitale Unterschrift durch das Mitglied.
+          Für Korrekturen oben bei „Jetzt senden" auf „<?= icon('arrow-clockwise') ?> Zurücksetzen" klicken.
         </p>
       <?php else: ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/contract-status" style="display:flex;gap:.5rem;align-items:center">
@@ -337,7 +337,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
 
 <!-- Dateien -->
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:1rem">📎 Dateien</h3>
+  <h3 style="margin-bottom:1rem"><?= icon('paperclip') ?> Dateien</h3>
 
   <?php if (empty($member_files)): ?>
     <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">Noch keine Dateien hochgeladen.</p>
@@ -394,7 +394,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
         <canvas id="member-photo-canvas" width="220" height="220" style="cursor:grab"></canvas>
       </div>
       <label style="font-size:.78rem;color:var(--gray-600);display:flex;align-items:center;gap:.5rem">
-        🔍 Zoom
+        <?= icon('magnifying-glass') ?> Zoom
         <input type="range" id="member-photo-zoom" min="100" max="300" value="100">
       </label>
       <small style="color:var(--gray-600)">Zum Verschieben im Bild ziehen.</small>
@@ -421,8 +421,8 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     <div class="form-group">
       <label>Typ</label>
       <select name="type" id="edit-mp-type" onchange="toggleMpTypeFields('edit')">
-        <option value="consumer">⬇️ Bezug</option>
-        <option value="producer">⬆️ Einspeisung</option>
+        <option value="consumer">Bezug</option>
+        <option value="producer">Einspeisung</option>
       </select>
     </div>
     <div id="edit-mp-consumer-fields" class="form-group">

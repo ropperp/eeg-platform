@@ -39,7 +39,7 @@
 <div class="print-bar no-print">
   <a href="/portal/members/<?= $member['id'] ?>">← Zurück</a>
   <span>Einspeisevereinbarung — <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></span>
-  <button onclick="window.print()">🖨️ Drucken / Als PDF speichern</button>
+  <button onclick="window.print()"><?= icon('printer') ?> Drucken / Als PDF speichern</button>
 </div>
 
 <div class="page">
@@ -98,7 +98,7 @@
     </tbody>
   </table>
   <?php else: ?>
-  <p style="color:#c00;margin-top:6pt">⚠️ Noch kein Einspeise-Zählpunkt registriert (Typ: Einspeisung).</p>
+  <p style="color:#c00;margin-top:6pt"><?= icon('warning-circle') ?> Noch kein Einspeise-Zählpunkt registriert (Typ: Einspeisung).</p>
   <?php endif; ?>
 
   <p>1.2 Der Eigenverbrauch des/der Eigentümer:in ist mangels Einspeisung in das öffentliche Netz von der weiteren Verteilung ausgeschlossen. Allfällig verbleibende Überschussenergie (nach Verbrauch durch die teilnehmenden Netzbenutzenden) wird dem Erzeugungszählpunkt des/der Eigentümer:in zugeordnet.</p>
@@ -126,7 +126,7 @@
     </tbody>
   </table>
   <?php else: ?>
-  <p style="color:#c00">⚠️ Kein Tarif hinterlegt.</p>
+  <p style="color:#c00"><?= icon('warning-circle') ?> Kein Tarif hinterlegt.</p>
   <?php endif; ?>
   <p>3.2 Auszahlung des Bestandzinses quartalsweise bis zum 15. des auf das Quartal folgenden Monats auf das Konto des/der Eigentümer:in:
   <?php if ($member['member_iban']): ?>

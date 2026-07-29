@@ -2,7 +2,7 @@
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
-  <h2 style="margin:0">✉️ E-Mail-Einstellungen (Microsoft Graph)</h2>
+  <h2 style="margin:0"><?= icon('envelope-simple') ?> E-Mail-Einstellungen (Microsoft Graph)</h2>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
@@ -16,7 +16,7 @@
 <?php endif; ?>
 
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:.5rem">🧪 Testmodus / Echtbetrieb</h3>
+  <h3 style="margin-bottom:.5rem"><?= icon('flask') ?> Testmodus / Echtbetrieb</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Betrifft nur die Vergabe von Kundennummern. Im <strong>Testmodus</strong> füllt eine neu
     angelegte Kundennummer Lücken von gelöschten/deaktivierten Mitgliedern wieder auf (praktisch
@@ -146,7 +146,7 @@
   }
 ?>
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:.25rem">👀 Vorschau der E-Mail</h3>
+  <h3 style="margin-bottom:.25rem"><?= icon('eye') ?> Vorschau der E-Mail</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
     So sieht eine ausgehende E-Mail aus – live, während du oben tippst. Wähle eine Vorlage, um zu sehen, wie
     Rechnungs-Mail, Passwort-Reset &amp; Co. mit deiner Signatur und dem Logo wirken. Die Platzhalter
@@ -163,7 +163,7 @@
   </div>
   <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start">
     <div>
-      <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600">📱 Smartphone (375&nbsp;px)</div>
+      <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600"><?= icon('device-mobile') ?> Smartphone (375&nbsp;px)</div>
       <div style="width:375px;max-width:100%;border:1px solid #d1d5db;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
         <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:10px 14px;font-size:12px;color:#374151">
           <div><strong>Von:</strong> EEG Strompool &lt;noreply@stromfueralle.at&gt;</div>
@@ -173,7 +173,7 @@
       </div>
     </div>
     <div style="flex:1;min-width:0">
-      <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600">💻 Laptop (≈820&nbsp;px)</div>
+      <div style="font-size:.8rem;color:var(--gray-600);margin-bottom:.4rem;font-weight:600"><?= icon('laptop') ?> Laptop (≈820&nbsp;px)</div>
       <div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
         <div style="width:820px">
           <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:12px 24px;font-size:13px;color:#374151">

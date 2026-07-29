@@ -25,7 +25,7 @@
           <canvas id="profile-photo-canvas" width="220" height="220" style="cursor:grab"></canvas>
         </div>
         <label style="font-size:.78rem;color:var(--gray-600);display:flex;align-items:center;gap:.5rem">
-          🔍 Zoom
+          <?= icon('magnifying-glass') ?> Zoom
           <input type="range" id="profile-photo-zoom" min="100" max="300" value="100">
         </label>
         <small style="color:var(--gray-600)">Zum Verschieben im Bild ziehen.</small>
@@ -67,7 +67,7 @@
 </div>
 
 <div class="card" style="max-width:480px;margin-bottom:1.5rem">
-  <h3 style="margin-bottom:.5rem">🔐 Zwei-Faktor-Authentifizierung</h3>
+  <h3 style="margin-bottom:.5rem"><?= icon('lock-key') ?> Zwei-Faktor-Authentifizierung</h3>
   <?php if (!empty($profileUser['totp_enabled'])): ?>
     <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
       <span class="badge badge-green">Aktiv</span> Bei jeder Anmeldung wird zusätzlich ein 6-stelliger Code abgefragt.
@@ -93,7 +93,7 @@
     (DSGVO-Auskunftsrecht, Art. 15). Die Datei enthält Ihre Stammdaten, Zählpunkte, Verträge,
     Rechnungen und hochgeladenen Dokumente im maschinenlesbaren JSON-Format.
   </p>
-  <a href="/portal/my/dsgvo-export" class="btn" style="background:var(--gray-100);color:var(--gray-700)">🔐 Datenauskunft herunterladen (JSON)</a>
+  <a href="/portal/my/dsgvo-export" class="btn" style="background:var(--gray-100);color:var(--gray-700)"><?= icon('lock-key') ?> Datenauskunft herunterladen (JSON)</a>
 </div>
 <?php endif; ?>
 

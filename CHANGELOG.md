@@ -20,6 +20,16 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Emoji-Sweep abgeschlossen (Phase 2): komplettes Portal-/Admin-Backoffice auf
+  Phosphor-Icons.** Aufbauend auf Phase 1 (Startseite) sind jetzt auch alle Emojis im
+  Mitgliederbereich, der Abrechnung/Rechnungen, den Dateien/Dokumenten, dem
+  Beitritts-/Vertragsflow und dem kompletten Admin-Bereich (~38 Dateien, ~190 Stellen)
+  durch `icon()` ersetzt. Sprite um 17 weitere Icons ergänzt (u. a. wrench, paperclip,
+  folder-open, sign-out, eye, hourglass, flask). `<option>`-Werte in `<select>`-Feldern
+  bleiben bewusst reiner Text (Browser rendern dort kein Markup); die client-seitige
+  IBAN-Live-Validierung und die Upload-Statusanzeige nutzen jetzt dieselbe SVG-Sprite-
+  Referenz per `innerHTML` statt Emoji. Eine bewusste Ausnahme bleibt bestehen: das
+  ⚠️-Symbol im Markdown-Export des Audit-Logs, da dort reiner Text ausgegeben wird.
 - **Icon-System (Phosphor, selbst gehostet) + dezente Hero-Animation auf der Startseite
   (Phase 1).** Die generischen Emojis im Theme-Toggle, im Sidebar-Menü und auf der Startseite
   sind durch ein einheitliches Phosphor-Icon-Sprite ersetzt (`webapp/public/assets/icons/`,

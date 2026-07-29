@@ -8,21 +8,21 @@
 </div>
 
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:1rem">📄 Beitrittserklärung &amp; Verträge</h3>
+  <h3 style="margin-bottom:1rem"><?= icon('file-text') ?> Beitrittserklärung &amp; Verträge</h3>
   <table style="font-size:.9rem">
     <tbody>
       <tr>
         <th>Beitrittserklärung</th>
         <td>
           <?php if (!empty($application)): ?>
-            <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank">🖨️ Formular als PDF öffnen</a>
+            <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank"><?= icon('printer') ?> Formular als PDF öffnen</a>
           <?php elseif (!empty($filesByCategory['beitritt'])): ?>
             <span style="color:var(--gray-600)">Kein Online-Beitrittsformular vorhanden —</span>
           <?php else: ?>
             <span style="color:var(--gray-600)">Kein Online-Beitrittsformular vorhanden</span>
           <?php endif; ?>
           <?php if (!empty($filesByCategory['beitritt'])): $f = $filesByCategory['beitritt']; ?>
-            <a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download">📎 <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
+            <a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download"><?= icon('paperclip') ?> <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
           <?php endif; ?>
         </td>
       </tr>
@@ -31,12 +31,12 @@
         <th>Bezugsvereinbarung</th>
         <td>
           <?php if ($hasConsumer): ?>
-            <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank">📄 PDF öffnen</a>
+            <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"><?= icon('file-text') ?> PDF öffnen</a>
           <?php elseif (empty($filesByCategory['bezug'])): ?>
             <span style="color:var(--gray-600)">Kein Bezugs-Zählpunkt registriert</span>
           <?php endif; ?>
           <?php if (!empty($filesByCategory['bezug'])): $f = $filesByCategory['bezug']; ?>
-            <?= $hasConsumer ? ' &nbsp;·&nbsp; ' : '' ?><a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download">📎 <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
+            <?= $hasConsumer ? ' &nbsp;·&nbsp; ' : '' ?><a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download"><?= icon('paperclip') ?> <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
           <?php endif; ?>
         </td>
       </tr>
@@ -44,12 +44,12 @@
         <th>Einspeisevereinbarung</th>
         <td>
           <?php if ($hasProducer): ?>
-            <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank">☀️ PDF öffnen</a>
+            <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"><?= icon('sun') ?> PDF öffnen</a>
           <?php elseif (empty($filesByCategory['einspeisung'])): ?>
             <span style="color:var(--gray-600)">Kein Einspeise-Zählpunkt registriert</span>
           <?php endif; ?>
           <?php if (!empty($filesByCategory['einspeisung'])): $f = $filesByCategory['einspeisung']; ?>
-            <?= $hasProducer ? ' &nbsp;·&nbsp; ' : '' ?><a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download">📎 <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
+            <?= $hasProducer ? ' &nbsp;·&nbsp; ' : '' ?><a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download"><?= icon('paperclip') ?> <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
           <?php endif; ?>
         </td>
       </tr>
@@ -58,7 +58,7 @@
         <th>Ausweisdokument</th>
         <td>
           <?php if (!empty($filesByCategory['ausweis'])): $f = $filesByCategory['ausweis']; ?>
-            <a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download">📎 <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
+            <a href="/portal/members/<?= $member['id'] ?>/files/<?= $f['id'] ?>/download"><?= icon('paperclip') ?> <?= htmlspecialchars($f['name']) ?> (hochgeladen)</a>
           <?php else: ?>
             <span style="color:var(--gray-600)">Kein Ausweisdokument hochgeladen</span>
           <?php endif; ?>
@@ -69,7 +69,7 @@
 </div>
 
 <div class="card">
-  <h3 style="margin-bottom:1rem">📎 Hochgeladene Dateien</h3>
+  <h3 style="margin-bottom:1rem"><?= icon('paperclip') ?> Hochgeladene Dateien</h3>
   <?php if (empty($member_files)): ?>
     <p style="color:var(--gray-600);font-size:.875rem">Noch keine Dateien hochgeladen.</p>
   <?php else: ?>
