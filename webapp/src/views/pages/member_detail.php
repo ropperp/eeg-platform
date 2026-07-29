@@ -177,6 +177,7 @@
             <th>Zählernummer</th>
             <th>Typ</th>
             <th>Details</th>
+            <th>ESB</th>
             <th>Aktionen</th>
           </tr>
         </thead>
@@ -198,6 +199,24 @@
               <?php else: ?>
                 <?= $mp['engpassleistung_kw'] ? number_format((float)$mp['engpassleistung_kw'], 2, ',', '.') . ' kWp' : '—' ?>
                 <?= $mp['geplante_einspeisung_kwh'] ? ' · ' . number_format((float)$mp['geplante_einspeisung_kwh'], 0, ',', '.') . ' kWh/Jahr geplant' : '' ?>
+              <?php endif; ?>
+            </td>
+            <td style="font-size:.78rem;white-space:nowrap">
+              <?php if (!empty($mp['esb_online'])): ?>
+                <span class="badge badge-green"><?= icon('check-circle') ?> Online</span>
+              <?php elseif (!empty($mp['esb_last_seen_at'])): ?>
+                <span class="badge badge-gray" title="Zuletzt online: <?= date('d.m.Y H:i', strtotime($mp['esb_last_seen_at'])) ?>">
+                  Offline seit <?= date('d.m.Y H:i', strtotime($mp['esb_last_seen_at'])) ?>
+                </span>
+              <?php else: ?>
+                <span class="badge badge-gray" style="color:var(--gray-600)">Keine ESB-Daten</span>
+              <?php endif; ?>
+              <?php if (!empty($mp['esb_last_seen_at'])): ?>
+                <br>
+                <button type="button" onclick="showWifiInfo('<?= $member['id'] ?>','<?= $mp['id'] ?>')"
+                        style="background:none;border:none;cursor:pointer;color:var(--gray-600);font-size:.72rem;padding:.15rem 0;text-decoration:underline">
+                  WLAN-Info anzeigen
+                </button>
               <?php endif; ?>
             </td>
             <td style="white-space:nowrap">
@@ -472,6 +491,19 @@ function openEditMp(id, znr, mc, type, jahresverbrauch, kwp, geplant) {
   document.getElementById('edit-mp-geplant').value = geplant;
   toggleMpTypeFields('edit');
   document.getElementById('edit-mp-dialog').showModal();
+}
+
+// WLAN-Diagnoseinfos (SSID/IP/Passwort) erst auf Klick abrufen -- landet so nicht unnötig im
+// initialen HTML (siehe docs/ESB_IDEEN.md Punkt 1, Sicherheitshinweis zum WLAN-Passwort).
+async function showWifiInfo(memberId, mpId) {
+  const res = await fetch('/portal/members/' + memberId + '/metering-points/' + mpId + '/wifi-info');
+  const d = await res.json();
+  if (d.error) { alert(d.error); return; }
+  if (!d.ssid && !d.ip && !d.password) {
+    alert('Noch keine WLAN-Diagnosedaten von diesem ESB übermittelt.');
+    return;
+  }
+  alert('WLAN-Diagnose\n\nSSID: ' + (d.ssid || '—') + '\nIP-Adresse: ' + (d.ip || '—') + '\nWLAN-Passwort: ' + (d.password || '—'));
 }
 </script>
 

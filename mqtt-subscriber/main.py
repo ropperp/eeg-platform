@@ -7,8 +7,16 @@ Payload: {"pp": 1200, "pm": 0, "ep": 21000000, "em": 6900000, "znr": "1121268533
   ep = Zählerstand Bezug (Wh)
   em = Zählerstand Einspeisung (Wh)
   znr = Zählernummer
+
+Zusätzlich: eeg/{community_slug}/meter/{znr}/status (retained, mit Last-Will-Testament der
+Firmware) -- Online/Zuletzt-online-Tracking der Ausleseeinheit (ESB), siehe docs/ESB_IDEEN.md
+Punkt 2 und esp32-firmware/p1-smart-meter/. Payload: {"status": "online"|"offline", "ts": "...",
+"ssid": "...", "ip": "...", "wifi_password": "..."} -- ssid/ip/wifi_password sind optional
+(aktueller Firmware-Stand schickt sie noch nicht mit, siehe ESB_IDEEN.md Punkt 1).
 """
 
+import base64
+import hashlib
 import json
 import logging
 import os
@@ -19,6 +27,8 @@ import uuid
 import paho.mqtt.client as mqtt
 import psycopg2
 import psycopg2.extras
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 from psycopg2.pool import ThreadedConnectionPool
 
 logging.basicConfig(
@@ -34,6 +44,7 @@ DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_USER = os.environ["DB_USER"]
 DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
+APP_SECRET = os.environ.get("APP_SECRET", "")
 
 db_pool: ThreadedConnectionPool | None = None
 community_cache: dict[str, str] = {}        # slug → community_id (UUID)
@@ -113,6 +124,62 @@ def get_metering_point_uuid(community_id: str, zaehlernummer: str) -> str | None
     return None
 
 
+def encrypt_secret(plain: str) -> str:
+    """AES-256-CBC mit zufälligem IV, kompatibel zu encryptSecret()/decryptSecret() in
+    webapp/src/functions.php (gleicher Schlüssel: sha256(APP_SECRET), IV dem Ciphertext
+    vorangestellt, beides base64) -- fürs ESB-WLAN-Passwort, siehe docs/ESB_IDEEN.md Punkt 1."""
+    key = hashlib.sha256(APP_SECRET.encode()).digest()
+    iv = os.urandom(16)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    ct = cipher.encrypt(pad(plain.encode("utf-8"), AES.block_size))
+    return base64.b64encode(iv + ct).decode()
+
+
+def update_status(community_id: str, metering_point_id: str, payload: dict) -> None:
+    """Online/Zuletzt-online + optionale WLAN-Diagnosefelder aus dem Status-Heartbeat
+    (eeg/{rc}/meter/{znr}/status) in metering_points schreiben, siehe migrate_20260817.sql.
+
+    esb_last_seen_at wird bewusst NUR bei status=online aktualisiert -- bei einer
+    Offline-Meldung (auch per Last-Will-Testament beim Verbindungsabbruch) soll der
+    Zeitpunkt weiterhin den letzten BESTÄTIGTEN Online-Moment zeigen ("zuletzt online: vor
+    X Minuten"), nicht den Zeitpunkt der Offline-Erkennung selbst.
+    """
+    online = payload.get("status") == "online"
+    last_seen_sql = ", esb_last_seen_at = now()" if online else ""
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            if payload.get("wifi_password"):
+                cur.execute(
+                    f"""
+                    UPDATE metering_points
+                    SET esb_online = %s{last_seen_sql},
+                        wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip),
+                        wifi_password_enc = %s
+                    WHERE id = %s
+                    """,
+                    (online, payload.get("ssid"), payload.get("ip"),
+                     encrypt_secret(payload["wifi_password"]), metering_point_id)
+                )
+            else:
+                cur.execute(
+                    f"""
+                    UPDATE metering_points
+                    SET esb_online = %s{last_seen_sql},
+                        wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip)
+                    WHERE id = %s
+                    """,
+                    (online, payload.get("ssid"), payload.get("ip"), metering_point_id)
+                )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool.putconn(conn)
+
+
 def insert_measurement(community_id: str, metering_point_id: str, payload: dict) -> None:
     pool = get_db_pool()
     conn = pool.getconn()
@@ -145,24 +212,20 @@ def insert_measurement(community_id: str, metering_point_id: str, payload: dict)
 
 
 def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
-    # Topic: eeg/{community_slug}/meter/{metering_point_id}/live
+    # Topic: eeg/{community_slug}/meter/{znr}/live ODER eeg/{community_slug}/meter/{znr}/status
     parts = msg.topic.split("/")
-    if len(parts) != 5 or parts[0] != "eeg" or parts[2] != "meter" or parts[4] != "live":
+    if len(parts) != 5 or parts[0] != "eeg" or parts[2] != "meter" or parts[4] not in ("live", "status"):
         log.warning("Unbekanntes Topic: %s", msg.topic)
         return
 
     community_slug = parts[1]
     zaehlernummer = parts[3]  # 13-stellige Zählernummer vom ESP32
+    kind = parts[4]
 
     try:
         payload = json.loads(msg.payload.decode())
     except json.JSONDecodeError:
         log.warning("Ungültiges JSON auf Topic %s: %s", msg.topic, msg.payload)
-        return
-
-    # Plausibilitätsprüfung (aus ESP32-Doku: > 100.000 W ist Fehler)
-    if payload.get("pp", 0) > 100_000 or payload.get("pm", 0) > 100_000:
-        log.warning("Unplausibler Messwert auf %s: %s", msg.topic, payload)
         return
 
     community_id = get_community_id(community_slug)
@@ -173,6 +236,19 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
     metering_point_uuid = get_metering_point_uuid(community_id, zaehlernummer)
     if not metering_point_uuid:
         log.warning("Unbekannte Zählernummer %s für Community %s — Topic ignoriert", zaehlernummer, community_slug)
+        return
+
+    if kind == "status":
+        try:
+            update_status(community_id, metering_point_uuid, payload)
+            log.debug("Status aktualisiert: %s → %s", msg.topic, payload.get("status"))
+        except Exception as e:
+            log.error("DB-Fehler bei %s: %s", msg.topic, e)
+        return
+
+    # Plausibilitätsprüfung (aus ESP32-Doku: > 100.000 W ist Fehler)
+    if payload.get("pp", 0) > 100_000 or payload.get("pm", 0) > 100_000:
+        log.warning("Unplausibler Messwert auf %s: %s", msg.topic, payload)
         return
 
     try:
@@ -189,7 +265,8 @@ def on_connect(client, userdata, flags, rc, properties=None) -> None:
         touch_heartbeat()
         log.info("Verbunden mit MQTT-Broker %s:%s", MQTT_HOST, MQTT_PORT)
         client.subscribe("eeg/+/meter/+/live", qos=1)
-        log.info("Subscribed auf eeg/+/meter/+/live")
+        client.subscribe("eeg/+/meter/+/status", qos=1)
+        log.info("Subscribed auf eeg/+/meter/+/live und eeg/+/meter/+/status")
     else:
         log.error("MQTT-Verbindung fehlgeschlagen, rc=%s", rc)
 

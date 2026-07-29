@@ -1947,6 +1947,31 @@ $router->get('/portal/members/:id', function ($params) {
     require ROOT . '/src/views/pages/member_detail.php';
 });
 
+/**
+ * WLAN-Diagnoseinfos eines Zählpunkts (SSID/IP/Passwort) auf Abruf statt beim Seitenaufbau
+ * mitzuschicken -- das entschlüsselte Passwort landet so nicht unnötig im initialen HTML
+ * (z.B. Browser-Cache, Screenshot der Seite), sondern nur wenn Obmann/Admin aktiv auf
+ * "WLAN-Info anzeigen" klicken. Siehe docs/ESB_IDEEN.md Punkt 1.
+ */
+$router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    header('Content-Type: application/json; charset=UTF-8');
+    $mp = DB::fetchOne(
+        'SELECT mp.wifi_ssid, mp.wifi_ip, mp.wifi_password_enc, mp.community_id
+         FROM metering_points mp WHERE mp.id = ? AND mp.member_id = ?',
+        [$params['mpid'], $params['id']]
+    );
+    if (!$mp) { http_response_code(404); echo json_encode(['error' => 'Zählpunkt nicht gefunden']); return; }
+    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
+        http_response_code(403); echo json_encode(['error' => 'Kein Zugriff']); return;
+    }
+    echo json_encode([
+        'ssid'     => $mp['wifi_ssid'] ?? '',
+        'ip'       => $mp['wifi_ip'] ?? '',
+        'password' => decryptSecret($mp['wifi_password_enc']),
+    ]);
+});
+
 $router->post('/portal/members/:id/files', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     $member = requireMemberAccess($params['id']);

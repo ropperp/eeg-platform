@@ -30,6 +30,37 @@ function icon(string $name, string $classes = ''): string
 }
 
 /**
+ * Verschlüsselt einen String mit AES-256-CBC (Schlüssel aus APP_SECRET). Für Werte gedacht,
+ * die wieder im Klartext angezeigt werden müssen (z.B. WLAN-Passwort des Mitglieds fürs
+ * ESB-Debugging, siehe docs/ESB_IDEEN.md) -- daher Verschlüsselung statt Hash. IV wird
+ * zufällig erzeugt und dem Ciphertext vorangestellt (beides base64), damit decryptSecret()
+ * ohne separate IV-Speicherung auskommt.
+ */
+function encryptSecret(string $plain): string
+{
+    $key = hash('sha256', getenv('APP_SECRET') ?: '', true);
+    $iv  = random_bytes(16);
+    $cipher = openssl_encrypt($plain, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+    return base64_encode($iv . $cipher);
+}
+
+/**
+ * Kehrt encryptSecret() um. Gibt bei ungültigen/leeren Daten '' zurück statt eines Fehlers,
+ * damit ein fehlendes/kaputtes Feld die Seite nicht mit einer Exception abreißen lässt.
+ */
+function decryptSecret(?string $encoded): string
+{
+    if (!$encoded) return '';
+    $raw = base64_decode($encoded, true);
+    if ($raw === false || strlen($raw) <= 16) return '';
+    $key = hash('sha256', getenv('APP_SECRET') ?: '', true);
+    $iv  = substr($raw, 0, 16);
+    $cipher = substr($raw, 16);
+    $plain = openssl_decrypt($cipher, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+    return $plain !== false ? $plain : '';
+}
+
+/**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
  */
