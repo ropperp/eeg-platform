@@ -20,6 +20,16 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Icon-System (Phosphor, selbst gehostet) + dezente Hero-Animation auf der Startseite
+  (Phase 1).** Die generischen Emojis im Theme-Toggle, im Sidebar-Menü und auf der Startseite
+  sind durch ein einheitliches Phosphor-Icon-Sprite ersetzt (`webapp/public/assets/icons/`,
+  neue Helferfunktion `icon()` in `functions.php`) — kein externer CDN-Request, Icon-Farbe folgt
+  automatisch dem Theme (`currentColor`, inkl. Dark Mode). Auf der öffentlichen Startseite blendet
+  GSAP (self-hosted unter `assets/js/vendor/`, `site-animations.js`) den Hero-Text jetzt sanft ein;
+  Portal/Admin bleiben bewusst unverändert und animationsfrei, damit schnelles, wiederholtes
+  Arbeiten (Mitgliederlisten, Rechnungen) nicht ausgebremst wird. Progressive-Enhancement-sicher:
+  ohne JS bzw. falls GSAP nicht lädt, bleibt der Hero-Text normal sichtbar. Weitere ~42 Dateien mit
+  Emojis (Phase 2) folgen nach Rückmeldung.
 - **Backup-Übersicht im Admin (`/admin/backups`).** Zeigt, ob die nächtliche Sicherung wirklich
   läuft: Zeitpunkt/Alter der letzten erfolgreichen Sicherung (grün) bzw. eine deutliche Warnung,
   wenn sie **überfällig** ist (> 26 h), dazu alle vorhandenen Sicherungen mit Größe, Alter und dem
