@@ -23,7 +23,7 @@ ob_start();
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
-  <h2 style="margin:0">💾 Backups</h2>
+  <h2 style="margin:0"><?= icon('floppy-disk') ?> Backups</h2>
 </div>
 
 <!-- Status der letzten Sicherung -->
@@ -41,13 +41,13 @@ ob_start();
   </div>
 <?php elseif ($istAktuell): ?>
   <div class="alert alert-success" style="margin-bottom:1.5rem">
-    <strong>✅ Sicherung ist aktuell.</strong> Letzter erfolgreicher Lauf:
+    <strong><?= icon('check-circle') ?> Sicherung ist aktuell.</strong> Letzter erfolgreicher Lauf:
     <strong><?= htmlspecialchars((string)($status['zeitpunkt'] ?? '')) ?></strong>
     (<?= htmlspecialchars($fmtAlter($letzterLauf)) ?>) auf <code><?= htmlspecialchars((string)($status['host'] ?? '')) ?></code>.
   </div>
 <?php else: ?>
   <div class="alert alert-error" style="margin-bottom:1.5rem">
-    <strong>⚠️ Sicherung ist überfällig!</strong> Der letzte erfolgreiche Lauf war
+    <strong><?= icon('warning-circle') ?> Sicherung ist überfällig!</strong> Der letzte erfolgreiche Lauf war
     <strong><?= htmlspecialchars($fmtAlter($letzterLauf)) ?></strong>
     (<?= htmlspecialchars((string)($status['zeitpunkt'] ?? '')) ?>), erwartet wird täglich um 02:00 Uhr.
     Bitte prüfen: läuft der Cron-Job (<code>crontab -l</code>), ist genug Speicherplatz frei

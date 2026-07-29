@@ -2,7 +2,7 @@
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
-  <h2 style="margin:0">📋 Aktivitätslog</h2>
+  <h2 style="margin:0"><?= icon('clipboard-text') ?> Aktivitätslog</h2>
 </div>
 
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
@@ -15,7 +15,7 @@
     </select>
     <span style="font-size:.8rem;color:var(--gray-600)">Letzte 500 Einträge</span>
     <a href="/admin/log/export<?= ($_GET['community_id'] ?? '') !== '' ? '?community_id=' . urlencode($_GET['community_id']) : '' ?>"
-       class="btn" style="margin-left:auto;background:var(--gray-100);color:var(--gray-700);padding:.4rem .8rem;font-size:.85rem">⬇️ Als Markdown exportieren</a>
+       class="btn" style="margin-left:auto;background:var(--gray-100);color:var(--gray-700);padding:.4rem .8rem;font-size:.85rem"><?= icon('arrow-down') ?> Als Markdown exportieren</a>
   </form>
 </div>
 
@@ -38,7 +38,7 @@
         <td style="font-size:.85rem"><?= htmlspecialchars(trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['email'] ?? 'System')) ?></td>
         <td style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($e['aktion']) ?></td>
         <td style="font-size:.85rem;<?= in_array($e['ist_fehler'], [true, 't', '1', 1], true) ? 'color:#b91c1c' : '' ?>">
-          <?= in_array($e['ist_fehler'], [true, 't', '1', 1], true) ? '⚠️ ' : '' ?><?= htmlspecialchars($e['beschreibung']) ?>
+          <?= in_array($e['ist_fehler'], [true, 't', '1', 1], true) ? icon('warning-circle') . ' ' : '' ?><?= htmlspecialchars($e['beschreibung']) ?>
         </td>
       </tr>
     <?php endforeach; ?>

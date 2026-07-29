@@ -1,6 +1,6 @@
 <?php $pageTitle = 'Dateien'; ob_start(); ?>
 
-<h2 style="margin-bottom:.5rem">📁 Dateien</h2>
+<h2 style="margin-bottom:.5rem"><?= icon('folder-simple') ?> Dateien</h2>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">
   LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung, das Infoblatt der Website
   sowie das Logo (getrennt für Light- und Dark-Mode). Herunterladen, bearbeiten und per Drag
@@ -8,7 +8,7 @@
   auf künftig erzeugte PDFs, Infoblatt/Logo: sofort auf der ganzen Website).
 </p>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
-  🧩 Vollständige Variablen-Referenz (auch für eine externe KI, die beim Schreiben einer eigenen
+  <?= icon('puzzle-piece') ?> Vollständige Variablen-Referenz (auch für eine externe KI, die beim Schreiben einer eigenen
   .tex-Datei hilft):
   <a href="/admin/templates/variablen.md">als Markdown</a> ·
   <a href="/admin/templates/variablen.csv">als CSV</a>
@@ -51,7 +51,7 @@
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <?php if ($t['exists']): ?>
       <a href="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.85rem">
-        ⬇️ Herunterladen
+        <?= icon('arrow-down') ?> Herunterladen
       </a>
     <?php endif; ?>
 
@@ -60,7 +60,7 @@
       <label class="template-dropzone"
              data-filename="<?= htmlspecialchars($t['filename']) ?>"
              style="display:flex;align-items:center;justify-content:center;gap:.5rem;border:2px dashed #d1d5db;border-radius:8px;padding:.6rem 1rem;cursor:pointer;font-size:.82rem;color:var(--gray-600);transition:border-color .15s,background .15s">
-        <span class="dz-text">📄 Neue Datei hierher ziehen oder klicken</span>
+        <span class="dz-text"><?= icon('file-text') ?> Neue Datei hierher ziehen oder klicken</span>
         <input type="file" name="file" accept="<?= ['pdf' => '.pdf', 'image' => '.png'][$t['type']] ?? '.tex' ?>" required style="display:none">
       </label>
     </form>
@@ -68,7 +68,7 @@
 
   <?php if ($t['variables']): ?>
     <details style="margin-top:.75rem">
-      <summary style="cursor:pointer;font-size:.82rem;color:var(--gray-600)">🧩 Verfügbare Variablen in dieser Vorlage (<?= count($t['variables']) ?>)</summary>
+      <summary style="cursor:pointer;font-size:.82rem;color:var(--gray-600)"><?= icon('puzzle-piece') ?> Verfügbare Variablen in dieser Vorlage (<?= count($t['variables']) ?>)</summary>
       <div style="margin-top:.5rem;max-height:280px;overflow-y:auto">
         <table style="font-size:.8rem">
           <?php foreach ($t['variables'] as $var => $desc): ?>
@@ -84,7 +84,7 @@
 
   <?php if ($t['assets']): ?>
     <details style="margin-top:.5rem">
-      <summary style="cursor:pointer;font-size:.82rem;color:var(--gray-600)">🖼️ Verfügbare Bild-Assets (<?= count($t['assets']) ?>)</summary>
+      <summary style="cursor:pointer;font-size:.82rem;color:var(--gray-600)"><?= icon('image') ?> Verfügbare Bild-Assets (<?= count($t['assets']) ?>)</summary>
       <div style="margin-top:.5rem">
         <table style="font-size:.8rem">
           <?php foreach ($t['assets'] as $name => $desc): ?>
@@ -125,7 +125,7 @@ document.querySelectorAll('.template-dropzone').forEach(function (zone) {
 
   function submitAfterPick() {
     if (!input.files.length) return;
-    text.textContent = '⏳ ' + input.files[0].name + ' wird hochgeladen …';
+    text.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-hourglass"></use></svg> ' + input.files[0].name.replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) + ' wird hochgeladen …';
     form.submit();
   }
 });

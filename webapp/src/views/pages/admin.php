@@ -1,6 +1,6 @@
 <?php $pageTitle = 'Admin'; ob_start(); ?>
 
-<h2 style="margin-bottom:1.5rem">🔧 Plattform-Administration</h2>
+<h2 style="margin-bottom:1.5rem"><?= icon('wrench') ?> Plattform-Administration</h2>
 
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
@@ -66,7 +66,7 @@
 
 <!-- Benutzer & Rollen -->
 <div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:1rem">👤 Benutzer & Rollen</h3>
+  <h3 style="margin-bottom:1rem"><?= icon('user-circle') ?> Benutzer & Rollen</h3>
 
   <table style="margin-bottom:1.5rem">
     <thead>
