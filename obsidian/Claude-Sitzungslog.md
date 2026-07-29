@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-29 (Phase 2) — Claude Code — Claude Sonnet 5
+**Auftrag:** Fortsetzung des Emoji-Sweeps (Phase 1 war nur die Startseite) über die
+restliche Anwendung — Mitgliederverwaltung, Abrechnung, Dateien, Beitritts-/Vertragsflow,
+kompletter Admin-Bereich —, jeweils mit Zwischenstand nach jedem Batch, jederzeit
+rückgängig machbar.
+**Ergebnis:** Alle verbleibenden ~190 Emoji-Vorkommen in ~38 Dateien durch `icon()`
+ersetzt, in 6 committeten Batches (Sidebar-Layout, Mitgliederverwaltung, Abrechnung/
+Rechnungen, Dateien/Dokumente, Beitritt/Verträge, Admin-Bereich, restliche Einzelseiten).
+Sprite um 17 weitere Icons ergänzt (wrench, paperclip, folder-open, note-pencil,
+download-simple, globe, x, puzzle-piece, sign-out, eye, device-mobile, laptop, image,
+calculator, plus, check, hourglass, flask). Zwei Sonderfälle bewusst anders gelöst:
+`<option>`-Werte in `<select>` bleiben reiner Text (kein Markup-Rendering dort möglich);
+die client-seitige IBAN-Live-Validierung und die Upload-Statusanzeige nutzen jetzt
+dieselbe SVG-Sprite-Referenz per `innerHTML` (mit Escaping) statt Emoji. Eine bewusste
+Ausnahme bleibt: das ⚠️-Symbol im Markdown-Export des Audit-Logs (reiner Textexport,
+kein HTML). Alle 73 Tests durchgehend grün, nach jedem Batch committet auf
+`claude/stromfueralle-footer-pages-trqb5c`. Damit ist der komplette Emoji-Sweep
+(Phase 1 + 2) abgeschlossen.
+
 ## 2026-07-29 — Claude Code — Claude Sonnet 5
 **Auftrag:** Vor jeder Änderung committen/sicherbar machen; passende, hochwertige
 Animationsbibliotheken (z. B. Motion/GSAP) für dezente Übergänge/Hover-/Scroll-Effekte
