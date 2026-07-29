@@ -61,6 +61,21 @@ function decryptSecret(?string $encoded): string
 }
 
 /**
+ * Formatiert ein Datum (bzw. einen von PostgreSQL gelieferten Zeitstempel-String, z.B. aus
+ * date_trunc('month', ...)) als deutschen Monatsnamen + Jahr, z.B. "Juni 2026". Bewusst eine
+ * eigene, feste Monatsnamen-Liste statt strftime() (seit PHP 8.1 deprecated) oder setlocale()
+ * (braucht installierte Locale-Pakete im Container, sonst stiller Fallback auf Englisch).
+ */
+function monatsLabel(string $dateStr): string
+{
+    $monate = [1 => 'Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni',
+        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    $ts = strtotime($dateStr);
+    if ($ts === false) return $dateStr;
+    return $monate[(int)date('n', $ts)] . ' ' . date('Y', $ts);
+}
+
+/**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
  */

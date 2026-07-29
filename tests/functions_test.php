@@ -77,3 +77,10 @@ test('decryptSecret() liefert leeren String bei leerem/kaputtem Wert', function 
     assertSame('', decryptSecret(''));
     assertSame('', decryptSecret('kein-gueltiges-base64!!!'));
 });
+
+// monatsLabel() -- deutscher Monatsname + Jahr fürs Mitglieder-Dashboard (Verbrauchsverlauf).
+test('monatsLabel() formatiert Monat und Jahr auf Deutsch', function () {
+    assertSame('Juni 2026', monatsLabel('2026-06-01 00:00:00+00'));
+    assertSame('Jänner 2027', monatsLabel('2027-01-15'));
+    assertSame('Dezember 2025', monatsLabel('2025-12-01'));
+});
