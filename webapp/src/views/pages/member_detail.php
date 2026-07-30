@@ -183,7 +183,15 @@
           </tr>
         </thead>
         <tbody>
+        <?php $espOfflineMinutes = espOfflineAfterMinutes(); ?>
         <?php foreach ($metering_points as $mp): ?>
+          <?php
+            // "online" nur, wenn die letzte Statusmeldung online war UND das nicht länger als
+            // die konfigurierte Schwelle her ist (Platform-Admin -> ESP32 / Ausleseeinheiten) --
+            // sonst könnte ein hängengebliebenes Gerät für immer als online angezeigt werden.
+            $espEffectivelyOnline = !empty($mp['esp_online']) && !empty($mp['esp_last_seen_at'])
+                && (time() - strtotime($mp['esp_last_seen_at'])) < $espOfflineMinutes * 60;
+          ?>
           <tr>
             <td><code style="font-size:.75rem"><?= htmlspecialchars($mp['zaehlpunkt_nr']) ?></code></td>
             <td>
@@ -203,7 +211,7 @@
               <?php endif; ?>
             </td>
             <td style="font-size:.78rem;white-space:nowrap">
-              <?php if (!empty($mp['esp_online'])): ?>
+              <?php if ($espEffectivelyOnline): ?>
                 <span class="badge badge-green"><?= icon('check-circle') ?> Online</span>
               <?php elseif (!empty($mp['esp_last_seen_at'])): ?>
                 <span class="badge badge-gray" title="Zuletzt online: <?= date('d.m.Y H:i', strtotime($mp['esp_last_seen_at'])) ?>">

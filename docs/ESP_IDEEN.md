@@ -54,6 +54,16 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Konfigurierbare ESP-Offline-Schwelle (Patrick 30.07.2026):** Bisher galt ein ESP als
+  online, solange die letzte Statusmeldung "online" war -- ganz ohne Rücksicht darauf, wie
+  lange das her ist. Ein hängengebliebenes Gerät (TCP-Verbindung technisch noch offen,
+  Firmware aber abgestürzt) hätte theoretisch für immer als online angezeigt werden können,
+  weil das MQTT-Last-Will-Testament dann nie auslöst. Jetzt zusätzliche, konfigurierbare
+  Zeitschwelle (Platform-Admin → E-Mail-Einstellungen → neuer Abschnitt „ESP32 /
+  Ausleseeinheiten", Standard 5 Minuten): ein Gerät gilt nur online, wenn `esp_online` UND
+  `esp_last_seen_at` nicht älter als die Schwelle ist. Gleichzeitig die Einstellungsseite in
+  „Plattform-Technik" und „E-Mail (Microsoft Graph)" unterteilt, damit klar ist, was
+  zusammengehört.
 - **MQTT-Broker mit TLS + Benutzername/Passwort (Patrick 30.07.2026):** Mosquitto lief bisher
   mit `allow_anonymous true` und ganz ohne Verschlüsselung -- für ein internes Testnetz tragbar,
   aber eine Voraussetzung für den echten Rollout (Mitglieder-ESP32s zuhause, außerhalb des

@@ -15,6 +15,10 @@
   <div class="alert alert-error" style="margin-bottom:1rem">Test-Mail fehlgeschlagen: <code style="font-size:.8rem"><?= htmlspecialchars($testError) ?></code></div>
 <?php endif; ?>
 
+<h3 style="margin:0 0 .75rem;color:var(--gray-600);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">
+  Plattform-Technik
+</h3>
+
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('flask') ?> Testmodus / Echtbetrieb</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
@@ -32,6 +36,30 @@
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>
 </div>
+
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('broadcast') ?> ESP32 / Ausleseeinheiten</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Betrifft, wie die Plattform den Online-Status von ESP32-Ausleseeinheiten anzeigt
+    (Mitgliederverwaltung, Manager-Dashboard) -- unabhängig vom Heartbeat-/Live-Daten-Intervall,
+    das auf jedem Gerät selbst im <code>/config</code>-Formular eingestellt wird.
+  </p>
+  <form method="post" action="/admin/settings/esp">
+    <div class="form-group" style="max-width:22rem">
+      <label>Als offline anzeigen nach (Minuten ohne Meldung)</label>
+      <input type="number" name="esp_offline_after_minutes" min="1" max="1440"
+             value="<?= htmlspecialchars((string)($platformSettings['esp_offline_after_minutes'] ?? 5)) ?>">
+      <small style="color:var(--gray-600)">Ein Gerät gilt trotz zuletzt „online" gemeldetem Status
+        als offline, wenn seitdem länger als diese Zeitspanne vergangen ist -- Sicherheitsnetz gegen
+        ein hängengebliebenes Gerät, dessen MQTT-Last-Will-Testament nie auslöst. Standard: 5 Minuten.</small>
+    </div>
+    <button type="submit" class="btn btn-primary">Speichern</button>
+  </form>
+</div>
+
+<h3 style="margin:0 0 .75rem;color:var(--gray-600);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">
+  E-Mail (Microsoft Graph)
+</h3>
 
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Azure-App-Registrierung</h3>
