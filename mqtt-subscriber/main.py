@@ -142,7 +142,7 @@ def encrypt_secret(plain: str) -> str:
     return base64.b64encode(iv + ct).decode()
 
 
-def update_status(community_id: str, metering_point_id: str, payload: dict) -> None:
+def update_status(community_id: str, metering_point_id: str, payload: dict, zaehlernummer: str) -> None:
     """Online/Zuletzt-online + optionale WLAN-Diagnosefelder aus dem Status-Heartbeat
     (eeg/{rc}/meter/{znr}/status) in metering_points schreiben, siehe migrate_20260817.sql
     und migrate_20260820.sql (meter_reachable/meter_last_seen_at).
@@ -167,10 +167,20 @@ def update_status(community_id: str, metering_point_id: str, payload: dict) -> N
         meter_params.append(bool(meter_ok))
         if meter_ok:
             meter_sql += ", meter_last_seen_at = now()"
+    new_ssid = payload.get("ssid")
     pool = get_db_pool()
     conn = pool.getconn()
+    old_ssid = None
     try:
         with conn.cursor() as cur:
+            # Alten SSID-Wert VOR dem Update lesen, um einen echten Netzwerkwechsel zu erkennen
+            # (nicht bloß eine routinemäßige IP-Änderung per DHCP -- die soll laut Patrick
+            # keine Meldung auslösen, siehe docs/ESP_IDEEN.md).
+            if new_ssid:
+                cur.execute("SELECT wifi_ssid FROM metering_points WHERE id = %s", (metering_point_id,))
+                row = cur.fetchone()
+                old_ssid = row[0] if row else None
+
             if payload.get("wifi_password"):
                 cur.execute(
                     f"""
@@ -199,6 +209,12 @@ def update_status(community_id: str, metering_point_id: str, payload: dict) -> N
         raise
     finally:
         pool.putconn(conn)
+
+    if new_ssid and old_ssid and new_ssid != old_ssid:
+        try:
+            notify_ssid_changed(community_id, zaehlernummer, old_ssid, new_ssid)
+        except Exception as e:
+            log.error("Konnte Benachrichtigung für SSID-Wechsel nicht schreiben: %s", e)
 
 
 def insert_measurement(community_id: str, metering_point_id: str, payload: dict) -> None:
@@ -276,6 +292,47 @@ def notify_unknown_meter(community_id: str, zaehlernummer: str) -> None:
         pool.putconn(conn)
 
 
+def notify_ssid_changed(community_id: str, zaehlernummer: str, old_ssid: str, new_ssid: str) -> None:
+    """Meldet einen echten WLAN-Netzwerkwechsel (neue SSID) als offene Benachrichtigung im
+    Postfach -- auf Wunsch von Patrick bewusst NUR bei einer geänderten SSID, NICHT bei einer
+    reinen IP-Adressänderung (die passiert routinemäßig per DHCP und wäre keine Meldung wert).
+    Gleiches Dedup-Muster wie notify_unknown_meter(): nur EINE offene Meldung je Zählernummer,
+    sonst würde jeder weitere Heartbeat mit der neuen SSID erneut eine Zeile erzeugen."""
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM notifications
+                WHERE community_id = %s AND typ = 'ssid_geaendert' AND status = 'offen'
+                  AND text LIKE %s
+                """,
+                (community_id, f"{zaehlernummer}:%")
+            )
+            if cur.fetchone():
+                return
+            cur.execute(
+                """
+                INSERT INTO notifications (community_id, typ, titel, text)
+                VALUES (%s, 'ssid_geaendert', %s, %s)
+                """,
+                (
+                    community_id,
+                    "WLAN-Netzwerk gewechselt",
+                    f"{zaehlernummer}: Das Gerät für Zählernummer {zaehlernummer} meldet ein neues "
+                    f"WLAN-Netzwerk (\"{old_ssid}\" → \"{new_ssid}\"). Falls das nicht beabsichtigt "
+                    "war, bitte das Gerät und dessen WLAN-Zugangsdaten prüfen.",
+                )
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool.putconn(conn)
+
+
 def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
     # Topic: eeg/{community_slug}/meter/{znr}/live ODER eeg/{community_slug}/meter/{znr}/status
     parts = msg.topic.split("/")
@@ -309,7 +366,7 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
 
     if kind == "status":
         try:
-            update_status(community_id, metering_point_uuid, payload)
+            update_status(community_id, metering_point_uuid, payload, zaehlernummer)
             log.debug("Status aktualisiert: %s → %s", msg.topic, payload.get("status"))
         except Exception as e:
             log.error("DB-Fehler bei %s: %s", msg.topic, e)

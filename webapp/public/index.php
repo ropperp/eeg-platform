@@ -865,31 +865,51 @@ $router->get('/api/live/:slug', function ($params) {
 
     DB::setCommunity($community['id']);
 
+    // Aktuelle Leistung: pro Zählpunkt nur den jeweils NEUESTEN Messwert im Fenster nehmen,
+    // nicht alle Zeilen aufsummieren (bei 5s-Sende-Intervall wären das bis zu ~24 Zeilen/Zähler
+    // in 2 Minuten -> Werte um ein Vielfaches zu hoch, siehe CLAUDE.md/Sitzungslog).
     $agg = DB::fetchOne(
         "SELECT
             COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
             COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
-            COUNT(DISTINCT metering_point_id)       AS active_meters
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+            COUNT(*)                                AS active_meters
+         FROM (
+            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+            ORDER BY metering_point_id, time DESC
+         ) latest",
         [$community['id']]
     );
 
+    // Energie heute: kumulative Zählerstände, daher pro Zähler (Max-Min) statt zeilenweise SUMmen.
     $today = DB::fetchOne(
-        "SELECT COALESCE(SUM(energy_einspeisung_wh), 0) AS today_wh
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= CURRENT_DATE
-         ORDER BY time DESC LIMIT 1",
+        "SELECT COALESCE(SUM(today_wh), 0) AS today_wh
+         FROM (
+            SELECT MAX(energy_einspeisung_wh) - MIN(energy_einspeisung_wh) AS today_wh
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= CURRENT_DATE
+            GROUP BY metering_point_id
+         ) per_meter",
         [$community['id']]
     );
 
+    // Zeitreihe: pro Bucket/Zähler zuerst den Durchschnitt bilden, dann über die Zähler summieren
+    // (sonst würde ein Zähler mit mehr Messwerten im Bucket das Ergebnis verzerren).
     $series = DB::fetchAll(
-        "SELECT
-            time_bucket('5 minutes', time) AS bucket,
-            SUM(power_bezug_w)             AS bezug_w,
-            SUM(power_einspeisung_w)       AS einspeisung_w
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= now() - INTERVAL '2 hours'
+        "SELECT bucket,
+            SUM(bezug_w)       AS bezug_w,
+            SUM(einspeisung_w) AS einspeisung_w
+         FROM (
+            SELECT
+                time_bucket('5 minutes', time) AS bucket,
+                metering_point_id,
+                AVG(power_bezug_w)             AS bezug_w,
+                AVG(power_einspeisung_w)       AS einspeisung_w
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 hours'
+            GROUP BY bucket, metering_point_id
+         ) per_meter_bucket
          GROUP BY bucket ORDER BY bucket",
         [$community['id']]
     );
@@ -1714,17 +1734,28 @@ $router->get('/api/v1/live', function () {
     }
     DB::execute('UPDATE member_api_keys SET last_used_at = now() WHERE id = ?', [$key['id']]);
 
+    // Pro Zählpunkt nur den jeweils neuesten Messwert im Fenster nehmen, nicht alle Zeilen
+    // aufsummieren (bei 5s-Sende-Intervall sonst Werte um ein Vielfaches zu hoch).
     $own = DB::fetchOne(
         "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
-         FROM esp_measurements
-         WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
-           AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)",
+         FROM (
+            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+              AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)
+            ORDER BY metering_point_id, time DESC
+         ) latest",
         [$key['community_id'], $key['member_id']]
     );
 
     $community = DB::fetchOne(
         "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
-         FROM esp_measurements WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+         FROM (
+            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+            ORDER BY metering_point_id, time DESC
+         ) latest",
         [$key['community_id']]
     );
     $communityBezug = (int)($community['bezug_w'] ?? 0);

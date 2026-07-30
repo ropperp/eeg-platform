@@ -42,11 +42,17 @@ if (is_readable($backupFile)) {
 $backupAgeHours = $backupStatus && !empty($backupStatus['unix'])
     ? (time() - (int)$backupStatus['unix']) / 3600 : null;
 
-// Community-Gesamtleistung live
+// Community-Gesamtleistung live: pro Zählpunkt nur den neuesten Messwert im Fenster nehmen,
+// nicht alle Zeilen aufsummieren (bei 5s-Sende-Intervall sonst Werte um ein Vielfaches zu hoch).
 $live = DB::fetchOne(
     "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
-            COUNT(DISTINCT metering_point_id) AS active_meters
-     FROM esp_measurements WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'",
+            COUNT(*) AS active_meters
+     FROM (
+        SELECT DISTINCT ON (metering_point_id) power_einspeisung_w, power_bezug_w
+        FROM esp_measurements
+        WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+        ORDER BY metering_point_id, time DESC
+     ) latest",
     [$communityId]
 );
 

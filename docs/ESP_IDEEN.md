@@ -66,6 +66,15 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Bug: Live-Leistungswerte um ein Vielfaches zu hoch (Patrick 30.07.2026):** Patrick meldete
+  über Node-RED (`GET /api/v1/live`) 70 kW Einspeisung, obwohl das eigene ESP-Webinterface und
+  Loxone korrekt ~5,8 kW zeigten. Ursache: die Abfrage summierte `power_*_w` über ALLE Messzeilen
+  eines 2-Minuten-Fensters statt nur den neuesten Wert je Zählpunkt zu nehmen -- seit dem
+  5-Sekunden-Live-Intervall (Punkt oben) macht das bis zu ~24 Zeilen pro Zähler in 2 Minuten,
+  die aufsummiert wurden. Betraf drei Stellen: `/api/v1/live`, das öffentliche Live-Dashboard
+  (`/api/live/:slug`, inkl. Tageskennzahl und Zeitreihen-Chart) sowie die "Community-
+  Gesamtleistung live"-Kachel im Obmann-Dashboard. Behoben mit `DISTINCT ON (metering_point_id)`
+  (jeweils nur die neueste Zeile pro Zähler) statt blindem `SUM()` über das Zeitfenster.
 - **Konfigurierbare ESP-Offline-Schwelle (Patrick 30.07.2026):** Bisher galt ein ESP als
   online, solange die letzte Statusmeldung "online" war -- ganz ohne Rücksicht darauf, wie
   lange das her ist. Ein hängengebliebenes Gerät (TCP-Verbindung technisch noch offen,
@@ -90,12 +99,20 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
   fix auf 30 s gedrosselt -- über dieselbe Variable wie der ESP-Online-Heartbeat, obwohl beides
   nichts miteinander zu tun hat. Jetzt eigenes Feld `live-daten-intervall` im `/config`-Formular,
   Standard 5 s, unabhängig vom Heartbeat-Intervall.
-- **WLAN-Passwort kam nicht zuverlässig an (Patrick 30.07.2026):** Wurde bisher nur EINMALIG
-  beim allerersten MQTT-Connect nach dem Boot mitgeschickt -- ein fragiles Design: verpasst die
-  Firmware genau diesen einen Moment (z. B. weil der Broker im exakten Augenblick noch nicht
-  bereit war), kommt das Passwort für die gesamte restliche Laufzeit nie an, während SSID/IP
-  trotzdem bei jedem Heartbeat ankamen. Genau das ist Patrick beim ersten Testgerät passiert.
-  Jetzt wird das Passwort bei JEDEM periodischen Heartbeat mitgeschickt, nicht nur beim Connect.
+- **WLAN-Passwort-Sendefrequenz, zweimal überarbeitet (Patrick 30.07.2026):** Ursprünglich nur
+  EINMALIG beim allerersten MQTT-Connect nach dem Boot mitgeschickt -- ein fragiles Design:
+  verpasst die Firmware genau diesen einen Moment (z. B. weil der Broker im exakten Augenblick
+  noch nicht bereit war), kommt das Passwort für die gesamte restliche Laufzeit nie an, während
+  SSID/IP trotzdem bei jedem Heartbeat ankamen. Genau das ist Patrick beim ersten Testgerät
+  passiert -- als erster Fix wurde das Passwort testweise bei JEDEM periodischen Heartbeat
+  mitgeschickt. Nach kurzer Rücksprache (jetzt mit TLS auf Port 8883 zwar unbedenklich
+  verschlüsselt, aber unnötig oft auf der Leitung) **finale Lösung:** Passwort nur noch beim
+  MQTT-(Re-)Connect (`mqttReconnect()`) senden -- das deckt "einmal pro Boot" UND "bei einem
+  WLAN-Wechsel" ab, weil ein Wechsel über das Config-Formular immer `ESP.restart()` auslöst.
+  SSID/IP weiterhin bei jedem Heartbeat. Plattformseitig behält `metering_points` den zuletzt
+  bekannten SSID/IP/Passwort-Wert, bis tatsächlich ein neuer ankommt, und meldet eine offene
+  Postfach-Benachrichtigung bei echtem SSID-Wechsel (nicht bei reiner IP-Änderung, die
+  passiert routinemäßig per DHCP).
 - **Benachrichtigung bei unbekannter Zählernummer (Patrick 30.07.2026):** Sendet ein Gerät
   Daten für eine Zählernummer, die (noch) keinem Zählpunkt in der jeweiligen EEG zugeordnet
   ist, landete das bisher NUR im Container-Log des `mqtt-subscriber` (unsichtbar für Obmänner/
