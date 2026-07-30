@@ -238,6 +238,19 @@ void parseObis(uint8_t* plain, int len) {
   pminusW  = newPminus;
   lastValidFrameMillis = millis();  // Zaehler ist erreichbar (unabhaengig vom Publish-Throttle)
 
+  // Sicherheitsnetz: nur senden, wenn die im /config-Formular eingetragene Zaehlernummer mit der
+  // tatsaechlich aus dem P1-Telegramm gelesenen uebereinstimmt -- die Plattform ordnet Daten
+  // ausschliesslich nach der im MQTT-Topic uebertragenen (= konfigurierten) Zaehlernummer einem
+  // Zaehlpunkt zu, OHNE das gegen die echte Geraete-Zaehlernummer zu pruefen. Ein Tippfehler in
+  // der Konfiguration wuerde sonst Daten unbemerkt dem falschen Zaehlpunkt zuordnen. topicSafe()
+  // auf beiden Seiten, damit Leerzeichen/Fuellzeichen im Telegramm keinen falschen Mismatch
+  // ausloesen. Lokales Dashboard (/, /data) zeigt die gelesenen Werte trotzdem an, damit ein
+  // Mismatch beim Einrichten ueberhaupt auffaellt.
+  if (cfgZaehler.length() > 0 && topicSafe(zaehlerNr) != topicSafe(cfgZaehler)) {
+    addLog("Zaehlernummer-Mismatch: konfiguriert " + cfgZaehler + ", gelesen " + zaehlerNr);
+    return;
+  }
+
   // ── MQTT Publish (gedrosselt auf 30 Sekunden) ────────────
   static unsigned long lastMqttPublish = 0;
   if (millis() - lastMqttPublish < 30000) return;

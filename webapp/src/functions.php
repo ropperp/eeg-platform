@@ -23,9 +23,16 @@ declare(strict_types=1);
  */
 function icon(string $name, string $classes = ''): string
 {
+    static $v = null;
+    // Cache-Busting nötig: kommt ein neues Symbol dazu (wie hier laufend), liefern Browser
+    // sonst ihre gecachte alte Sprite-Datei weiter aus -- das neue Icon bliebe bis zum
+    // Hard-Refresh unsichtbar. Gleiches Muster wie app.css?v=filemtime(...).
+    if ($v === null) {
+        $v = @filemtime(__DIR__ . '/../public/assets/icons/phosphor-sprite.svg') ?: time();
+    }
     $cls = trim('icon ' . $classes);
     return '<svg class="' . htmlspecialchars($cls) . '" aria-hidden="true" focusable="false">'
-        . '<use href="/assets/icons/phosphor-sprite.svg#ph-' . htmlspecialchars($name) . '"></use>'
+        . '<use href="/assets/icons/phosphor-sprite.svg?v=' . $v . '#ph-' . htmlspecialchars($name) . '"></use>'
         . '</svg>';
 }
 

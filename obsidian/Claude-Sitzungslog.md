@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (3) — Claude Code — Claude Sonnet 5
+**Auftrag:** Vier gemeldete Probleme aus dem laufenden Betrieb: fehlendes Icon beim neuen
+Support-Menüpunkt, Wunsch nach einer beim Scrollen fixierten Sidebar/Kopfzeile, ein im Dark
+Mode unlesbarer Code-Schnipsel in der hellblauen Info-Box unter „API-Zugänge", sowie die
+Bitte um eine Anleitung, was jetzt auf den ESP32 hochgeladen werden muss (inkl. Rückfrage,
+ob der Zählernummer-Abgleich vor dem Senden tatsächlich stattfindet).
+**Ergebnis:** `icon()` hängt jetzt einen `filemtime()`-Cache-Buster an die Sprite-URL (Ursache
+des fehlenden Icons: Browser lieferten die alte, gecachte Sprite-Datei ohne das neue Symbol
+weiter aus). Sidebar ist jetzt `position:sticky` (Desktop), mobile Icon-Leiste ausgenommen.
+Code-Tags in der API-Zugänge-Info-Box bekommen ein festes helles Inline-Styling, das die
+globale Dark-Mode-Regel überstimmt. In der Firmware fehlte tatsächlich ein Abgleich: die
+Plattform ordnete Daten bisher nur nach der manuell konfigurierten Zählernummer zu, ohne sie
+gegen die im P1-Telegramm gelesene zu prüfen -- jetzt wird bei Abweichung nicht gesendet.
+Ausführliche ESP32-Setup-/Test-Anleitung (Board, MQTT-Zugangsdaten, Ablauf der Pipeline,
+Vorschlag für einen Test-Zählpunkt zum Simulieren von Echtzeitdaten ohne Hardware) im Chat
+beantwortet. Alle 77 Tests weiterhin grün.
+
+---
+
 ## 2026-07-30 (2) — Claude Code — Claude Sonnet 5
 **Auftrag:** Korrektur "ESB" → "ESP" (die Ausleseeinheit heißt ESP32, nicht ESB) in Spalten,
 Code und Doku; ein Support-Ticket-System für Mitglieder (statt E-Mail-Verkehr, mit

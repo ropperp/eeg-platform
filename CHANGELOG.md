@@ -20,6 +20,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Sidebar bleibt beim Scrollen sichtbar (sticky), Icon-Sprite-Cache-Busting, Dark-Mode-Fix.**
+  Das Portal-Menü links scrollt jetzt nicht mehr mit dem Seiteninhalt mit, sondern bleibt wie der
+  Header stehen (Desktop; die mobile horizontale Icon-Leiste bleibt unverändert). `icon()` hängt
+  jetzt einen `filemtime()`-Cache-Buster an die Sprite-URL an -- neu hinzugefügte Icons (z. B. das
+  Support-Symbol) waren sonst erst nach einem Hard-Refresh sichtbar, weil Browser die alte
+  Sprite-Datei weiter aus dem Cache lieferten. Außerdem: die Code-Schnipsel in der hellblauen
+  Info-Box unter „API-Zugänge" (`GET /api/v1/live`) blieben im Dark Mode versehentlich dunkel
+  eingefärbt und bissen sich mit dem hellen Kasten -- jetzt bewusst immer hell.
 - **Support-Ticket-System für Mitglieder.** Neuer Bereich „Support" im Mitgliederportal
   (`/portal/my/support`): Mitglieder melden Probleme oder Feature-Vorschläge als Ticket statt
   per E-Mail, Obmänner/Platform-Admins sehen und beantworten alle Tickets ihrer Community unter
@@ -34,7 +42,10 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   selbst. Damit lässt sich Inselbetrieb/Stromausfall beim Mitglied (Zähler nicht erreichbar, ESP
   aber online) von einem Plattform-/ESP-Problem unterscheiden -- neue Spalten
   `metering_points.meter_reachable`/`meter_last_seen_at` (`migrate_20260820.sql`), Anzeige in
-  `member_detail.php` und als Warn-Badge im Manager-Dashboard.
+  `member_detail.php` und als Warn-Badge im Manager-Dashboard. Zusätzlich prüft die Firmware vor
+  jedem Publish, ob die im `/config`-Formular eingetragene Zählernummer mit der tatsächlich aus
+  dem P1-Telegramm gelesenen übereinstimmt -- ein Tippfehler in der Konfiguration hätte sonst
+  Daten unbemerkt dem falschen Zählpunkt zugeordnet.
 - **ESB → ESP umbenannt.** Die Ausleseeinheit heißt ESP (ESP32), nicht „ESB" -- eine falsche
   Abkürzung aus einer früheren Session. `metering_points.esb_online`/`esb_last_seen_at` →
   `esp_online`/`esp_last_seen_at` (`migrate_20260817.sql` benennt bereits vorhandene Spalten
