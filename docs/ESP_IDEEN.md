@@ -66,6 +66,19 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Bug: OTA-Netzwerkport erscheint nicht in der Arduino-IDE (Patrick 30.07.2026):** Code-Review
+  ergab, dass `ArduinoOTA` korrekt eingerichtet ist (Hostname/Passwort/Callbacks/`begin()` beim
+  WLAN-Connect, `handle()` in jedem `loop()`) -- kein Konfigurationsfehler. Wahrscheinlichste
+  Ursache: der ESP32-Modem-Sleep (WiFi-Stromsparmodus, standardmäßig aktiv) verzögert/verwirft
+  eingehende mDNS-Multicast-Pakete, worauf die OTA-Port-Erkennung der Arduino-IDE basiert -- das
+  Gerät ist dadurch nur unzuverlässig sichtbar. Fix: `WiFi.setSleep(false)` direkt nach
+  `WiFi.mode(WIFI_STA)` in `connectSTA()`. Kostet bei einem dauerhaft am Netzteil hängenden Gerät
+  keinen relevanten Strom. Falls weiterhin nicht sichtbar: gleiches Netz/Subnetz ohne
+  Client-Isolation prüfen, ~10-20s nach Boot warten, sonst per IP direkt mit `espota.py`
+  hochladen (siehe README). Nebeneffekt aus Patricks Upload-Log geprüft: Firmware nutzt aktuell
+  1.160.540 von 1.310.720 Bytes (88 %) des OTA-App-Partitions-Slots (4-MB-Flash-Schema) und
+  55.560 von 327.680 Bytes (16 %) RAM -- RAM hat viel Luft, der Flash-Slot wird aber langsam eng
+  für künftige Features (siehe Bestell-Empfehlung in `CLAUDE.md`/Sitzungslog).
 - **Bug: Live-Leistungswerte um ein Vielfaches zu hoch (Patrick 30.07.2026):** Patrick meldete
   über Node-RED (`GET /api/v1/live`) 70 kW Einspeisung, obwohl das eigene ESP-Webinterface und
   Loxone korrekt ~5,8 kW zeigten. Ursache: die Abfrage summierte `power_*_w` über ALLE Messzeilen

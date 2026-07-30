@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (11) — Claude Code — Claude Sonnet 5
+**Auftrag:** OTA-Update auf dem ESP32 funktioniert nicht, der Netzwerk-Port wird in der
+Arduino-IDE nicht angezeigt -- Code daraufhin prüfen, ob OTA (Hostname/Passwort etc.) richtig
+eingerichtet ist. Außerdem aus dem mitgeschickten Arduino-Upload-Log (Sketch/RAM-Größen,
+Chip-Erkennung) die Hardware-Empfehlung nochmal in 1-2 Sätzen bestätigen.
+**Ergebnis:** `ArduinoOTA`-Setup selbst war korrekt (Hostname/Passwort/Callbacks/`begin()`/
+`handle()` alle vorhanden) -- kein Konfigurationsfehler. Wahrscheinlichste Ursache: ESP32-
+Modem-Sleep (standardmäßig aktiv) verzögert/verwirft eingehende mDNS-Multicast-Pakete, worauf
+die IDE-Port-Erkennung basiert. Fix: `WiFi.setSleep(false)` nach `WiFi.mode(WIFI_STA)` in
+`connectSTA()` ergänzt. README um Troubleshooting-Absatz (gleiches Subnetz/keine Client-
+Isolation prüfen, `espota.py`-Fallback per IP) erweitert. Aus dem Log bestätigt: Chip ist
+ESP32-D0WD-V3 (Dual-Core, WiFi+BT, kein PSRAM) wie erwartet; Flash-Nutzung 1.160.540 von
+1.310.720 Bytes (88 %) im 4-MB-OTA-Partitionsschema, RAM 55.560 von 327.680 Bytes (16 %) --
+RAM hat viel Luft, der Flash-Slot wird für künftige Firmware-Erweiterungen aber langsam eng.
+`.ino`-Klammernbalance geprüft, `php tests/run.php` weiterhin 77/77 (unberührt).
+
+---
+
 ## 2026-07-30 (10) — Claude Code — Claude Sonnet 5
 **Auftrag:** Auf der Mitgliederseite ("beim Männchen") eine Zahl anzeigen, wie viele Mitglieder
 gerade ein Problem haben (Zähler nicht erreichbar / ESP offline); beim Postfach ebenfalls ein
