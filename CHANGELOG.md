@@ -20,6 +20,23 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Pre-Launch-Hinweis-Popup für Mitglieder.** Beim Login (Mitglieder-Ansicht, nicht für
+  Obmänner/Platform-Admins) erscheint jetzt bei jedem Login ein Hinweis, dass sich die
+  Plattform noch in der Entwicklungs-/Vorbereitungsphase befindet und sich Inhalte jederzeit
+  ändern können -- mit Link zum Support-Bereich für Vorschläge. Verschwommener Hintergrund,
+  restliche Seite erst nach Klick auf "Gelesen, weiter zur Plattform" nutzbar
+  (`/portal/ack-prelaunch`, Session-Flag wird bei jedem Login zurückgesetzt).
+- **Hinweis auf Live-Dashboards, wenn nicht alle Zählpunkte online sind.** Die "Live-Leistung"-
+  Kachel im Obmann-Dashboard und das öffentliche Live-Dashboard (`/live`) zeigen jetzt einen
+  Hinweistext, sobald mindestens ein bekannter Zählpunkt gerade nicht meldet -- die angezeigten
+  Gesamtwerte könnten dann geringfügig von der tatsächlichen Situation abweichen.
+- **Zählpunkt-Typ "Bezug + Einspeisung (ein Zähler)" jetzt auch im normalen Zählpunkt-Formular
+  wählbar** (bisher nur über die separate "Zählpunkte ohne Zuordnung"-Seite). Dazu neue
+  Validierung: eine Zählernummer darf nur einem aktiven Zählpunkt zugeordnet sein -- wird
+  dieselbe Nummer für zwei getrennte Zählpunkte (Bezug + Einspeisung) desselben physischen
+  Zählers eingetragen, bekäme laut MQTT-Zuordnung nur einer der beiden je Live-Daten, der
+  andere bliebe für immer auf "keine Daten" stehen. Für ein einzelnes bidirektionales Gerät
+  bitte den neuen Typ statt zweier Zählpunkte verwenden.
 - **Live-Leistungsanzeigen aktualisieren sich jetzt per Fetch alle 5s statt per Seiten-Reload.**
   Betrifft die "Aktuelle Leistung"-Kachel im Mitglieder-Dashboard (neuer Endpunkt
   `/portal/api/current-power`), die "Live-Leistung"-Kachel im Obmann-Dashboard (neuer Endpunkt

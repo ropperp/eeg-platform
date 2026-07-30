@@ -135,6 +135,10 @@ ob_start();
       </div>
     </div>
     <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)"><span id="live-active-meters"><?= $live['active_meters'] ?></span> Zählpunkte aktiv in den letzten 2 Min.</p>
+    <p id="live-disclaimer" style="margin-top:.5rem;font-size:.75rem;color:#b45309;display:<?= ($live['active_meters'] ?? 0) < ($live['total_meters'] ?? 0) ? 'block' : 'none' ?>">
+      <?= icon('warning-circle') ?> Hinweis: Nicht alle Zählpunkte sind gerade online. Die angezeigten
+      Gesamtwerte können daher geringfügig von der tatsächlichen Situation abweichen.
+    </p>
   </div>
   <script>
   // Live-Leistung alle 5s per Fetch aktualisieren -- kein Seiten-Reload für Werte, die sich
@@ -147,6 +151,7 @@ ob_start();
       document.getElementById('live-bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
       document.getElementById('live-einsp-w').textContent = d.einsp_w.toLocaleString('de-AT') + ' W';
       document.getElementById('live-active-meters').textContent = d.active_meters;
+      document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
     } catch (e) { /* naechster Versuch in 5s */ }
   }, 5000);
   </script>

@@ -28,6 +28,11 @@
         $isManager = Auth::isManager();
         $activeRoleName = $ar['role'] ?? '';
         $currentUserEmail = $_SESSION['user_email'] ?? '';
+        // Pre-Launch-Hinweis-Popup nur für die Mitglieder-Ansicht (Obmänner/Platform-Admins
+        // wissen ohnehin, dass wir uns in der Vorbereitungsphase befinden), einmal pro Login
+        // (Flag wird bei jedem establishSession() zurückgesetzt, siehe Auth.php) -- Patrick,
+        // 30.07.2026.
+        $showPrelaunchNotice = !$isPlatformAdmin && !$isManager && empty($_SESSION['prelaunch_ack']);
       ?>
 
       <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>
@@ -104,7 +109,7 @@
   </div>
 </header>
 
-<div class="portal-layout">
+<div class="portal-layout" style="<?= $showPrelaunchNotice ? 'filter:blur(4px);pointer-events:none;user-select:none' : '' ?>">
   <aside class="sidebar" id="sidebar">
     <?php if ($activeRoleName === 'platform_admin'): ?>
       <p class="sidebar-label">Plattform</p>
@@ -249,6 +254,31 @@
     <?= $content ?>
   </main>
 </div>
+
+<?php if ($showPrelaunchNotice): ?>
+<div style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:1rem">
+  <div class="card" style="max-width:32rem;width:100%;padding:1.75rem">
+    <h2 style="margin-bottom:.75rem"><?= icon('lightning') ?> Willkommen! Ein kurzer Hinweis, bevor es losgeht</h2>
+    <p style="font-size:.9rem;line-height:1.6;margin-bottom:.75rem">
+      Diese Plattform befindet sich aktuell noch in der Entwicklungs- und Vorbereitungsphase
+      (Pre-Launch). Wir arbeiten laufend daran, sie zu verbessern und neue Funktionen zu
+      ergänzen — wundern Sie sich daher bitte nicht, wenn sich Ansicht oder Inhalte von einem
+      Tag auf den anderen ändern.
+    </p>
+    <p style="font-size:.9rem;line-height:1.6;margin-bottom:1.25rem">
+      Haben Sie eine Idee oder einen Wunsch, was auf der Plattform noch fehlen könnte? Wir
+      freuen uns über Ihr Feedback im Support-Bereich!
+    </p>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+      <a href="/portal/my/support" class="btn btn-secondary"><?= icon('chat-circle-text') ?> Zum Support</a>
+      <form method="post" action="/portal/ack-prelaunch" style="margin-left:auto">
+        <input type="hidden" name="return_to" value="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>">
+        <button type="submit" class="btn btn-primary">Gelesen, weiter zur Plattform</button>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <script>
 // ─── Sidebar toggle ───────────────────────────────────────────────

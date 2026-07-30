@@ -216,10 +216,20 @@ function communityLivePower(string $communityId): array
          ) latest",
         [$communityId]
     );
+    // total_meters: alle aktiven Zählpunkte, die schon mindestens einmal gemeldet haben (nicht
+    // "noch nie installiert") -- Grundlage fürs Disclaimer unten (aktive_meters < total_meters
+    // bedeutet: mindestens ein bekannter ESP ist gerade offline, die Summenwerte sind dann
+    // unvollständig, siehe Patrick 30.07.2026).
+    $total = DB::fetchOne(
+        "SELECT COUNT(*) AS cnt FROM metering_points
+         WHERE community_id = ? AND active = true AND esp_last_seen_at IS NOT NULL",
+        [$communityId]
+    );
     return [
         'bezug_w'       => (int)($row['bezug_w'] ?? 0),
         'einsp_w'       => (int)($row['einsp_w'] ?? 0),
         'active_meters' => (int)($row['active_meters'] ?? 0),
+        'total_meters'  => (int)($total['cnt'] ?? 0),
     ];
 }
 
@@ -1067,12 +1077,21 @@ $router->get('/api/live/:slug', function ($params) {
     $einsp = (int)($agg['total_einspeisung_w'] ?? 0);
     $autarkie = $bezug > 0 ? min(100, round($einsp / $bezug * 100)) : 0;
 
+    // Für den "nicht alle Zählpunkte online"-Hinweis: alle bekannten (schon mal gemeldeten)
+    // Zählpunkte vs. die gerade aktiven -- siehe communityLivePower() (Patrick, 30.07.2026).
+    $totalMeters = DB::fetchOne(
+        "SELECT COUNT(*) AS cnt FROM metering_points
+         WHERE community_id = ? AND active = true AND esp_last_seen_at IS NOT NULL",
+        [$community['id']]
+    );
+
     echo json_encode([
         'bezug_w'       => $bezug,
         'einspeisung_w' => $einsp,
         'autarkie_pct'  => $autarkie,
         'today_kwh'     => round(($today['today_wh'] ?? 0) / 1000, 2),
         'active_meters' => (int)($agg['active_meters'] ?? 0),
+        'total_meters'  => (int)($totalMeters['cnt'] ?? 0),
         'series'        => $series,
     ]);
 });
@@ -1135,6 +1154,21 @@ $router->post('/portal/login/2fa', function () {
 $router->get('/portal/logout', function () {
     Auth::logout();
     header('Location: /portal/login');
+    exit;
+});
+
+/**
+ * Bestätigt das Pre-Launch-Hinweis-Popup (nur Mitglieder-Ansicht, siehe layouts/portal.php) --
+ * setzt die Session-Flag und springt zur Seite zurück, auf der das Popup aufgerufen wurde
+ * (Patrick, 30.07.2026: soll nicht jedes Mal auf das Dashboard umleiten). return_to wird gegen
+ * einen /portal/-Präfix geprüft, damit daraus kein Open-Redirect auf fremde Ziele werden kann.
+ */
+$router->post('/portal/ack-prelaunch', function () {
+    Auth::requireLogin();
+    $_SESSION['prelaunch_ack'] = true;
+    $returnTo = $_POST['return_to'] ?? '/portal/dashboard';
+    if (!str_starts_with($returnTo, '/portal/')) { $returnTo = '/portal/dashboard'; }
+    header('Location: ' . $returnTo);
     exit;
 });
 
@@ -1247,7 +1281,7 @@ $router->get('/portal/api/live-power', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     header('Content-Type: application/json');
     $communityId = Auth::activeCommunityId();
-    if (!$communityId) { echo json_encode(['bezug_w' => 0, 'einsp_w' => 0, 'active_meters' => 0]); return; }
+    if (!$communityId) { echo json_encode(['bezug_w' => 0, 'einsp_w' => 0, 'active_meters' => 0, 'total_meters' => 0]); return; }
     DB::setCommunity($communityId);
     echo json_encode(communityLivePower($communityId));
 });
@@ -2510,6 +2544,27 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
         exit;
     }
 
+    $meterCode = trim($_POST['meter_code'] ?? '') ?: null;
+    // Eine Zählernummer darf nur EINEM aktiven Zählpunkt zugeordnet sein: die Plattform ordnet
+    // eingehende MQTT-Daten ausschließlich über die Zählernummer zu (mqtt-subscriber/main.py,
+    // get_metering_point_uuid()) -- bei zwei Zählpunkten mit derselben Nummer (z.B. einmal
+    // Bezug, einmal Einspeisung fürs selbe physische Gerät) würde nur einer davon je Live-Daten
+    // bekommen, der andere bliebe für immer auf "keine Daten" stehen (Patrick, 30.07.2026).
+    // Für ein einzelnes bidirektionales Gerät stattdessen Typ "prosumer" auf einem Zählpunkt nutzen.
+    if ($meterCode) {
+        $meterOwner = DB::fetchOne(
+            "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
+             JOIN members m ON m.id = mp.member_id
+             WHERE mp.community_id = ? AND mp.meter_code = ? AND mp.active = true",
+            [$communityId, $meterCode]
+        );
+        if ($meterOwner) {
+            header('Location: /portal/members/' . $params['id'] . '?error=meter_duplicate&meter_owner='
+                . urlencode($meterOwner['first_name'] . ' ' . $meterOwner['last_name'] . ' (KdNr ' . ($meterOwner['kundennummer'] ?? '—') . ')'));
+            exit;
+        }
+    }
+
     $jahresverbrauch = trim($_POST['jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['jahresverbrauch_kwh']) : null;
     $engpassleistung  = trim($_POST['engpassleistung_kw'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['engpassleistung_kw']) : null;
     $geplanteEinsp    = trim($_POST['geplante_einspeisung_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['geplante_einspeisung_kwh']) : null;
@@ -2518,7 +2573,7 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
         'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, meter_code, jahresverbrauch_kwh, engpassleistung_kw, geplante_einspeisung_kwh, registered_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
          ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
-        [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', trim($_POST['meter_code'] ?? '') ?: null, $jahresverbrauch, $engpassleistung, $geplanteEinsp]
+        [$communityId, $member['id'], $znr, $_POST['type'] ?? 'consumer', $meterCode, $jahresverbrauch, $engpassleistung, $geplanteEinsp]
     );
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
@@ -2991,6 +3046,23 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
         exit;
     }
 
+    $meterCode = trim($_POST['meter_code'] ?? '') ?: null;
+    // Siehe Kommentar bei der Anlage-Route: eine Zählernummer darf nur einem aktiven Zählpunkt
+    // gehören, sonst bekommt nie beide Zählpunkte Live-Daten (MQTT ordnet nur über die Nummer zu).
+    if ($meterCode) {
+        $meterOwner = DB::fetchOne(
+            "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
+             JOIN members m ON m.id = mp.member_id
+             WHERE mp.community_id = ? AND mp.meter_code = ? AND mp.active = true AND mp.id != ?",
+            [$communityId, $meterCode, $params['mpid']]
+        );
+        if ($meterOwner) {
+            header('Location: /portal/members/' . $params['id'] . '?error=meter_duplicate&meter_owner='
+                . urlencode($meterOwner['first_name'] . ' ' . $meterOwner['last_name'] . ' (KdNr ' . ($meterOwner['kundennummer'] ?? '—') . ')'));
+            exit;
+        }
+    }
+
     $jahresverbrauch = trim($_POST['jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['jahresverbrauch_kwh']) : null;
     $engpassleistung  = trim($_POST['engpassleistung_kw'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['engpassleistung_kw']) : null;
     $geplanteEinsp    = trim($_POST['geplante_einspeisung_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['geplante_einspeisung_kwh']) : null;
@@ -2999,7 +3071,7 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
         'UPDATE metering_points SET zaehlpunkt_nr=?, meter_code=?, type=?, jahresverbrauch_kwh=?, engpassleistung_kw=?, geplante_einspeisung_kwh=? WHERE id=? AND community_id=?',
         [
             $znr,
-            trim($_POST['meter_code'] ?? '') ?: null,
+            $meterCode,
             $_POST['type'] ?? 'consumer',
             $jahresverbrauch,
             $engpassleistung,

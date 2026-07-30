@@ -76,6 +76,11 @@ class Auth
         $_SESSION['user_email']  = $user['email'];
         $_SESSION['roles']       = $roles;
         $_SESSION['active_role'] = self::pickDefaultRole($roles);
+        // Pre-Launch-Hinweis-Popup (Mitglieder-Ansicht) soll bei JEDEM Login erneut erscheinen,
+        // nicht nur beim ersten Login der Browser-Session (Patrick, 30.07.2026) -- explizit
+        // zurücksetzen statt auf session_regenerate_id() zu verlassen, das den Session-Inhalt
+        // (inkl. dieser Flag) unverändert auf die neue Session-ID mitnimmt.
+        unset($_SESSION['prelaunch_ack']);
 
         DB::execute('UPDATE users SET last_login_at = now() WHERE id = ?', [$user['id']]);
         session_regenerate_id(true);
