@@ -12,10 +12,12 @@ $lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = ? ORD
 $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? AND status IN ('pending','ready') ORDER BY quartal DESC LIMIT 1", [$communityId]);
 
 // ─── Status-Kachelzeile: Betriebsreife auf einen Blick (letzter EDA-Import, letztes
-// Backup, ESB online/offline, offene Rechnungen) -- siehe diplomarbeit-berater-Vorschlag. ───
-$esbStats = DB::fetchOne(
-    "SELECT COUNT(*) FILTER (WHERE esb_last_seen_at IS NOT NULL) AS bekannt,
-            COUNT(*) FILTER (WHERE esb_online) AS online
+// Backup, ESP online/offline, offene Rechnungen) -- siehe diplomarbeit-berater-Vorschlag. ───
+$espStats = DB::fetchOne(
+    "SELECT COUNT(*) FILTER (WHERE esp_last_seen_at IS NOT NULL) AS bekannt,
+            COUNT(*) FILTER (WHERE esp_online) AS online,
+            COUNT(*) FILTER (WHERE meter_last_seen_at IS NOT NULL) AS meter_bekannt,
+            COUNT(*) FILTER (WHERE esp_online AND NOT meter_reachable) AS meter_unreachable
      FROM metering_points WHERE community_id = ? AND active = true",
     [$communityId]
 );
@@ -90,14 +92,21 @@ ob_start();
     <?php endif; ?>
   </div>
   <div class="card" style="padding:1rem">
-    <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('plug') ?> ESB online</div>
-    <?php if (($esbStats['bekannt'] ?? 0) > 0): ?>
-      <div style="font-weight:700"><?= $esbStats['online'] ?> von <?= $esbStats['bekannt'] ?></div>
-      <span class="badge badge-<?= $esbStats['online'] == $esbStats['bekannt'] ? 'green' : ($esbStats['online'] > 0 ? 'yellow' : 'red') ?>" style="margin-top:.25rem;display:inline-block">
-        <?= $esbStats['online'] ?> online
+    <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('plug') ?> ESP online</div>
+    <?php if (($espStats['bekannt'] ?? 0) > 0): ?>
+      <div style="font-weight:700"><?= $espStats['online'] ?> von <?= $espStats['bekannt'] ?></div>
+      <span class="badge badge-<?= $espStats['online'] == $espStats['bekannt'] ? 'green' : ($espStats['online'] > 0 ? 'yellow' : 'red') ?>" style="margin-top:.25rem;display:inline-block">
+        <?= $espStats['online'] ?> online
       </span>
     <?php else: ?>
-      <div style="font-weight:700;color:var(--gray-600)">Noch keine ESB</div>
+      <div style="font-weight:700;color:var(--gray-600)">Noch keine ESP</div>
+    <?php endif; ?>
+    <?php if (($espStats['meter_unreachable'] ?? 0) > 0): ?>
+      <div style="margin-top:.4rem">
+        <span class="badge badge-red" title="ESP online, aber Zähler antwortet nicht -- möglicherweise Inselbetrieb/Stromausfall beim Mitglied, kein Plattform-Problem">
+          <?= icon('warning') ?> <?= $espStats['meter_unreachable'] ?> Zähler nicht erreichbar
+        </span>
+      </div>
     <?php endif; ?>
   </div>
   <div class="card" style="padding:1rem">

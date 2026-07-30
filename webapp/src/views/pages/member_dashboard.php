@@ -13,7 +13,7 @@ $hasConsumer = (bool)array_filter($meteringPoints, fn($mp) => in_array($mp['type
 $hasProducer = (bool)array_filter($meteringPoints, fn($mp) => in_array($mp['type'], ['producer', 'prosumer'], true));
 
 // EDA-basierte Monatswerte -- KEIN Live-ESP-Zeitreihen-Chart hier, da die Ausleseeinheit beim
-// Mitglied noch nicht produktionsreif im Feld ist (siehe docs/ESB_IDEEN.md). Die hier gezeigten
+// Mitglied noch nicht produktionsreif im Feld ist (siehe docs/ESP_IDEEN.md). Die hier gezeigten
 // Werte sind dieselben, die auch der Abrechnung zugrunde liegen (kwh_teilnahme = "Bezug aus der
 // Gemeinschaft", kwh_erzeugung = eigene Erzeugung, siehe Billing::generateDrafts()) -- nur
 // belastbare Qualitätsstufen (L1/L2), damit hier keine vorläufigen L3-Ersatzwerte auftauchen.

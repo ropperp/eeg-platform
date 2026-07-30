@@ -9,10 +9,13 @@ Payload: {"pp": 1200, "pm": 0, "ep": 21000000, "em": 6900000, "znr": "1121268533
   znr = Zählernummer
 
 Zusätzlich: eeg/{community_slug}/meter/{znr}/status (retained, mit Last-Will-Testament der
-Firmware) -- Online/Zuletzt-online-Tracking der Ausleseeinheit (ESB), siehe docs/ESB_IDEEN.md
+Firmware) -- Online/Zuletzt-online-Tracking der Ausleseeinheit (ESP32), siehe docs/ESP_IDEEN.md
 Punkt 2 und esp32-firmware/p1-smart-meter/. Payload: {"status": "online"|"offline", "ts": "...",
-"ssid": "...", "ip": "...", "wifi_password": "..."} -- ssid/ip/wifi_password sind optional
-(aktueller Firmware-Stand schickt sie noch nicht mit, siehe ESB_IDEEN.md Punkt 1).
+"ssid": "...", "ip": "...", "wifi_password": "...", "meter_ok": true|false} -- ssid/ip/
+wifi_password/meter_ok sind optional (ältere Firmware-Stände schicken sie ggf. nicht mit).
+meter_ok = ob der ESP zuletzt ein gültiges P1-Telegramm vom Smart Meter empfangen hat (getrennt
+vom ESP-eigenen Online-Status -- bei Stromausfall/Inselbetrieb beim Mitglied bleibt der ESP über
+WLAN erreichbar, verliert aber die Verbindung zum Zähler, siehe docs/ESP_IDEEN.md Punkt 4).
 """
 
 import base64
@@ -127,7 +130,7 @@ def get_metering_point_uuid(community_id: str, zaehlernummer: str) -> str | None
 def encrypt_secret(plain: str) -> str:
     """AES-256-CBC mit zufälligem IV, kompatibel zu encryptSecret()/decryptSecret() in
     webapp/src/functions.php (gleicher Schlüssel: sha256(APP_SECRET), IV dem Ciphertext
-    vorangestellt, beides base64) -- fürs ESB-WLAN-Passwort, siehe docs/ESB_IDEEN.md Punkt 1."""
+    vorangestellt, beides base64) -- fürs ESP-WLAN-Passwort, siehe docs/ESP_IDEEN.md Punkt 1."""
     key = hashlib.sha256(APP_SECRET.encode()).digest()
     iv = os.urandom(16)
     cipher = AES.new(key, AES.MODE_CBC, iv)
@@ -137,15 +140,29 @@ def encrypt_secret(plain: str) -> str:
 
 def update_status(community_id: str, metering_point_id: str, payload: dict) -> None:
     """Online/Zuletzt-online + optionale WLAN-Diagnosefelder aus dem Status-Heartbeat
-    (eeg/{rc}/meter/{znr}/status) in metering_points schreiben, siehe migrate_20260817.sql.
+    (eeg/{rc}/meter/{znr}/status) in metering_points schreiben, siehe migrate_20260817.sql
+    und migrate_20260820.sql (meter_reachable/meter_last_seen_at).
 
-    esb_last_seen_at wird bewusst NUR bei status=online aktualisiert -- bei einer
+    esp_last_seen_at wird bewusst NUR bei status=online aktualisiert -- bei einer
     Offline-Meldung (auch per Last-Will-Testament beim Verbindungsabbruch) soll der
     Zeitpunkt weiterhin den letzten BESTÄTIGTEN Online-Moment zeigen ("zuletzt online: vor
-    X Minuten"), nicht den Zeitpunkt der Offline-Erkennung selbst.
+    X Minuten"), nicht den Zeitpunkt der Offline-Erkennung selbst. Gleiches Prinzip für
+    meter_last_seen_at/meter_ok: das ist der ESP-eigene Online-Status (WLAN/MQTT) getrennt
+    vom Zähler-Erreichbarkeitsstatus (P1-Kommunikation) -- ein ESP kann online sein, während
+    der Zähler nicht erreichbar ist (z.B. Inselbetrieb/Stromausfall beim Mitglied), siehe
+    docs/ESP_IDEEN.md Punkt 4. meter_ok fehlt bei älteren Firmware-Ständen im Payload und
+    bleibt dann unverändert (kein Downgrade auf "nicht erreichbar" nur wegen alter Firmware).
     """
     online = payload.get("status") == "online"
-    last_seen_sql = ", esb_last_seen_at = now()" if online else ""
+    last_seen_sql = ", esp_last_seen_at = now()" if online else ""
+    meter_ok = payload.get("meter_ok")
+    meter_sql = ""
+    meter_params: list = []
+    if meter_ok is not None:
+        meter_sql = ", meter_reachable = %s"
+        meter_params.append(bool(meter_ok))
+        if meter_ok:
+            meter_sql += ", meter_last_seen_at = now()"
     pool = get_db_pool()
     conn = pool.getconn()
     try:
@@ -154,23 +171,23 @@ def update_status(community_id: str, metering_point_id: str, payload: dict) -> N
                 cur.execute(
                     f"""
                     UPDATE metering_points
-                    SET esb_online = %s{last_seen_sql},
+                    SET esp_online = %s{last_seen_sql}{meter_sql},
                         wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip),
                         wifi_password_enc = %s
                     WHERE id = %s
                     """,
-                    (online, payload.get("ssid"), payload.get("ip"),
+                    (online, *meter_params, payload.get("ssid"), payload.get("ip"),
                      encrypt_secret(payload["wifi_password"]), metering_point_id)
                 )
             else:
                 cur.execute(
                     f"""
                     UPDATE metering_points
-                    SET esb_online = %s{last_seen_sql},
+                    SET esp_online = %s{last_seen_sql}{meter_sql},
                         wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip)
                     WHERE id = %s
                     """,
-                    (online, payload.get("ssid"), payload.get("ip"), metering_point_id)
+                    (online, *meter_params, payload.get("ssid"), payload.get("ip"), metering_point_id)
                 )
         conn.commit()
     except Exception:

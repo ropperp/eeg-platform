@@ -1,6 +1,6 @@
-# P1 Smart Meter Reader (ESB) — ESP32
+# P1 Smart Meter Reader — ESP32
 
-Firmware für die **Ausleseeinheit (ESB)**, die Mitglieder der EEG Strompool Feldkirchen
+Firmware für die **Ausleseeinheit (ESP32)**, die Mitglieder der EEG Strompool Feldkirchen
 Süd-West erhalten: liest die P1-Kundenschnittstelle des Kärnten-Netz-Smart-Meters
 (Iskraemeco AM550) aus, entschlüsselt die DLMS/COSEM-Frames (AES-128-GCM) und schickt
 Bezug/Einspeisung live per MQTT an die Plattform.
@@ -28,15 +28,23 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   (Payload: `{"pp":…,"pm":…,"ep":…,"em":…,"znr":"…"}`, siehe `mqtt-subscriber/main.py`)
 - **Status-Heartbeat** auf `eeg/{rc}/meter/{zaehler}/status` (retained, mit Last-Will-Testament
   `{"status":"offline"}` bei Verbindungsabbruch) — Grundlage für das Online/Zuletzt-online-Tracking
-  auf der Plattform (siehe `docs/ESB_IDEEN.md`, Punkt 2)
+  auf der Plattform (siehe `docs/ESP_IDEEN.md`, Punkt 2). Enthält zusätzlich:
+  - `ssid`/`ip`: aktuell verbundenes WLAN + per DHCP erhaltene IP (jeder Heartbeat)
+  - `wifi_password`: nur beim MQTT-(Re-)Connect mitgeschickt, nicht bei jedem periodischen
+    Heartbeat (Punkt 1) — landet auf der Plattform verschlüsselt, nie im Klartext gespeichert
+  - `meter_ok`: ob zuletzt (< 2 Minuten) ein gültiges P1-Telegramm vom Smart Meter empfangen
+    wurde — getrennt vom WLAN/MQTT-Online-Status des ESP selbst, damit sich Inselbetrieb/
+    Stromausfall beim Mitglied (Zähler nicht erreichbar, ESP aber online) von einem
+    ESP-/Plattform-Problem unterscheiden lässt (Punkt 4)
 - OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied
 
 ## Bezug zur Plattform (`eeg-platform`-Repo)
 
 - `mqtt-subscriber/main.py` konsumiert `eeg/+/meter/+/live` und `eeg/+/meter/+/status` und schreibt
-  in `esp_measurements` bzw. die Online/Zuletzt-online-Spalten von `metering_points`.
+  in `esp_measurements` bzw. die Online/Zuletzt-online- und Zähler-Erreichbarkeits-Spalten von
+  `metering_points`.
 - Offene Ideen/Abhängigkeiten zwischen Firmware und Plattform: siehe
-  [`docs/ESB_IDEEN.md`](../../docs/ESB_IDEEN.md) — dort bitte auch neue Ideen von der
+  [`docs/ESP_IDEEN.md`](../../docs/ESP_IDEEN.md) — dort bitte auch neue Ideen von der
   Firmware-Seite ergänzen, nicht nur von der Plattform-Seite.
 
 ## Bekannter Punkt zum Nacharbeiten

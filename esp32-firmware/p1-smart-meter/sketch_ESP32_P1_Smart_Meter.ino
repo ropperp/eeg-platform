@@ -85,6 +85,17 @@ long eminusWh = -1;       // P- Zaehlerstand Einspeisung in Wh (2.8.0)
 long pplusW   = -1;       // Momentanleistung P+ Bezug in W    (1.7.0)
 long pminusW  = -1;       // Momentanleistung P- Einspeis. in W (2.7.0)
 
+// Zaehler-Erreichbarkeit (getrennt vom eigenen WLAN/MQTT-Online-Status): Zeitpunkt des
+// letzten gueltigen P1-Telegramms. Faellt der Zaehler still (z.B. Inselbetrieb/Stromausfall
+// beim Mitglied), bleibt der ESP ueber WLAN ggf. weiterhin erreichbar -- dieses Flag zeigt,
+// dass das Problem beim Zaehler/Kunden liegt und nicht am ESP oder an der Plattform.
+unsigned long lastValidFrameMillis = 0;
+#define METER_TIMEOUT_MS 120000  // 2 Minuten ohne gueltiges Telegramm = Zaehler nicht erreichbar
+
+bool meterReachable() {
+  return lastValidFrameMillis != 0 && (millis() - lastValidFrameMillis) < METER_TIMEOUT_MS;
+}
+
 // ── Frame Buffer ─────────────────────────────────────────────
 #define MAX_FRAME 1024    // Max. Framegroesse in Bytes
 #define MAX_LOG   10      // Anzahl Log-Eintraege im Ringpuffer
@@ -159,6 +170,18 @@ uint32_t read32(uint8_t* data, int offset) {
 // Byte 81:       0x06 = Tag
 // Byte 82-85:    Momentanleistung P- (2.7.0 Einspeisung) in W
 
+// String fuer den Wert eines JSON-Felds absichern (Anfuehrungszeichen/Backslash escapen) --
+// SSID und WLAN-Passwort kommen vom Nutzer und koennten sonst ungueltiges JSON erzeugen
+String jsonEscape(String in) {
+  String out = "";
+  for (unsigned int i = 0; i < in.length(); i++) {
+    char c = in.charAt(i);
+    if (c == '"' || c == '\\') out += '\\';
+    out += c;
+  }
+  return out;
+}
+
 // Zaehlernummer auf MQTT-topic-taugliche Zeichen reduzieren
 String topicSafe(String in) {
   String out = "";
@@ -213,6 +236,7 @@ void parseObis(uint8_t* plain, int len) {
   eminusWh = newEminus;
   pplusW   = newPplus;
   pminusW  = newPminus;
+  lastValidFrameMillis = millis();  // Zaehler ist erreichbar (unabhaengig vom Publish-Throttle)
 
   // ── MQTT Publish (gedrosselt auf 30 Sekunden) ────────────
   static unsigned long lastMqttPublish = 0;
@@ -446,8 +470,15 @@ void mqttReconnect() {
   if (ok) {
     Serial.println("MQTT verbunden");
     if (st.length() > 0) {
-      // Sofort "online" publishen (retained), damit Broker-Retain das LWT ueberschreibt
-      mqttClient.publish(st.c_str(), "{\"status\":\"online\"}", true);
+      // Sofort "online" publishen (retained), damit Broker-Retain das LWT ueberschreibt --
+      // inkl. WLAN-Diagnoseinfos (SSID/IP/Passwort), da dies der eigentliche Boot-/
+      // Reconnect-Moment ist (siehe docs/ESP_IDEEN.md Punkt 1). Das Passwort nur hier statt bei
+      // jedem periodischen Heartbeat mitzuschicken haelt es seltener im Klartext auf der Leitung.
+      String hb = "{\"status\":\"online\",\"ssid\":\"" + jsonEscape(WiFi.SSID()) +
+                  "\",\"ip\":\"" + WiFi.localIP().toString() + "\"";
+      if (cfgPass.length() > 0) hb += ",\"wifi_password\":\"" + jsonEscape(cfgPass) + "\"";
+      hb += "}";
+      mqttClient.publish(st.c_str(), hb.c_str(), true);
     }
   }
 }
@@ -765,9 +796,12 @@ void loop() {
       String st = statusTopic();
       if (st.length() > 0) {
         String ts = isoTimestamp();
-        String hb = ts.length() > 0
-          ? "{\"status\":\"online\",\"ts\":\"" + ts + "\"}"
-          : "{\"status\":\"online\"}";
+        String hb = "{\"status\":\"online\"";
+        if (ts.length() > 0) hb += ",\"ts\":\"" + ts + "\"";
+        hb += ",\"ssid\":\"" + jsonEscape(WiFi.SSID()) + "\"";
+        hb += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
+        hb += ",\"meter_ok\":" + String(meterReachable() ? "true" : "false");
+        hb += "}";
         mqttClient.publish(st.c_str(), hb.c_str(), true);
       }
     }

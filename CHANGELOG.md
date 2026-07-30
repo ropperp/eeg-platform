@@ -20,6 +20,26 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Support-Ticket-System für Mitglieder.** Neuer Bereich „Support" im Mitgliederportal
+  (`/portal/my/support`): Mitglieder melden Probleme oder Feature-Vorschläge als Ticket statt
+  per E-Mail, Obmänner/Platform-Admins sehen und beantworten alle Tickets ihrer Community unter
+  `/portal/support` (Statuswechsel offen/in Bearbeitung/geschlossen, Thread mit Antworten). Bei
+  jedem neuen Ticket geht eine Benachrichtigung an eine konfigurierbare Adresse (Platform-Admin →
+  E-Mail-Einstellungen, Standard `office@stromfueralle.at`). Neue Tabellen `support_tickets`/
+  `support_ticket_messages` mit Row-Level-Security (`migrate_20260821.sql`).
+- **ESP32-Firmware: WLAN-Diagnose + Zähler-Erreichbarkeit tatsächlich mitgeschickt.** Die
+  Firmware sendet jetzt beim MQTT-Status-Heartbeat zusätzlich SSID/IP (jeder Heartbeat) und das
+  WLAN-Passwort (nur beim Boot/Reconnect) sowie `meter_ok` -- ob zuletzt ein gültiges
+  P1-Telegramm vom Smart Meter empfangen wurde, getrennt vom WLAN/MQTT-Online-Status des ESP
+  selbst. Damit lässt sich Inselbetrieb/Stromausfall beim Mitglied (Zähler nicht erreichbar, ESP
+  aber online) von einem Plattform-/ESP-Problem unterscheiden -- neue Spalten
+  `metering_points.meter_reachable`/`meter_last_seen_at` (`migrate_20260820.sql`), Anzeige in
+  `member_detail.php` und als Warn-Badge im Manager-Dashboard.
+- **ESB → ESP umbenannt.** Die Ausleseeinheit heißt ESP (ESP32), nicht „ESB" -- eine falsche
+  Abkürzung aus einer früheren Session. `metering_points.esb_online`/`esb_last_seen_at` →
+  `esp_online`/`esp_last_seen_at` (`migrate_20260817.sql` benennt bereits vorhandene Spalten
+  automatisch um, falls schon eingespielt), UI-Texte, Variablen und `docs/ESB_IDEEN.md` →
+  `docs/ESP_IDEEN.md` entsprechend angepasst.
 - **Eigenes Hero-Banner-Foto statt SVG-Illustration, per Admin-Upload mit Zuschnitt.**
   Unter `/admin/templates` lässt sich jetzt ein eigenes Foto für den Hero-Bereich der
   Startseite hochladen (neuer Registry-Eintrag `hero-banner.png`, gleiche
