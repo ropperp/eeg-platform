@@ -61,7 +61,13 @@ else
   openssl x509 -req -in /tmp/server.csr -CA /tmp/ca.crt -CAkey /tmp/ca.key -CAcreateserial \
     -out /tmp/server.crt -days 3650
   sudo mv /tmp/ca.crt /tmp/server.crt /tmp/server.key "$CERT_DIR/"
-  sudo chmod 600 "$CERT_DIR/server.key"
+  # 644 statt 600: der eclipse-mosquitto-Container läuft als eigener, nicht-root User (nicht als
+  # der "root", der die Datei per sudo angelegt hat) -- mit 600 könnte der Broker-Prozess den
+  # privaten Schlüssel gar nicht lesen und der TLS-Listener (damit der GESAMTE Broker, mosquitto
+  # behandelt einen Listener-Konfigurationsfehler als fatal) würde erst gar nicht starten.
+  # Tradeoff: server.key ist damit für jeden lokalen Shell-User auf diesem Host lesbar -- auf
+  # einem dedizierten Single-Admin-Pi wie diesem hier akzeptabel.
+  sudo chmod 644 "$CERT_DIR/server.key"
   rm -f /tmp/ca.key /tmp/server.csr /tmp/ca.srl
   echo "✓ Zertifikat erzeugt unter $CERT_DIR (CN=${CN})."
   echo "  ESP32-Geräte prüfen dieses Zertifikat NICHT (setInsecure()) -- verschlüsselt die"
