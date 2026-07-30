@@ -95,6 +95,8 @@
 
 <?php if (($_GET['success'] ?? '') === 'reset_sent'): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Link zum Passwort-Zurücksetzen wurde per E-Mail verschickt (10 Minuten gültig).</div>
+<?php elseif (($_GET['success'] ?? '') === 'live_reset'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Live-ESP-Messdaten für alle Zählpunkte dieses Mitglieds wurden gelöscht.</div>
 <?php elseif (($_GET['success'] ?? '') === 'invite_sent'): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Freigegeben — Einladung mit Erstlogin-Link wurde per E-Mail verschickt.</div>
 <?php elseif (($_GET['error'] ?? '') === 'mail'): ?>
@@ -254,6 +256,20 @@
         <?php endforeach; ?>
         </tbody>
       </table>
+    <?php endif; ?>
+
+    <?php if (platformTestMode() && !empty($metering_points)): ?>
+      <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-live-data"
+            style="margin-bottom:1.25rem;padding-top:.75rem;border-top:1px solid var(--gray-200)">
+        <button type="submit" class="btn btn-secondary" style="color:#ef4444"
+                onclick="return confirm('Wirklich ALLE Live-ESP-Messdaten dieses Mitglieds unwiderruflich löschen? Betrifft alle Zählpunkte dieses Mitglieds (Leistungswerte, Zählerstände, WLAN-Status).')">
+          <?= icon('trash') ?> Live-Messdaten zurücksetzen (Testphase)
+        </button>
+        <p style="font-size:.72rem;color:var(--gray-600);margin-top:.35rem">
+          Löscht alle gespeicherten ESP-Messwerte für alle Zählpunkte dieses Mitglieds unwiderruflich
+          und setzt Online-/WLAN-Status zurück. Nur im Testmodus sichtbar (Platform-Admin → Plattform-Technik).
+        </p>
+      </form>
     <?php endif; ?>
 
     <!-- Zählpunkt hinzufügen -->

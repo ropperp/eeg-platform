@@ -991,16 +991,30 @@ $router->get('/api/live/:slug', function ($params) {
         [$community['id']]
     );
 
-    // Energie heute: kumulative Zählerstände, daher pro Zähler (Max-Min) statt zeilenweise SUMmen.
+    // Energie heute: kumulative Zählerstände, daher Differenz statt zeilenweise SUMmen. Als
+    // Tages-Basiswert bewusst die letzte Messung VOR heute nehmen (nicht die erste Messung DES
+    // Tages) -- sonst würde z.B. ein Test/Neustart mit nur 1-2 Messwerten "heute" (z.B. beim
+    // manuellen Testen per mosquitto_pub, siehe esp32-firmware-README) MAX=MIN liefern und 0
+    // kWh anzeigen, obwohl der Zähler längst deutlich mehr eingespeist hat. Gibt es für einen
+    // Zählpunkt gar keine Messung vor heute (allererste Messung überhaupt ist von heute), lässt
+    // sich "heute" nicht sinnvoll von "insgesamt" trennen -- dann 0 statt einer falsch hohen
+    // Zahl (kompletter historischer Zählerstand als "heute" ausgegeben).
     $today = DB::fetchOne(
-        "SELECT COALESCE(SUM(today_wh), 0) AS today_wh
-         FROM (
-            SELECT MAX(energy_einspeisung_wh) - MIN(energy_einspeisung_wh) AS today_wh
+        "WITH jetzt AS (
+            SELECT DISTINCT ON (metering_point_id) metering_point_id, energy_einspeisung_wh AS jetzt_wh
             FROM esp_measurements
-            WHERE community_id = ? AND time >= CURRENT_DATE
-            GROUP BY metering_point_id
-         ) per_meter",
-        [$community['id']]
+            WHERE community_id = ?
+            ORDER BY metering_point_id, time DESC
+         ),
+         basis AS (
+            SELECT DISTINCT ON (metering_point_id) metering_point_id, energy_einspeisung_wh AS basis_wh
+            FROM esp_measurements
+            WHERE community_id = ? AND time < CURRENT_DATE
+            ORDER BY metering_point_id, time DESC
+         )
+         SELECT COALESCE(SUM(GREATEST(j.jetzt_wh - COALESCE(b.basis_wh, j.jetzt_wh), 0)), 0) AS today_wh
+         FROM jetzt j LEFT JOIN basis b ON b.metering_point_id = j.metering_point_id",
+        [$community['id'], $community['id']]
     );
 
     // Zeitreihe: pro Bucket/Zähler zuerst den Durchschnitt bilden, dann über die Zähler summieren
@@ -2949,6 +2963,44 @@ $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($par
     DB::setCommunity($communityId);
     DB::execute('UPDATE metering_points SET active=false WHERE id=? AND community_id=?', [$params['mpid'], $communityId]);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
+    exit;
+});
+
+/**
+ * Testphase-Reset (Patrick, 30.07.2026): löscht ALLE ESP-Live-Messdaten (esp_measurements) und
+ * setzt den Online-/WLAN-Status auf allen Zählpunkten EINES Mitglieds zurück -- bewusst pro
+ * Mitglied statt für die ganze EEG auf einmal, damit ein Reset beim Testen mit einem einzelnen
+ * Test-Zählpunkt nicht versehentlich die Daten anderer Mitglieder mitlöscht. Nur im Testmodus
+ * verfügbar (Platform-Admin -> Plattform-Technik) -- sobald eine EEG in den echten Betrieb
+ * wechselt, verschwindet dieser destruktive Button automatisch, damit niemand aus Versehen
+ * echte Live-Daten löscht.
+ */
+$router->post('/portal/members/:id/reset-live-data', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    if (!platformTestMode()) {
+        http_response_code(403); echo 'Nur im Testmodus verfügbar (Platform-Admin -> Plattform-Technik).'; return;
+    }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $mpIds = array_column(
+        DB::fetchAll('SELECT id FROM metering_points WHERE member_id = ?', [$member['id']]),
+        'id'
+    );
+    if ($mpIds) {
+        $placeholders = implode(',', array_fill(0, count($mpIds), '?'));
+        $deleted = DB::execute("DELETE FROM esp_measurements WHERE metering_point_id IN ($placeholders)", $mpIds);
+        DB::execute(
+            "UPDATE metering_points
+             SET esp_online = false, esp_last_seen_at = NULL, meter_reachable = NULL,
+                 meter_last_seen_at = NULL, wifi_ssid = NULL, wifi_ip = NULL, wifi_password_enc = NULL
+             WHERE id IN ($placeholders)",
+            $mpIds
+        );
+        logAudit($member['community_id'], 'live_daten_reset', 'member', $member['id'],
+            'Live-ESP-Messdaten zurückgesetzt (Testphase): ' . $deleted . ' Messzeilen gelöscht, '
+            . count($mpIds) . ' Zählpunkt(e) auf "keine Daten" zurückgesetzt.');
+    }
+    header('Location: /portal/members/' . $params['id'] . '?success=live_reset');
     exit;
 });
 
