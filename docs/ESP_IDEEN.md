@@ -66,12 +66,24 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Live-Leistungsanzeigen per 5s-Polling statt Seiten-Reload (Patrick 30.07.2026):** Werte,
+  "von denen man weiß, dass sie sich aktualisieren" (aktuelle Leistung), sollen sich selbst
+  aktualisieren statt die ganze Seite neu zu laden. Neue schlanke JSON-Endpunkte
+  `/portal/api/current-power` (Mitglied, nutzt `memberCurrentNetPowerW()`) und
+  `/portal/api/live-power` (Obmann, nutzt neue gemeinsame Funktion `communityLivePower()`,
+  ersetzt die bisher inline in `manager_dashboard.php` stehende SQL). Beide Dashboards pollen
+  per `fetch()` alle 5s und schreiben nur die betroffenen DOM-Elemente neu. Das öffentliche
+  Live-Dashboard (`/live`) hatte dieses Muster schon (Chart.js + Polling) -- Intervall dort von
+  10s auf 5s verkürzt, passend zum 5s-ESP-Sendeintervall.
 - **Testphase-Reset für Live-ESP-Messdaten pro Mitglied (Patrick 30.07.2026):** Patrick testet
   gerade aktiv mit echter/simulierter Hardware und wollte `esp_measurements` zwischendurch
   zurücksetzen können, OHNE die Daten anderer Mitglieder anzufassen. Neuer Button bei den
   Zählpunkten eines Mitglieds (`/portal/members/:id/reset-live-data`), nur im Testmodus
   sichtbar/ausführbar -- löscht alle Messzeilen und den Online-/WLAN-Status ausschließlich für
-  die Zählpunkte DIESES Mitglieds, mit Bestätigungsdialog und Audit-Log-Eintrag.
+  die Zählpunkte DIESES Mitglieds, mit Bestätigungsdialog und Audit-Log-Eintrag. **Erster
+  Versuch schlug fehl:** `meter_reachable` auf NULL zurückzusetzen verletzte den NOT-NULL-
+  Constraint der Spalte (`migrate_20260820.sql`, Standard `false`) -- SQLSTATE[23502] direkt
+  beim ersten Test durch Patrick. Auf `false` statt `NULL` korrigiert.
 - **Bug: "Erzeugung heute" auf dem öffentlichen Live-Dashboard konnte 0 kWh zeigen (Patrick
   30.07.2026):** Patrick meldete, trotz realer Einspeisung zeige die Tageskennzahl nicht das
   Erwartete. Ursache: Basiswert war die ERSTE Messung des Tages -- bei wenigen Testmessungen

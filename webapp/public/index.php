@@ -198,6 +198,32 @@ function memberCurrentNetPowerW(string $communityId, array $meteringPointIds): ?
 }
 
 /**
+ * Aktuelle Gesamt-Leistung (W) einer ganzen Community, aus dem jeweils neuesten Messwert je
+ * Zählpunkt (nicht Summe über alle Zeilen). Gemeinsame Grundlage für die "Live-Leistung"-Kachel
+ * im Obmann-Dashboard und den Polling-Endpunkt /portal/api/live-power (Patrick, 30.07.2026:
+ * beide sollen dieselbe Zahl liefern, daher eine gemeinsame Funktion statt zweimal dieselbe SQL).
+ */
+function communityLivePower(string $communityId): array
+{
+    $row = DB::fetchOne(
+        "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
+                COUNT(*) AS active_meters
+         FROM (
+            SELECT DISTINCT ON (metering_point_id) power_einspeisung_w, power_bezug_w
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+            ORDER BY metering_point_id, time DESC
+         ) latest",
+        [$communityId]
+    );
+    return [
+        'bezug_w'       => (int)($row['bezug_w'] ?? 0),
+        'einsp_w'       => (int)($row['einsp_w'] ?? 0),
+        'active_meters' => (int)($row['active_meters'] ?? 0),
+    ];
+}
+
+/**
  * Live-Schätzung, wie viel der eigenen Einspeisung im gewählten Zeitraum tatsächlich von
  * Mitgliedern DERSELBEN Gemeinschaft verbraucht wurde ("Einspeisung in die Gemeinschaft"),
  * selbst aus den ESP-Messwerten berechnet -- NICHT der amtliche, vom Netzbetreiber angewandte
@@ -1190,6 +1216,40 @@ $router->get('/portal/dashboard', function () {
     } else {
         require ROOT . '/src/views/pages/member_dashboard.php';
     }
+});
+
+/**
+ * Leichtgewichtiger JSON-Endpunkt fürs Mitglieder-Dashboard (Patrick, 30.07.2026): wird per
+ * Fetch alle 5s abgefragt, damit nur die "Aktuelle Leistung"-Kachel aktualisiert wird -- kein
+ * voller Seiten-Reload für Werte, von denen man weiß, dass sie sich laufend ändern.
+ */
+$router->get('/portal/api/current-power', function () {
+    Auth::requireLogin();
+    header('Content-Type: application/json');
+    $communityId = Auth::activeCommunityId();
+    if (!$communityId) { echo json_encode(['net_w' => null]); return; }
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [Auth::userId(), $communityId]);
+    if (!$member) { echo json_encode(['net_w' => null]); return; }
+    $mpIds = array_column(
+        DB::fetchAll('SELECT id FROM metering_points WHERE member_id = ? AND active = true', [$member['id']]),
+        'id'
+    );
+    echo json_encode(['net_w' => memberCurrentNetPowerW($communityId, $mpIds)]);
+});
+
+/**
+ * Analog für das Obmann-Dashboard: liefert dieselbe Zahl wie die "Live-Leistung"-Kachel dort
+ * (communityLivePower()), per Fetch alle 5s abgefragt statt bei jedem Update die ganze Seite
+ * neu zu laden.
+ */
+$router->get('/portal/api/live-power', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    header('Content-Type: application/json');
+    $communityId = Auth::activeCommunityId();
+    if (!$communityId) { echo json_encode(['bezug_w' => 0, 'einsp_w' => 0, 'active_meters' => 0]); return; }
+    DB::setCommunity($communityId);
+    echo json_encode(communityLivePower($communityId));
 });
 
 $router->post('/portal/switch-role', function () {
@@ -2990,8 +3050,11 @@ $router->post('/portal/members/:id/reset-live-data', function ($params) {
         $placeholders = implode(',', array_fill(0, count($mpIds), '?'));
         $deleted = DB::execute("DELETE FROM esp_measurements WHERE metering_point_id IN ($placeholders)", $mpIds);
         DB::execute(
+            // meter_reachable ist NOT NULL DEFAULT false (migrate_20260820.sql) -- auf false statt
+            // NULL zuruecksetzen, sonst verletzt das UPDATE den NOT-NULL-Constraint (siehe
+            // SQLSTATE[23502] beim ersten Versuch, Patrick 30.07.2026).
             "UPDATE metering_points
-             SET esp_online = false, esp_last_seen_at = NULL, meter_reachable = NULL,
+             SET esp_online = false, esp_last_seen_at = NULL, meter_reachable = false,
                  meter_last_seen_at = NULL, wifi_ssid = NULL, wifi_ip = NULL, wifi_password_enc = NULL
              WHERE id IN ($placeholders)",
             $mpIds

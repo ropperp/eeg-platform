@@ -20,6 +20,11 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Live-Leistungsanzeigen aktualisieren sich jetzt per Fetch alle 5s statt per Seiten-Reload.**
+  Betrifft die "Aktuelle Leistung"-Kachel im Mitglieder-Dashboard (neuer Endpunkt
+  `/portal/api/current-power`), die "Live-Leistung"-Kachel im Obmann-Dashboard (neuer Endpunkt
+  `/portal/api/live-power`, gemeinsame Grundlage `communityLivePower()`) und das öffentliche
+  Live-Dashboard (`/live`, Intervall von 10s auf 5s verkürzt, passend zum 5s-ESP-Sendeintervall).
 - **Testphase-Reset für Live-ESP-Messdaten pro Mitglied.** Neuer Button "Live-Messdaten
   zurücksetzen (Testphase)" bei den Zählpunkten eines Mitglieds (`/portal/members/:id/reset-live-data`):
   löscht alle `esp_measurements`-Zeilen und setzt Online-/WLAN-Status für alle Zählpunkte
