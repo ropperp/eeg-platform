@@ -8,6 +8,22 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (5) — Claude Code — Claude Sonnet 5
+**Auftrag:** TLS + Benutzername/Passwort auf dem MQTT-Broker einrichten; das eigene
+Test-ESP32 liefert bereits Live-Werte, aber die kommen nur alle 30s (Heartbeat-Intervall,
+sollte vom Live-Daten-Intervall getrennt und auf ~5s einstellbar sein); WLAN-Passwort fehlt
+in der WLAN-Info-Anzeige (SSID/IP kommen an, Passwort nicht).
+**Ergebnis:** `scripts/mqtt_secure_setup.sh` (neu, automatisch von `scripts/setup.sh`
+mitaufgerufen) erzeugt ein selbstsigniertes Zertifikat + Zugangsdaten, Mosquitto verlangt
+jetzt beides auf beiden Ports (1883 + 8883/TLS). ESP32-Firmware wählt automatisch
+`WiFiClientSecure`, sobald Port 8883 konfiguriert ist. Neues, vom Heartbeat unabhängiges
+`live-daten-intervall`-Feld (Standard 5s statt fix 30s). WLAN-Passwort-Bug gefunden und
+behoben: wurde nur einmalig beim allerersten MQTT-Connect mitgeschickt statt bei jedem
+Heartbeat -- genau der verpasste Moment war beim Testgerät die Ursache. Alle 77 Tests
+weiterhin grün, Python-/Bash-/YAML-Syntax geprüft.
+
+---
+
 ## 2026-07-30 (4) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nachfrage, ob die früher gewünschte Benachrichtigung bei unbekannter
 Zählernummer tatsächlich umgesetzt ist (Patrick hat testweise einen ESP32 eingerichtet und

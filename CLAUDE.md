@@ -221,6 +221,27 @@ korrekten Mount (`/opt/eeg/timescaledb:/home/postgres/pgdata`) + Image-Pin auf f
 ### Traefik: "client version 1.24 is too old"
 Docker Engine 29.x unterstützt nur API ≥ 1.40. Traefik:latest behebt das, zusätzlich ist `DOCKER_API_VERSION=1.40` in der compose-Datei gesetzt.
 
+### MQTT-Broker von außerhalb des lokalen Netzes erreichen (für Mitglieder-ESP32s zuhause)
+**Stand 30.07.2026: noch nicht eingerichtet.** `stromfueralle.at`/`portal.stromfueralle.at`
+lösen auf die öffentliche IP des **nginx-Proxy-Hosts** (10.0.0.144 / 80.122.212.226) auf --
+eine andere Maschine als der EEG-Server (10.0.0.250), auf dem Mosquitto läuft. Die Domain
+routet also NICHT zum Broker, und selbst wenn sie es täte: der nginx-Proxy terminiert nur
+HTTP/HTTPS (Port 80/443), es gibt dort keine Weiterleitung für rohes TCP/MQTT.
+
+Damit ESP32-Geräte bei Mitgliedern zuhause (außerhalb des eigenen 10.0.0.0/24-Netzes) Daten
+schicken können, fehlt noch ein **Router-Port-Forward** (externer Port → 10.0.0.250:8883).
+Erst seitdem Mosquitto TLS + Zugangsdaten verlangt (siehe `scripts/mqtt_secure_setup.sh`,
+Abschnitt „Update" oben) ist das überhaupt vertretbar -- vorher (`allow_anonymous true`, kein
+TLS) hätte ein Port-Forward den Broker komplett offen ins Internet gestellt (jeder hätte
+Energiedaten mitlesen oder fälschen können). Bevor der Port-Forward eingerichtet wird: prüfen,
+dass alle Geräte tatsächlich auf Port 8883 + Zugangsdaten umgestellt sind, nicht mehr auf dem
+unverschlüsselten 1883.
+
+Alle eingehenden Nachrichten live mitlesen (Debugging, funktioniert schon jetzt im lokalen Netz):
+```bash
+docker compose exec mosquitto mosquitto_sub -h localhost -t 'eeg/#' -v -u "$MQTT_USER" -P "$MQTT_PASSWORD"
+```
+
 ### 404 von Traefik trotz laufendem webapp
 Mögliche Ursachen, in dieser Reihenfolge prüfen:
 
@@ -472,6 +493,23 @@ docker compose up -d --build
 > `82:82` ist nur nötig, damit `webapp` (www-data) darüber Uploads speichern kann. Bleibt das
 > Verzeichnis beim ersten Start leer, kopiert `latex-service` (siehe
 > `latex-service/docker/entrypoint.sh`) einmalig seine mitgelieferten Standard-Vorlagen hinein.
+
+> **Einmalig nach dem Update vom 30.07.2026** (MQTT-Broker mit TLS + Zugangsdaten statt offen/
+> anonym): Mosquitto verlangt jetzt `allow_anonymous false` + ein Zertifikat für Port 8883 --
+> ohne beides startet der Container gar nicht (fehlende Dateien in `mosquitto.conf`). Einmalig:
+> ```bash
+> ./scripts/mqtt_secure_setup.sh
+> ```
+> Erzeugt ein selbstsigniertes Zertifikat unter `/opt/eeg/mosquitto/certs` (10 Jahre gültig,
+> ESP32-Geräte prüfen es nicht -- `setInsecure()` --, verschlüsselt die Verbindung aber trotzdem),
+> generiert `MQTT_USER`/`MQTT_PASSWORD` in `.env`, schreibt die Passwort-Datei
+> (`/opt/eeg/mosquitto/passwd`) und startet `mosquitto` + `mqtt-subscriber` neu. **Wichtig:**
+> Danach verliert JEDES bereits im Feld laufende ESP32-Gerät die Verbindung, bis im eigenen
+> `/config`-Formular (Zahnrad-Symbol) Benutzername/Passwort nachgetragen werden (Port 8883
+> empfohlen, sobald der Broker auch von außerhalb des lokalen Netzes erreichbar sein soll --
+> aktuell nur im 10.0.0.0/24-Netz, siehe Abschnitt weiter unten zu externem MQTT-Zugriff).
+> Bei einer echten Neuinstallation ruft `scripts/setup.sh` dieses Skript automatisch mit auf,
+> nichts weiter zu tun.
 
 Bei neuen DB-Migrations:
 ```bash

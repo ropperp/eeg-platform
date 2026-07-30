@@ -24,22 +24,31 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   (`/config`, HTTP-Basic-Auth)
 - DLMS/COSEM-Frame-Parsing (P+/P- Zählerstand, Momentanleistung) aus dem AES-GCM-entschlüsselten
   Klartext
-- MQTT-Publish der Live-Werte auf `eeg/{rc}/meter/{zaehler}/live`
+- MQTT-Publish der Live-Werte auf `eeg/{rc}/meter/{zaehler}/live`, gedrosselt auf ein
+  konfigurierbares Intervall (`live-daten-intervall` im `/config`-Formular, Standard **5 s** --
+  bewusst getrennt vom Heartbeat-Intervall, siehe unten)
   (Payload: `{"pp":…,"pm":…,"ep":…,"em":…,"znr":"…"}`, siehe `mqtt-subscriber/main.py`). Die
   Plattform ordnet ausschließlich nach der im Topic übertragenen (= im `/config`-Formular
   eingetragenen) Zählernummer zu -- die Firmware vergleicht diese vor jedem Publish gegen die
   tatsächlich aus dem P1-Telegramm gelesene (`znr` im Payload) und sendet bei Abweichung nicht,
   damit ein Tippfehler in der Konfiguration keine Daten dem falschen Zählpunkt zuordnet.
 - **Status-Heartbeat** auf `eeg/{rc}/meter/{zaehler}/status` (retained, mit Last-Will-Testament
-  `{"status":"offline"}` bei Verbindungsabbruch) — Grundlage für das Online/Zuletzt-online-Tracking
-  auf der Plattform (siehe `docs/ESP_IDEEN.md`, Punkt 2). Enthält zusätzlich:
-  - `ssid`/`ip`: aktuell verbundenes WLAN + per DHCP erhaltene IP (jeder Heartbeat)
-  - `wifi_password`: nur beim MQTT-(Re-)Connect mitgeschickt, nicht bei jedem periodischen
-    Heartbeat (Punkt 1) — landet auf der Plattform verschlüsselt, nie im Klartext gespeichert
+  `{"status":"offline"}` bei Verbindungsabbruch), eigenes Intervall (`heartbeat-intervall`,
+  Standard 30 s) — Grundlage für das Online/Zuletzt-online-Tracking auf der Plattform (siehe
+  `docs/ESP_IDEEN.md`, Punkt 2). Enthält zusätzlich:
+  - `ssid`/`ip`/`wifi_password`: bei JEDEM Heartbeat mitgeschickt (nicht nur beim Verbindungs-
+    aufbau -- sonst käme das Passwort nie an, falls genau dieser eine Connect-Moment einmal
+    nicht ankommt) — landet auf der Plattform verschlüsselt, nie im Klartext gespeichert
   - `meter_ok`: ob zuletzt (< 2 Minuten) ein gültiges P1-Telegramm vom Smart Meter empfangen
     wurde — getrennt vom WLAN/MQTT-Online-Status des ESP selbst, damit sich Inselbetrieb/
     Stromausfall beim Mitglied (Zähler nicht erreichbar, ESP aber online) von einem
     ESP-/Plattform-Problem unterscheiden lässt (Punkt 4)
+- **MQTT über TLS (Port 8883) + Benutzername/Passwort**: `mqtt-port` im `/config`-Formular auf
+  `8883` stellen schaltet automatisch auf `WiFiClientSecure` um (`setInsecure()` -- prüft das
+  Server-Zertifikat nicht, verschlüsselt die Verbindung aber trotzdem; kein Zertifikat muss
+  aufs Gerät verteilt werden). Benutzername/Passwort vom Obmann/Admin erhalten (siehe
+  `scripts/mqtt_secure_setup.sh` im Hauptrepo) und im selben Formular eintragen -- der Broker
+  verlangt das inzwischen auf beiden Ports.
 - OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied
 
 ## Bezug zur Plattform (`eeg-platform`-Repo)
@@ -59,12 +68,14 @@ MQTT-Publisher (z. B. `mosquitto_pub`, in den meisten Linux-Distros über `mosqu
 verfügbar) vom selben Netz aus, das den Broker erreicht:
 
 ```bash
+# -u/-P: seit dem TLS/Auth-Setup (scripts/mqtt_secure_setup.sh) auf beiden Ports nötig.
 # Status-Heartbeat (setzt esp_online=true, aktualisiert esp_last_seen_at)
-mosquitto_pub -h <server-ip> -p 1883 -t 'eeg/rc108175/meter/<zaehlernummer>/status' \
-  -m '{"status":"online","meter_ok":true}' -r
+mosquitto_pub -h <server-ip> -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
+  -t 'eeg/rc108175/meter/<zaehlernummer>/status' -m '{"status":"online","meter_ok":true}' -r
 
-# Live-Werte (Watt/Wh) -- alle 10-30s wiederholen, um "echte" Live-Daten zu simulieren
-mosquitto_pub -h <server-ip> -p 1883 -t 'eeg/rc108175/meter/<zaehlernummer>/live' \
+# Live-Werte (Watt/Wh) -- alle 5-10s wiederholen, um "echte" Live-Daten zu simulieren
+mosquitto_pub -h <server-ip> -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
+  -t 'eeg/rc108175/meter/<zaehlernummer>/live' \
   -m '{"pp":850,"pm":0,"ep":21000000,"em":6900000,"znr":"<zaehlernummer>"}'
 ```
 

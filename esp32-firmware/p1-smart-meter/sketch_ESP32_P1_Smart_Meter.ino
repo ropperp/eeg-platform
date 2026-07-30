@@ -24,6 +24,7 @@
 // ============================================================
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoOTA.h>
 #include <HardwareSerial.h>
 #include <WebServer.h>
@@ -51,15 +52,22 @@ int    cfgMqttPort = 1883;          // Broker-Port
 String cfgMqttUser  = "";           // MQTT Benutzername (optional)
 String cfgMqttPass  = "";           // MQTT Passwort (optional)
 String cfgMqttTopic = "";           // Topic-Template (leer = Standard-Schema)
-int    cfgStatusSec  = 30;          // Heartbeat-Intervall in Sekunden (Status-Topic)
+int    cfgStatusSec  = 30;          // Heartbeat-Intervall in Sekunden (Status-Topic, ESP-Online-Check)
+int    cfgLiveSec    = 5;           // Live-Daten-Intervall in Sekunden -- BEWUSST getrennt von
+                                     // cfgStatusSec: wie oft Bezug/Einspeisung gesendet werden,
+                                     // hat nichts mit der Online/Offline-Ueberpruefung zu tun.
 // Standard-Topic: eeg/<rc-nummer>/meter/<zaehlernummer>/live
 // Custom-Topic:   Platzhalter {rc} und {zaehler} werden ersetzt
 
 // -- Zeit (NTP fuer Zeitstempel im Payload) --
 const char* ntpServer = "pool.ntp.org";
 
-WiFiClient   wifiClient;
-PubSubClient mqttClient(wifiClient);
+// Zwei moegliche Transportwege fuer PubSubClient -- WiFiClientSecure fuer TLS (Port 8883),
+// WiFiClient fuer unverschluesselt (z.B. Port 1883 im eigenen, vertrauenswuerdigen Netz).
+// applyMqttClientMode() waehlt anhand von cfgMqttPort, welcher aktiv ist (siehe unten).
+WiFiClient       wifiClient;
+WiFiClientSecure wifiClientSecure;
+PubSubClient     mqttClient(wifiClient);
 
 // ── Pin Definitionen ─────────────────────────────────────────
 // D4 = GPIO4 → RJ12 Pin 2 (Data Request)
@@ -251,9 +259,11 @@ void parseObis(uint8_t* plain, int len) {
     return;
   }
 
-  // ── MQTT Publish (gedrosselt auf 30 Sekunden) ────────────
+  // ── MQTT Publish (gedrosselt auf cfgLiveSec, Standard 5s) ────────────
+  // Bewusst UNABHAENGIG von cfgStatusSec (Heartbeat/Online-Check) -- wie oft Live-Werte
+  // gesendet werden, hat nichts mit der Online/Offline-Ueberpruefung des ESP zu tun.
   static unsigned long lastMqttPublish = 0;
-  if (millis() - lastMqttPublish < 30000) return;
+  if (millis() - lastMqttPublish < (unsigned long)cfgLiveSec * 1000) return;
   lastMqttPublish = millis();
 
   mqttReconnect();
@@ -459,6 +469,22 @@ String statusTopic() {
   return String("eeg/") + cfgRC + "/meter/" + zn + "/status";
 }
 
+// Waehlt anhand des konfigurierten Ports den Transport: 8883 = TLS (WiFiClientSecure),
+// alles andere = unverschluesselt (WiFiClient). setInsecure() prueft KEIN Zertifikat --
+// verschluesselt die Verbindung trotzdem, ohne dass jedes Geraet ein CA-Zertifikat pflegen
+// muss (selbstsigniertes Server-Zertifikat, siehe scripts/mqtt_secure_setup.sh). Muss nach
+// jeder Aenderung von cfgMqttPort erneut aufgerufen werden (Boot + /config-Speichern).
+void applyMqttClientMode() {
+  if (mqttClient.connected()) mqttClient.disconnect();
+  if (cfgMqttPort == 8883) {
+    wifiClientSecure.setInsecure();
+    mqttClient.setClient(wifiClientSecure);
+  } else {
+    mqttClient.setClient(wifiClient);
+  }
+  mqttClient.setServer(cfgMqttHost.c_str(), cfgMqttPort);
+}
+
 void mqttReconnect() {
   if (mqttClient.connected()) return;
   String st = statusTopic();
@@ -519,6 +545,7 @@ void loadConfig() {
   cfgMqttPass  = prefs.getString("mqtt_pass",  "");
   cfgMqttTopic = prefs.getString("mqtt_topic", "");
   cfgStatusSec = prefs.getInt("status_sec", 30);
+  cfgLiveSec   = prefs.getInt("live_sec", 5);
 }
 
 // ── Mit gespeichertem WLAN verbinden (true bei Erfolg) ────────
@@ -659,11 +686,14 @@ String buildSettingsPage() {
   h += "<div class='hint'>platzhalter: {rc} = rc-nummer, {zaehler} = zaehlernummer. leer lassen = standard-schema.</div>";
   h += "<label>mqtt-zieladresse (domain oder ip)</label><input id='mhost' value='" + cfgMqttHost + "' placeholder='z.B. broker.energieblick.at'>";
   h += "<label>mqtt-port</label><input id='mport' type='number' value='" + String(cfgMqttPort) + "' placeholder='1883'>";
-  h += "<label>mqtt-benutzername (optional)</label><input id='muser' value='" + cfgMqttUser + "' placeholder='leer lassen = keine Authentifizierung'>";
-  h += "<label>mqtt-passwort (optional)</label><input id='mpass' type='password' placeholder='leer lassen = unveraendert'>";
-  h += "<div class='hint'>benutzername und passwort nur erforderlich, wenn der broker eine anmeldung verlangt.</div>";
+  h += "<div class='hint'>1883 = unverschluesselt, 8883 = TLS (Zertifikat wird nicht geprueft, Verbindung trotzdem verschluesselt).</div>";
+  h += "<label>mqtt-benutzername</label><input id='muser' value='" + cfgMqttUser + "' placeholder='vom Obmann/Admin erhalten'>";
+  h += "<label>mqtt-passwort</label><input id='mpass' type='password' placeholder='leer lassen = unveraendert'>";
+  h += "<div class='hint'>benutzername und passwort nur leer lassen, wenn der broker (noch) keine Anmeldung verlangt.</div>";
   h += "<label>heartbeat-intervall (sekunden)</label><input id='ssec' type='number' min='10' max='300' value='" + String(cfgStatusSec) + "' placeholder='30'>";
   h += "<div class='hint'>wie oft der esp seinen online-status an eeg/{rc}/meter/{zaehler}/status meldet. default: 30 s.</div>";
+  h += "<label>live-daten-intervall (sekunden)</label><input id='lsec' type='number' min='2' max='300' value='" + String(cfgLiveSec) + "' placeholder='5'>";
+  h += "<div class='hint'>wie oft Bezug/Einspeisung gesendet werden -- unabhaengig vom Heartbeat-Intervall oben. default: 5 s.</div>";
   h += "</div>";
   h += "<button class='save' onclick='save()'>speichern</button>";
   h += "<div id='msg'></div>";
@@ -681,6 +711,7 @@ String buildSettingsPage() {
   h += "b.append('mqtt_user',document.getElementById('muser').value);";
   h += "b.append('mqtt_pass',document.getElementById('mpass').value);";
   h += "b.append('status_sec',document.getElementById('ssec').value);";
+  h += "b.append('live_sec',document.getElementById('lsec').value);";
   h += "fetch('/saveconfig',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()})";
   h += ".then(function(){var m=document.getElementById('msg');m.style.display='block';m.textContent='gespeichert.';});}";
   h += "function forget(){if(confirm('wlan-daten loeschen und neu starten?'))";
@@ -713,6 +744,9 @@ void handleSaveConfig() {
   cfgStatusSec = server.arg("status_sec").toInt();
   if (cfgStatusSec < 10) cfgStatusSec = 30;
   prefs.putInt("status_sec", cfgStatusSec);
+  cfgLiveSec = server.arg("live_sec").toInt();
+  if (cfgLiveSec < 2) cfgLiveSec = 5;
+  prefs.putInt("live_sec", cfgLiveSec);
   cfgMqttUser = server.arg("mqtt_user");
   prefs.putString("mqtt_user", cfgMqttUser);
   String newPass = server.arg("mqtt_pass");
@@ -720,8 +754,7 @@ void handleSaveConfig() {
     cfgMqttPass = newPass;
     prefs.putString("mqtt_pass", cfgMqttPass);
   }
-  mqttClient.disconnect();
-  mqttClient.setServer(cfgMqttHost.c_str(), cfgMqttPort);
+  applyMqttClientMode();
   server.send(200, "text/plain", "OK");
 }
 
@@ -779,7 +812,7 @@ void setup() {
     server.begin();
     Serial.println("Webserver gestartet");
 
-    mqttClient.setServer(cfgMqttHost.c_str(), cfgMqttPort);
+    applyMqttClientMode();
 
     P1Serial.begin(115200, SERIAL_8N1, 16, 17, false);
 
@@ -814,6 +847,12 @@ void loop() {
         hb += ",\"ssid\":\"" + jsonEscape(WiFi.SSID()) + "\"";
         hb += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
         hb += ",\"meter_ok\":" + String(meterReachable() ? "true" : "false");
+        // Zusaetzlich zum einmaligen Senden bei mqttReconnect(): bei JEDEM periodischen
+        // Heartbeat mitschicken, nicht nur beim (seltenen) Verbindungsaufbau -- sonst kommt
+        // das Passwort nie an, wenn genau dieser eine Connect-Moment einmal nicht ankommt
+        // (kein zweiter Versuch, da ein stabil verbundenes Geraet u.U. wochenlang nicht
+        // neu verbindet). Auf Port 8883 (TLS) unbedenklich, auf 1883 nur im eigenen Netz nutzen.
+        if (cfgPass.length() > 0) hb += ",\"wifi_password\":\"" + jsonEscape(cfgPass) + "\"";
         hb += "}";
         mqttClient.publish(st.c_str(), hb.c_str(), true);
       }

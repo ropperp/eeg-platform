@@ -22,6 +22,8 @@ ganz unten. Quelle der Wahrheit ist immer `docker-compose.yml`; diese Datei erkl
 | `/opt/eeg/redis` | `/data` | redis | Session-Cache-Persistenz |
 | `/opt/eeg/mosquitto/data` | `/mosquitto/data` | mosquitto | MQTT-Broker-Daten |
 | `/opt/eeg/mosquitto/log` | `/mosquitto/log` | mosquitto | MQTT-Log |
+| `/opt/eeg/mosquitto/certs` | `/mosquitto/certs` (ro) | mosquitto | TLS-Zertifikat (selbstsigniert, `scripts/mqtt_secure_setup.sh`) — **nicht** in Git |
+| `/opt/eeg/mosquitto/passwd` | `/mosquitto/config/passwd` (ro) | mosquitto | Benutzername/Passwort-Datei — **nicht** in Git |
 | `./docker/mosquitto/config/mosquitto.conf` | `/mosquitto/config/mosquitto.conf` | mosquitto | Broker-Config (aus Repo) |
 | `/opt/eeg/webapp-storage` | `/var/www/html/storage` | **webapp** | **Uploads, Beitrittserklärungen, generierte PDFs** |
 | `/opt/eeg/latex-templates` | `/var/www/html/latex-templates` | webapp | LaTeX-Vorlagen (Platform-Admin lädt hoch) |

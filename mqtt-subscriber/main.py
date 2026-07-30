@@ -42,6 +42,10 @@ log = logging.getLogger(__name__)
 
 MQTT_HOST = os.environ["MQTT_HOST"]
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+# Seit dem TLS/Auth-Setup (scripts/mqtt_secure_setup.sh, allow_anonymous=false) verlangt der
+# Broker Zugangsdaten von jedem Client, auch intern.
+MQTT_USER = os.environ.get("MQTT_USER", "")
+MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
 DB_HOST = os.environ["DB_HOST"]
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_USER = os.environ["DB_USER"]
@@ -361,6 +365,8 @@ def main() -> None:
         mqtt.CallbackAPIVersion.VERSION2,
         client_id="eeg-mqtt-subscriber"
     )
+    if MQTT_USER:
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
