@@ -31,12 +31,22 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   Hinweistext, sobald mindestens ein bekannter Zählpunkt gerade nicht meldet -- die angezeigten
   Gesamtwerte könnten dann geringfügig von der tatsächlichen Situation abweichen.
 - **Zählpunkt-Typ "Bezug + Einspeisung (ein Zähler)" jetzt auch im normalen Zählpunkt-Formular
-  wählbar** (bisher nur über die separate "Zählpunkte ohne Zuordnung"-Seite). Dazu neue
-  Validierung: eine Zählernummer darf nur einem aktiven Zählpunkt zugeordnet sein -- wird
-  dieselbe Nummer für zwei getrennte Zählpunkte (Bezug + Einspeisung) desselben physischen
-  Zählers eingetragen, bekäme laut MQTT-Zuordnung nur einer der beiden je Live-Daten, der
-  andere bliebe für immer auf "keine Daten" stehen. Für ein einzelnes bidirektionales Gerät
-  bitte den neuen Typ statt zweier Zählpunkte verwenden.
+  wählbar** (bisher nur über die separate "Zählpunkte ohne Zuordnung"-Seite) -- für den
+  seltenen Fall eines einzelnen, offiziell bidirektionalen Zählpunkts.
+- **Geteilte Zählernummer für Bezug + Einspeisung eines Prosumers korrekt unterstützt.**
+  In Österreich haben Bezug und Einspeisung eines Prosumers unterschiedliche
+  Zählpunktnummern (AT...), teilen sich aber denselben physischen Zähler/dieselbe
+  13-stellige Zählernummer -- eine vorherige Version dieses Changelogs beschrieb hier
+  fälschlich eine Validierung, die genau das blockiert hätte ("eine Zählernummer darf nur
+  einem aktiven Zählpunkt zugeordnet sein"); das war nach Rückfrage falsch und wurde nie
+  produktiv genutzt. Korrigiert: Dieselbe Zählernummer darf jetzt auf zwei aktiven
+  Zählpunkten (Typ Bezug + Typ Einspeisung) desselben Mitglieds eingetragen werden, es
+  erscheint dabei nur eine informative Postfach-Meldung. Der `mqtt-subscriber` behandelt
+  eine ESP-Nachricht weiterhin als EIN physisches Gerät und teilt sie automatisch korrekt
+  auf beide Zählpunkte auf (Bezugs-Zählpunkt bekommt nur die Bezugsrichtung, Einspeise-
+  Zählpunkt nur die Einspeiserichtung, jeweils mit der anderen Richtung auf 0), damit beim
+  Aufsummieren über die Zählpunkte eines Mitglieds/der Community keine Seite doppelt
+  gezählt wird.
 - **Live-Leistungsanzeigen aktualisieren sich jetzt per Fetch alle 5s statt per Seiten-Reload.**
   Betrifft die "Aktuelle Leistung"-Kachel im Mitglieder-Dashboard (neuer Endpunkt
   `/portal/api/current-power`), die "Live-Leistung"-Kachel im Obmann-Dashboard (neuer Endpunkt
