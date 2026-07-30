@@ -29,8 +29,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   berechnet, wie viel der eigenen Einspeisung im gewählten Fenster tatsächlich von anderen
   Mitgliedern verbraucht wurde (proportionale Aufteilung von `min(Gesamt-Bezug,
   Gesamt-Einspeisung)` je Viertelstunden-Fenster nach eigenem Erzeugungsanteil,
-  `ownEinspeisungInGemeinschaftKwh()`). Bewusst nur eine ergänzende, klar als Schätzung
-  gekennzeichnete Live-Kennzahl aus den ESP-Leistungsdaten -- die bestehenden EDA-Monatswerte
+  `ownEinspeisungInGemeinschaftKwh()`). **Immer zuerst je Viertelstunden-Fenster gematcht, erst
+  danach über den gewählten Zeitraum aufsummiert** -- nie umgekehrt (Bezug/Einspeisung erst über
+  Stunden/Tage aufsummieren und danach ein Minimum bilden), sonst würde z. B. an einem
+  Sonnentag die tagsüber hohe Einspeisung rechnerisch den nächtlichen Netzbezug "ausgleichen",
+  obwohl beides nie zeitgleich auftrat. Energie je Fenster wird aus der Differenz der
+  kumulativen Zählerstände (`energy_bezug_wh`/`energy_einspeisung_wh`, dieselben Register wie
+  der Smart Meter) gebildet statt aus gemittelter Momentanleistung -- exakter und robust
+  gegenüber kurzen ESP-Ausfällen. Bewusst nur eine ergänzende, klar als Schätzung
+  gekennzeichnete Live-Kennzahl aus den ESP-Messwerten -- die bestehenden EDA-Monatswerte
   ("Bezug aus der Gemeinschaft"/"Eigene Erzeugung") bleiben unverändert die für die Rechnung
   maßgebliche Quelle (siehe Abgrenzung in `docs/AUFTEILUNGSSCHLUESSEL.md`).
 - **Live-Fehleranzeige für Mitglieder mit ESP-/Zähler-Problem.** Bisher gab es keine Möglichkeit,

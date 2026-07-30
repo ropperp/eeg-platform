@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (13) — Claude Code — Claude Sonnet 5
+**Auftrag:** Korrektur zur Live-Einspeisung-Berechnung: IMMER zuerst je Viertelstunden-Fenster
+matchen (wie viel Gemeinschaft/wie viel Netz), erst danach über den gewählten Zeitraum
+aufsummieren -- sonst würde z. B. an einem Sonnentag die tagsüber hohe Einspeisung den
+nächtlichen Netzbezug rechnerisch "ausgleichen". Für "Aktuelle Leistung" (jetzt) reicht einfaches
+Summieren/Differenzbilden. Für Zeiträume lieber über die ohnehin gespeicherten
+Viertelstunden-Zählerstände (Energie, Differenzbildung) statt Momentanleistung rechnen.
+Außerdem: 10 ESP32-Produkte mit USB-C von verschiedenen Shops (Amazon, Reichelt, RS Components
+etc.), 4 MB und 8 MB Flash, heraussuchen.
+**Ergebnis:** Geprüft: das Fenster-Matching (`min()` je Bucket vor der Summierung) war bereits
+korrekt umgesetzt, das aber transparent anhand eines Tag/Nacht-Beispiels bestätigt/erklärt.
+`ownEinspeisungInGemeinschaftKwh()` trotzdem verbessert: rechnet jetzt mit der Differenz der
+kumulativen Registerstände (`energy_bezug_wh`/`energy_einspeisung_wh`, DISTINCT-ON + LAG() je
+Fenster) statt gemittelter Momentanleistung -- exakter und robust gegenüber ESP-Ausfällen/
+Datenlücken. `php tests/run.php` weiterhin 77/77 (kein DB-Zugriff zum Testen der neuen SQL in
+dieser Umgebung). Produktrecherche zu ESP32-USB-C-Boards mit 4/8 MB Flash von mehreren Shops
+als separate Antwort (kein Code).
+
+---
+
 ## 2026-07-30 (12) — Claude Code — Claude Sonnet 5
 **Auftrag:** Mitglieder-Dashboard erweitern: Mitglieder mit Bezug UND Einspeisung sollen beides
 sehen, reine Einspeiser eine Kennzahl "Einspeisung in die Gemeinschaft" in kWh -- selbst aus den
