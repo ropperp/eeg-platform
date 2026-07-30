@@ -8,6 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 — Claude Code — Claude Sonnet 5
+**Auftrag:** Eigenes Hero-Banner-Foto statt der SVG-Landschafts-Illustration auf der
+Startseite, hochladbar unter Admin → Dateien, mit Zuschneiden auf exakt Ziel-Breite/-Höhe
+(analog zum bestehenden Profilbild-Zuschnitt). Außerdem Frage nach den einzuspielenden
+Migrationen sowie ein akuter Produktions-Bug (Login bricht mit „column esb_last_seen_at
+does not exist" ab, weil eine Migration noch nicht eingespielt war).
+**Ergebnis:** Neuer Registry-Eintrag `hero-banner.png` unter `/admin/templates` (gleiche
+Custom-Datei-mit-Fallback-Logik wie Logo), neue Zuschneiden-Oberfläche `rect-crop.js`
+(Schwester-Skript zu `avatar-crop.js`, aber für beliebiges Ziel-Seitenverhältnis statt nur
+quadratisch) mit Zoom/Verschieben auf 1600×640, dynamische Auslieferung über
+`/hero-banner-image`. Ohne eigenes Foto bleibt die SVG-Illustration unverändert. Keine neue
+Migration nötig. Dem Nutzer die drei ausstehenden Migrationen (`migrate_20260817.sql`,
+`migrate_20260818.sql`, `migrate_20260819.sql`) benannt und den Login-Fehler auf die fehlende
+`esb_last_seen_at`-Spalte aus `migrate_20260817.sql` zurückgeführt.
+
+---
+
 ## 2026-07-29 (Phase 2) — Claude Code — Claude Sonnet 5
 **Auftrag:** Fortsetzung des Emoji-Sweeps (Phase 1 war nur die Startseite) über die
 restliche Anwendung — Mitgliederverwaltung, Abrechnung, Dateien, Beitritts-/Vertragsflow,

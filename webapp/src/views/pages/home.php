@@ -1,7 +1,18 @@
 <?php
 $pageTitle = 'Strom für alle — Gemeinschaftlich Energie erzeugen & teilen';
+// Eigenes Hero-Foto (unter /admin/templates hochgeladen, siehe /hero-banner-image) hat Vorrang
+// vor der mitgelieferten SVG-Illustration -- per Inline-<style>-Override, da app.css das Bild
+// nicht kennt (die Datei kann jederzeit ohne Deploy ausgetauscht werden).
+$customHeroBanner = adminFilePath('hero-banner.png');
 ob_start();
 ?>
+
+<?php if ($customHeroBanner): ?>
+<style>
+.hero { background-image: linear-gradient(180deg, rgba(4,16,12,.62) 0%, rgba(4,16,12,.32) 45%, rgba(4,16,12,.72) 100%), url('/hero-banner-image?v=<?= filemtime($customHeroBanner) ?>'); }
+[data-theme="dark"] .hero { background-image: linear-gradient(180deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.85) 100%), url('/hero-banner-image?v=<?= filemtime($customHeroBanner) ?>'); }
+</style>
+<?php endif; ?>
 
 <!-- Hero -->
 <section class="hero">
