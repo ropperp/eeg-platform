@@ -6,11 +6,18 @@
   und Gemeinschafts-Autarkie in Echtzeit, z. B. für Node-RED).
 </p>
 
+<?php
+  // Diese Box bleibt bewusst IMMER hell (auch im Dark Mode) -- die globale
+  // [data-theme="dark"] code-Regel würde die <code>-Tags sonst dunkel einfärben, was sich mit
+  // dem hellblauen Kasten beißt. Inline-Style auf den <code>-Tags selbst gewinnt gegen die
+  // globale Regel (höhere Spezifität durchs style-Attribut).
+  $codeStyle = 'background:#dbeafe;color:#1d4ed8;padding:.1rem .3rem;border-radius:4px';
+?>
 <div class="alert" style="margin-bottom:1.5rem;background:#eff6ff;color:#1d4ed8">
-  <?= icon('info') ?> <code>GET /api/v1/live</code> liefert Bezug/Einspeisung in Watt (sobald Sie
+  <?= icon('info') ?> <code style="<?= $codeStyle ?>">GET /api/v1/live</code> liefert Bezug/Einspeisung in Watt (sobald Sie
   eine eigene Ausleseeinheit haben) und die Autarkiequote der Gemeinschaft --
   Bearer-Authentifizierung mit einem der API-Keys unten. Testen lässt sich die Authentifizierung
-  auch mit <code>GET /api/v1/me</code>.
+  auch mit <code style="<?= $codeStyle ?>">GET /api/v1/me</code>.
 </div>
 
 <?php if (!empty($newApiKey)): ?>

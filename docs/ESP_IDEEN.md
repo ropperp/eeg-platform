@@ -54,6 +54,15 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Zählernummer-Abgleich vor dem Publish (Patrick 30.07.2026):** Die Plattform ordnet
+  eingehende Live-/Status-Daten ausschließlich anhand der im MQTT-**Topic** übertragenen
+  Zählernummer einem Zählpunkt zu -- das ist die im `/config`-Formular des ESP manuell
+  eingetragene `cfgZaehler`, NICHT die tatsächlich aus dem P1-Telegramm gelesene Nummer. Ohne
+  Abgleich hätte ein Tippfehler in der Konfiguration Daten unbemerkt dem falschen Zählpunkt
+  zugeordnet. Die Firmware vergleicht jetzt vor jedem Publish beide Werte (`topicSafe()` auf
+  beiden Seiten, damit Füllzeichen im Telegramm keinen falschen Mismatch auslösen) und sendet
+  bei Abweichung nicht -- das lokale Dashboard (`/`, `/data`) zeigt die gelesenen Werte trotzdem
+  an, damit ein Mismatch beim Einrichten überhaupt auffällt.
 - **Punkt 4 (Zähler-Erreichbarkeit für Inselbetrieb-Erkennung, Patrick 30.07.2026):** Die
   Firmware erfasst jetzt getrennt vom ESP-eigenen Online-Status, ob zuletzt ein gültiges
   P1-Telegramm vom Smart Meter empfangen wurde (`meter_ok` im Status-Heartbeat), und schickt

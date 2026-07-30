@@ -25,7 +25,11 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
 - DLMS/COSEM-Frame-Parsing (P+/P- Zählerstand, Momentanleistung) aus dem AES-GCM-entschlüsselten
   Klartext
 - MQTT-Publish der Live-Werte auf `eeg/{rc}/meter/{zaehler}/live`
-  (Payload: `{"pp":…,"pm":…,"ep":…,"em":…,"znr":"…"}`, siehe `mqtt-subscriber/main.py`)
+  (Payload: `{"pp":…,"pm":…,"ep":…,"em":…,"znr":"…"}`, siehe `mqtt-subscriber/main.py`). Die
+  Plattform ordnet ausschließlich nach der im Topic übertragenen (= im `/config`-Formular
+  eingetragenen) Zählernummer zu -- die Firmware vergleicht diese vor jedem Publish gegen die
+  tatsächlich aus dem P1-Telegramm gelesene (`znr` im Payload) und sendet bei Abweichung nicht,
+  damit ein Tippfehler in der Konfiguration keine Daten dem falschen Zählpunkt zuordnet.
 - **Status-Heartbeat** auf `eeg/{rc}/meter/{zaehler}/status` (retained, mit Last-Will-Testament
   `{"status":"offline"}` bei Verbindungsabbruch) — Grundlage für das Online/Zuletzt-online-Tracking
   auf der Plattform (siehe `docs/ESP_IDEEN.md`, Punkt 2). Enthält zusätzlich:
@@ -46,6 +50,30 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
 - Offene Ideen/Abhängigkeiten zwischen Firmware und Plattform: siehe
   [`docs/ESP_IDEEN.md`](../../docs/ESP_IDEEN.md) — dort bitte auch neue Ideen von der
   Firmware-Seite ergänzen, nicht nur von der Plattform-Seite.
+
+## Testen ohne Hardware (simulierte Live-Daten per MQTT)
+
+Um die komplette Pipeline (MQTT → `mqtt-subscriber` → DB → Live-Dashboard/API) durchzuspielen,
+ohne dass ein ESP32 tatsächlich an einem Smart Meter hängt, reicht ein beliebiger
+MQTT-Publisher (z. B. `mosquitto_pub`, in den meisten Linux-Distros über `mosquitto-clients`
+verfügbar) vom selben Netz aus, das den Broker erreicht:
+
+```bash
+# Status-Heartbeat (setzt esp_online=true, aktualisiert esp_last_seen_at)
+mosquitto_pub -h <server-ip> -p 1883 -t 'eeg/rc108175/meter/<zaehlernummer>/status' \
+  -m '{"status":"online","meter_ok":true}' -r
+
+# Live-Werte (Watt/Wh) -- alle 10-30s wiederholen, um "echte" Live-Daten zu simulieren
+mosquitto_pub -h <server-ip> -p 1883 -t 'eeg/rc108175/meter/<zaehlernummer>/live' \
+  -m '{"pp":850,"pm":0,"ep":21000000,"em":6900000,"znr":"<zaehlernummer>"}'
+```
+
+`<zaehlernummer>` muss exakt dem `meter_code` eines existierenden, aktiven Zählpunkts in der DB
+entsprechen (`rc108175` dem `marktpartner_id` der Community, klein geschrieben) -- sonst wird die
+Nachricht mit „Unbekannte Zählernummer … Topic ignoriert" verworfen (siehe
+`mqtt-subscriber/main.py`). Am einfachsten dafür einen eigenen Test-Zählpunkt mit einer gut
+merkbaren, aber garantiert nicht echten 13-stelligen Nummer anlegen (z. B. `9999999999999`) statt
+einen echten Zählpunkt eines Mitglieds zu verwenden.
 
 ## Bekannter Punkt zum Nacharbeiten
 

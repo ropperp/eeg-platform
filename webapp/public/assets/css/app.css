@@ -230,7 +230,15 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
   border-right: 1px solid var(--gray-200);
   padding: 1.5rem 1rem;
   transition: width .2s ease, padding .2s ease;
-  overflow: hidden;
+  overflow-x: hidden;
+  /* Bleibt beim Scrollen stehen wie der Header darüber (.navbar, ebenfalls sticky) -- nur der
+     Hauptinhalt (.portal-content) soll sich bewegen. 60px = Header-Höhe, siehe .portal-layout
+     min-height oben. overflow-y:auto falls das Menü selbst mal höher als der Viewport wird. */
+  position: sticky;
+  top: 60px;
+  align-self: flex-start;
+  height: calc(100vh - 60px);
+  overflow-y: auto;
 }
 .sidebar.collapsed {
   width: 52px;
@@ -469,6 +477,10 @@ footer {
     gap: .25rem;
     border-right: none;
     border-bottom: 1px solid var(--gray-200);
+    /* Desktop-Sticky-Höhe (100vh - 60px) passt hier nicht -- die Leiste bleibt zwar weiter
+       sticky (bleibt wie der Header sichtbar), soll aber nur ihre eigene Inhaltshöhe einnehmen. */
+    height: auto;
+    overflow-y: visible;
   }
   .sidebar-label { display: none; }
   .sidebar a {

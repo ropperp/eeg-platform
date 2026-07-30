@@ -136,7 +136,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
-      # Für die Verschlüsselung des ESB-WLAN-Passworts (eeg/+/meter/+/status), gleicher
+      # Für die Verschlüsselung des ESP-WLAN-Passworts (eeg/+/meter/+/status), gleicher
       # Schlüssel wie encryptSecret()/decryptSecret() in webapp/src/functions.php.
       APP_SECRET: ${APP_SECRET}
     depends_on:
