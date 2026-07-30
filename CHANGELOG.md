@@ -20,6 +20,10 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Benachrichtigung bei unbekannter Zählernummer.** Sendet ein Gerät MQTT-Daten für eine
+  Zählernummer, die keinem Zählpunkt der jeweiligen EEG zugeordnet ist, erscheint jetzt eine
+  offene Meldung im Postfach (`/portal/postfach`) -- bisher landete das nur unsichtbar im
+  Container-Log. Nur eine offene Meldung je Zählernummer, kein Spam bei jeder Nachricht.
 - **Sidebar bleibt beim Scrollen sichtbar (sticky), Icon-Sprite-Cache-Busting, Dark-Mode-Fix.**
   Das Portal-Menü links scrollt jetzt nicht mehr mit dem Seiteninhalt mit, sondern bleibt wie der
   Header stehen (Desktop; die mobile horizontale Icon-Leiste bleibt unverändert). `icon()` hängt

@@ -54,6 +54,13 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Benachrichtigung bei unbekannter Zählernummer (Patrick 30.07.2026):** Sendet ein Gerät
+  Daten für eine Zählernummer, die (noch) keinem Zählpunkt in der jeweiligen EEG zugeordnet
+  ist, landete das bisher NUR im Container-Log des `mqtt-subscriber` (unsichtbar für Obmänner/
+  Admins) -- obwohl genau das ursprünglich gewünscht war. Jetzt erzeugt der erste solche
+  Vorfall eine offene Benachrichtigung im Postfach (`/portal/postfach`), solange bis der
+  passende Zählpunkt angelegt/korrigiert und die Meldung erledigt wird (kein Spam bei jeder
+  einzelnen Nachricht -- nur eine offene Meldung je Zählernummer).
 - **Zählernummer-Abgleich vor dem Publish (Patrick 30.07.2026):** Die Plattform ordnet
   eingehende Live-/Status-Daten ausschließlich anhand der im MQTT-**Topic** übertragenen
   Zählernummer einem Zählpunkt zu -- das ist die im `/config`-Formular des ESP manuell
