@@ -185,7 +185,7 @@ def import_to_db(
     user_id: str | None,
 ) -> dict:
     """
-    Siehe docs/ESB_IDEEN.md Punkt 3: gleicht die im EDA-Export enthaltenen Zählpunkte mit dem
+    Siehe docs/ESP_IDEEN.md Punkt 3: gleicht die im EDA-Export enthaltenen Zählpunkte mit dem
     Bestand ab und meldet Abweichungen ausformuliert statt nur mit einer knappen Log-Zeile.
 
     - Zählpunkte, die bei uns AKTIV registriert sind, im Export aber fehlen -> Warnung.

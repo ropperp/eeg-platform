@@ -60,7 +60,7 @@ test('Einspeisung: Minuszeichen, kein Sublabel wenn Zählpunkt leer', function (
 });
 test('Leere Positionsliste ergibt leeren String', fn() => assertSame('', rechnungPositionenLatex([], 'X', false)));
 
-// encryptSecret()/decryptSecret() -- AES-256-CBC-Verschlüsselung fürs ESB-WLAN-Passwort.
+// encryptSecret()/decryptSecret() -- AES-256-CBC-Verschlüsselung fürs ESP-WLAN-Passwort.
 test('encryptSecret()/decryptSecret() Round-Trip liefert Original zurück', function () {
     $plain = 'Mein-WLAN-Passwort-123!';
     $enc = encryptSecret($plain);

@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (2) — Claude Code — Claude Sonnet 5
+**Auftrag:** Korrektur "ESB" → "ESP" (die Ausleseeinheit heißt ESP32, nicht ESB) in Spalten,
+Code und Doku; ein Support-Ticket-System für Mitglieder (statt E-Mail-Verkehr, mit
+Benachrichtigung an eine konfigurierbare Adresse); Review der ESP32-Firmware, damit die
+bereits vorbereiteten WLAN-Diagnosefelder tatsächlich mitgeschickt werden; zusätzlich
+Erfassung, ob der Smart Meter für den ESP erreichbar ist (zur Unterscheidung von
+Inselbetrieb/Stromausfall beim Mitglied gegenüber einem Plattform-/ESP-Problem).
+**Ergebnis:** `esb_online`/`esb_last_seen_at` → `esp_online`/`esp_last_seen_at` (rename-sicher
+in `migrate_20260817.sql`), `docs/ESB_IDEEN.md` → `docs/ESP_IDEEN.md`, alle Code-/UI-Referenzen
+angepasst. Firmware schickt jetzt SSID/IP (jeder Heartbeat) und WLAN-Passwort (bei Boot/
+Reconnect) sowie `meter_ok` mit; neue Spalten `meter_reachable`/`meter_last_seen_at`
+(`migrate_20260820.sql`), Anzeige in `member_detail.php` und Manager-Dashboard. Neues
+Support-Ticket-System (`support_tickets`/`support_ticket_messages`, `migrate_20260821.sql`,
+RLS) unter `/portal/my/support` (Mitglied) und `/portal/support` (Manager/Platform-Admin),
+konfigurierbare Benachrichtigungsadresse in den E-Mail-Einstellungen (Standard
+`office@stromfueralle.at`). Alle 77 Tests weiterhin grün.
+
+---
+
 ## 2026-07-30 — Claude Code — Claude Sonnet 5
 **Auftrag:** Eigenes Hero-Banner-Foto statt der SVG-Landschafts-Illustration auf der
 Startseite, hochladbar unter Admin → Dateien, mit Zuschneiden auf exakt Ziel-Breite/-Höhe

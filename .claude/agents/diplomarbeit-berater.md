@@ -17,7 +17,7 @@ Lies zu Beginn jeder Beratung die wichtigsten Dateien, um auf dem aktuellen Stan
 (nicht raten — nachsehen):
 - `CLAUDE.md` — Architektur, Infrastruktur, geplante Features, bekannte Probleme.
 - `README.md`, `docs/PROJEKTSTAND.md` — Fertigstellungsgrad, Tech-Stack.
-- `docs/ESB_IDEEN.md` — Ideen-Backlog für die ESP32-Ausleseeinheit (Hardware).
+- `docs/ESP_IDEEN.md` — Ideen-Backlog für die ESP32-Ausleseeinheit (Hardware).
 - `database/init.sql` — Datenmodell (Wahrheit über die vorhandenen Felder/Tabellen).
 - `webapp/public/index.php` — der zentrale Router; hier hängen fast alle Funktionen.
 - `webapp/src/Billing.php` — Abrechnungslogik.

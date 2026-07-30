@@ -1,4 +1,4 @@
--- EDA-Import-Zählpunkt-Abgleich (docs/ESB_IDEEN.md Punkt 3 / Platform-Task #70): Zählpunkte,
+-- EDA-Import-Zählpunkt-Abgleich (docs/ESP_IDEEN.md Punkt 3 / Platform-Task #70): Zählpunkte,
 -- die im EDA-Export auftauchen, aber noch keinem Mitglied zugeordnet sind, werden automatisch
 -- angelegt statt nur übersprungen -- member_id muss dafür NULL sein dürfen. Der Obmann ordnet
 -- sie danach manuell einem Mitglied zu (siehe /portal/metering-points/unassigned). Bis dahin

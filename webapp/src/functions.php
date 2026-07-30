@@ -32,7 +32,7 @@ function icon(string $name, string $classes = ''): string
 /**
  * Verschlüsselt einen String mit AES-256-CBC (Schlüssel aus APP_SECRET). Für Werte gedacht,
  * die wieder im Klartext angezeigt werden müssen (z.B. WLAN-Passwort des Mitglieds fürs
- * ESB-Debugging, siehe docs/ESB_IDEEN.md) -- daher Verschlüsselung statt Hash. IV wird
+ * ESP-Debugging, siehe docs/ESP_IDEEN.md) -- daher Verschlüsselung statt Hash. IV wird
  * zufällig erzeugt und dem Ciphertext vorangestellt (beides base64), damit decryptSecret()
  * ohne separate IV-Speicherung auskommt.
  */

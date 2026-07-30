@@ -1540,6 +1540,98 @@ $router->post('/portal/my/api-keys/:id/revoke', function ($params) {
 });
 
 /**
+ * Benachrichtigt die konfigurierte Support-Adresse über ein neues Ticket -- rein informativ
+ * ("es gibt was Neues, bitte im Portal ansehen"), kein Ticket-Inhalt-Editing per Mail-Antwort.
+ * Scheitert der Mailversand (z.B. Microsoft Graph nicht konfiguriert), wird das nur geloggt --
+ * ein Mitglied darf nie an einer fehlgeschlagenen internen Benachrichtigung scheitern.
+ */
+function notifySupportTicketCreated(string $ticketId, array $member, string $subject, string $category, string $message): void
+{
+    try {
+        $to = DB::fetchOne('SELECT support_notification_email FROM platform_mail_config WHERE id = 1')['support_notification_email']
+            ?? 'office@stromfueralle.at';
+        $community = DB::fetchOne('SELECT name FROM communities WHERE id = ?', [$member['community_id']]);
+        $categoryLabel = $category === 'feature' ? 'Feature-Vorschlag' : 'Problem/Frage';
+        $body = '<p>Neues Support-Ticket in „' . htmlspecialchars($community['name'] ?? '') . '":</p>'
+            . '<p><strong>' . htmlspecialchars($subject) . '</strong> (' . $categoryLabel . ')<br>'
+            . 'von ' . htmlspecialchars(trim($member['first_name'] . ' ' . $member['last_name']))
+            . ' (' . htmlspecialchars($member['email'] ?? '') . ')</p>'
+            . '<p>' . nl2br(htmlspecialchars($message)) . '</p>'
+            . '<p><a href="' . htmlspecialchars(portalUrl('/portal/support/' . $ticketId)) . '">Ticket im Portal ansehen &amp; antworten</a></p>';
+        Mailer::send($to, 'Neues Support-Ticket: ' . $subject, $body);
+    } catch (\Throwable $e) {
+        error_log('[support_ticket_mail] ' . $e->getMessage());
+    }
+}
+
+/**
+ * Support-Ticket-System (siehe migrate_20260821.sql): Mitglieder können Probleme melden oder
+ * Feature-Vorschläge machen, statt dass alles per E-Mail hin- und hergeschickt wird. Manager/
+ * Platform-Admin sehen und beantworten alle Tickets ihrer Community unter /portal/support.
+ */
+$router->get('/portal/my/support', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $tickets = DB::fetchAll('SELECT * FROM support_tickets WHERE member_id = ? ORDER BY updated_at DESC', [$member['id']]);
+    require ROOT . '/src/views/pages/my_support.php';
+});
+
+$router->post('/portal/my/support', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $subject  = trim($_POST['subject'] ?? '');
+    $message  = trim($_POST['message'] ?? '');
+    $category = ($_POST['category'] ?? '') === 'feature' ? 'feature' : 'problem';
+    if ($subject === '' || $message === '') {
+        header('Location: /portal/my/support?error=' . urlencode('Bitte Betreff und Nachricht ausfüllen.'));
+        exit;
+    }
+    $ticket = DB::fetchOne(
+        'INSERT INTO support_tickets (community_id, member_id, subject, category) VALUES (?, ?, ?, ?) RETURNING id',
+        [$member['community_id'], $member['id'], $subject, $category]
+    );
+    DB::execute(
+        'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
+        [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
+    );
+    notifySupportTicketCreated($ticket['id'], $member, $subject, $category, $message);
+    header('Location: /portal/my/support/' . $ticket['id']);
+    exit;
+});
+
+$router->get('/portal/my/support/:id', function ($params) {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $member['id']]);
+    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
+    $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
+    require ROOT . '/src/views/pages/my_support_detail.php';
+});
+
+$router->post('/portal/my/support/:id/reply', function ($params) {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $member['id']]);
+    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
+    $message = trim($_POST['message'] ?? '');
+    if ($message !== '') {
+        DB::execute(
+            'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
+            [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
+        );
+        // Eine Mitglied-Antwort auf ein bereits beantwortetes/geschlossenes Ticket setzt den
+        // Status zurück auf "offen" -- sonst würde die Antwort im Blick des Obmanns leicht untergehen.
+        DB::execute("UPDATE support_tickets SET status = 'offen', updated_at = now() WHERE id = ?", [$ticket['id']]);
+    }
+    header('Location: /portal/my/support/' . $ticket['id']);
+    exit;
+});
+
+/**
  * Test-Endpoint der Smart-Home-API: prüft nur, ob ein API-Key gültig ist, und gibt Basisinfos
  * zurück -- keine Energiedaten (die liefert /api/v1/live, siehe unten). Dient zum Testen der
  * Authentifizierung z.B. mit Node-RED, bevor man die Live-Daten abruft.
@@ -1580,7 +1672,7 @@ $router->get('/api/v1/me', function () {
 });
 
 /**
- * Live-Energiedaten fürs Smart-Home des Mitglieds (Node-RED etc., siehe docs/ESB_IDEEN.md
+ * Live-Energiedaten fürs Smart-Home des Mitglieds (Node-RED etc., siehe docs/ESP_IDEEN.md
  * Punkt 2): eigener Bezug/Einspeisung in Watt (letzte 2 Minuten, gleiches Fenster wie
  * /api/live/:slug) + Autarkiequote der gesamten Community. Gibt 0/null-Werte zurück statt
  * eines Fehlers, wenn das Mitglied noch keine Ausleseeinheit hat -- ein Smart-Home-Skript
@@ -2004,7 +2096,7 @@ $router->get('/portal/members/:id', function ($params) {
  * WLAN-Diagnoseinfos eines Zählpunkts (SSID/IP/Passwort) auf Abruf statt beim Seitenaufbau
  * mitzuschicken -- das entschlüsselte Passwort landet so nicht unnötig im initialen HTML
  * (z.B. Browser-Cache, Screenshot der Seite), sondern nur wenn Obmann/Admin aktiv auf
- * "WLAN-Info anzeigen" klicken. Siehe docs/ESB_IDEEN.md Punkt 1.
+ * "WLAN-Info anzeigen" klicken. Siehe docs/ESP_IDEEN.md Punkt 1.
  */
 $router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
@@ -3699,6 +3791,65 @@ $router->post('/portal/postfach/:id/erledigt', function ($params) {
     exit;
 });
 
+// ─── Portal: Support-Tickets (Manager/Platform-Admin) ───
+$router->get('/portal/support', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $statusFilter = $_GET['status'] ?? '';
+    $where = 't.community_id = ?';
+    $params = [$communityId];
+    if (in_array($statusFilter, ['offen', 'in_bearbeitung', 'geschlossen'], true)) {
+        $where .= ' AND t.status = ?';
+        $params[] = $statusFilter;
+    }
+    $tickets = DB::fetchAll(
+        "SELECT t.*, m.first_name, m.last_name
+         FROM support_tickets t JOIN members m ON m.id = t.member_id
+         WHERE $where ORDER BY (t.status = 'offen') DESC, t.updated_at DESC",
+        $params
+    );
+    require ROOT . '/src/views/pages/support_tickets.php';
+});
+
+$router->get('/portal/support/:id', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $ticket = DB::fetchOne(
+        'SELECT t.*, m.first_name, m.last_name, m.email
+         FROM support_tickets t JOIN members m ON m.id = t.member_id
+         WHERE t.id = ? AND t.community_id = ?',
+        [$params['id'], $communityId]
+    );
+    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
+    $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
+    require ROOT . '/src/views/pages/support_ticket_detail.php';
+});
+
+$router->post('/portal/support/:id/reply', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
+    $message = trim($_POST['message'] ?? '');
+    if ($message !== '') {
+        DB::execute(
+            'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, true, ?)',
+            [$ticket['id'], Auth::userName() ?: 'Verwaltung', $message]
+        );
+    }
+    $newStatus = $_POST['status'] ?? '';
+    if (in_array($newStatus, ['offen', 'in_bearbeitung', 'geschlossen'], true)) {
+        DB::execute('UPDATE support_tickets SET status = ?, updated_at = now() WHERE id = ?', [$newStatus, $ticket['id']]);
+    } elseif ($message !== '') {
+        DB::execute('UPDATE support_tickets SET updated_at = now() WHERE id = ?', [$ticket['id']]);
+    }
+    header('Location: /portal/support/' . $ticket['id']);
+    exit;
+});
+
 // ─── Portal: Online-Beitrittserklärungen (Freigabe) ─────
 $router->get('/portal/applications', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
@@ -4017,7 +4168,7 @@ $router->post('/portal/eda/upload', function () {
 
 /**
  * Zählpunkte, die per automatischem EDA-Import-Abgleich angelegt wurden (siehe
- * eda-parser/parser.py, docs/ESB_IDEEN.md Punkt 3), aber noch keinem Mitglied zugeordnet sind
+ * eda-parser/parser.py, docs/ESP_IDEEN.md Punkt 3), aber noch keinem Mitglied zugeordnet sind
  * -- der Obmann weist sie hier einem bestehenden Mitglied zu, korrigiert bei Bedarf den Typ und
  * aktiviert den Zählpunkt (erst dann nimmt er an einer Abrechnung teil).
  */
@@ -4609,7 +4760,7 @@ $router->post('/admin/mail-settings', function () {
          SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
              signature_logo_base64 = ?, signature_logo_type = ?,
              signature_logo_width = ?, signature_logo_height = ?,
-             backup_alert_email_1 = ?, backup_alert_email_2 = ?, updated_at = now()
+             backup_alert_email_1 = ?, backup_alert_email_2 = ?, support_notification_email = ?, updated_at = now()
          WHERE id = 1',
         [
             trim($_POST['tenant_id'] ?? '') ?: null,
@@ -4624,6 +4775,7 @@ $router->post('/admin/mail-settings', function () {
             $logoHeight,
             trim($_POST['backup_alert_email_1'] ?? '') ?: null,
             trim($_POST['backup_alert_email_2'] ?? '') ?: null,
+            trim($_POST['support_notification_email'] ?? '') ?: 'office@stromfueralle.at',
         ]
     );
     $mailAfter = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
@@ -4635,6 +4787,7 @@ $router->post('/admin/mail-settings', function () {
         'reply_to' => 'Antwort-an', 'signature_html' => 'Signatur',
         'signature_logo_width' => 'Logo-Breite', 'signature_logo_height' => 'Logo-Höhe',
         'backup_alert_email_1' => 'Alarm-E-Mail 1', 'backup_alert_email_2' => 'Alarm-E-Mail 2',
+        'support_notification_email' => 'Support-Ticket-Benachrichtigung an',
     ]);
     if (($current['client_secret'] ?? null) !== ($mailAfter['client_secret'] ?? null)) {
         $mailChanges['client_secret'] = ['label' => 'Client-Secret', 'von' => '(verborgen)', 'auf' => '(geändert)'];

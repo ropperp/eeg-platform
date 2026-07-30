@@ -115,6 +115,11 @@
         <input type="email" name="backup_alert_email_2" value="<?= htmlspecialchars($mailConfig['backup_alert_email_2'] ?? '') ?>" placeholder="patrick.ropper@gmail.com">
         <small style="color:var(--gray-600)">Optionale zweite Empfängeradresse für den Backup-Alarm.</small>
       </div>
+      <div class="form-group">
+        <label>Neues Support-Ticket an</label>
+        <input type="email" name="support_notification_email" value="<?= htmlspecialchars($mailConfig['support_notification_email'] ?? 'office@stromfueralle.at') ?>" placeholder="office@stromfueralle.at">
+        <small style="color:var(--gray-600)">Meldet ein Mitglied ein Problem oder einen Feature-Vorschlag über „Support" im Mitgliederportal, geht eine kurze Benachrichtigung an diese Adresse.</small>
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>

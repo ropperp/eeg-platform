@@ -159,6 +159,10 @@
               "SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND member_id IS NULL",
               [$ar['community_id']]
           )['cnt'];
+          $openSupportTickets = (int)DB::fetchOne(
+              "SELECT COUNT(*) AS cnt FROM support_tickets WHERE community_id = ? AND status = 'offen'",
+              [$ar['community_id']]
+          )['cnt'];
         }
       ?>
       <a href="/portal/applications" class="<?= str_contains($_SERVER['REQUEST_URI'], 'applications') ? 'active' : '' ?>">
@@ -171,6 +175,12 @@
         <span class="sidebar-icon"><?= icon('envelope-simple') ?></span><span class="sidebar-text">Postfach</span>
         <?php if ($offeneNotifications > 0): ?>
           <span class="badge badge-yellow" style="margin-left:.4rem"><?= $offeneNotifications ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="/portal/support" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/support') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('chat-circle-text') ?></span><span class="sidebar-text">Support-Tickets</span>
+        <?php if ($openSupportTickets > 0): ?>
+          <span class="badge badge-yellow" style="margin-left:.4rem"><?= $openSupportTickets ?></span>
         <?php endif; ?>
       </a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
@@ -206,6 +216,9 @@
       </a>
       <a href="/portal/my/api-keys" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/api-keys') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('plug') ?></span><span class="sidebar-text">API-Zugänge</span>
+      </a>
+      <a href="/portal/my/support" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/support') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('chat-circle-text') ?></span><span class="sidebar-text">Support</span>
       </a>
     <?php endif; ?>
   </aside>
