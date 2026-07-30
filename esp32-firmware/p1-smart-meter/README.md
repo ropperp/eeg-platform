@@ -42,9 +42,13 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   `{"status":"offline"}` bei Verbindungsabbruch), eigenes Intervall (`heartbeat-intervall`,
   Standard 30 s) — Grundlage für das Online/Zuletzt-online-Tracking auf der Plattform (siehe
   `docs/ESP_IDEEN.md`, Punkt 2). Enthält zusätzlich:
-  - `ssid`/`ip`/`wifi_password`: bei JEDEM Heartbeat mitgeschickt (nicht nur beim Verbindungs-
-    aufbau -- sonst käme das Passwort nie an, falls genau dieser eine Connect-Moment einmal
-    nicht ankommt) — landet auf der Plattform verschlüsselt, nie im Klartext gespeichert
+  - `ssid`/`ip`: bei JEDEM Heartbeat mitgeschickt
+  - `wifi_password`: NUR beim MQTT-(Re-)Connect mitgeschickt (`mqttReconnect()`), nicht bei
+    jedem periodischen Heartbeat -- das deckt sowohl "einmal pro Boot" als auch "bei einem
+    WLAN-Wechsel" ab, da ein WLAN-Wechsel über das Config-Formular immer zu `ESP.restart()`
+    führt (Stand 2026-07-30, auf Wunsch weniger häufig als zuvor). Landet auf der Plattform
+    verschlüsselt, nie im Klartext gespeichert; SSID/IP werden dort beibehalten, bis ein
+    tatsächlich neuer Wert ankommt (kein Überschreiben mit leeren/fehlenden Werten)
   - `meter_ok`: ob zuletzt (< 2 Minuten) ein gültiges P1-Telegramm vom Smart Meter empfangen
     wurde — getrennt vom WLAN/MQTT-Online-Status des ESP selbst, damit sich Inselbetrieb/
     Stromausfall beim Mitglied (Zähler nicht erreichbar, ESP aber online) von einem

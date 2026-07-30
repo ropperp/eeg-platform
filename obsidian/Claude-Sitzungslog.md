@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (9) — Claude Code — Claude Sonnet 5
+**Auftrag:** Live-Leistungswerte über die API (`GET /api/v1/live`, per Node-RED ausgelesen)
+waren absurd hoch (70 kW statt tatsächlicher 5,8 kW Einspeisung), obwohl ESP-Webinterface und
+Loxone korrekt waren -- bitte kontrollieren. Außerdem WLAN-Passwort-Sendefrequenz nochmal
+überarbeiten: nur bei echtem WLAN-Wechsel und einmal pro Boot senden statt bei jedem
+Heartbeat, dabei weiterhin auf SSID-Wechsel überwachen (Meldung), aber NICHT auf reine
+IP-Adressänderungen (die passieren routinemäßig per DHCP).
+**Ergebnis:** Root Cause gefunden: drei Stellen (`/api/v1/live`, `/api/live/:slug`,
+`manager_dashboard.php`) summierten `power_*_w` über ALLE Messzeilen eines 2-Minuten-Fensters
+statt nur die neueste Zeile je Zählpunkt zu nehmen -- bei 5s-Sendeintervall bis zu ~24x zu
+hoch. Fix mit `DISTINCT ON (metering_point_id)`, dazu im Live-Dashboard zusätzlich die
+Tageskennzahl (Max-Min pro Zähler statt zeilenweise Summe) und die Zeitreihen-Chart-Daten
+(erst pro Bucket/Zähler mitteln, dann summieren) korrigiert. Firmware: `wifi_password` aus dem
+periodischen Heartbeat entfernt, wird jetzt nur noch beim MQTT-(Re-)Connect gesendet (deckt
+Boot + WLAN-Wechsel ab, da Wechsel immer `ESP.restart()` auslöst). `mqtt-subscriber`: neue
+Benachrichtigung bei echtem SSID-Wechsel (`typ = 'ssid_geaendert'`), keine Meldung bei reiner
+IP-Änderung. `php tests/run.php` weiterhin 77/77, `.ino`-Klammernbalance und Python-Syntax
+geprüft. CHANGELOG.md und docs/ESP_IDEEN.md aktualisiert.
+
+---
+
 ## 2026-07-30 (8) — Claude Code — Claude Sonnet 5
 **Auftrag:** BC547-Transistor aus dem ESP32-Aufbau entfernt, Firmware entsprechend anpassen;
 korrigierten `mosquitto_sub`-Befehl mit Zugangsdaten für den MQTT-Broker; welches Protokoll

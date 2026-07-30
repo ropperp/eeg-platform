@@ -857,12 +857,11 @@ void loop() {
         hb += ",\"ssid\":\"" + jsonEscape(WiFi.SSID()) + "\"";
         hb += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
         hb += ",\"meter_ok\":" + String(meterReachable() ? "true" : "false");
-        // Zusaetzlich zum einmaligen Senden bei mqttReconnect(): bei JEDEM periodischen
-        // Heartbeat mitschicken, nicht nur beim (seltenen) Verbindungsaufbau -- sonst kommt
-        // das Passwort nie an, wenn genau dieser eine Connect-Moment einmal nicht ankommt
-        // (kein zweiter Versuch, da ein stabil verbundenes Geraet u.U. wochenlang nicht
-        // neu verbindet). Auf Port 8883 (TLS) unbedenklich, auf 1883 nur im eigenen Netz nutzen.
-        if (cfgPass.length() > 0) hb += ",\"wifi_password\":\"" + jsonEscape(cfgPass) + "\"";
+        // wifi_password bewusst NICHT bei jedem periodischen Heartbeat mitschicken -- nur beim
+        // MQTT-(Re-)Connect in mqttReconnect() (= einmal pro Boot, und ein WLAN-Wechsel ueber
+        // das Config-Formular fuehrt immer zu ESP.restart(), also ebenfalls zu einem frischen
+        // Connect). So liegt das Passwort seltener auf der Leitung, ohne dass es bei einem
+        // echten WLAN-/Boot-Ereignis fehlt.
         hb += "}";
         mqttClient.publish(st.c_str(), hb.c_str(), true);
       }

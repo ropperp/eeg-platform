@@ -44,10 +44,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 - **ESP32: eigenes Live-Daten-Intervall.** Bezug/Einspeisung wurden über dieselbe Variable wie
   der ESP-Online-Heartbeat gedrosselt (fix 30 s) -- jetzt ein eigenes, unabhängiges Feld
   `live-daten-intervall` im `/config`-Formular, Standard 5 s.
-- **WLAN-Passwort kam nicht zuverlässig in der WLAN-Info-Anzeige an.** Wurde bisher nur
-  einmalig beim allerersten MQTT-Connect nach dem Boot mitgeschickt -- ein verpasster Moment,
-  und es kam für die gesamte restliche Laufzeit nie an. Wird jetzt bei jedem periodischen
-  Heartbeat mitgeschickt.
+- **WLAN-Passwort-Versand überarbeitet: nur noch bei echtem WLAN-Wechsel/Boot statt bei jedem
+  Heartbeat.** Ein Zwischenstand hatte das WLAN-Passwort testweise bei jedem periodischen
+  Heartbeat mitgeschickt (Fix für "kam gar nicht an"), das war Patrick auf Dauer zu häufig auf
+  der Leitung, auch wenn TLS (Port 8883) es ohnehin verschlüsselt. Jetzt sendet die Firmware
+  das Passwort nur noch beim MQTT-(Re-)Connect (`mqttReconnect()`) -- das deckt "einmal pro
+  Boot" UND "bei einem WLAN-Wechsel" ab, weil ein Wechsel über das Config-Formular immer zu
+  `ESP.restart()` führt. SSID/IP kommen weiterhin bei jedem Heartbeat mit. Plattformseitig
+  (`mqtt-subscriber`) behält `metering_points` den zuletzt bekannten SSID/IP/Passwort-Wert bei,
+  bis tatsächlich ein neuer ankommt (kein Überschreiben durch fehlende Felder), und meldet eine
+  **neue Postfach-Benachrichtigung bei echtem SSID-Wechsel** (`typ = 'ssid_geaendert'`) --
+  bewusst NICHT bei einer reinen IP-Adressänderung, die passiert routinemäßig per DHCP und wäre
+  keine Meldung wert.
 - **Benachrichtigung bei unbekannter Zählernummer.** Sendet ein Gerät MQTT-Daten für eine
   Zählernummer, die keinem Zählpunkt der jeweiligen EEG zugeordnet ist, erscheint jetzt eine
   offene Meldung im Postfach (`/portal/postfach`) -- bisher landete das nur unsichtbar im
@@ -225,6 +233,17 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **Live-Leistungswerte (API + Dashboards) waren um ein Vielfaches zu hoch.** `GET /api/v1/live`,
+  das öffentliche Live-Dashboard (`/api/live/:slug`) und die "Community-Gesamtleistung live"-Kachel
+  im Obmann-Dashboard summierten `power_bezug_w`/`power_einspeisung_w` über ALLE Messzeilen eines
+  2-Minuten-Fensters statt nur den jeweils neuesten Wert pro Zählpunkt zu nehmen -- bei
+  5-Sekunden-Sendeintervall (seit der Live-Interval-Änderung) macht das bis zu ~24 Zeilen pro
+  Zähler, die aufsummiert wurden. Ein Mitglied sah in Node-RED z.B. 70.000 W statt tatsächlicher
+  5,8 kW Einspeisung. Behoben mit `DISTINCT ON (metering_point_id) ... ORDER BY ... time DESC`
+  (jeweils nur die neueste Zeile pro Zähler), zusätzlich im Live-Dashboard: die Tageskennzahl
+  (`today_kwh`) summierte kumulative Zählerstände über Zeit und Zähler hinweg statt pro Zähler
+  Max-Min zu bilden, und die Zeitreihen-Chart-Daten summierten ebenfalls zeilenweise statt
+  zuerst pro Bucket/Zähler zu mitteln und dann über die Zähler zu summieren.
 - **Rohe Platzhalter in der Passwort-Reset-Mail.** Die Vorlage nutzte `{{anrede}} {{nachname}}`,
   die Reset-Route übergab diese Werte aber nicht — beim Empfänger stand wörtlich
   „{{anrede}} {{nachname}},". Die Werte werden jetzt übergeben (aus dem Mitgliedsdatensatz, sonst
