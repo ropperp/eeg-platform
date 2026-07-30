@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (14) — Claude Code — Claude Sonnet 5
+**Auftrag:** Bestellung von 20 ELEGOO-ESP32-Boards angefragt (kann Claude Code nicht ausführen --
+kein Checkout-/Kauf-Zugriff). Live-Anzeige: "Erzeugung heute" zeigt nicht die tatsächlich
+eingespeisten 1.000 kWh. Neue Funktion gewünscht: pro Mitglied alle Live-ESP-Messdaten aus der
+DB löschen können (Testphase-Reset), nicht plattformweit auf einmal. Im Mitglieder-Dashboard
+den Tausenderpunkt bei den Verbrauchszahlen entfernen (verwirrend, "2.000" vs. "2,0").
+**Ergebnis:** Bestellung ehrlich abgelehnt -- Claude Code hat keine Möglichkeit, echte Käufe/
+Zahlungen auszulösen, nur der Produkt-Link wurde nochmal genannt. Root Cause für "Erzeugung
+heute" gefunden: `/api/live/:slug` nahm die ERSTE Messung des Tages als Basiswert -- bei wenigen
+Testmessungen "heute" ergab das MAX=MIN=0. Fix: Basiswert ist jetzt die letzte Messung VOR
+heute. Neuer Button "Live-Messdaten zurücksetzen (Testphase)" bei den Zählpunkten eines
+Mitglieds (`/portal/members/:id/reset-live-data`), nur im Testmodus sichtbar, löscht
+`esp_measurements` + WLAN-/Online-Status ausschließlich für die Zählpunkte dieses einen
+Mitglieds, mit Bestätigungsdialog + Audit-Log. Tausenderpunkt bei allen kWh/W-Anzeigen im
+Mitglieder-Dashboard entfernt (Euro-Beträge unverändert mit Punkt). `php tests/run.php`
+weiterhin 77/77.
+
+---
+
 ## 2026-07-30 (13) — Claude Code — Claude Sonnet 5
 **Auftrag:** Korrektur zur Live-Einspeisung-Berechnung: IMMER zuerst je Viertelstunden-Fenster
 matchen (wie viel Gemeinschaft/wie viel Netz), erst danach über den gewählten Zeitraum

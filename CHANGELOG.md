@@ -20,6 +20,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Testphase-Reset für Live-ESP-Messdaten pro Mitglied.** Neuer Button "Live-Messdaten
+  zurücksetzen (Testphase)" bei den Zählpunkten eines Mitglieds (`/portal/members/:id/reset-live-data`):
+  löscht alle `esp_measurements`-Zeilen und setzt Online-/WLAN-Status für alle Zählpunkte
+  dieses einen Mitglieds zurück -- bewusst pro Mitglied, nicht für die ganze EEG auf einmal.
+  Nur sichtbar/ausführbar im Testmodus (Platform-Admin → Plattform-Technik); verschwindet
+  automatisch, sobald eine EEG auf Echtbetrieb umgestellt wird, damit niemand aus Versehen
+  echte Live-Daten löscht.
+- **Mitglieder-Dashboard: Tausenderpunkt bei den kWh/W-Anzeigen entfernt.** War auf Wunsch von
+  Patrick verwirrend ("2.000" ließ sich auf den ersten Blick nicht sicher von "2,0" unterscheiden).
+  Betrifft nur die Verbrauchs-/Erzeugungszahlen (Aktuelle Leistung, Bezug/Erzeugung, Live-
+  Einspeisung, Monatsverlauf) -- Euro-Beträge (Rechnungssaldo) behalten die übliche
+  Tausenderpunkt-Formatierung.
 - **Mitglieder-Dashboard: "Aktuelle Leistung" + selbst berechnete Live-Einspeisung in die
   Gemeinschaft.** Neue Kachel "Aktuelle Leistung" zeigt die aktuelle Netto-Leistung des
   Mitglieds (positiv = wird bezogen, negativ = wird eingespeist, aus dem jeweils neuesten
@@ -262,6 +274,13 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **Öffentliches Live-Dashboard: "Erzeugung heute" konnte 0 kWh zeigen, obwohl real eingespeist
+  wurde.** Die Tageskennzahl (`/api/live/:slug`) berechnete den Basiswert als ERSTE Messung des
+  Tages (`MIN(...) WHERE time >= CURRENT_DATE`) -- bei nur 1-2 Messwerten "heute" (z. B. beim
+  manuellen Testen mit `mosquitto_pub`, siehe ESP32-Firmware-README) ergab das MAX = MIN = 0.
+  Jetzt wird stattdessen die letzte bekannte Messung VOR dem heutigen Tag als Basis genommen
+  (fällt nur dann auf 0 zurück, wenn ein Zählpunkt buchstäblich noch nie zuvor gemeldet hat --
+  dann lässt sich "heute" nicht sinnvoll von "insgesamt" trennen).
 - **ESP32: OTA-Netzwerkport erschien nicht in der Arduino-IDE.** `ArduinoOTA` war korrekt
   eingerichtet (Hostname/Passwort/Callbacks/`begin()`/`handle()`) -- die wahrscheinlichste
   Ursache lag am standardmäßig aktiven ESP32-Modem-Sleep, der eingehende mDNS-Multicast-Pakete

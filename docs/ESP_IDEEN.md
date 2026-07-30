@@ -66,6 +66,18 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Testphase-Reset für Live-ESP-Messdaten pro Mitglied (Patrick 30.07.2026):** Patrick testet
+  gerade aktiv mit echter/simulierter Hardware und wollte `esp_measurements` zwischendurch
+  zurücksetzen können, OHNE die Daten anderer Mitglieder anzufassen. Neuer Button bei den
+  Zählpunkten eines Mitglieds (`/portal/members/:id/reset-live-data`), nur im Testmodus
+  sichtbar/ausführbar -- löscht alle Messzeilen und den Online-/WLAN-Status ausschließlich für
+  die Zählpunkte DIESES Mitglieds, mit Bestätigungsdialog und Audit-Log-Eintrag.
+- **Bug: "Erzeugung heute" auf dem öffentlichen Live-Dashboard konnte 0 kWh zeigen (Patrick
+  30.07.2026):** Patrick meldete, trotz realer Einspeisung zeige die Tageskennzahl nicht das
+  Erwartete. Ursache: Basiswert war die ERSTE Messung des Tages -- bei wenigen Testmessungen
+  "heute" (z. B. manuell per `mosquitto_pub`) ergab MAX=MIN=0. Fix: Basiswert ist jetzt die
+  letzte bekannte Messung VOR dem heutigen Tag (fällt nur auf 0 zurück, wenn ein Zählpunkt
+  buchstäblich noch nie zuvor gemeldet hat).
 - **Erste echte Nutzung der ESP-Live-Leistungsdaten im Mitglieder-Dashboard (Patrick
   30.07.2026):** Bisher zeigte `/portal/dashboard` für Mitglieder nur EDA-Monatswerte (kein
   Live-Bezug auf `esp_measurements`, siehe frühere Fassung des Kommentars in

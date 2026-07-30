@@ -133,10 +133,10 @@ ob_start();
   <?php if ($currentNetPowerW === null): ?>
     <p style="font-size:.85rem;color:var(--gray-600)">Keine Live-Daten verfügbar (Ausleseeinheit nicht installiert oder gerade offline).</p>
   <?php elseif ($currentNetPowerW >= 0): ?>
-    <div class="stat-value" style="color:#dc2626"><?= icon('arrow-down') ?> <?= number_format($currentNetPowerW, 0, ',', '.') ?> W</div>
+    <div class="stat-value" style="color:#dc2626"><?= icon('arrow-down') ?> <?= number_format($currentNetPowerW, 0, ',', '') ?> W</div>
     <div class="stat-label">wird gerade bezogen</div>
   <?php else: ?>
-    <div class="stat-value" style="color:#16a34a"><?= icon('arrow-up') ?> <?= number_format(abs($currentNetPowerW), 0, ',', '.') ?> W</div>
+    <div class="stat-value" style="color:#16a34a"><?= icon('arrow-up') ?> <?= number_format(abs($currentNetPowerW), 0, ',', '') ?> W</div>
     <div class="stat-label">wird gerade eingespeist</div>
   <?php endif; ?>
 </div>
@@ -144,13 +144,13 @@ ob_start();
 <div class="grid-2" style="margin-bottom:1.5rem">
   <?php if ($hasConsumer): ?>
   <div class="card stat-card">
-    <div class="stat-value"><?= number_format($currentMonth['teilnahme'], 0, ',', '.') ?> kWh</div>
+    <div class="stat-value"><?= number_format($currentMonth['teilnahme'], 0, ',', '') ?> kWh</div>
     <div class="stat-label">Bezug aus der Gemeinschaft<?= $currentMonth['label'] ? ' (' . htmlspecialchars($currentMonth['label']) . ')' : '' ?></div>
   </div>
   <?php endif; ?>
   <?php if ($hasProducer): ?>
   <div class="card stat-card">
-    <div class="stat-value"><?= number_format($currentMonth['erzeugung'], 0, ',', '.') ?> kWh</div>
+    <div class="stat-value"><?= number_format($currentMonth['erzeugung'], 0, ',', '') ?> kWh</div>
     <div class="stat-label">Eigene Erzeugung<?= $currentMonth['label'] ? ' (' . htmlspecialchars($currentMonth['label']) . ')' : '' ?></div>
   </div>
   <?php endif; ?>
@@ -186,7 +186,7 @@ ob_start();
     <button type="submit" class="btn btn-secondary" id="range-apply-btn"
             style="display:<?= in_array($range, ['day', 'custom'], true) ? 'inline-block' : 'none' ?>">Anwenden</button>
   </form>
-  <div class="stat-value"><?= number_format($liveEinspeisungKwh, 2, ',', '.') ?> kWh</div>
+  <div class="stat-value"><?= number_format($liveEinspeisungKwh, 2, ',', '') ?> kWh</div>
   <div class="stat-label">eigene Einspeisung, die <?= htmlspecialchars($rangeLabel) ?> von Mitgliedern dieser Gemeinschaft verbraucht wurde</div>
   <p style="font-size:.72rem;color:var(--gray-600);margin-top:.5rem">
     Selbst berechnete Live-Schätzung aus den Leistungsmesswerten Ihrer Ausleseeinheit -- nicht die
@@ -213,9 +213,9 @@ function onDashboardRangeChange(v) {
         <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--gray-600);margin-bottom:.2rem">
           <span><?= monatsLabel((string)$m['monat']) ?></span>
           <span>
-            <?php if ($hasConsumer): ?><?= number_format((float)$m['teilnahme_kwh'], 0, ',', '.') ?> kWh Bezug<?php endif; ?>
+            <?php if ($hasConsumer): ?><?= number_format((float)$m['teilnahme_kwh'], 0, ',', '') ?> kWh Bezug<?php endif; ?>
             <?php if ($hasConsumer && $hasProducer): ?> · <?php endif; ?>
-            <?php if ($hasProducer): ?><?= number_format((float)$m['erzeugung_kwh'], 0, ',', '.') ?> kWh Erzeugung<?php endif; ?>
+            <?php if ($hasProducer): ?><?= number_format((float)$m['erzeugung_kwh'], 0, ',', '') ?> kWh Erzeugung<?php endif; ?>
           </span>
         </div>
         <?php if ($hasConsumer): ?>
