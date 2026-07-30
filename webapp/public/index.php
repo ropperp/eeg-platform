@@ -782,6 +782,42 @@ function logAuditDiff(?string $communityId, string $aktion, ?string $entityTyp, 
     }
 }
 
+/**
+ * Informative Postfach-Meldung, wenn dieselbe Zählernummer jetzt zu zwei aktiven Zählpunkten
+ * gehört -- in Österreich der Normalfall bei einem Prosumer (eigene Zählpunktnummern für Bezug
+ * und Einspeisung, aber ein gemeinsamer physischer Zähler/eine ESP-Ausleseeinheit). Kein Fehler,
+ * daher kein Blocken -- der mqtt-subscriber ordnet ankommende ESP-Daten automatisch korrekt
+ * beiden Zählpunkten zu (get_metering_points()), diese Meldung dient nur der Transparenz.
+ * Dedup wie bei notify_unknown_meter()/notify_ssid_changed() im mqtt-subscriber: kein zweiter
+ * offener Eintrag für dieselbe Zählernummer.
+ */
+function notifyMeterCodeShared(string $communityId, string $meterCode): void
+{
+    $key = "meter_shared:{$meterCode}";
+    try {
+        $existing = DB::fetchOne(
+            "SELECT 1 FROM notifications WHERE community_id = ? AND text LIKE ? AND status = 'offen'",
+            [$communityId, $key . ':%']
+        );
+        if ($existing) return;
+        DB::execute(
+            "INSERT INTO notifications (community_id, typ, titel, text, status) VALUES (?, ?, ?, ?, 'offen')",
+            [
+                $communityId,
+                'zaehlernummer_geteilt',
+                'Zählernummer doppelt vergeben (Bezug + Einspeisung)',
+                "{$key}: Die Zählernummer {$meterCode} ist jetzt zwei aktiven Zählpunkten zugeordnet. "
+                    . 'Das ist bei einem Prosumer normal (eigene Zählpunktnummern für Bezug und Einspeisung, '
+                    . 'aber ein gemeinsamer physischer Zähler). Die ESP-Ausleseeinheit wird als ein Gerät '
+                    . 'behandelt, ihre Daten werden automatisch korrekt auf beide Zählpunkte aufgeteilt und '
+                    . 'nur einmal verarbeitet -- keine Aktion nötig.',
+            ]
+        );
+    } catch (Throwable $e) {
+        error_log('[notifyMeterCodeShared] ' . $e->getMessage());
+    }
+}
+
 // Domain-Trennung: stromfueralle.at (+ www) zeigt NUR die öffentliche Marketing-Seite,
 // portal.stromfueralle.at NUR Login/Backoffice (/portal/*, /admin/*). Traefik routet beide
 // Hosts auf denselben Container/Code -- die eigentliche Trennung passiert hier per Redirect.
@@ -2545,23 +2581,19 @@ $router->post('/portal/members/:id/metering-points', function ($params) {
     }
 
     $meterCode = trim($_POST['meter_code'] ?? '') ?: null;
-    // Eine Zählernummer darf nur EINEM aktiven Zählpunkt zugeordnet sein: die Plattform ordnet
-    // eingehende MQTT-Daten ausschließlich über die Zählernummer zu (mqtt-subscriber/main.py,
-    // get_metering_point_uuid()) -- bei zwei Zählpunkten mit derselben Nummer (z.B. einmal
-    // Bezug, einmal Einspeisung fürs selbe physische Gerät) würde nur einer davon je Live-Daten
-    // bekommen, der andere bliebe für immer auf "keine Daten" stehen (Patrick, 30.07.2026).
-    // Für ein einzelnes bidirektionales Gerät stattdessen Typ "prosumer" auf einem Zählpunkt nutzen.
+    // Eine Zählernummer darf sehr wohl zu ZWEI aktiven Zählpunkten gehören: in Österreich haben
+    // Bezug und Einspeisung eines Prosumers unterschiedliche Zählpunktnummern (AT...), teilen
+    // sich aber denselben physischen Zähler/dieselbe Zählernummer (Patrick, 30.07.2026, nach
+    // anfänglich falscher Annahme "nur ein Zählpunkt pro Zähler möglich"). Kein Blocken -- der
+    // mqtt-subscriber teilt eingehende ESP-Daten automatisch korrekt auf beide Zählpunkte auf
+    // (get_metering_points()), nur eine informative Postfach-Meldung zur Transparenz.
     if ($meterCode) {
-        $meterOwner = DB::fetchOne(
-            "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
-             JOIN members m ON m.id = mp.member_id
-             WHERE mp.community_id = ? AND mp.meter_code = ? AND mp.active = true",
+        $sharedWith = DB::fetchOne(
+            "SELECT 1 FROM metering_points WHERE community_id = ? AND meter_code = ? AND active = true",
             [$communityId, $meterCode]
         );
-        if ($meterOwner) {
-            header('Location: /portal/members/' . $params['id'] . '?error=meter_duplicate&meter_owner='
-                . urlencode($meterOwner['first_name'] . ' ' . $meterOwner['last_name'] . ' (KdNr ' . ($meterOwner['kundennummer'] ?? '—') . ')'));
-            exit;
+        if ($sharedWith) {
+            notifyMeterCodeShared($communityId, $meterCode);
         }
     }
 
@@ -3047,19 +3079,16 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
     }
 
     $meterCode = trim($_POST['meter_code'] ?? '') ?: null;
-    // Siehe Kommentar bei der Anlage-Route: eine Zählernummer darf nur einem aktiven Zählpunkt
-    // gehören, sonst bekommt nie beide Zählpunkte Live-Daten (MQTT ordnet nur über die Nummer zu).
+    // Siehe Kommentar bei der Anlage-Route: eine Zählernummer darf sehr wohl zu ZWEI aktiven
+    // Zählpunkten gehören (Bezug + Einspeisung eines Prosumers, ein physischer Zähler) --
+    // kein Blocken, nur eine informative Postfach-Meldung zur Transparenz.
     if ($meterCode) {
-        $meterOwner = DB::fetchOne(
-            "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
-             JOIN members m ON m.id = mp.member_id
-             WHERE mp.community_id = ? AND mp.meter_code = ? AND mp.active = true AND mp.id != ?",
+        $sharedWith = DB::fetchOne(
+            "SELECT 1 FROM metering_points WHERE community_id = ? AND meter_code = ? AND active = true AND id != ?",
             [$communityId, $meterCode, $params['mpid']]
         );
-        if ($meterOwner) {
-            header('Location: /portal/members/' . $params['id'] . '?error=meter_duplicate&meter_owner='
-                . urlencode($meterOwner['first_name'] . ' ' . $meterOwner['last_name'] . ' (KdNr ' . ($meterOwner['kundennummer'] ?? '—') . ')'));
-            exit;
+        if ($sharedWith) {
+            notifyMeterCodeShared($communityId, $meterCode);
         }
     }
 

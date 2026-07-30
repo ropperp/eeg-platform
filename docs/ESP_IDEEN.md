@@ -82,6 +82,23 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
   (Feldgruppen für Bezug UND Einspeisung gleichzeitig sichtbar), zusätzlich serverseitige
   Validierung, die eine Zählernummer nur einmal je aktivem Zählpunkt zulässt (verhindert das
   kaputte Doppel-Registrieren von vornherein, mit Hinweis auf den richtigen Typ).
+  **Nach Rückfrage korrigiert (Patrick, 30.07.2026):** Die Prämisse "ein Zähler = ein
+  Zählpunkt" war falsch. In Österreich haben Bezug und Einspeisung eines Prosumers
+  unterschiedliche, offiziell getrennte Zählpunktnummern (AT...) -- auch wenn sich beide
+  denselben physischen Zähler/dieselbe Zählernummer und dieselbe ESP-Ausleseeinheit teilen.
+  "prosumer" als EIN kombinierter Zählpunkt bildet diesen Fall also nicht ab; die eben
+  ergänzte Validierung hätte das reale Szenario (zwei aktive Zählpunkte, gleiche
+  Zählernummer) sogar aktiv blockiert. Korrigiert: `get_metering_point_uuid()` in
+  `mqtt-subscriber/main.py` wurde zu `get_metering_points()`, sucht jetzt ALLE aktiven
+  Zählpunkte zu einer Zählernummer (normalerweise 1, bei einem Prosumer-Zählerpaar 2) und
+  `insert_measurement()` bekommt zusätzlich den Zählpunkt-Typ, um pro Zeile die jeweils
+  nicht zutreffende Richtung auf 0 zu setzen -- sonst würde jede ESP-Nachricht beim
+  Aufsummieren über die Zählpunkte eines Mitglieds doppelt gezählt. PHP-seitig wurde der
+  Hard-Block durch eine informative Postfach-Meldung ersetzt (`notifyMeterCodeShared()`):
+  eine geteilte Zählernummer ist kein Fehler mehr, sondern der erwartete Prosumer-Regelfall.
+  Der "prosumer"-Typ bleibt als Option verfügbar (für den seltenen Fall eines wirklich
+  einzelnen bidirektionalen Zählpunkts), wird aber nicht mehr als Lösung für das
+  Zwei-Zählpunkte-ein-Zähler-Szenario beworben.
 - **Live-Leistungsanzeigen per 5s-Polling statt Seiten-Reload (Patrick 30.07.2026):** Werte,
   "von denen man weiß, dass sie sich aktualisieren" (aktuelle Leistung), sollen sich selbst
   aktualisieren statt die ganze Seite neu zu laden. Neue schlanke JSON-Endpunkte

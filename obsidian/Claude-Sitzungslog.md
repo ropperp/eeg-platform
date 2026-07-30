@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (17) — Claude Code — Claude Sonnet 5
+**Auftrag:** Korrektur zum vorigen Eintrag (16): Der Zählpunkt-Typ "prosumer" (ein Zähler, beide
+Richtungen kombiniert) bildet die Realität nicht ab. In Österreich haben Bezug und Einspeisung
+eines Prosumers unterschiedliche, offizielle Zählpunktnummern (AT...), teilen sich aber
+denselben physischen Zähler/dieselbe Zählernummer und dieselbe ESP-Ausleseeinheit. Gewünscht:
+dieselbe Zählernummer darf auf zwei aktiven Zählpunkten (Bezug + Einspeisung) stehen, statt das
+zu blockieren -- mit einer kurzen, nicht blockierenden Postfach-Meldung, dass die ESP-Daten
+dabei intern korrekt aufgeteilt und nur einmal verarbeitet werden.
+**Ergebnis:** Hard-Block (aus Sitzung 16) entfernt. `mqtt-subscriber/main.py`:
+`get_metering_point_uuid()` → `get_metering_points()`, liefert jetzt alle aktiven Zählpunkte zu
+einer Zählernummer als Liste (normalerweise 1, bei einem Prosumer-Zählerpaar 2);
+`insert_measurement()` bekommt den jeweiligen Zählpunkt-Typ und setzt pro Zeile die nicht
+zutreffende Richtung auf 0, damit beim Aufsummieren über die Zählpunkte eines Mitglieds keine
+Seite doppelt gezählt wird; `on_message()` verarbeitet Status- und Live-Nachrichten jetzt für
+alle passenden Zählpunkte statt nur für einen. PHP-seitig (`webapp/public/index.php`): neue
+Funktion `notifyMeterCodeShared()` (Postfach-Eintrag, Dedup nach Zählernummer) ersetzt den
+Hard-Block sowohl beim Anlegen als auch beim Bearbeiten eines Zählpunkts; toter
+`meter_duplicate`-Fehlerblock in `member_detail.php` entfernt. `prosumer`-Typ bleibt als Option
+für den seltenen echten Einzelzählpunkt-Fall verfügbar, wird aber nicht mehr als Lösung für das
+Zwei-Zählpunkte-ein-Zähler-Szenario dargestellt. `CHANGELOG.md` und `docs/ESP_IDEEN.md` mit
+"Nach Rückfrage korrigiert"-Vermerken aktualisiert. `php -l` + `php tests/run.php` (77/77) +
+`python3 -m py_compile` grün.
+
+---
+
 ## 2026-07-30 (16) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nachgefragt, ob die ESP-Zählung schon berücksichtigt, dass ein Zähler zwei
 Zählpunktnummern (Bezug + Einspeisung) haben kann. Gewünscht: Hinweistext auf den Live-Anzeigen,

@@ -55,7 +55,7 @@ APP_SECRET = os.environ.get("APP_SECRET", "")
 
 db_pool: ThreadedConnectionPool | None = None
 community_cache: dict[str, str] = {}        # slug → community_id (UUID)
-metering_point_cache: dict[str, str] = {}  # "community_id:znr" → metering_point UUID
+metering_point_cache: dict[str, list[dict]] = {}  # "community_id:znr" → [{"id":..., "type":...}, ...]
 
 # Heartbeat für den Docker-Healthcheck: solange die MQTT-Verbindung steht, wird diese Datei
 # regelmäßig aktualisiert. Der Healthcheck (docker-compose.yml) gilt als gesund, wenn die Datei
@@ -109,8 +109,14 @@ def get_community_id(mqtt_id: str) -> str | None:
     return None
 
 
-def get_metering_point_uuid(community_id: str, zaehlernummer: str) -> str | None:
-    """Sucht Metering-Point-UUID anhand der 13-stelligen Zählernummer (meter_code)."""
+def get_metering_points(community_id: str, zaehlernummer: str) -> list[dict]:
+    """Sucht ALLE aktiven Zählpunkte anhand der 13-stelligen Zählernummer (meter_code).
+
+    In Österreich haben Bezug und Einspeisung eines Prosumers unterschiedliche
+    Zählpunktnummern (AT...), teilen sich aber dieselbe Zählernummer -- ein physischer Zähler/
+    eine ESP-Ausleseeinheit liefert also Daten für ZWEI Zählpunkte gleichzeitig (Patrick,
+    30.07.2026, nach anfänglich falscher Annahme "ein Zählpunkt pro Zähler"). Gibt deshalb eine
+    Liste zurück (normalerweise 1 Eintrag, bei einem Prosumer-Zähler 2), statt nur eine UUID."""
     cache_key = f"{community_id}:{zaehlernummer}"
     if cache_key in metering_point_cache:
         return metering_point_cache[cache_key]
@@ -119,16 +125,19 @@ def get_metering_point_uuid(community_id: str, zaehlernummer: str) -> str | None
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM metering_points WHERE community_id = %s AND meter_code = %s",
+                "SELECT id, type FROM metering_points WHERE community_id = %s AND meter_code = %s AND active = true",
                 (community_id, zaehlernummer)
             )
-            row = cur.fetchone()
-            if row:
-                metering_point_cache[cache_key] = str(row[0])
-                return metering_point_cache[cache_key]
+            rows = cur.fetchall()
+            result = [{"id": str(r[0]), "type": r[1]} for r in rows]
+            # Leeres Ergebnis bewusst NICHT cachen -- sonst würde eine noch unbekannte
+            # Zählernummer für immer als "unbekannt" gelten, auch nachdem sie im Portal
+            # nachträglich richtig eingetragen wurde (gleiches Verhalten wie zuvor).
+            if result:
+                metering_point_cache[cache_key] = result
+            return result
     finally:
         pool.putconn(conn)
-    return None
 
 
 def encrypt_secret(plain: str) -> str:
@@ -217,7 +226,23 @@ def update_status(community_id: str, metering_point_id: str, payload: dict, zaeh
             log.error("Konnte Benachrichtigung für SSID-Wechsel nicht schreiben: %s", e)
 
 
-def insert_measurement(community_id: str, metering_point_id: str, payload: dict) -> None:
+def insert_measurement(community_id: str, metering_point_id: str, mp_type: str, payload: dict) -> None:
+    """Schreibt eine Messzeile für EINEN Zählpunkt. Eine ESP-Nachricht liefert immer beide
+    Richtungen zusammen (pp/ep = Bezug, pm/em = Einspeisung) -- teilt sie sich ein physischer
+    Zähler mit einem Prosumer-Zählpunktpaar (unterschiedliche Zählpunktnummern, gleiche
+    Zählernummer), bekommt der Bezugs-Zählpunkt nur pp/ep und der Einspeise-Zählpunkt nur
+    pm/em, jeweils mit der anderen Richtung auf 0 -- sonst würde beim Aufsummieren über die
+    Zählpunkte eines Mitglieds/der Community jede Seite doppelt gezählt (Patrick, 30.07.2026).
+    Ein "prosumer"-Zählpunkt (ein einzelner, offiziell kombinierter Zählpunkt) bekommt weiterhin
+    beide Richtungen in einer Zeile."""
+    pp = payload.get("pp", 0)
+    pm = payload.get("pm", 0)
+    ep = payload.get("ep", 0)
+    em = payload.get("em", 0)
+    if mp_type == "consumer":
+        pm, em = 0, 0
+    elif mp_type == "producer":
+        pp, ep = 0, 0
     pool = get_db_pool()
     conn = pool.getconn()
     try:
@@ -233,10 +258,10 @@ def insert_measurement(community_id: str, metering_point_id: str, payload: dict)
                 (
                     community_id,
                     metering_point_id,
-                    payload.get("pp", 0),
-                    payload.get("pm", 0),
-                    payload.get("ep", 0),
-                    payload.get("em", 0),
+                    pp,
+                    pm,
+                    ep,
+                    em,
                     payload.get("znr"),
                 )
             )
@@ -355,8 +380,8 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
         log.debug("Unbekannte Community-Slug: %s", community_slug)
         return
 
-    metering_point_uuid = get_metering_point_uuid(community_id, zaehlernummer)
-    if not metering_point_uuid:
+    metering_points = get_metering_points(community_id, zaehlernummer)
+    if not metering_points:
         log.warning("Unbekannte Zählernummer %s für Community %s — Topic ignoriert", zaehlernummer, community_slug)
         try:
             notify_unknown_meter(community_id, zaehlernummer)
@@ -364,12 +389,16 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
             log.error("Konnte Benachrichtigung für unbekannte Zählernummer nicht schreiben: %s", e)
         return
 
+    # Eine Zählernummer kann zu ZWEI Zählpunkten gehören (Bezug + Einspeisung eines Prosumers,
+    # unterschiedliche Zählpunktnummern, ein physischer Zähler/eine ESP-Einheit) -- beide
+    # bekommen dieselbe Status-/Messnachricht, siehe get_metering_points() (Patrick, 30.07.2026).
     if kind == "status":
-        try:
-            update_status(community_id, metering_point_uuid, payload, zaehlernummer)
-            log.debug("Status aktualisiert: %s → %s", msg.topic, payload.get("status"))
-        except Exception as e:
-            log.error("DB-Fehler bei %s: %s", msg.topic, e)
+        for mp in metering_points:
+            try:
+                update_status(community_id, mp["id"], payload, zaehlernummer)
+            except Exception as e:
+                log.error("DB-Fehler bei %s (Zählpunkt %s): %s", msg.topic, mp["id"], e)
+        log.debug("Status aktualisiert: %s → %s (%d Zählpunkt(e))", msg.topic, payload.get("status"), len(metering_points))
         return
 
     # Plausibilitätsprüfung (aus ESP32-Doku: > 100.000 W ist Fehler)
@@ -377,11 +406,12 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
         log.warning("Unplausibler Messwert auf %s: %s", msg.topic, payload)
         return
 
-    try:
-        insert_measurement(community_id, metering_point_uuid, payload)
-        log.debug("Gespeichert: %s → %s W Bezug", msg.topic, payload.get("pp"))
-    except Exception as e:
-        log.error("DB-Fehler bei %s: %s", msg.topic, e)
+    for mp in metering_points:
+        try:
+            insert_measurement(community_id, mp["id"], mp["type"], payload)
+        except Exception as e:
+            log.error("DB-Fehler bei %s (Zählpunkt %s): %s", msg.topic, mp["id"], e)
+    log.debug("Gespeichert: %s → %s W Bezug (%d Zählpunkt(e))", msg.topic, payload.get("pp"), len(metering_points))
 
 
 def on_connect(client, userdata, flags, rc, properties=None) -> None:

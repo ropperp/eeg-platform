@@ -119,13 +119,6 @@
   <div class="alert alert-error" style="margin-bottom:1rem">
     Diese Zählpunktnummer ist bereits vergeben<?php if (!empty($_GET['znr_owner'])): ?> — an <?= htmlspecialchars($_GET['znr_owner']) ?><?php endif; ?>.
   </div>
-<?php elseif (($_GET['error'] ?? '') === 'meter_duplicate'): ?>
-  <div class="alert alert-error" style="margin-bottom:1rem">
-    Diese Zählernummer ist bereits einem anderen aktiven Zählpunkt zugeordnet<?php if (!empty($_GET['meter_owner'])): ?> — an <?= htmlspecialchars($_GET['meter_owner']) ?><?php endif; ?>.
-    Eine Zählernummer darf nur einmal vergeben sein, sonst bekommt einer der beiden Zählpunkte
-    nie Live-Daten. Für einen einzelnen Zähler mit Bezug UND Einspeisung bitte stattdessen
-    einen Zählpunkt mit Typ „Bezug + Einspeisung (ein Zähler)" anlegen.
-  </div>
 <?php elseif (($_GET['error'] ?? '') === 'znr'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
 <?php elseif (!empty($_GET['error'])): ?>
