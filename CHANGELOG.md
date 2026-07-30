@@ -20,6 +20,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **ESP32-Firmware an neue Hardware ohne BC547-Transistor angepasst.** Der Transistor (R1/R2/
+  R3/Diode) wurde aus dem Aufbau entfernt, RJ12 Pin 5 liegt jetzt direkt auf RX2. Der
+  Transistor hat das P1-Signal invertiert -- das übernimmt jetzt die Software
+  (`invert=true` in `P1Serial.begin()`). Pegelanpassung war seine zweite Aufgabe: noch nicht
+  verifiziert, ob die P1-Schnittstelle ohne ihn eine für den ESP32-GPIO unbedenkliche Spannung
+  liefert (siehe Warnhinweis im Sketch/README).
 - **Konfigurierbare ESP-Offline-Schwelle + strukturiertere Plattform-Einstellungen.** Ein ESP
   galt bisher unabhängig davon als online, wie lange die letzte Meldung her war -- ein
   hängengebliebenes Gerät hätte theoretisch für immer als online angezeigt werden können.

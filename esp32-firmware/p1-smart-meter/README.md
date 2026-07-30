@@ -12,8 +12,14 @@ Bezug/Einspeisung live per MQTT an die Plattform.
 ## Hardware
 
 - SBC-NODEMCU-ESP32
-- BC547-Transistor (Pegelanpassung + Invertierung), R1 10 kΩ, R2 4,7 kΩ, R3 1 kΩ, 1N5819-Diode
 - RJ12-Stecker an der P1-Kundenschnittstelle
+- **Seit 2026-07-30 ohne BC547-Transistor** (R1/R2/R3/Diode entfallen damit ebenfalls) --
+  RJ12 Pin 5 (Daten) liegt jetzt direkt auf RX2 (GPIO16). Der Transistor hat neben der
+  Invertierung des Signals (jetzt per Software, `invert=true` in `P1Serial.begin()`) auch die
+  **Pegelanpassung** übernommen -- **vor dem ersten Anschließen ohne Transistor unbedingt mit
+  einem Multimeter prüfen, dass die P1-Schnittstelle des Zählers dort nicht mehr als 3.3V
+  ausgibt** (der ESP32-GPIO ist nicht 5V-tolerant). Falls doch 5V: nicht direkt verbinden,
+  sondern einen einfachen Spannungsteiler oder wieder einen Pegelwandler dazwischenschalten.
 
 Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
 

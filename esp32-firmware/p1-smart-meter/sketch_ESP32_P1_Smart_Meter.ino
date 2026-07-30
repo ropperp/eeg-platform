@@ -5,16 +5,20 @@
 //
 // Hardware:
 // - SBC-NODEMCU-ESP32
-// - BC547 Transistor (Pegelanpassung + Invertierung)
-// - R1: 10kOhm Pull-up, R2: 4.7kOhm, R3: 1kOhm
-// - 1N5819 Diode
 // - RJ12 Stecker
+// - Ab 2026-07-30 OHNE BC547-Transistor (R1/R2/R3/Diode entfallen damit ebenfalls) --
+//   Pin 5 liegt jetzt DIREKT auf RX2. Das entfernt die Pegelanpassung, die der Transistor
+//   nebenbei auch geleistet hat: WENN die P1-Schnittstelle des Zaehlers dort tatsaechlich 5V
+//   ausgibt (nicht nur 3.3V), liegt das ausserhalb der Spezifikation des ESP32-GPIOs (max. ca.
+//   3.6V) -- unbedingt VOR dem ersten Anschliessen mit einem Multimeter nachmessen. Falls 5V:
+//   nicht direkt verbinden, sondern zumindest einen einfachen Spannungsteiler (z.B. 10k/20k)
+//   oder wieder einen Pegelwandler/Transistor dazwischenschalten.
 //
 // Pinout ESP32:
 // RJ12 Pin 1 (+5V)        → VIN ESP32
-// RJ12 Pin 2 (DataReq)    → D4 (GPIO4) ESP32
+// RJ12 Pin 2 (DataReq)    → D4 (GPIO4) ESP32 (3.3V-Logik, unveraendert -- kein Transistor hier)
 // RJ12 Pin 3 (Data GND)   → GND ESP32
-// RJ12 Pin 5 (Daten)      → BC547 → RX2 (GPIO16) ESP32
+// RJ12 Pin 5 (Daten)      → RX2 (GPIO16) ESP32 (bis 2026-07-30: → BC547 → RX2, siehe oben)
 // RJ12 Pin 6 (Power GND)  → GND ESP32
 //
 // Fuer Deep Sleep:
@@ -76,7 +80,13 @@ PubSubClient     mqttClient(wifiClient);
 
 // ── Hardware ─────────────────────────────────────────────────
 // UART2: GPIO16=RX2, GPIO17=TX2 (nicht verwendet)
-// Invertierung false: BC547 invertiert Signal bereits
+// Invertierung true seit Entfernen des BC547 (2026-07-30): der Transistor hat das Signal der
+// P1-Schnittstelle vorher bereits invertiert (das war seine Aufgabe neben der Pegelanpassung),
+// deshalb stand hier vorher "false". Ohne Transistor kommt das ROHE, weiterhin invertierte
+// Signal des Zaehlers direkt an -- die Invertierung muss jetzt also die Software uebernehmen.
+// Falls die empfangenen Frames trotzdem nur Muell ergeben: hier auf false zurueckstellen und
+// erneut testen (siehe /-Weboberflaeche, Feld "Rohdaten (Hex)" -- bei falscher Polaritaet bleibt
+// das Feld leer bzw. es werden nie gueltige 0xDB-Frames erkannt).
 HardwareSerial P1Serial(2);
 WebServer server(80);
 Preferences prefs;
@@ -814,7 +824,7 @@ void setup() {
 
     applyMqttClientMode();
 
-    P1Serial.begin(115200, SERIAL_8N1, 16, 17, false);
+    P1Serial.begin(115200, SERIAL_8N1, 16, 17, true);  // invert=true, siehe Kommentar bei P1Serial oben
 
   } else {
     apMode = true;

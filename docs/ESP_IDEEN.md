@@ -14,6 +14,18 @@ markieren statt zu entfernen, damit die Historie nachvollziehbar bleibt.
 
 ## Offen
 
+### 5. Hardware ohne BC547-Transistor -- Pegelanpassung noch zu verifizieren
+**Stand (Patrick, 30.07.2026):** Der BC547-Transistor (R1/R2/R3/Diode) wurde aus dem Aufbau
+entfernt, RJ12 Pin 5 (Daten) liegt jetzt direkt auf RX2. Software entsprechend angepasst
+(`invert=true` in `P1Serial.begin()`, siehe Kommentar im Sketch) -- der Transistor hat das
+Signal invertiert, ohne ihn muss die Software das jetzt übernehmen. **Noch offen/ungeprüft:**
+der Transistor hat außerdem die Spannung angepasst; ob die P1-Schnittstelle des Zählers ohne
+ihn eine für den ESP32-GPIO unbedenkliche Spannung (≤ 3.3V) liefert, ist noch nicht mit einem
+Multimeter verifiziert. Falls sich beim Testen 5V herausstellen: nicht dauerhaft ohne
+Schutzbeschaltung (Spannungsteiler o. Ä.) betreiben.
+
+**Status:** in Erprobung.
+
 ### 3. EDA-Monatsexport-Import mit automatischem Zählpunkt-Abgleich
 **Idee (Patrick, 24.07.2026):** Beim Hochladen des **EDA-Monatsexports** (der Datei, die man
 ohnehin für die Quartalsabrechnung importiert) soll die Plattform die enthaltenen Zählpunkte
