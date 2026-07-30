@@ -20,6 +20,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Mitglieder-Dashboard: "Aktuelle Leistung" + selbst berechnete Live-Einspeisung in die
+  Gemeinschaft.** Neue Kachel "Aktuelle Leistung" zeigt die aktuelle Netto-Leistung des
+  Mitglieds (positiv = wird bezogen, negativ = wird eingespeist, aus dem jeweils neuesten
+  ESP-Messwert je Zählpunkt). Für Mitglieder mit Einspeisung (Erzeuger/Prosumer) zusätzlich
+  eine neue Kachel "Einspeisung in die Gemeinschaft (Live-Schätzung)" mit wählbarem Zeitraum
+  (letzte 1/3/6/12/24 Stunden, heute, diese Woche/Monat/Jahr, bestimmter Tag oder Zeitraum) --
+  berechnet, wie viel der eigenen Einspeisung im gewählten Fenster tatsächlich von anderen
+  Mitgliedern verbraucht wurde (proportionale Aufteilung von `min(Gesamt-Bezug,
+  Gesamt-Einspeisung)` je Viertelstunden-Fenster nach eigenem Erzeugungsanteil,
+  `ownEinspeisungInGemeinschaftKwh()`). Bewusst nur eine ergänzende, klar als Schätzung
+  gekennzeichnete Live-Kennzahl aus den ESP-Leistungsdaten -- die bestehenden EDA-Monatswerte
+  ("Bezug aus der Gemeinschaft"/"Eigene Erzeugung") bleiben unverändert die für die Rechnung
+  maßgebliche Quelle (siehe Abgrenzung in `docs/AUFTEILUNGSSCHLUESSEL.md`).
 - **Live-Fehleranzeige für Mitglieder mit ESP-/Zähler-Problem.** Bisher gab es keine Möglichkeit,
   auf einen Blick zu sehen, bei wie vielen Mitgliedern gerade ein ESP offline ist oder der Zähler
   (P1-Signal) nicht erreichbar ist -- man musste jedes Mitglied einzeln aufrufen. Neuer roter

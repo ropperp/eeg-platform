@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (12) — Claude Code — Claude Sonnet 5
+**Auftrag:** Mitglieder-Dashboard erweitern: Mitglieder mit Bezug UND Einspeisung sollen beides
+sehen, reine Einspeiser eine Kennzahl "Einspeisung in die Gemeinschaft" in kWh -- selbst aus den
+ESP-Leistungsdaten berechnet (Viertelstunden-Fenster wie beim amtlichen Zählwesen), nicht aus
+dem EDA-Portal. Zusätzlich ein Fenster "Aktuelle Leistung" (positiv = Bezug, negativ =
+Einspeisung). Rückfrage vorab: da die Plattform laut `docs/AUFTEILUNGSSCHLUESSEL.md` bewusst
+KEINEN eigenen Aufteilungsschlüssel berechnet (Netzbetreiber ist gesetzlich zuständig, sonst
+"zwei Wahrheiten"), gefragt, ob die neue Zahl die EDA-Kachel ersetzen oder nur ergänzen soll
+(Patrick: nur ergänzend, EDA bleibt Basis für die Rechnung) sowie über welchen Zeitraum
+(Patrick: frei wählbar von letzter Stunde bis Jahr, plus bestimmter Tag/Zeitraum).
+**Ergebnis:** Neue Funktionen `memberCurrentNetPowerW()` und `ownEinspeisungInGemeinschaftKwh()`
+in `public/index.php` (DB-Zugriff, daher dort statt in `functions.php`). Mitglieder-Dashboard:
+Kachel "Aktuelle Leistung" (neuester ESP-Wert je Zählpunkt, kein "Live-Daten fehlen"/0-W-
+Verwechslung dank explizitem null-Rückgabewert) sowie für Erzeuger/Prosumer eine Kachel
+"Einspeisung in die Gemeinschaft (Live-Schätzung)" mit Zeitraum-Dropdown (1/3/6/12/24h, heute,
+Woche/Monat/Jahr, bestimmter Tag, bestimmter Zeitraum) -- proportionale Aufteilung von
+min(Gesamt-Bezug, Gesamt-Einspeisung) je 15-Min-Fenster nach eigenem Erzeugungsanteil. Bestehende
+EDA-Monatswerte unverändert als Abrechnungs-Grundlage belassen, neue Zahl klar als
+"(Live-Schätzung)" gekennzeichnet. `docs/AUFTEILUNGSSCHLUESSEL.md` um Abgrenzungs-Absatz
+ergänzt, damit der Grundsatz (keine eigene amtliche Berechnung) dokumentiert nachvollziehbar
+bleibt. Bekannte Grenze dokumentiert: sehr lange Zeiträume (Jahr) könnten ohne Caching langsam
+werden. `php tests/run.php` weiterhin 77/77.
+
+---
+
 ## 2026-07-30 (11) — Claude Code — Claude Sonnet 5
 **Auftrag:** OTA-Update auf dem ESP32 funktioniert nicht, der Netzwerk-Port wird in der
 Arduino-IDE nicht angezeigt -- Code daraufhin prüfen, ob OTA (Hostname/Passwort etc.) richtig
