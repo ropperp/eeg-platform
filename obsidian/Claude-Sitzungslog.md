@@ -8,6 +8,21 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (8) — Claude Code — Claude Sonnet 5
+**Auftrag:** BC547-Transistor aus dem ESP32-Aufbau entfernt, Firmware entsprechend anpassen;
+korrigierten `mosquitto_sub`-Befehl mit Zugangsdaten für den MQTT-Broker; welches Protokoll
+bei der Fritzbox-Portfreigabe (TCP/UDP/ESP/GRE).
+**Ergebnis:** `P1Serial.begin()` auf `invert=true` umgestellt (der Transistor hat das Signal
+invertiert, das übernimmt jetzt die Software) -- gleichzeitig klargestellt, dass der
+Transistor auch die Pegelanpassung übernommen hat und das noch unverifiziert ist, ob die
+P1-Schnittstelle ohne ihn eine für den ESP32-GPIO unbedenkliche Spannung liefert (Warnhinweis
+in Sketch + README + `docs/ESP_IDEEN.md`). MQTT-Zugangsdaten stehen in `.env` auf dem Server
+(`grep MQTT_ .env`) -- da der vorherige Setup-Lauf wegen `set -euo pipefail` vor der
+Ausgabe des generierten Passworts abgebrochen ist, wurden sie dem Nutzer nie angezeigt.
+Portfreigabe: TCP (MQTT läuft immer über TCP, auch mit TLS).
+
+---
+
 ## 2026-07-30 (6) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nach dem Ausführen von `scripts/mqtt_secure_setup.sh` startete der
 Mosquitto-Container nicht mehr (unhealthy) -- Produktions-Ausfall des MQTT-Brokers.
