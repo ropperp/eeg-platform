@@ -220,11 +220,13 @@ Image-Pin auf feste Digest. Nie den `:pg16`-Tag unbewusst neu ziehen. Details:
 Docker Engine 29.x unterstützt nur API ≥ 1.40 → `DOCKER_API_VERSION=1.40` in der compose-Datei.
 
 ### MQTT-Broker von außerhalb des lokalen Netzes erreichen (für Mitglieder-ESP32s zuhause)
-**Stand 30.07.2026: noch nicht eingerichtet.** Die Domain routet nicht zum Broker (anderer
-Host als der EEG-Server, nginx-Proxy terminiert ohnehin nur HTTP/HTTPS). Für Geräte außerhalb
-des eigenen Netzes fehlt noch ein Router-Port-Forward (externer Port → 10.0.0.250:8883) --
-erst seit TLS + Zugangsdaten (siehe Update-Hinweis oben) vertretbar, vorher wäre der Broker
-komplett offen ins Internet gestanden. Alle Nachrichten live mitlesen (lokales Netz):
+**Stand 30.07.2026: noch nicht eingerichtet, aber geklärt wie.** Die Domain routet nicht zum
+Broker (anderer Host als der EEG-Server, nginx-Proxy terminiert ohnehin nur HTTP/HTTPS). Die
+Weiterleitung läuft stattdessen direkt am Heimnetz-Router vorbei an nginx/Traefik:
+Fritzbox (Port-Weiterleitung 1883/8883) → pfSense (NAT-Weiterleitung) → Raspberry Pi
+(10.0.0.250), direkt an Mosquitto. Erst seit TLS + Zugangsdaten (siehe Update-Hinweis oben)
+vertretbar, vorher wäre der Broker komplett offen ins Internet gestanden -- nur Port 8883
+extern weiterleiten, 1883 intern belassen. Alle Nachrichten live mitlesen (lokales Netz):
 ```bash
 docker compose exec mosquitto mosquitto_sub -h localhost -t 'eeg/#' -v -u "$MQTT_USER" -P "$MQTT_PASSWORD"
 ```

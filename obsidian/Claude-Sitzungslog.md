@@ -8,6 +8,33 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (6) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nach dem Ausführen von `scripts/mqtt_secure_setup.sh` startete der
+Mosquitto-Container nicht mehr (unhealthy) -- Produktions-Ausfall des MQTT-Brokers.
+**Ergebnis:** Ursache gefunden: `server.key` wurde `root:root` mit `chmod 600` angelegt, der
+`eclipse-mosquitto`-Container läuft aber als eigener, nicht-root User und konnte den privaten
+Schlüssel nicht lesen -- Mosquitto behandelt einen Listener-Fehler als fatal, der gesamte
+Broker startete deshalb gar nicht erst. Sofort-Fix per `chmod 644` durchgegeben, Skript für
+künftige Läufe korrigiert und gemerged. Broker danach wieder erreichbar.
+
+---
+
+## 2026-07-30 (7) — Claude Code — Claude Sonnet 5
+**Auftrag:** Bestätigung, dass der geplante Weg für externen MQTT-Zugriff (Fritzbox →
+pfSense → Raspberry Pi direkt, ohne über den nginx-Proxy zu laufen) richtig ist; Wunsch nach
+einer konfigurierbaren ESP-Offline-Schwelle (Minuten ohne Meldung, bis ein Gerät als offline
+gilt) und einer klarer strukturierten Einstellungsseite (ESP32/Ausleseeinheit getrennt von
+anderen Plattform-Daten).
+**Ergebnis:** Netzwerk-Plan in CLAUDE.md/obsidian/Infrastruktur.md bestätigt/dokumentiert.
+Neue Einstellung `esp_offline_after_minutes` (Standard 5, `migrate_20260823.sql`) --
+`espOfflineAfterMinutes()` in index.php, verwendet in `member_detail.php` und
+`manager_dashboard.php` statt des bisherigen reinen `esp_online`-Flags ohne Zeitbezug.
+Platform-Admin-Einstellungsseite (`/admin/mail-settings`) jetzt in „Plattform-Technik"
+(Testmodus, neu: ESP32/Ausleseeinheiten) und „E-Mail (Microsoft Graph)" unterteilt. Alle 77
+Tests weiterhin grün.
+
+---
+
 ## 2026-07-30 (5) — Claude Code — Claude Sonnet 5
 **Auftrag:** TLS + Benutzername/Passwort auf dem MQTT-Broker einrichten; das eigene
 Test-ESP32 liefert bereits Live-Werte, aber die kommen nur alle 30s (Heartbeat-Intervall,

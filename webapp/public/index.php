@@ -155,6 +155,22 @@ function platformTestMode(): bool
 }
 
 /**
+ * Liefert die konfigurierte ESP-Offline-Schwelle in Minuten (siehe migrate_20260823.sql,
+ * Platform-Admin -> E-Mail-Einstellungen -> Abschnitt "ESP32 / Ausleseeinheiten"). Ein ESP gilt
+ * nur dann als online, wenn die letzte Statusmeldung "online" war UND das nicht länger als
+ * dieser Wert her ist -- Sicherheitsnetz gegen ein hängengebliebenes Gerät, dessen MQTT-
+ * Last-Will-Testament nie auslöst (TCP-Verbindung technisch noch offen, Firmware aber tot).
+ */
+function espOfflineAfterMinutes(): int
+{
+    try {
+        return (int)(DB::fetchOne('SELECT esp_offline_after_minutes FROM platform_settings WHERE id = 1')['esp_offline_after_minutes'] ?? 5);
+    } catch (\Throwable $e) {
+        return 5;
+    }
+}
+
+/**
  * Lädt ein Mitglied anhand der ID community-übergreifend und prüft den Zugriff: Platform-Admins
  * dürfen jedes Mitglied verwalten, Manager nur die der eigenen aktiven Rolle (IDOR-Schutz).
  * Setzt bei Erfolg gleich die RLS-Community auf die des MITGLIEDS (nicht die der gerade aktiven
@@ -4693,6 +4709,19 @@ $router->post('/admin/settings/test-mode', function () {
     // simpler Integer (immer 1), passt dort nicht rein.
     logAudit(null, 'platform_settings.update', 'platform_settings', null,
         'Plattform auf ' . ($testMode ? 'Testmodus' : 'Echtbetrieb') . ' umgestellt');
+    header('Location: /admin/mail-settings?success=1');
+    exit;
+});
+
+/** Siehe migrate_20260823.sql / espOfflineAfterMinutes(). */
+$router->post('/admin/settings/esp', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $minutes = (int)($_POST['esp_offline_after_minutes'] ?? 5);
+    if ($minutes < 1) $minutes = 5;
+    DB::execute('UPDATE platform_settings SET esp_offline_after_minutes = ?, updated_at = now() WHERE id = 1', [$minutes]);
+    logAudit(null, 'platform_settings.update', 'platform_settings', null,
+        'ESP-Offline-Schwelle auf ' . $minutes . ' Minuten gesetzt');
     header('Location: /admin/mail-settings?success=1');
     exit;
 });

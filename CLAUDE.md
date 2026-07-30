@@ -222,20 +222,28 @@ korrekten Mount (`/opt/eeg/timescaledb:/home/postgres/pgdata`) + Image-Pin auf f
 Docker Engine 29.x unterstützt nur API ≥ 1.40. Traefik:latest behebt das, zusätzlich ist `DOCKER_API_VERSION=1.40` in der compose-Datei gesetzt.
 
 ### MQTT-Broker von außerhalb des lokalen Netzes erreichen (für Mitglieder-ESP32s zuhause)
-**Stand 30.07.2026: noch nicht eingerichtet.** `stromfueralle.at`/`portal.stromfueralle.at`
-lösen auf die öffentliche IP des **nginx-Proxy-Hosts** (10.0.0.144 / 80.122.212.226) auf --
-eine andere Maschine als der EEG-Server (10.0.0.250), auf dem Mosquitto läuft. Die Domain
-routet also NICHT zum Broker, und selbst wenn sie es täte: der nginx-Proxy terminiert nur
-HTTP/HTTPS (Port 80/443), es gibt dort keine Weiterleitung für rohes TCP/MQTT.
+**Stand 30.07.2026: noch nicht eingerichtet, aber geklärt wie.** `stromfueralle.at`/
+`portal.stromfueralle.at` lösen auf die öffentliche IP des **nginx-Proxy-Hosts**
+(10.0.0.144 / 80.122.212.226) auf -- eine andere Maschine als der EEG-Server (10.0.0.250,
+Raspberry Pi 5), auf dem Mosquitto läuft. Für MQTT läuft die Weiterleitung deshalb bewusst
+**nicht** über diesen nginx-Proxy (der kann ohnehin nur HTTP/HTTPS auf Port 80/443, kein
+rohes TCP/MQTT) und auch nicht über Traefik, sondern als eigene, direkte Kette am
+Heimnetz-Router von Patrick vorbei an beidem:
 
-Damit ESP32-Geräte bei Mitgliedern zuhause (außerhalb des eigenen 10.0.0.0/24-Netzes) Daten
-schicken können, fehlt noch ein **Router-Port-Forward** (externer Port → 10.0.0.250:8883).
-Erst seitdem Mosquitto TLS + Zugangsdaten verlangt (siehe `scripts/mqtt_secure_setup.sh`,
-Abschnitt „Update" oben) ist das überhaupt vertretbar -- vorher (`allow_anonymous true`, kein
-TLS) hätte ein Port-Forward den Broker komplett offen ins Internet gestellt (jeder hätte
-Energiedaten mitlesen oder fälschen können). Bevor der Port-Forward eingerichtet wird: prüfen,
-dass alle Geräte tatsächlich auf Port 8883 + Zugangsdaten umgestellt sind, nicht mehr auf dem
-unverschlüsselten 1883.
+```
+Internet → Fritzbox (Port-Weiterleitung 1883/8883) → pfSense (NAT-Weiterleitung)
+         → Raspberry Pi (10.0.0.250), direkt an Mosquitto
+```
+
+Sowohl an der Fritzbox als auch an der pfSense muss je eine Port-Weiterleitung eingerichtet
+werden (Fritzbox: öffentlicher Port → pfSense-WAN-IP; pfSense: dieselbe Portnummer → interne
+IP 10.0.0.250). Erst seitdem Mosquitto TLS + Zugangsdaten verlangt (siehe
+`scripts/mqtt_secure_setup.sh`, Abschnitt „Update" oben) ist das überhaupt vertretbar --
+vorher (`allow_anonymous true`, kein TLS) hätte die Weiterleitung den Broker komplett offen
+ins Internet gestellt (jeder hätte Energiedaten mitlesen oder fälschen können). Bevor die
+Weiterleitung eingerichtet wird: prüfen, dass alle Geräte tatsächlich auf Port 8883 +
+Zugangsdaten umgestellt sind, nicht mehr auf dem unverschlüsselten 1883 -- dann nur noch 8883
+extern weiterleiten, 1883 intern/lokal belassen.
 
 Alle eingehenden Nachrichten live mitlesen (Debugging, funktioniert schon jetzt im lokalen Netz):
 ```bash

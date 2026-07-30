@@ -13,13 +13,17 @@ $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? A
 
 // ─── Status-Kachelzeile: Betriebsreife auf einen Blick (letzter EDA-Import, letztes
 // Backup, ESP online/offline, offene Rechnungen) -- siehe diplomarbeit-berater-Vorschlag. ───
+// "online" heißt: esp_online UND esp_last_seen_at ist nicht älter als die konfigurierte
+// Offline-Schwelle (espOfflineAfterMinutes(), Platform-Admin -> E-Mail-Einstellungen) --
+// Sicherheitsnetz gegen ein hängengebliebenes Gerät, dessen MQTT-LWT nie auslöst.
+$espOfflineMinutes = espOfflineAfterMinutes();
 $espStats = DB::fetchOne(
     "SELECT COUNT(*) FILTER (WHERE esp_last_seen_at IS NOT NULL) AS bekannt,
-            COUNT(*) FILTER (WHERE esp_online) AS online,
+            COUNT(*) FILTER (WHERE esp_online AND esp_last_seen_at > now() - (? || ' minutes')::interval) AS online,
             COUNT(*) FILTER (WHERE meter_last_seen_at IS NOT NULL) AS meter_bekannt,
-            COUNT(*) FILTER (WHERE esp_online AND NOT meter_reachable) AS meter_unreachable
+            COUNT(*) FILTER (WHERE esp_online AND esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT meter_reachable) AS meter_unreachable
      FROM metering_points WHERE community_id = ? AND active = true",
-    [$communityId]
+    [$espOfflineMinutes, $espOfflineMinutes, $communityId]
 );
 $openInvoices = DB::fetchOne(
     "SELECT COUNT(*) AS cnt, COALESCE(SUM(saldo_eur) FILTER (WHERE saldo_eur > 0), 0) AS summe

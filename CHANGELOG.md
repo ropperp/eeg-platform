@@ -20,6 +20,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Konfigurierbare ESP-Offline-Schwelle + strukturiertere Plattform-Einstellungen.** Ein ESP
+  galt bisher unabhängig davon als online, wie lange die letzte Meldung her war -- ein
+  hängengebliebenes Gerät hätte theoretisch für immer als online angezeigt werden können.
+  Neue Einstellung „Als offline anzeigen nach (Minuten ohne Meldung)" (Standard 5) unter
+  Platform-Admin → E-Mail-Einstellungen → neuer Abschnitt „ESP32 / Ausleseeinheiten". Diese
+  Seite ist jetzt außerdem in „Plattform-Technik" und „E-Mail (Microsoft Graph)" unterteilt.
 - **MQTT-Broker mit TLS + Benutzername/Passwort statt offen/anonym.** Mosquitto verlangte
   bisher gar keine Anmeldung und lief unverschlüsselt -- neues Skript
   `scripts/mqtt_secure_setup.sh` erzeugt ein selbstsigniertes Zertifikat (Port 8883, 10 Jahre
