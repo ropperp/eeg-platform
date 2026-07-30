@@ -200,41 +200,72 @@ function memberCurrentNetPowerW(string $communityId, array $meteringPointIds): ?
 /**
  * Live-Schätzung, wie viel der eigenen Einspeisung im gewählten Zeitraum tatsächlich von
  * Mitgliedern DERSELBEN Gemeinschaft verbraucht wurde ("Einspeisung in die Gemeinschaft"),
- * selbst aus den ESP-Leistungsmesswerten berechnet -- NICHT der amtliche, vom Netzbetreiber
- * angewandte Aufteilungsschlüssel (siehe docs/AUFTEILUNGSSCHLUESSEL.md)! Diese Funktion ist
- * bewusst nur eine ergänzende Live-Kennzahl fürs Mitglieder-Dashboard, für die Abrechnung
- * zählt weiterhin ausschließlich der offizielle EDA-Import -- sonst gäbe es zwei
- * unterschiedliche "Wahrheiten" für dieselbe Sache (Patrick, 30.07.2026).
+ * selbst aus den ESP-Messwerten berechnet -- NICHT der amtliche, vom Netzbetreiber angewandte
+ * Aufteilungsschlüssel (siehe docs/AUFTEILUNGSSCHLUESSEL.md)! Diese Funktion ist bewusst nur
+ * eine ergänzende Live-Kennzahl fürs Mitglieder-Dashboard, für die Abrechnung zählt weiterhin
+ * ausschließlich der offizielle EDA-Import -- sonst gäbe es zwei unterschiedliche "Wahrheiten"
+ * für dieselbe Sache (Patrick, 30.07.2026).
  *
- * Methode: pro Viertelstunden-Fenster (wie die amtlichen EDA-Werte) wird die community-weit
- * gemeinsam nutzbare Menge (= min(Gesamt-Bezug, Gesamt-Einspeisung) der ganzen Gemeinschaft in
- * diesem Fenster -- alles darüber hinaus ginge ins öffentliche Netz und zählt nicht) proportional
- * zur eigenen Erzeugung in genau diesem Fenster aufgeteilt und über den gewählten Zeitraum
- * aufsummiert.
+ * WICHTIG (Patrick, 30.07.2026, nach Rückfrage): Es wird IMMER zuerst pro Viertelstunden-Fenster
+ * ermittelt, wie viel gemeinschaftlich genutzt werden konnte, bevor über mehrere Fenster hinweg
+ * (die gewählte 1/3/6/24h-Spanne, ein Tag, ein Zeitraum) aufsummiert wird -- NIE umgekehrt erst
+ * Bezug/Einspeisung über den ganzen Zeitraum aufsummieren und danach ein Minimum bilden. Das wäre
+ * grob falsch: an einem Tag mit viel Sonne wird tagsüber stark eingespeist, nachts dagegen vom
+ * öffentlichen Netz bezogen (kaum Gemeinschafts-Erzeugung) -- ein day-weites Minimum würde einen
+ * viel zu hohen "gemeinschaftlich genutzt"-Wert vortäuschen, weil sich Tag- und Nacht-Mengen im
+ * Gesamtbetrag scheinbar decken, obwohl sie zeitlich nie zusammenfielen.
+ *
+ * Methode je Viertelstunden-Fenster: statt der Momentanleistung (die zwischen den ~5s-Messwerten
+ * nur eine Näherung wäre) wird die tatsächliche Energie aus der Differenz der kumulativen
+ * Zählerstände (energy_bezug_wh/energy_einspeisung_wh -- exakt dieselben Register, die auch der
+ * Smart Meter/Netzbetreiber führt) am Ende von je zwei aufeinanderfolgenden Fenstern gebildet --
+ * robust auch bei Lücken (ESP kurz offline), da nur die beiden Registerstände an den Rändern
+ * zählen, nicht jede einzelne Zwischenmessung. Die community-weit gemeinsam nutzbare Menge
+ * (= min(Gesamt-Bezug, Gesamt-Einspeisung) DIESES EINEN Fensters -- alles darüber hinaus ginge
+ * ins öffentliche Netz) wird dann proportional zur eigenen Einspeisung in genau diesem Fenster
+ * aufgeteilt; erst danach wird über die Fenster im gewählten Zeitraum aufsummiert.
  */
 function ownEinspeisungInGemeinschaftKwh(string $communityId, array $meteringPointIds, string $fromSql, string $toSql): float
 {
     if (!$meteringPointIds) return 0.0;
     $placeholders = implode(',', array_fill(0, count($meteringPointIds), '?'));
     $row = DB::fetchOne(
-        "WITH buckets AS (
-            SELECT time_bucket('15 minutes', time) AS bucket,
-                   metering_point_id,
-                   AVG(power_bezug_w)       AS avg_bezug_w,
-                   AVG(power_einspeisung_w) AS avg_einspeisung_w
-            FROM esp_measurements
-            WHERE community_id = ? AND time >= ? AND time < ?
-            GROUP BY bucket, metering_point_id
+        "WITH bucket_readings AS (
+            -- Letzter Registerstand je Zählpunkt und Viertelstunden-Fenster -- ein Fenster vor
+            -- \$fromSql mit dazu, damit das erste Fenster im gewählten Zeitraum einen gültigen
+            -- Vorgänger-Registerstand für die Differenzbildung hat (sonst wäre dessen Delta NULL).
+            SELECT DISTINCT ON (metering_point_id, bucket)
+                   bucket, metering_point_id, energy_bezug_wh, energy_einspeisung_wh
+            FROM (
+                SELECT time_bucket('15 minutes', time) AS bucket, metering_point_id, time,
+                       energy_bezug_wh, energy_einspeisung_wh
+                FROM esp_measurements
+                WHERE community_id = ?
+                  AND time >= (?::timestamptz - INTERVAL '15 minutes')
+                  AND time < ?
+            ) raw
+            ORDER BY metering_point_id, bucket, time DESC
+         ),
+         bucket_deltas AS (
+            SELECT bucket, metering_point_id,
+                   GREATEST(energy_bezug_wh - LAG(energy_bezug_wh) OVER w, 0)       AS bezug_delta_wh,
+                   GREATEST(energy_einspeisung_wh - LAG(energy_einspeisung_wh) OVER w, 0) AS einspeisung_delta_wh
+            FROM bucket_readings
+            WINDOW w AS (PARTITION BY metering_point_id ORDER BY bucket)
+         ),
+         in_range AS (
+            -- Das zusätzliche Vorgänger-Fenster (nur für LAG gebraucht) hier wieder ausschließen.
+            SELECT * FROM bucket_deltas WHERE bucket >= ?
          ),
          totals AS (
             SELECT bucket,
-                   SUM(avg_bezug_w)       * 0.25 / 1000 AS total_bezug_kwh,
-                   SUM(avg_einspeisung_w) * 0.25 / 1000 AS total_einspeisung_kwh
-            FROM buckets GROUP BY bucket
+                   SUM(bezug_delta_wh)       / 1000.0 AS total_bezug_kwh,
+                   SUM(einspeisung_delta_wh) / 1000.0 AS total_einspeisung_kwh
+            FROM in_range GROUP BY bucket
          ),
          eigen AS (
-            SELECT bucket, SUM(avg_einspeisung_w) * 0.25 / 1000 AS eigen_einspeisung_kwh
-            FROM buckets WHERE metering_point_id IN ($placeholders)
+            SELECT bucket, SUM(einspeisung_delta_wh) / 1000.0 AS eigen_einspeisung_kwh
+            FROM in_range WHERE metering_point_id IN ($placeholders)
             GROUP BY bucket
          )
          SELECT COALESCE(SUM(
@@ -243,7 +274,7 @@ function ownEinspeisungInGemeinschaftKwh(string $communityId, array $meteringPoi
             / NULLIF(t.total_einspeisung_kwh, 0)
          ), 0) AS kwh
          FROM eigen e JOIN totals t ON t.bucket = e.bucket",
-        array_merge([$communityId, $fromSql, $toSql], $meteringPointIds)
+        array_merge([$communityId, $fromSql, $toSql, $fromSql], $meteringPointIds)
     );
     return (float)($row['kwh'] ?? 0);
 }

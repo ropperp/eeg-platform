@@ -75,10 +75,18 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
   selbst berechnete Live-Kennzahl "Einspeisung in die Gemeinschaft" mit wählbarem Zeitraum.
   Bewusst als ergänzende, klar gekennzeichnete Schätzung neben den unveränderten
   EDA-Monatswerten -- Abgrenzung zum amtlichen Aufteilungsschlüssel ausführlich in
-  `docs/AUFTEILUNGSSCHLUESSEL.md` dokumentiert. Bekannte Grenze: bei sehr langen Zeiträumen
-  ("dieses Jahr") aggregiert die Abfrage potenziell Millionen Messzeilen live pro Seitenaufruf
-  -- noch nicht mit Vorberechnung/Caching optimiert, falls sich das in der Praxis als zu
-  langsam herausstellt.
+  `docs/AUFTEILUNGSSCHLUESSEL.md` dokumentiert. **Nach Rückfrage korrigiert:** zunächst wurde
+  Bezug/Einspeisung je Viertelstunden-Fenster aus gemittelter Momentanleistung geschätzt --
+  Patrick wies zurecht darauf hin, dass die Zuteilung IMMER zuerst je Fenster gematcht werden
+  muss (sonst würde z. B. an einem Sonnentag die tagsüber hohe Einspeisung den nächtlichen
+  Netzbezug rechnerisch "ausgleichen", obwohl beides nie zeitgleich auftrat) UND dass die
+  Registerstand-Differenz (`energy_bezug_wh`/`energy_einspeisung_wh`, dieselben kumulativen
+  Zähler wie beim Smart Meter) die exaktere, lückenrobustere Grundlage ist als gemittelte
+  Leistung. Beides war beim Fenster-Matching bereits korrekt (min() wurde schon pro Fenster vor
+  der Summierung gebildet), die Energie-Berechnung selbst aber auf Registerstand-Differenz
+  umgestellt. Bekannte Grenze: bei sehr langen Zeiträumen ("dieses Jahr") aggregiert die Abfrage
+  potenziell Millionen Messzeilen live pro Seitenaufruf -- noch nicht mit Vorberechnung/Caching
+  optimiert, falls sich das in der Praxis als zu langsam herausstellt.
 - **Bug: OTA-Netzwerkport erscheint nicht in der Arduino-IDE (Patrick 30.07.2026):** Code-Review
   ergab, dass `ArduinoOTA` korrekt eingerichtet ist (Hostname/Passwort/Callbacks/`begin()` beim
   WLAN-Connect, `handle()` in jedem `loop()`) -- kein Konfigurationsfehler. Wahrscheinlichste
