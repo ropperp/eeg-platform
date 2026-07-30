@@ -242,6 +242,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **ESP32: OTA-Netzwerkport erschien nicht in der Arduino-IDE.** `ArduinoOTA` war korrekt
+  eingerichtet (Hostname/Passwort/Callbacks/`begin()`/`handle()`) -- die wahrscheinlichste
+  Ursache lag am standardmäßig aktiven ESP32-Modem-Sleep, der eingehende mDNS-Multicast-Pakete
+  verzögert/verwirft und den Port dadurch nur unzuverlässig sichtbar machte. `WiFi.setSleep(false)`
+  nach dem WLAN-Connect ergänzt (kostet bei einem dauerhaft am Netzteil hängenden Gerät keinen
+  relevanten Strom).
 - **Live-Leistungswerte (API + Dashboards) waren um ein Vielfaches zu hoch.** `GET /api/v1/live`,
   das öffentliche Live-Dashboard (`/api/live/:slug`) und die "Community-Gesamtleistung live"-Kachel
   im Obmann-Dashboard summierten `power_bezug_w`/`power_einspeisung_w` über ALLE Messzeilen eines

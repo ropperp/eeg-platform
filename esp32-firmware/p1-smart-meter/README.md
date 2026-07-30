@@ -59,7 +59,14 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   aufs Gerät verteilt werden). Benutzername/Passwort vom Obmann/Admin erhalten (siehe
   `scripts/mqtt_secure_setup.sh` im Hauptrepo) und im selben Formular eintragen -- der Broker
   verlangt das inzwischen auf beiden Ports.
-- OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied
+- OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied. Taucht der
+  Netzwerk-Port in der Arduino-IDE (Tools → Port) nicht auf: `WiFi.setSleep(false)` wird seit
+  30.07.2026 direkt nach dem WLAN-Connect gesetzt (Modem-Sleep verzögert/verwirft sonst
+  eingehende mDNS-Multicast-Pakete, macht den Port "mal da, mal nicht" sichtbar). Zusätzlich
+  prüfen: Rechner und ESP im selben WLAN/Subnetz (keine Client-/AP-Isolation, kein Gastnetz),
+  ~10-20 s nach dem Boot warten, Port-Dropdown notfalls neu öffnen. Funktioniert es weiterhin
+  nicht, per IP direkt hochladen (`espota.py -i <esp-ip> -p 3232 --auth=<passwort> -f
+  firmware.bin`, IP steht im seriellen Log als "WLAN verbunden. IP: …" oder im Router).
 
 ## Bezug zur Plattform (`eeg-platform`-Repo)
 

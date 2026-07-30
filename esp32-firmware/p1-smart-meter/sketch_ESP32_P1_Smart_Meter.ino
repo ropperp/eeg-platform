@@ -562,6 +562,12 @@ void loadConfig() {
 bool connectSTA() {
   if (cfgSsid.length() == 0) return false;
   WiFi.mode(WIFI_STA);
+  // Modem-Sleep (WiFi-Stromsparmodus) ist auf dem ESP32 standardmaessig aktiv und verzoegert/
+  // verwirft dabei eingehende Multicast-Pakete (mDNS) -- macht das Geraet fuer die
+  // OTA-Netzwerkport-Erkennung der Arduino-IDE (basiert auf mDNS) unzuverlaessig sichtbar
+  // ("mal da, mal nicht"). Deaktivieren kostet bei einem staendig am Netzteil haengenden
+  // Geraet keinen relevanten Strom, macht mDNS/OTA aber deutlich zuverlaessiger.
+  WiFi.setSleep(false);
   if (cfgPass.length() == 0) WiFi.begin(cfgSsid.c_str());          // offenes Netz
   else                       WiFi.begin(cfgSsid.c_str(), cfgPass.c_str());
   unsigned long start = millis();
