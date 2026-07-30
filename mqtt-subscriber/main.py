@@ -228,6 +228,50 @@ def insert_measurement(community_id: str, metering_point_id: str, payload: dict)
         pool.putconn(conn)
 
 
+def notify_unknown_meter(community_id: str, zaehlernummer: str) -> None:
+    """Meldet eine unbekannte Zählernummer als offene Benachrichtigung im Postfach
+    (/portal/postfach), damit der Obmann sieht, dass ein Gerät bereits Daten für einen noch
+    nicht angelegten Zählpunkt sendet -- typischerweise beim erstmaligen Einrichten eines ESP32,
+    bevor der passende Zählpunkt im Portal existiert. Nur EINE offene Meldung je Zählernummer,
+    sonst würde jede eingehende Nachricht (alle paar Sekunden) eine neue Zeile erzeugen -- dafür
+    beginnt der Text-Wert immer mit "<zaehlernummer>:", darüber wird auf ein bereits offenes
+    Duplikat geprüft."""
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM notifications
+                WHERE community_id = %s AND typ = 'unbekannter_zaehler' AND status = 'offen'
+                  AND text LIKE %s
+                """,
+                (community_id, f"{zaehlernummer}:%")
+            )
+            if cur.fetchone():
+                return
+            cur.execute(
+                """
+                INSERT INTO notifications (community_id, typ, titel, text)
+                VALUES (%s, 'unbekannter_zaehler', %s, %s)
+                """,
+                (
+                    community_id,
+                    "Unbekannte Zählernummer gemeldet",
+                    f"{zaehlernummer}: Ein Gerät sendet Daten für die Zählernummer {zaehlernummer}, "
+                    "die noch keinem Zählpunkt in dieser EEG zugeordnet ist. Bitte unter "
+                    "„Mitglieder“ → Zählpunkte die passende Zählernummer eintragen oder die "
+                    "Nummer auf dem Gerät korrigieren.",
+                )
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool.putconn(conn)
+
+
 def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
     # Topic: eeg/{community_slug}/meter/{znr}/live ODER eeg/{community_slug}/meter/{znr}/status
     parts = msg.topic.split("/")
@@ -253,6 +297,10 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage) -> None:
     metering_point_uuid = get_metering_point_uuid(community_id, zaehlernummer)
     if not metering_point_uuid:
         log.warning("Unbekannte Zählernummer %s für Community %s — Topic ignoriert", zaehlernummer, community_slug)
+        try:
+            notify_unknown_meter(community_id, zaehlernummer)
+        except Exception as e:
+            log.error("Konnte Benachrichtigung für unbekannte Zählernummer nicht schreiben: %s", e)
         return
 
     if kind == "status":

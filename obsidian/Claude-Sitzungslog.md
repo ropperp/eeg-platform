@@ -8,7 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
-## 2026-07-30 (3) — Claude Code — Claude Sonnet 5
+## 2026-07-30 (4) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nachfrage, ob die früher gewünschte Benachrichtigung bei unbekannter
+Zählernummer tatsächlich umgesetzt ist (Patrick hat testweise einen ESP32 eingerichtet und
+nichts davon gesehen); außerdem wo die WLAN-Diagnoseinfos (SSID/IP) in der Plattform zu
+finden sind und ob/wie sich der MQTT-Broker über die eigene Domain statt nur im lokalen
+Netz erreichen lässt.
+**Ergebnis:** Bestätigt und behoben -- die Meldung war nie als sichtbare Benachrichtigung
+umgesetzt, nur als Log-Zeile im mqtt-subscriber-Container. Erzeugt jetzt eine offene
+Meldung im Postfach (`/portal/postfach`), eine je unbekannter Zählernummer. Im Chat erklärt:
+WLAN-Info-Anzeige existiert bereits (Mitglied-Detailseite), erscheint aber erst, sobald ein
+Zählpunkt mit passender Zählernummer angelegt ist -- vorher werden die WLAN-Daten mangels
+Zuordnung gar nicht gespeichert. Architektur-Erklärung, dass die Domain aktuell NICHT zum
+MQTT-Broker durchroutet (nginx-Proxy terminiert nur HTTP/HTTPS, andere Maschine als der
+EEG-Server) und dass ein externer Zugriff (nötig für Mitglieder-ESP32s außerhalb des
+eigenen Netzes) einen Router-Port-Forward plus TLS/Authentifizierung auf Mosquitto
+voraussetzen würde (aktuell `allow_anonymous true`, kein TLS aktiv) -- noch nicht
+umgesetzt, offen für eine spätere Session.
 **Auftrag:** Vier gemeldete Probleme aus dem laufenden Betrieb: fehlendes Icon beim neuen
 Support-Menüpunkt, Wunsch nach einer beim Scrollen fixierten Sidebar/Kopfzeile, ein im Dark
 Mode unlesbarer Code-Schnipsel in der hellblauen Info-Box unter „API-Zugänge", sowie die
