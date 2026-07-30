@@ -171,6 +171,84 @@ function espOfflineAfterMinutes(): int
 }
 
 /**
+ * Aktuelle Netto-Leistung (W) eines Mitglieds über dessen eigene aktive Zählpunkte, aus dem
+ * jeweils NEUESTEN Messwert je Zählpunkt (nicht Summe über alle Zeilen -- siehe Live-Leistungs-
+ * Bugfix vom 30.07.2026). Vorzeichenkonvention auf Wunsch von Patrick: positiv = es wird gerade
+ * (netto) bezogen, negativ = es wird (netto) eingespeist. Gibt null zurück, wenn in den letzten
+ * 2 Minuten kein Messwert vorliegt (kein ESP installiert oder gerade offline) -- explizit
+ * unterschieden von "aktuell 0 W netto", damit die Anzeige nicht fälschlich "0 W Bezug" zeigt.
+ */
+function memberCurrentNetPowerW(string $communityId, array $meteringPointIds): ?float
+{
+    if (!$meteringPointIds) return null;
+    $placeholders = implode(',', array_fill(0, count($meteringPointIds), '?'));
+    $row = DB::fetchOne(
+        "SELECT COUNT(*) AS cnt,
+                COALESCE(SUM(power_bezug_w), 0) - COALESCE(SUM(power_einspeisung_w), 0) AS net_w
+         FROM (
+            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
+            FROM esp_measurements
+            WHERE community_id = ? AND metering_point_id IN ($placeholders)
+              AND time >= now() - INTERVAL '2 minutes'
+            ORDER BY metering_point_id, time DESC
+         ) latest",
+        array_merge([$communityId], $meteringPointIds)
+    );
+    return ($row && (int)$row['cnt'] > 0) ? (float)$row['net_w'] : null;
+}
+
+/**
+ * Live-Schätzung, wie viel der eigenen Einspeisung im gewählten Zeitraum tatsächlich von
+ * Mitgliedern DERSELBEN Gemeinschaft verbraucht wurde ("Einspeisung in die Gemeinschaft"),
+ * selbst aus den ESP-Leistungsmesswerten berechnet -- NICHT der amtliche, vom Netzbetreiber
+ * angewandte Aufteilungsschlüssel (siehe docs/AUFTEILUNGSSCHLUESSEL.md)! Diese Funktion ist
+ * bewusst nur eine ergänzende Live-Kennzahl fürs Mitglieder-Dashboard, für die Abrechnung
+ * zählt weiterhin ausschließlich der offizielle EDA-Import -- sonst gäbe es zwei
+ * unterschiedliche "Wahrheiten" für dieselbe Sache (Patrick, 30.07.2026).
+ *
+ * Methode: pro Viertelstunden-Fenster (wie die amtlichen EDA-Werte) wird die community-weit
+ * gemeinsam nutzbare Menge (= min(Gesamt-Bezug, Gesamt-Einspeisung) der ganzen Gemeinschaft in
+ * diesem Fenster -- alles darüber hinaus ginge ins öffentliche Netz und zählt nicht) proportional
+ * zur eigenen Erzeugung in genau diesem Fenster aufgeteilt und über den gewählten Zeitraum
+ * aufsummiert.
+ */
+function ownEinspeisungInGemeinschaftKwh(string $communityId, array $meteringPointIds, string $fromSql, string $toSql): float
+{
+    if (!$meteringPointIds) return 0.0;
+    $placeholders = implode(',', array_fill(0, count($meteringPointIds), '?'));
+    $row = DB::fetchOne(
+        "WITH buckets AS (
+            SELECT time_bucket('15 minutes', time) AS bucket,
+                   metering_point_id,
+                   AVG(power_bezug_w)       AS avg_bezug_w,
+                   AVG(power_einspeisung_w) AS avg_einspeisung_w
+            FROM esp_measurements
+            WHERE community_id = ? AND time >= ? AND time < ?
+            GROUP BY bucket, metering_point_id
+         ),
+         totals AS (
+            SELECT bucket,
+                   SUM(avg_bezug_w)       * 0.25 / 1000 AS total_bezug_kwh,
+                   SUM(avg_einspeisung_w) * 0.25 / 1000 AS total_einspeisung_kwh
+            FROM buckets GROUP BY bucket
+         ),
+         eigen AS (
+            SELECT bucket, SUM(avg_einspeisung_w) * 0.25 / 1000 AS eigen_einspeisung_kwh
+            FROM buckets WHERE metering_point_id IN ($placeholders)
+            GROUP BY bucket
+         )
+         SELECT COALESCE(SUM(
+            e.eigen_einspeisung_kwh
+            * LEAST(t.total_bezug_kwh, t.total_einspeisung_kwh)
+            / NULLIF(t.total_einspeisung_kwh, 0)
+         ), 0) AS kwh
+         FROM eigen e JOIN totals t ON t.bucket = e.bucket",
+        array_merge([$communityId, $fromSql, $toSql], $meteringPointIds)
+    );
+    return (float)($row['kwh'] ?? 0);
+}
+
+/**
  * Lädt ein Mitglied anhand der ID community-übergreifend und prüft den Zugriff: Platform-Admins
  * dürfen jedes Mitglied verwalten, Manager nur die der eigenen aktiven Rolle (IDOR-Schutz).
  * Setzt bei Erfolg gleich die RLS-Community auf die des MITGLIEDS (nicht die der gerade aktiven

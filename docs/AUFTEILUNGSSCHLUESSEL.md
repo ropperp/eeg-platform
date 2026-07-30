@@ -61,3 +61,24 @@ Prüfung oder einen Betreiberwechsel), gibt es in den EEG-Einstellungen
 (`/portal/settings`) ein reines Info-Freitextfeld „Aufteilungsschlüssel (Info)"
 (`communities.aufteilungsschluessel_info`, `migrate_20260818.sql`) — rein dokumentarisch, hat
 keinen Einfluss auf die Abrechnung.
+
+## Abgrenzung zur Live-Kennzahl im Mitglieder-Dashboard (seit 30.07.2026)
+
+Seit die Ausleseeinheiten (ESP32) Leistungswerte in Echtzeit liefern, zeigt das
+Mitglieder-Dashboard (`/portal/dashboard`) zusätzlich eine **selbst berechnete** Live-Schätzung
+„Einspeisung in die Gemeinschaft" (`ownEinspeisungInGemeinschaftKwh()` in `public/index.php`) —
+auf Wunsch von Patrick, der die Grundsatzentscheidung oben bewusst kennt und trotzdem eine
+sofort sichtbare Kennzahl wollte, bevor der offizielle EDA-Import vorliegt. Das ist eine
+bewusste Ergänzung, **keine Abkehr** vom Grundsatz oben:
+
+- Sie ersetzt an keiner Stelle die EDA-Werte — „Bezug aus der Gemeinschaft"/„Eigene Erzeugung"
+  auf derselben Seite bleiben unverändert EDA-basiert und sind weiterhin das, was tatsächlich
+  in Rechnung gestellt wird (`Billing::generateDrafts()` liest ausschließlich `eda_measurements`).
+- Sie ist im UI explizit als „(Live-Schätzung)" gekennzeichnet, mit Hinweistext, dass für die
+  Rechnung der offizielle EDA-Import zählt — genau um die oben beschriebene „zwei Wahrheiten"-
+  Verwechslung zu vermeiden.
+- Die Methode (proportionale Aufteilung von `min(Gesamt-Bezug, Gesamt-Einspeisung)` je
+  Viertelstunden-Fenster nach eigenem Erzeugungsanteil) entspricht zwar konzeptionell dem
+  *dynamischen* EAG-Modell, ist aber eine eigene, vorläufige Näherung der Plattform aus
+  ESP-Messwerten — nicht das beim Netzbetreiber tatsächlich hinterlegte, rechtsverbindliche
+  Verfahren (das könnte auch statisch sein, oder bei „dynamisch" in Details abweichen).

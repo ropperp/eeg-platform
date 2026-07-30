@@ -66,6 +66,19 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Erste echte Nutzung der ESP-Live-Leistungsdaten im Mitglieder-Dashboard (Patrick
+  30.07.2026):** Bisher zeigte `/portal/dashboard` für Mitglieder nur EDA-Monatswerte (kein
+  Live-Bezug auf `esp_measurements`, siehe frühere Fassung des Kommentars in
+  `member_dashboard.php`: "keine Ausleseeinheit produktionsreif im Feld"). Jetzt zusätzlich:
+  (1) Kachel "Aktuelle Leistung" (Netto-Leistung aus dem jeweils neuesten ESP-Messwert je
+  eigenem Zählpunkt, positiv = Bezug, negativ = Einspeisung), (2) für Erzeuger/Prosumer eine
+  selbst berechnete Live-Kennzahl "Einspeisung in die Gemeinschaft" mit wählbarem Zeitraum.
+  Bewusst als ergänzende, klar gekennzeichnete Schätzung neben den unveränderten
+  EDA-Monatswerten -- Abgrenzung zum amtlichen Aufteilungsschlüssel ausführlich in
+  `docs/AUFTEILUNGSSCHLUESSEL.md` dokumentiert. Bekannte Grenze: bei sehr langen Zeiträumen
+  ("dieses Jahr") aggregiert die Abfrage potenziell Millionen Messzeilen live pro Seitenaufruf
+  -- noch nicht mit Vorberechnung/Caching optimiert, falls sich das in der Praxis als zu
+  langsam herausstellt.
 - **Bug: OTA-Netzwerkport erscheint nicht in der Arduino-IDE (Patrick 30.07.2026):** Code-Review
   ergab, dass `ArduinoOTA` korrekt eingerichtet ist (Hostname/Passwort/Callbacks/`begin()` beim
   WLAN-Connect, `handle()` in jedem `loop()`) -- kein Konfigurationsfehler. Wahrscheinlichste
