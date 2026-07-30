@@ -170,6 +170,20 @@ docker compose up -d --build
 > beim ersten Start leer, kopiert `latex-service` einmalig seine mitgelieferten
 > Standard-Vorlagen hinein.
 
+> **Einmalig nach dem Update vom 30.07.2026** (MQTT-Broker mit TLS + Zugangsdaten statt offen/
+> anonym): Mosquitto verlangt jetzt `allow_anonymous false` + ein Zertifikat für Port 8883 --
+> ohne beides startet der Container gar nicht. Einmalig:
+> ```bash
+> ./scripts/mqtt_secure_setup.sh
+> ```
+> Erzeugt ein selbstsigniertes Zertifikat unter `/opt/eeg/mosquitto/certs` (10 Jahre gültig,
+> ESP32-Geräte prüfen es nicht -- `setInsecure()` --, verschlüsselt trotzdem), generiert
+> `MQTT_USER`/`MQTT_PASSWORD` in `.env`, schreibt die Passwort-Datei
+> (`/opt/eeg/mosquitto/passwd`) und startet `mosquitto` + `mqtt-subscriber` neu. **Wichtig:**
+> Danach verliert JEDES bereits im Feld laufende ESP32-Gerät die Verbindung, bis im eigenen
+> `/config`-Formular Benutzername/Passwort nachgetragen werden. Bei einer echten
+> Neuinstallation ruft `scripts/setup.sh` dieses Skript automatisch mit auf.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
@@ -204,6 +218,16 @@ Image-Pin auf feste Digest. Nie den `:pg16`-Tag unbewusst neu ziehen. Details:
 
 ### Traefik: "client version 1.24 is too old"
 Docker Engine 29.x unterstützt nur API ≥ 1.40 → `DOCKER_API_VERSION=1.40` in der compose-Datei.
+
+### MQTT-Broker von außerhalb des lokalen Netzes erreichen (für Mitglieder-ESP32s zuhause)
+**Stand 30.07.2026: noch nicht eingerichtet.** Die Domain routet nicht zum Broker (anderer
+Host als der EEG-Server, nginx-Proxy terminiert ohnehin nur HTTP/HTTPS). Für Geräte außerhalb
+des eigenen Netzes fehlt noch ein Router-Port-Forward (externer Port → 10.0.0.250:8883) --
+erst seit TLS + Zugangsdaten (siehe Update-Hinweis oben) vertretbar, vorher wäre der Broker
+komplett offen ins Internet gestanden. Alle Nachrichten live mitlesen (lokales Netz):
+```bash
+docker compose exec mosquitto mosquitto_sub -h localhost -t 'eeg/#' -v -u "$MQTT_USER" -P "$MQTT_PASSWORD"
+```
 
 ### 404 von Traefik trotz laufendem webapp
 1. **Ungültige Router-Regel (Traefik v3-Syntax)** — `Host(\`a\`, \`b\`)` ist v2-Syntax und

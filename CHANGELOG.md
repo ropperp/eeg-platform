@@ -20,6 +20,22 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **MQTT-Broker mit TLS + Benutzername/Passwort statt offen/anonym.** Mosquitto verlangte
+  bisher gar keine Anmeldung und lief unverschlüsselt -- neues Skript
+  `scripts/mqtt_secure_setup.sh` erzeugt ein selbstsigniertes Zertifikat (Port 8883, 10 Jahre
+  gültig) und zufällige Zugangsdaten, schreibt die Passwort-Datei und startet die betroffenen
+  Container neu; wird bei einer Neuinstallation automatisch von `scripts/setup.sh` mit
+  aufgerufen. Die ESP32-Firmware wechselt automatisch auf TLS (`WiFiClientSecure`), sobald der
+  konfigurierte MQTT-Port auf 8883 steht. **Achtung beim Rollout:** danach verlieren bereits
+  laufende Geräte die Verbindung, bis Benutzername/Passwort im `/config`-Formular nachgetragen
+  werden.
+- **ESP32: eigenes Live-Daten-Intervall.** Bezug/Einspeisung wurden über dieselbe Variable wie
+  der ESP-Online-Heartbeat gedrosselt (fix 30 s) -- jetzt ein eigenes, unabhängiges Feld
+  `live-daten-intervall` im `/config`-Formular, Standard 5 s.
+- **WLAN-Passwort kam nicht zuverlässig in der WLAN-Info-Anzeige an.** Wurde bisher nur
+  einmalig beim allerersten MQTT-Connect nach dem Boot mitgeschickt -- ein verpasster Moment,
+  und es kam für die gesamte restliche Laufzeit nie an. Wird jetzt bei jedem periodischen
+  Heartbeat mitgeschickt.
 - **Benachrichtigung bei unbekannter Zählernummer.** Sendet ein Gerät MQTT-Daten für eine
   Zählernummer, die keinem Zählpunkt der jeweiligen EEG zugeordnet ist, erscheint jetzt eine
   offene Meldung im Postfach (`/portal/postfach`) -- bisher landete das nur unsichtbar im

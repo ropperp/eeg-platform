@@ -70,6 +70,13 @@ sudo chmod 755 /opt/eeg
 sudo chown -R 82:82 /opt/eeg/webapp-storage /opt/eeg/latex-templates
 echo "✓ /opt/eeg vorbereitet."
 
+# ─── MQTT-Zertifikat + Zugangsdaten (Mosquitto verlangt seit Kurzem beides -- ohne würde
+# mosquitto.conf sonst auf fehlende Dateien zeigen und der Container gar nicht erst starten) ──
+echo ""
+echo "Richte MQTT-TLS-Zertifikat und Zugangsdaten ein ..."
+./scripts/mqtt_secure_setup.sh --no-restart
+echo "✓ MQTT-Zertifikat/Zugangsdaten bereit."
+
 # ─── Container bauen & starten ───────────────────────────────────
 echo ""
 echo "Baue und starte Container (das kann beim ersten Mal einige Minuten dauern) ..."

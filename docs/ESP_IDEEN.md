@@ -54,6 +54,26 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **MQTT-Broker mit TLS + Benutzername/Passwort (Patrick 30.07.2026):** Mosquitto lief bisher
+  mit `allow_anonymous true` und ganz ohne Verschlüsselung -- für ein internes Testnetz tragbar,
+  aber eine Voraussetzung für den echten Rollout (Mitglieder-ESP32s zuhause, außerhalb des
+  eigenen Netzes). `scripts/mqtt_secure_setup.sh` erzeugt ein selbstsigniertes Zertifikat
+  (Port 8883, 10 Jahre gültig) und Zugangsdaten (`.env`: `MQTT_USER`/`MQTT_PASSWORD`), schreibt
+  die Mosquitto-Passwort-Datei und startet die betroffenen Container neu. Firmware wählt
+  automatisch `WiFiClientSecure` (TLS, `setInsecure()` -- kein Zertifikat auf dem Gerät nötig),
+  sobald `mqtt-port` auf 8883 gestellt wird; Benutzername/Passwort trägt man im selben
+  `/config`-Formular ein. Externer Zugriff (Router-Port-Forward) noch nicht eingerichtet,
+  siehe `CLAUDE.md`.
+- **Eigenes Live-Daten-Intervall (Patrick 30.07.2026):** Live-Werte (Bezug/Einspeisung) waren
+  fix auf 30 s gedrosselt -- über dieselbe Variable wie der ESP-Online-Heartbeat, obwohl beides
+  nichts miteinander zu tun hat. Jetzt eigenes Feld `live-daten-intervall` im `/config`-Formular,
+  Standard 5 s, unabhängig vom Heartbeat-Intervall.
+- **WLAN-Passwort kam nicht zuverlässig an (Patrick 30.07.2026):** Wurde bisher nur EINMALIG
+  beim allerersten MQTT-Connect nach dem Boot mitgeschickt -- ein fragiles Design: verpasst die
+  Firmware genau diesen einen Moment (z. B. weil der Broker im exakten Augenblick noch nicht
+  bereit war), kommt das Passwort für die gesamte restliche Laufzeit nie an, während SSID/IP
+  trotzdem bei jedem Heartbeat ankamen. Genau das ist Patrick beim ersten Testgerät passiert.
+  Jetzt wird das Passwort bei JEDEM periodischen Heartbeat mitgeschickt, nicht nur beim Connect.
 - **Benachrichtigung bei unbekannter Zählernummer (Patrick 30.07.2026):** Sendet ein Gerät
   Daten für eine Zählernummer, die (noch) keinem Zählpunkt in der jeweiligen EEG zugeordnet
   ist, landete das bisher NUR im Container-Log des `mqtt-subscriber` (unsichtbar für Obmänner/
