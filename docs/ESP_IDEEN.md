@@ -66,6 +66,22 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Bug: ein physischer Zähler mit Bezug+Einspeisung als zwei Zählpunkte registriert bekam nie
+  vollständig Live-Daten (Patrick 30.07.2026):** Patrick fragte nach, ob die ESP-Zählung schon
+  berücksichtigt, dass EIN Zähler zwei Zählpunktnummern haben kann (z.B. ein Bezugs- und ein
+  Einspeise-Zählpunkt mit derselben Zählernummer). Antwort: NEIN, bisher nicht korrekt --
+  `mqtt-subscriber/main.py`s `get_metering_point_uuid()` sucht `WHERE meter_code = %s` ohne
+  `ORDER BY`/Eindeutigkeit und liefert bei zwei passenden Zeilen nur EINE davon zurück (welche,
+  ist nicht deterministisch) -- alle Live-Daten landen dann dauerhaft nur bei dieser einen Zeile,
+  die andere bleibt für immer auf "keine Daten" stehen (betrifft u.a. `ownEinspeisungInGemeinschaftKwh()`,
+  falls ausgerechnet der Einspeisung-Zählpunkt der "Verlierer" ist -- zeigt dann immer 0 kWh,
+  obwohl real eingespeist wird). Der Zählpunkt-Typ "prosumer" (ein Zähler, beide Richtungen)
+  existierte in Datenmodell und Aggregations-Logik bereits vollständig, war aber im normalen
+  Anlegen-/Bearbeiten-Formular (`member_detail.php`) gar nicht auswählbar -- nur über die
+  separate "Zählpunkte ohne Zuordnung"-Seite. Fix: "prosumer" als dritte Typ-Option ergänzt
+  (Feldgruppen für Bezug UND Einspeisung gleichzeitig sichtbar), zusätzlich serverseitige
+  Validierung, die eine Zählernummer nur einmal je aktivem Zählpunkt zulässt (verhindert das
+  kaputte Doppel-Registrieren von vornherein, mit Hinweis auf den richtigen Typ).
 - **Live-Leistungsanzeigen per 5s-Polling statt Seiten-Reload (Patrick 30.07.2026):** Werte,
   "von denen man weiß, dass sie sich aktualisieren" (aktuelle Leistung), sollen sich selbst
   aktualisieren statt die ganze Seite neu zu laden. Neue schlanke JSON-Endpunkte

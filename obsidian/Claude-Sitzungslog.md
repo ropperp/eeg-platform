@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (16) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nachgefragt, ob die ESP-Zählung schon berücksichtigt, dass ein Zähler zwei
+Zählpunktnummern (Bezug + Einspeisung) haben kann. Gewünscht: Hinweistext auf den Live-Anzeigen,
+wenn nicht alle ESP online sind ("Daten können leicht abweichen"), Text dafür formulieren.
+Neues Pre-Launch-Hinweis-Popup beim Mitglieder-Login: verschwommener Hintergrund, "Gelesen"-
+Button, Link zum Support für Vorschläge, bei jedem Login erneut, erst nach Bestätigung sieht
+man die Seite.
+**Ergebnis:** Frage bestätigt einen echten Bug: `get_metering_point_uuid()` im
+mqtt-subscriber liefert bei zwei Zählpunkten mit derselben Zählernummer nur EINEN zurück (kein
+ORDER BY/Eindeutigkeit) -- der andere bekommt nie Live-Daten. Typ "prosumer" existierte im
+Datenmodell bereits, war aber im normalen Zählpunkt-Formular nicht wählbar (nur über
+"Zählpunkte ohne Zuordnung"). Jetzt ergänzt + serverseitige Validierung gegen doppelt vergebene
+Zählernummern. Live-Dashboards (Obmann + öffentlich) zeigen jetzt einen Hinweistext, sobald
+`active_meters < total_meters`. Pre-Launch-Popup umgesetzt: Session-Flag `prelaunch_ack`, wird
+in `Auth::establishSession()` bei jedem Login zurückgesetzt (nicht nur bei neuer Browser-
+Session), neue Route `/portal/ack-prelaunch`, Hintergrund per CSS-Blur + `pointer-events:none`
+auf `.portal-layout` deaktiviert, nur für die Mitglieder-Ansicht (nicht Obmänner/Platform-
+Admins). `php tests/run.php` weiterhin 77/77.
+
+---
+
 ## 2026-07-30 (15) — Claude Code — Claude Sonnet 5
 **Auftrag:** Live-Leistungs-/Energiewerte sollen sich alle 5 Sekunden selbst aktualisieren (nur
 die betroffenen Werte, kein Seiten-Reload) -- auch im Mitglieder-Bereich. Beim Testen des neuen

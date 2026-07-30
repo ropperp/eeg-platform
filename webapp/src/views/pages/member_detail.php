@@ -119,6 +119,13 @@
   <div class="alert alert-error" style="margin-bottom:1rem">
     Diese Zählpunktnummer ist bereits vergeben<?php if (!empty($_GET['znr_owner'])): ?> — an <?= htmlspecialchars($_GET['znr_owner']) ?><?php endif; ?>.
   </div>
+<?php elseif (($_GET['error'] ?? '') === 'meter_duplicate'): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem">
+    Diese Zählernummer ist bereits einem anderen aktiven Zählpunkt zugeordnet<?php if (!empty($_GET['meter_owner'])): ?> — an <?= htmlspecialchars($_GET['meter_owner']) ?><?php endif; ?>.
+    Eine Zählernummer darf nur einmal vergeben sein, sonst bekommt einer der beiden Zählpunkte
+    nie Live-Daten. Für einen einzelnen Zähler mit Bezug UND Einspeisung bitte stattdessen
+    einen Zählpunkt mit Typ „Bezug + Einspeisung (ein Zähler)" anlegen.
+  </div>
 <?php elseif (($_GET['error'] ?? '') === 'znr'): ?>
   <div class="alert alert-error" style="margin-bottom:1rem">Zählernummer fehlt oder ist ungültig.</div>
 <?php elseif (!empty($_GET['error'])): ?>
@@ -292,6 +299,7 @@
           <select name="type" id="add-mp-type" onchange="toggleMpTypeFields('add')">
             <option value="consumer">Bezug</option>
             <option value="producer">Einspeisung</option>
+            <option value="prosumer">Bezug + Einspeisung (ein Zähler)</option>
           </select>
         </div>
         <button type="submit" class="btn btn-primary" style="height:38px">+ Hinzufügen</button>
@@ -481,6 +489,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
       <select name="type" id="edit-mp-type" onchange="toggleMpTypeFields('edit')">
         <option value="consumer">Bezug</option>
         <option value="producer">Einspeisung</option>
+        <option value="prosumer">Bezug + Einspeisung (ein Zähler)</option>
       </select>
     </div>
     <div id="edit-mp-consumer-fields" class="form-group">
@@ -514,9 +523,10 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   });
 
 function toggleMpTypeFields(prefix) {
-  const isConsumer = document.getElementById(prefix + '-mp-type').value === 'consumer';
-  document.getElementById(prefix + '-mp-consumer-fields').style.display = isConsumer ? '' : 'none';
-  document.getElementById(prefix + '-mp-producer-fields').style.display = isConsumer ? 'none' : '';
+  const type = document.getElementById(prefix + '-mp-type').value;
+  // prosumer = ein physischer Zähler mit Bezug UND Einspeisung -- beide Feldgruppen zeigen.
+  document.getElementById(prefix + '-mp-consumer-fields').style.display = (type === 'producer') ? 'none' : '';
+  document.getElementById(prefix + '-mp-producer-fields').style.display = (type === 'consumer') ? 'none' : '';
 }
 toggleMpTypeFields('add');
 

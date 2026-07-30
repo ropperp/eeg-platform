@@ -39,6 +39,11 @@ ob_start();
       </div>
     </div>
 
+    <p id="live-disclaimer" style="display:none;margin:-1rem 0 1.5rem;font-size:.8rem;color:#b45309;text-align:center">
+      <?= icon('warning-circle') ?> Hinweis: Nicht alle Zählpunkte sind gerade online. Die angezeigten
+      Gesamtwerte können daher geringfügig von der tatsächlichen Situation abweichen.
+    </p>
+
     <div class="grid-2">
       <div class="card">
         <h3 style="margin-bottom:1rem">Autarkie</h3>
@@ -121,6 +126,7 @@ async function refresh() {
   document.getElementById('einsp-w').textContent = d.einspeisung_w.toLocaleString('de-AT') + ' W';
   document.getElementById('today-kwh').textContent = d.today_kwh.toLocaleString('de-AT') + ' kWh';
   document.getElementById('autarkie-pct').textContent = d.autarkie_pct + '%';
+  document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
 
   drawGauge(d.autarkie_pct);
   drawChart(d.series);
