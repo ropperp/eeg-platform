@@ -58,6 +58,11 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
       <option value="online">Nur Online-Beitritt</option>
       <option value="offline">Nur Offline angelegt</option>
     </select>
+    <select id="filter-esp" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+      <option value="">Alle Zähler-Status</option>
+      <option value="fehler">Nur mit Fehler</option>
+      <option value="ok">Nur ohne Fehler</option>
+    </select>
     <span id="result-count" style="font-size:.8rem;color:var(--gray-600)"></span>
   </div>
 </div>
@@ -75,6 +80,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
         <th class="sortable" style="text-align:center" data-sort-key="einsp" data-sort-type="str" onclick="sortMembers(this)">Einspeisevertr. <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" onclick="sortMembers(this)">Offener Betrag <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:center" data-sort-key="herkunft" data-sort-type="str" onclick="sortMembers(this)">Herkunft <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="esp" data-sort-type="num" onclick="sortMembers(this)">Zähler <span class="sort-arrow"></span></th>
         <th>Aktionen</th>
       </tr>
     </thead>
@@ -88,6 +94,11 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
       $art = $hatBezug && $hatEinsp ? 'beides' : ($hatEinsp ? 'einspeisung' : ($hatBezug ? 'bezug' : ''));
       $viaOnline = in_array($m['via_online'] ?? false, [true, 't', '1', 1], true);
       $herkunft = $viaOnline ? 'online' : 'offline';
+      $hatEspFehler = in_array($m['hat_esp_fehler'] ?? false, [true, 't', '1', 1], true);
+      $hatEspBekannt = in_array($m['hat_esp_bekannt'] ?? false, [true, 't', '1', 1], true);
+      // esp-Filter/Sortierwert: 2 = Fehler (soll oben stehen), 1 = OK, 0 = keine ESP-Daten.
+      $espFilterVal = $hatEspFehler ? 'fehler' : ($hatEspBekannt ? 'ok' : '');
+      $espSortVal = $hatEspFehler ? 2 : ($hatEspBekannt ? 1 : 0);
     ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
@@ -95,6 +106,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
           data-contract="<?= $allSigned ?>"
           data-art="<?= $art ?>"
           data-herkunft="<?= $herkunft ?>"
+          data-esp="<?= $espFilterVal ?>"
           data-sort-kdnr="<?= (int)($m['kundennummer'] ?? 0) ?>"
           data-sort-name="<?= htmlspecialchars(strtolower(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name'])))) ?>"
           data-sort-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
@@ -103,7 +115,8 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
           data-sort-bezug="<?= htmlspecialchars($bezug) ?>"
           data-sort-einsp="<?= htmlspecialchars($einsp) ?>"
           data-sort-offen="<?= (float)($m['open_amount'] ?? 0) ?>"
-          data-sort-herkunft="<?= $herkunft ?>">
+          data-sort-herkunft="<?= $herkunft ?>"
+          data-sort-esp="<?= $espSortVal ?>">
         <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
@@ -139,6 +152,15 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
             <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail"><?= icon('envelope-simple') ?> Offline</span>
           <?php endif; ?>
         </td>
+        <td style="text-align:center">
+          <?php if ($hatEspFehler): ?>
+            <span class="badge badge-red" style="font-size:.68rem" title="ESP offline oder Zähler (P1-Signal) nicht erreichbar"><?= icon('warning-circle') ?> Fehler</span>
+          <?php elseif ($hatEspBekannt): ?>
+            <span class="badge badge-green" style="font-size:.68rem" title="ESP online, Zähler erreichbar"><?= icon('check') ?> OK</span>
+          <?php else: ?>
+            <span class="badge badge-gray" style="font-size:.68rem" title="Noch keine ESP-Meldung erhalten">—</span>
+          <?php endif; ?>
+        </td>
         <td style="white-space:nowrap">
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
           &nbsp;·&nbsp;
@@ -147,7 +169,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="10" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="11" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
@@ -160,6 +182,7 @@ function filterMembers() {
   const c = document.getElementById('filter-contract').value;
   const a = document.getElementById('filter-art').value;
   const h = document.getElementById('filter-herkunft').value;
+  const e = document.getElementById('filter-esp').value;
   const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
   let visible = 0;
   rows.forEach(row => {
@@ -168,7 +191,8 @@ function filterMembers() {
     const cm = !c || row.dataset.contract === c;
     const am = !a || row.dataset.art === a;
     const hm = !h || row.dataset.herkunft === h;
-    const show = nm && sm && cm && am && hm;
+    const em = !e || row.dataset.esp === e;
+    const show = nm && sm && cm && am && hm && em;
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });

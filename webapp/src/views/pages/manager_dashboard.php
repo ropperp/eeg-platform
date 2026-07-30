@@ -114,7 +114,7 @@ ob_start();
     <?php if (($espStats['meter_unreachable'] ?? 0) > 0): ?>
       <div style="margin-top:.4rem">
         <span class="badge badge-red" title="ESP online, aber Zähler antwortet nicht -- möglicherweise Inselbetrieb/Stromausfall beim Mitglied, kein Plattform-Problem">
-          <?= icon('warning') ?> <?= $espStats['meter_unreachable'] ?> Zähler nicht erreichbar
+          <?= icon('warning-circle') ?> <?= $espStats['meter_unreachable'] ?> Zähler nicht erreichbar
         </span>
       </div>
     <?php endif; ?>

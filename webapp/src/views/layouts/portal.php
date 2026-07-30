@@ -131,6 +131,9 @@
       </a>
       <a href="/portal/members" class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('users-three') ?></span><span class="sidebar-text">Mitglieder</span>
+        <?php if ($membersWithEspError > 0): ?>
+          <span class="badge badge-red" style="margin-left:.4rem"><?= $membersWithEspError ?></span>
+        <?php endif; ?>
       </a>
       <a href="/portal/files" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/files') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
@@ -145,6 +148,7 @@
         $pendingApplications = 0;
         $offeneNotifications = 0;
         $unassignedMeteringPoints = 0;
+        $membersWithEspError = 0;
         if ($ar['community_id'] ?? null) {
           DB::setCommunity($ar['community_id']);
           $pendingApplications = (int)DB::fetchOne(
@@ -163,6 +167,24 @@
               "SELECT COUNT(*) AS cnt FROM support_tickets WHERE community_id = ? AND status = 'offen'",
               [$ar['community_id']]
           )['cnt'];
+          // Live-Fehlerzähler (kein "gelesen"-Status wie bei Notifications, siehe Patrick
+          // 30.07.2026): Anzahl Mitglieder mit mind. einem aktiven Zählpunkt, dessen ESP länger
+          // als die Offline-Schwelle nicht mehr gemeldet hat ODER dessen Zähler (P1-Signal)
+          // nicht erreichbar ist -- verschwindet automatisch, sobald das Gerät wieder online
+          // ist bzw. der Zähler wieder erreichbar ist (gleiche Logik wie /portal/members und
+          // die Status-Kachelzeile im Obmann-Dashboard).
+          $espOfflineMinutesNav = espOfflineAfterMinutes();
+          $membersWithEspError = (int)DB::fetchOne(
+              "SELECT COUNT(DISTINCT mp.member_id) AS cnt
+               FROM metering_points mp
+               WHERE mp.community_id = ? AND mp.active = true AND mp.member_id IS NOT NULL
+                 AND mp.esp_last_seen_at IS NOT NULL
+                 AND (
+                    NOT (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval)
+                    OR (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT mp.meter_reachable)
+                 )",
+              [$ar['community_id'], $espOfflineMinutesNav, $espOfflineMinutesNav]
+          )['cnt'];
         }
       ?>
       <a href="/portal/applications" class="<?= str_contains($_SERVER['REQUEST_URI'], 'applications') ? 'active' : '' ?>">
@@ -174,7 +196,7 @@
       <a href="/portal/postfach" class="<?= str_contains($_SERVER['REQUEST_URI'], 'postfach') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('envelope-simple') ?></span><span class="sidebar-text">Postfach</span>
         <?php if ($offeneNotifications > 0): ?>
-          <span class="badge badge-yellow" style="margin-left:.4rem"><?= $offeneNotifications ?></span>
+          <span class="badge badge-red" style="margin-left:.4rem"><?= $offeneNotifications ?></span>
         <?php endif; ?>
       </a>
       <a href="/portal/support" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/support') ? 'active' : '' ?>">
