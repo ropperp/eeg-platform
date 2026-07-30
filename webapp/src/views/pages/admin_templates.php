@@ -2,10 +2,11 @@
 
 <h2 style="margin-bottom:.5rem"><?= icon('folder-simple') ?> Dateien</h2>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">
-  LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung, das Infoblatt der Website
-  sowie das Logo (getrennt für Light- und Dark-Mode). Herunterladen, bearbeiten und per Drag
-  &amp; Drop wieder hochladen -- ohne Kommandozeile oder GitHub. Wirkt sofort (LaTeX-Vorlagen:
-  auf künftig erzeugte PDFs, Infoblatt/Logo: sofort auf der ganzen Website).
+  LaTeX-Vorlagen für Verträge, Rechnungen und die Beitrittserklärung, das Infoblatt der Website,
+  das Logo (getrennt für Light- und Dark-Mode) sowie das Hero-Banner-Foto der Startseite.
+  Herunterladen, bearbeiten und per Drag &amp; Drop wieder hochladen -- ohne Kommandozeile oder
+  GitHub. Wirkt sofort (LaTeX-Vorlagen: auf künftig erzeugte PDFs, Infoblatt/Logo/Hero-Banner:
+  sofort auf der ganzen Website).
 </p>
 <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">
   <?= icon('puzzle-piece') ?> Vollständige Variablen-Referenz (auch für eine externe KI, die beim Schreiben einer eigenen
@@ -48,6 +49,40 @@
     </div>
   <?php endif; ?>
 
+  <?php if ($t['filename'] === 'hero-banner.png'): ?>
+    <!-- Sonderfall: Hero-Banner braucht einen Zuschnitt auf die Ziel-Bildgröße (1600x640,
+         Seitenverhältnis des Hero-Bereichs) statt des generischen Datei-Uploads -- sonst würde
+         ein beliebiges Foto verzerrt oder mit Rand angezeigt. Zoom/Verschieben wie beim
+         Profilbild-Zuschnitt (avatar-crop.js), nur rechteckig statt quadratisch. -->
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">
+      Wird beim Speichern auf <strong>1600 × 640 Pixel</strong> zugeschnitten (Seitenverhältnis
+      des Hero-Bereichs auf der Startseite) -- mit Zoom-Regler und Ziehen den Ausschnitt wählen.
+    </p>
+    <form method="post" action="/admin/templates/hero-banner.png/upload" enctype="multipart/form-data">
+      <input type="file" id="hero-file-input" name="file" accept="image/*" required style="margin-bottom:.75rem">
+      <div id="hero-crop-wrapper" style="display:none;margin-bottom:.75rem">
+        <div style="max-width:100%;overflow:hidden;border-radius:8px;border:1px solid var(--gray-200);display:inline-block">
+          <canvas id="hero-crop-canvas" width="1600" height="640" style="width:100%;max-width:480px;height:auto;display:block;cursor:grab"></canvas>
+        </div>
+        <div style="margin-top:.5rem;display:flex;align-items:center;gap:.5rem;max-width:480px">
+          <?= icon('magnifying-glass') ?>
+          <input type="range" id="hero-crop-zoom" min="100" max="300" value="100" style="flex:1">
+        </div>
+        <small style="color:var(--gray-600)">Zum Verschieben im Bild ziehen.</small>
+      </div>
+      <button type="submit" class="btn btn-primary" style="font-size:.85rem">Speichern</button>
+    </form>
+    <script src="/assets/js/rect-crop.js"></script>
+    <script>
+      initRectCropper({
+        fileInputId: 'hero-file-input',
+        wrapperId: 'hero-crop-wrapper',
+        canvasId: 'hero-crop-canvas',
+        zoomId: 'hero-crop-zoom',
+        outputName: 'hero-banner.png',
+      });
+    </script>
+  <?php else: ?>
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <?php if ($t['exists']): ?>
       <a href="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.85rem">
@@ -65,6 +100,7 @@
       </label>
     </form>
   </div>
+  <?php endif; ?>
 
   <?php if ($t['variables']): ?>
     <details style="margin-top:.75rem">

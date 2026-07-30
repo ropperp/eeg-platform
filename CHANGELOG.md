@@ -20,6 +20,16 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Eigenes Hero-Banner-Foto statt SVG-Illustration, per Admin-Upload mit Zuschnitt.**
+  Unter `/admin/templates` lässt sich jetzt ein eigenes Foto für den Hero-Bereich der
+  Startseite hochladen (neuer Registry-Eintrag `hero-banner.png`, gleiche
+  Custom-Datei-mit-Fallback-Logik wie Logo/LaTeX-Vorlagen). Damit ein beliebig großes/
+  proportioniertes Foto nie verzerrt oder mit Rand erscheint, gibt es dafür eine eigene
+  Zuschneiden-Oberfläche (`rect-crop.js`, Schwester-Skript zum bestehenden quadratischen
+  Profilbild-Zuschnitt `avatar-crop.js`): Zoom-Regler + Ziehen, der Ausschnitt füllt beim
+  Speichern immer exakt 1600 × 640 Pixel (Seitenverhältnis des Hero-Bereichs). Ohne eigenes
+  Foto bleibt die mitgelieferte SVG-Illustration unverändert bestehen. Keine neue Migration
+  nötig — rein dateibasiert, wie die übrigen Einträge unter Dateien.
 - **Emoji-Sweep abgeschlossen (Phase 2): komplettes Portal-/Admin-Backoffice auf
   Phosphor-Icons.** Aufbauend auf Phase 1 (Startseite) sind jetzt auch alle Emojis im
   Mitgliederbereich, der Abrechnung/Rechnungen, den Dateien/Dokumenten, dem

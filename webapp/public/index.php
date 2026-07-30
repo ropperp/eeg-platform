@@ -4690,6 +4690,7 @@ function adminFileRegistry(): array
         'infoblatt.pdf'                    => ['label' => 'Infoblatt (Website)', 'type' => 'pdf'],
         'logo-light.png'                   => ['label' => 'Logo (Light-Mode)', 'type' => 'image'],
         'logo-dark.png'                    => ['label' => 'Logo (Dark-Mode)', 'type' => 'image'],
+        'hero-banner.png'                  => ['label' => 'Hero-Banner (Startseite)', 'type' => 'image'],
     ];
 }
 
@@ -5123,6 +5124,22 @@ $router->get('/infoblatt.pdf', function () {
 $router->get('/logo-:variant.png', function ($params) {
     if (!in_array($params['variant'], ['light', 'dark'], true)) { http_response_code(404); return; }
     $path = adminFilePath('logo-' . $params['variant'] . '.png');
+    if (!$path) { http_response_code(404); return; }
+    header('Content-Type: image/png');
+    header('Cache-Control: public, max-age=3600');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+});
+
+/**
+ * Eigenes Hero-Banner-Foto (statt der mitgelieferten SVG-Landschafts-Illustration) --
+ * hochgeladen unter /admin/templates, dort mit Zoom/Verschieben auf die Ziel-Bildgröße des
+ * Hero-Banners zugeschnitten (siehe rect-crop.js). 404, solange kein eigenes Bild hochgeladen
+ * wurde -- home.php prüft das vorab und bindet die SVG-Illustration dann ganz normal weiter ein.
+ */
+$router->get('/hero-banner-image', function () {
+    $path = adminFilePath('hero-banner.png');
     if (!$path) { http_response_code(404); return; }
     header('Content-Type: image/png');
     header('Cache-Control: public, max-age=3600');
