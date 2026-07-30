@@ -42,19 +42,9 @@ if (is_readable($backupFile)) {
 $backupAgeHours = $backupStatus && !empty($backupStatus['unix'])
     ? (time() - (int)$backupStatus['unix']) / 3600 : null;
 
-// Community-Gesamtleistung live: pro Zählpunkt nur den neuesten Messwert im Fenster nehmen,
-// nicht alle Zeilen aufsummieren (bei 5s-Sende-Intervall sonst Werte um ein Vielfaches zu hoch).
-$live = DB::fetchOne(
-    "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
-            COUNT(*) AS active_meters
-     FROM (
-        SELECT DISTINCT ON (metering_point_id) power_einspeisung_w, power_bezug_w
-        FROM esp_measurements
-        WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
-        ORDER BY metering_point_id, time DESC
-     ) latest",
-    [$communityId]
-);
+// Community-Gesamtleistung live -- siehe communityLivePower() in index.php (gemeinsam mit
+// /portal/api/live-power genutzt, das die Kachel unten alle 5s per Fetch aktualisiert).
+$live = communityLivePower($communityId);
 
 ob_start();
 ?>
@@ -136,16 +126,30 @@ ob_start();
     <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Live-Leistung</h3>
     <div style="display:flex;gap:2rem">
       <div>
-        <div style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
+        <div id="live-bezug-w" style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '') ?> W</div>
         <div style="font-size:.8rem;color:var(--gray-600)">Bezug</div>
       </div>
       <div>
-        <div style="font-size:1.75rem;font-weight:700;color:#16a34a"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
+        <div id="live-einsp-w" style="font-size:1.75rem;font-weight:700;color:#16a34a"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '') ?> W</div>
         <div style="font-size:.8rem;color:var(--gray-600)">Einspeisung</div>
       </div>
     </div>
-    <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)"><?= $live['active_meters'] ?> Zählpunkte aktiv in den letzten 2 Min.</p>
+    <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)"><span id="live-active-meters"><?= $live['active_meters'] ?></span> Zählpunkte aktiv in den letzten 2 Min.</p>
   </div>
+  <script>
+  // Live-Leistung alle 5s per Fetch aktualisieren -- kein Seiten-Reload für Werte, die sich
+  // laufend ändern (Patrick, 30.07.2026).
+  setInterval(async () => {
+    try {
+      const res = await fetch('/portal/api/live-power');
+      if (!res.ok) return;
+      const d = await res.json();
+      document.getElementById('live-bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
+      document.getElementById('live-einsp-w').textContent = d.einsp_w.toLocaleString('de-AT') + ' W';
+      document.getElementById('live-active-meters').textContent = d.active_meters;
+    } catch (e) { /* naechster Versuch in 5s */ }
+  }, 5000);
+  </script>
 
   <div class="card">
     <h3 style="margin-bottom:1rem"><?= icon('clipboard-text') ?> Schnellzugriff</h3>

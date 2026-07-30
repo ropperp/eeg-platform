@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (15) — Claude Code — Claude Sonnet 5
+**Auftrag:** Live-Leistungs-/Energiewerte sollen sich alle 5 Sekunden selbst aktualisieren (nur
+die betroffenen Werte, kein Seiten-Reload) -- auch im Mitglieder-Bereich. Beim Testen des neuen
+"Live-Messdaten zurücksetzen"-Buttons kam ein Fehler: SQLSTATE[23502] Not-Null-Verletzung auf
+`meter_reachable`. Frage: was genau wird beim Reset gelöscht -- auch Zählernummer/Zählpunktnummer
+des Mitglieds, oder nur diese eine Tabelle?
+**Ergebnis:** Crash-Fix: `meter_reachable` ist NOT NULL DEFAULT false (`migrate_20260820.sql`) --
+der Reset setzte es fälschlich auf NULL statt `false`, jetzt korrigiert. Neue JSON-Endpunkte
+`/portal/api/current-power` (Mitglied) und `/portal/api/live-power` (Obmann, neue gemeinsame
+Funktion `communityLivePower()` statt doppelter SQL), beide Dashboards pollen jetzt per
+`fetch()` alle 5s und schreiben nur die "Aktuelle Leistung"/"Live-Leistung"-Kachel neu.
+Öffentliches Live-Dashboard (`/live`) hatte Polling schon, Intervall von 10s auf 5s verkürzt.
+Antwort zur Lösch-Frage im Chat: der Reset löscht nur `esp_measurements`-Zeilen und setzt reine
+Status-/Live-Spalten auf `metering_points` zurück (esp_online, esp_last_seen_at,
+meter_reachable, meter_last_seen_at, wifi_ssid, wifi_ip, wifi_password_enc) -- Zählpunktnummer,
+Zählernummer und alle übrigen Stammdaten des Zählpunkts/Mitglieds bleiben unangetastet.
+`php tests/run.php` weiterhin 77/77.
+
+---
+
 ## 2026-07-30 (14) — Claude Code — Claude Sonnet 5
 **Auftrag:** Bestellung von 20 ELEGOO-ESP32-Boards angefragt (kann Claude Code nicht ausführen --
 kein Checkout-/Kauf-Zugriff). Live-Anzeige: "Erzeugung heute" zeigt nicht die tatsächlich

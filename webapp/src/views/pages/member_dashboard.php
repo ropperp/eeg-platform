@@ -130,6 +130,7 @@ ob_start();
 
 <div class="card stat-card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('lightning') ?> Aktuelle Leistung</h3>
+  <div id="current-power-tile">
   <?php if ($currentNetPowerW === null): ?>
     <p style="font-size:.85rem;color:var(--gray-600)">Keine Live-Daten verfügbar (Ausleseeinheit nicht installiert oder gerade offline).</p>
   <?php elseif ($currentNetPowerW >= 0): ?>
@@ -139,7 +140,30 @@ ob_start();
     <div class="stat-value" style="color:#16a34a"><?= icon('arrow-up') ?> <?= number_format(abs($currentNetPowerW), 0, ',', '') ?> W</div>
     <div class="stat-label">wird gerade eingespeist</div>
   <?php endif; ?>
+  </div>
 </div>
+<script>
+// Aktuelle Leistung alle 5s per Fetch aktualisieren -- kein Seiten-Reload für einen Wert, von
+// dem man weiß, dass er sich laufend ändert (Patrick, 30.07.2026).
+setInterval(async () => {
+  try {
+    const res = await fetch('/portal/api/current-power');
+    if (!res.ok) return;
+    const d = await res.json();
+    const tile = document.getElementById('current-power-tile');
+    const icon = (name) => '<svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-' + name + '"></use></svg>';
+    if (d.net_w === null) {
+      tile.innerHTML = '<p style="font-size:.85rem;color:var(--gray-600)">Keine Live-Daten verfügbar (Ausleseeinheit nicht installiert oder gerade offline).</p>';
+    } else if (d.net_w >= 0) {
+      tile.innerHTML = '<div class="stat-value" style="color:#dc2626">' + icon('arrow-down') + ' ' + Math.round(d.net_w).toLocaleString('de-AT') + ' W</div>'
+        + '<div class="stat-label">wird gerade bezogen</div>';
+    } else {
+      tile.innerHTML = '<div class="stat-value" style="color:#16a34a">' + icon('arrow-up') + ' ' + Math.round(Math.abs(d.net_w)).toLocaleString('de-AT') + ' W</div>'
+        + '<div class="stat-label">wird gerade eingespeist</div>';
+    }
+  } catch (e) { /* naechster Versuch in 5s */ }
+}, 5000);
+</script>
 
 <div class="grid-2" style="margin-bottom:1.5rem">
   <?php if ($hasConsumer): ?>

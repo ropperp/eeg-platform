@@ -57,7 +57,7 @@ ob_start();
     </div>
 
     <p style="margin-top:1.5rem;font-size:.8rem;color:var(--gray-600);text-align:center">
-      Daten werden alle 10 Sekunden aktualisiert. Anzeige: aggregierte Gemeinschaftswerte, keine Personendaten.
+      Daten werden alle 5 Sekunden aktualisiert. Anzeige: aggregierte Gemeinschaftswerte, keine Personendaten.
     </p>
   </div>
 
@@ -106,7 +106,7 @@ async function loadDashboard(slug) {
   currentSlug = slug;
   if (refreshTimer) clearInterval(refreshTimer);
   await refresh();
-  refreshTimer = setInterval(refresh, 10000);
+  refreshTimer = setInterval(refresh, 5000);
 }
 
 async function refresh() {
