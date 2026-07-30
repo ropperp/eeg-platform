@@ -20,6 +20,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Live-Fehleranzeige für Mitglieder mit ESP-/Zähler-Problem.** Bisher gab es keine Möglichkeit,
+  auf einen Blick zu sehen, bei wie vielen Mitgliedern gerade ein ESP offline ist oder der Zähler
+  (P1-Signal) nicht erreichbar ist -- man musste jedes Mitglied einzeln aufrufen. Neuer roter
+  Zähler-Badge auf dem "Mitglieder"-Menüpunkt in der Sidebar (Anzahl betroffener Mitglieder,
+  verschwindet automatisch, sobald das Problem behoben ist -- kein "gelesen"-Status wie bei
+  Postfach-Nachrichten, da es sich um einen Live-Zustand handelt). Neue Spalte "Zähler" in der
+  Mitgliederliste (rot "Fehler" / grün "OK" / grau "noch keine Daten") mit eigenem Filter und
+  Sortierung. Das Postfach-Badge in der Sidebar ist jetzt ebenfalls rot statt gelb, da dort u. a.
+  echte Fehlermeldungen (unbekannte Zählernummer, SSID-Wechsel) landen.
 - **ESP32-Firmware an neue Hardware ohne BC547-Transistor angepasst.** Der Transistor (R1/R2/
   R3/Diode) wurde aus dem Aufbau entfernt, RJ12 Pin 5 liegt jetzt direkt auf RX2. Der
   Transistor hat das P1-Signal invertiert -- das übernimmt jetzt die Software

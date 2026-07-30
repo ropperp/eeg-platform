@@ -1775,19 +1775,32 @@ $router->get('/portal/members', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    // ESP-Fehlerstatus je Mitglied (für die neue "Zähler"-Spalte + Sidebar-Badge, Patrick
+    // 30.07.2026): "Fehler" = mindestens ein aktiver Zählpunkt, der schon einmal gemeldet hat
+    // (esp_last_seen_at gesetzt), aber entweder länger als die Offline-Schwelle nicht mehr
+    // online war ODER online ist, dessen Zähler (P1-Signal) aber nicht erreichbar ist -- exakt
+    // dieselbe Logik wie die Status-Kachelzeile im Obmann-Dashboard (espOfflineAfterMinutes()).
+    $espOfflineMinutes = espOfflineAfterMinutes();
     $members = DB::fetchAll(
         "SELECT m.*,
                 COUNT(DISTINCT mp.id) AS metering_point_count,
                 bool_or(mp.type IN ('consumer', 'prosumer')) FILTER (WHERE mp.active) AS hat_bezug,
                 bool_or(mp.type IN ('producer', 'prosumer')) FILTER (WHERE mp.active) AS hat_einspeisung,
                 COALESCE(SUM(i.saldo_eur) FILTER (WHERE i.saldo_eur > 0 AND i.sent_at IS NULL), 0) AS open_amount,
-                EXISTS(SELECT 1 FROM membership_applications ma WHERE ma.member_id = m.id) AS via_online
+                EXISTS(SELECT 1 FROM membership_applications ma WHERE ma.member_id = m.id) AS via_online,
+                bool_or(mp.active AND mp.esp_last_seen_at IS NOT NULL) AS hat_esp_bekannt,
+                bool_or(
+                    mp.active AND mp.esp_last_seen_at IS NOT NULL AND (
+                        NOT (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval)
+                        OR (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT mp.meter_reachable)
+                    )
+                ) AS hat_esp_fehler
          FROM members m
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
          LEFT JOIN invoices i ON i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL
          WHERE m.community_id = ?
          GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
-        [$communityId]
+        [$espOfflineMinutes, $espOfflineMinutes, $communityId]
     );
     require ROOT . '/src/views/pages/member_list.php';
 });

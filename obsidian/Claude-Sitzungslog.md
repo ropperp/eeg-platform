@@ -8,6 +8,22 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (10) — Claude Code — Claude Sonnet 5
+**Auftrag:** Auf der Mitgliederseite ("beim Männchen") eine Zahl anzeigen, wie viele Mitglieder
+gerade ein Problem haben (Zähler nicht erreichbar / ESP offline); beim Postfach ebenfalls ein
+roter Kreis mit der Anzahl; in der Mitgliederliste danach sortieren können. Außerdem Details zu
+Prozessor/Speicher des ESP32 für eine geplante Serienbestellung.
+**Ergebnis:** Roter Badge auf dem "Mitglieder"-Sidebar-Link mit Live-Anzahl der Mitglieder mit
+ESP-/Zähler-Fehler (gleiche Schwellen-Logik wie die Status-Kachelzeile im Obmann-Dashboard,
+kein "gelesen"-Status nötig, da Live-Zustand). Neue Spalte "Zähler" in der Mitgliederliste
+(rot/grün/grau) mit eigenem Filter + Sortierung. Postfach-Badge von Gelb auf Rot umgestellt.
+Nebenbei einen bereits vorhandenen `icon('warning')`-Tippfehler (Symbol existiert nicht im
+Sprite, sollte `warning-circle` heißen) im Obmann-Dashboard und in der neuen Spalte behoben.
+`php tests/run.php` weiterhin 77/77. Hardware-Beratung zur Serienfertigung nur als Chat-Antwort
+(Prozessor/RAM/Flash-Empfehlung für Bestellung), keine Code-Änderung dafür.
+
+---
+
 ## 2026-07-30 (9) — Claude Code — Claude Sonnet 5
 **Auftrag:** Live-Leistungswerte über die API (`GET /api/v1/live`, per Node-RED ausgelesen)
 waren absurd hoch (70 kW statt tatsächlicher 5,8 kW Einspeisung), obwohl ESP-Webinterface und
