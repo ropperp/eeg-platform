@@ -138,8 +138,8 @@ class Mailer
         }
 
         $payload = json_encode([
-            'message'          => $message,
-            'saveToSentItems' => false,
+            'message'         => $message,
+            'saveToSentItems' => true,
         ]);
 
         $url = 'https://graph.microsoft.com/v1.0/users/' . rawurlencode($cfg['sender_address']) . '/sendMail';

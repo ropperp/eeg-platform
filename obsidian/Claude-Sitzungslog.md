@@ -8,6 +8,18 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (18) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nachgefragt, warum über die Microsoft-Graph-Anbindung verschickte E-Mails im
+Postfach nicht als gesendet zu sehen sind -- ob dafür noch etwas konfiguriert werden muss.
+**Ergebnis:** Ursache gefunden und auf Wunsch behoben: `Mailer::send()`
+(`webapp/src/Mailer.php`) rief den Graph-`sendMail`-Endpunkt bisher mit
+`saveToSentItems: false` auf -- rein codeseitig, keine fehlende Konfiguration in
+Azure/Outlook. Auf `true` umgestellt, damit alle über die Plattform verschickten Mails im
+"Gesendete Elemente"-Ordner der konfigurierten `sender_address` erscheinen. `php -l` +
+`php tests/run.php` (77/77) grün.
+
+---
+
 ## 2026-07-30 (17) — Claude Code — Claude Sonnet 5
 **Auftrag:** Korrektur zum vorigen Eintrag (16): Der Zählpunkt-Typ "prosumer" (ein Zähler, beide
 Richtungen kombiniert) bildet die Realität nicht ab. In Österreich haben Bezug und Einspeisung

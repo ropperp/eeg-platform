@@ -306,6 +306,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **Über Microsoft Graph versendete E-Mails landeten nicht im "Gesendete Elemente"-Ordner.**
+  `Mailer::send()` rief `sendMail` bisher mit `saveToSentItems: false` auf -- technisch kam
+  jede Mail an (HTTP 202), aber im Postfach der konfigurierten `sender_address` war im
+  Postausgang nichts zu sehen. Jetzt `saveToSentItems: true`, damit Passwort-Resets,
+  Vertrags-/Rechnungs-PDFs, Erstlogin-Einladungen usw. auch über Outlook/OWA nachvollziehbar
+  sind.
 - **Öffentliches Live-Dashboard: "Erzeugung heute" konnte 0 kWh zeigen, obwohl real eingespeist
   wurde.** Die Tageskennzahl (`/api/live/:slug`) berechnete den Basiswert als ERSTE Messung des
   Tages (`MIN(...) WHERE time >= CURRENT_DATE`) -- bei nur 1-2 Messwerten "heute" (z. B. beim
