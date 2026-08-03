@@ -1,6 +1,10 @@
 <?php $pageTitle = 'Mitglieder'; ob_start();
 $statusBadge = ['none' => 'gray', 'created' => 'yellow', 'signed' => 'green'];
 $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('check') . ' Unterschr.'];
+// EEGs ohne eigene Verträge (contracts_enabled = false, Beitrittserklärung genügt) sehen hier
+// statt Vertragsstatus die Zählpunktnummer für Bezug/Einspeisung -- das ist für sie die
+// praktisch relevantere Information (Patrick, 30.07.2026).
+$contractsEnabled = $contractsEnabled ?? true;
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
@@ -41,12 +45,14 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
       <option value="pending">Ausstehend</option>
       <option value="inactive">Archiviert</option>
     </select>
+    <?php if ($contractsEnabled): ?>
     <select id="filter-contract" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Verträge</option>
       <option value="none">Vertrag noch nicht erstellt</option>
       <option value="open">Erstellt, noch nicht unterschrieben</option>
       <option value="signed">Alles unterschrieben</option>
     </select>
+    <?php endif; ?>
     <select id="filter-art" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Mitgliedsarten</option>
       <option value="bezug">Bezug</option>
@@ -76,11 +82,17 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
         <th class="sortable" data-sort-key="email" data-sort-type="str" onclick="sortMembers(this)">E-Mail <span class="sort-arrow"></span></th>
         <th class="sortable" data-sort-key="since" data-sort-type="str" onclick="sortMembers(this)">Mitglied seit <span class="sort-arrow"></span></th>
         <th class="sortable" data-sort-key="status" data-sort-type="str" onclick="sortMembers(this)">Status <span class="sort-arrow"></span></th>
+        <?php if ($contractsEnabled): ?>
         <th class="sortable" style="text-align:center" data-sort-key="bezug" data-sort-type="str" onclick="sortMembers(this)">Bezugsvertr. <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:center" data-sort-key="einsp" data-sort-type="str" onclick="sortMembers(this)">Einspeisevertr. <span class="sort-arrow"></span></th>
+        <?php else: ?>
+        <th class="sortable" style="text-align:center" data-sort-key="znrbezug" data-sort-type="str" onclick="sortMembers(this)">ZP Bezug <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="znreinsp" data-sort-type="str" onclick="sortMembers(this)">ZP Einspeisung <span class="sort-arrow"></span></th>
+        <?php endif; ?>
         <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" onclick="sortMembers(this)">Offener Betrag <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:center" data-sort-key="herkunft" data-sort-type="str" onclick="sortMembers(this)">Herkunft <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:center" data-sort-key="esp" data-sort-type="num" onclick="sortMembers(this)">Zähler <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="lastlogin" data-sort-type="str" onclick="sortMembers(this)">Zuletzt angemeldet <span class="sort-arrow"></span></th>
         <th>Aktionen</th>
       </tr>
     </thead>
@@ -99,6 +111,9 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
       // esp-Filter/Sortierwert: 2 = Fehler (soll oben stehen), 1 = OK, 0 = keine ESP-Daten.
       $espFilterVal = $hatEspFehler ? 'fehler' : ($hatEspBekannt ? 'ok' : '');
       $espSortVal = $hatEspFehler ? 2 : ($hatEspBekannt ? 1 : 0);
+      $znrBezugLast8 = !empty($m['znr_bezug']) ? substr($m['znr_bezug'], -8) : null;
+      $znrEinspLast8 = !empty($m['znr_einspeisung']) ? substr($m['znr_einspeisung'], -8) : null;
+      $lastLoginAt = $m['last_login_at'] ?? null;
     ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
@@ -114,9 +129,12 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
           data-sort-status="<?= htmlspecialchars($m['status']) ?>"
           data-sort-bezug="<?= htmlspecialchars($bezug) ?>"
           data-sort-einsp="<?= htmlspecialchars($einsp) ?>"
+          data-sort-znrbezug="<?= htmlspecialchars($znrBezugLast8 ?? '') ?>"
+          data-sort-znreinsp="<?= htmlspecialchars($znrEinspLast8 ?? '') ?>"
           data-sort-offen="<?= (float)($m['open_amount'] ?? 0) ?>"
           data-sort-herkunft="<?= $herkunft ?>"
-          data-sort-esp="<?= $espSortVal ?>">
+          data-sort-esp="<?= $espSortVal ?>"
+          data-sort-lastlogin="<?= htmlspecialchars($lastLoginAt ?? '') ?>">
         <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
         <td>
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
@@ -131,12 +149,21 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
           <?php $sl = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => icon('archive') . ' Archiviert']; ?>
           <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= $sl[$m['status']] ?? htmlspecialchars($m['status']) ?></span>
         </td>
+        <?php if ($contractsEnabled): ?>
         <td style="text-align:center">
           <span class="badge badge-<?= $statusBadge[$bezug] ?>" style="font-size:.75rem"><?= $statusLabel[$bezug] ?></span>
         </td>
         <td style="text-align:center">
           <span class="badge badge-<?= $statusBadge[$einsp] ?>" style="font-size:.75rem"><?= $statusLabel[$einsp] ?></span>
         </td>
+        <?php else: ?>
+        <td style="text-align:center;font-family:monospace;font-size:.78rem" title="<?= htmlspecialchars($m['znr_bezug'] ?? '') ?>">
+          <?= $znrBezugLast8 ? '…' . htmlspecialchars($znrBezugLast8) : '<span style="color:var(--gray-400)">—</span>' ?>
+        </td>
+        <td style="text-align:center;font-family:monospace;font-size:.78rem" title="<?= htmlspecialchars($m['znr_einspeisung'] ?? '') ?>">
+          <?= $znrEinspLast8 ? '…' . htmlspecialchars($znrEinspLast8) : '<span style="color:var(--gray-400)">—</span>' ?>
+        </td>
+        <?php endif; ?>
         <td style="text-align:right;font-size:.85rem;white-space:nowrap">
           <?php $amount = (float)($m['open_amount'] ?? 0); ?>
           <?php if ($amount > 0): ?>
@@ -161,6 +188,15 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
             <span class="badge badge-gray" style="font-size:.68rem" title="Noch keine ESP-Meldung erhalten">—</span>
           <?php endif; ?>
         </td>
+        <td style="font-size:.8rem;white-space:nowrap">
+          <?php if (empty($m['user_id'])): ?>
+            <span style="color:var(--gray-400)">—</span>
+          <?php elseif (empty($lastLoginAt)): ?>
+            <span style="color:#b45309">Noch nicht angemeldet</span>
+          <?php else: ?>
+            <?= date('d.m.Y H:i', strtotime($lastLoginAt)) ?>
+          <?php endif; ?>
+        </td>
         <td style="white-space:nowrap">
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
           &nbsp;·&nbsp;
@@ -169,7 +205,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
       </tr>
     <?php endforeach; ?>
     <?php if (empty($members)): ?>
-      <tr><td colspan="11" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Mitglieder.</td></tr>
+      <tr><td colspan="12" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Mitglieder.</td></tr>
     <?php endif; ?>
     </tbody>
   </table>
@@ -179,7 +215,7 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
 function filterMembers() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const s = document.getElementById('filter-status').value;
-  const c = document.getElementById('filter-contract').value;
+  const c = document.getElementById('filter-contract')?.value || '';
   const a = document.getElementById('filter-art').value;
   const h = document.getElementById('filter-herkunft').value;
   const e = document.getElementById('filter-esp').value;

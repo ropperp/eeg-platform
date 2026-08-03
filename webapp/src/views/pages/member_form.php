@@ -123,6 +123,83 @@ ob_start();
     </div>
   </div>
 
+  <?php if (!isset($member)): ?>
+  <div class="card" style="margin-bottom:1.5rem">
+    <h3 style="margin-bottom:1rem">Zählpunkte (optional)</h3>
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
+      Falls schon bekannt (z.&nbsp;B. aus einer offline unterschriebenen Beitrittserklärung), können
+      hier gleich die Zählpunkte für Bezug und/oder Einspeisung angelegt werden. Ein Prosumer hat
+      zwei getrennte Zählpunktnummern (AT...) — eine für Bezug, eine für Einspeisung —, die sich
+      aber dieselbe Zählernummer teilen können. Lässt sich später jederzeit auf der
+      Mitglieds-Detailseite ergänzen oder ändern.
+    </p>
+
+    <label style="display:flex;align-items:center;gap:.5rem;font-weight:600;margin-bottom:.5rem">
+      <input type="checkbox" name="add_bezug_zp" id="add-bezug-zp" value="1" style="width:auto"
+             onchange="toggleNewMemberZpFields()" <?= !empty($_POST['add_bezug_zp']) ? 'checked' : '' ?>>
+      Bezieht Strom (Zählpunkt für Bezug anlegen)
+    </label>
+    <div id="new-mp-bezug-fields" class="grid-2" style="display:<?= !empty($_POST['add_bezug_zp']) ? 'grid' : 'none' ?>;margin:.25rem 0 1.25rem 1.6rem">
+      <div class="form-group">
+        <label style="font-size:.8rem">Zählpunktnummer (AT...)</label>
+        <input type="text" name="bezug_zaehlpunkt_nr" placeholder="AT001000000000000000..."
+               style="font-family:monospace;font-size:.78rem" value="<?= htmlspecialchars($_POST['bezug_zaehlpunkt_nr'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label style="font-size:.8rem">Zählernummer (13 Stellen)</label>
+        <input type="text" name="bezug_meter_code" placeholder="1234567890123" maxlength="13" pattern="\d{13}"
+               style="font-family:monospace;font-size:.78rem" value="<?= htmlspecialchars($_POST['bezug_meter_code'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label style="font-size:.8rem">Geschätzter Jahresverbrauch (kWh)</label>
+        <input type="text" name="bezug_jahresverbrauch_kwh" placeholder="z. B. 3500" style="font-size:.78rem"
+               value="<?= htmlspecialchars($_POST['bezug_jahresverbrauch_kwh'] ?? '') ?>">
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:.5rem;font-weight:600;margin-bottom:.5rem">
+      <input type="checkbox" name="add_einspeisung_zp" id="add-einspeisung-zp" value="1" style="width:auto"
+             onchange="toggleNewMemberZpFields()" <?= !empty($_POST['add_einspeisung_zp']) ? 'checked' : '' ?>>
+      Speist ein (Zählpunkt für Einspeisung anlegen)
+    </label>
+    <div id="new-mp-einspeisung-fields" class="grid-2" style="display:<?= !empty($_POST['add_einspeisung_zp']) ? 'grid' : 'none' ?>;margin:.25rem 0 0 1.6rem">
+      <div class="form-group">
+        <label style="font-size:.8rem">Zählpunktnummer (AT...)</label>
+        <input type="text" name="einspeisung_zaehlpunkt_nr" placeholder="AT001000000000000000..."
+               style="font-family:monospace;font-size:.78rem" value="<?= htmlspecialchars($_POST['einspeisung_zaehlpunkt_nr'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label style="font-size:.8rem">Zählernummer (13 Stellen)</label>
+        <input type="text" name="einspeisung_meter_code" placeholder="1234567890123" maxlength="13" pattern="\d{13}"
+               style="font-family:monospace;font-size:.78rem" value="<?= htmlspecialchars($_POST['einspeisung_meter_code'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label style="font-size:.8rem">Leistung PV-Anlage (kWp)</label>
+        <input type="text" name="einspeisung_engpassleistung_kw" placeholder="z. B. 9,90" style="font-size:.78rem"
+               value="<?= htmlspecialchars($_POST['einspeisung_engpassleistung_kw'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label style="font-size:.8rem">Geplante Einspeisung (kWh/Jahr)</label>
+        <input type="text" name="einspeisung_geplante_einspeisung_kwh" placeholder="z. B. 8000" style="font-size:.78rem"
+               value="<?= htmlspecialchars($_POST['einspeisung_geplante_einspeisung_kwh'] ?? '') ?>">
+      </div>
+    </div>
+    <p style="font-size:.75rem;color:var(--gray-600);margin-top:1rem">
+      Hinweis: Werden für Bezug UND Einspeisung dieselbe Zählernummer eingetragen (typisch bei
+      einem Prosumer mit nur einem physischen Zähler), ist das kein Fehler — es erscheint dazu
+      lediglich eine kurze Info-Meldung im Postfach.
+    </p>
+  </div>
+  <script>
+    function toggleNewMemberZpFields() {
+      document.getElementById('new-mp-bezug-fields').style.display =
+        document.getElementById('add-bezug-zp').checked ? 'grid' : 'none';
+      document.getElementById('new-mp-einspeisung-fields').style.display =
+        document.getElementById('add-einspeisung-zp').checked ? 'grid' : 'none';
+    }
+  </script>
+  <?php endif; ?>
+
   <div class="card" style="margin-bottom:1.5rem">
     <h3 style="margin-bottom:1rem">Weitere Informationen</h3>
     <div class="grid-2">
