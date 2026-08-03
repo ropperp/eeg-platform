@@ -8,6 +8,30 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-03 (20) — Claude Code — Claude Sonnet 5
+**Auftrag:** Ob die neu bestellten ESP32-Boards von den Hardwareanforderungen her passen (Log
+mit Flash-/RAM-Auslastung + Chip-Erkennung geteilt). Dann: OTA-Netzwerkport wird in der
+Arduino-IDE trotz vorherigem `WiFi.setSleep(false)`-Fix weiterhin nicht angezeigt, obwohl das
+Gerät im selben Subnetz erreichbar ist.
+**Ergebnis:** Chip/CPU/WLAN/RAM passen (ESP32-D0WD-V3, Dual-Core, 240 MHz, RAM nur 16 %
+ausgelastet). Flash-Auslastung von 88 % bezog sich nur auf das gewählte Partition Scheme, nicht
+den physischen Chip -- per `esptool flash_id` echte Chipgröße geprüft: tatsächlich 4 MB (kein
+Fehlkauf, aber auch kein Upgrade). Da die Firmware kein SPIFFS/LittleFS/FFat nutzt, Partition
+Scheme auf "Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)" umgestellt -- kostenlos mehr
+App-Platz (1,25→1,9 MB), Auslastung sank auf 59 %. Patrick hat sich bewusst für die 4-MB-Boards
+entschieden (reicht für den geplanten Umfang inkl. möglicher RGB-Fehleranzeige), kein
+Hardware-Wechsel nötig. OTA-Problem: `ping p1-smartmeter.local` + `dns-sd -B _arduino._tcp`
+zeigten mDNS funktioniert einwandfrei (keine Firewall-/Client-Isolations-Ursache wie zuerst
+vermutet) -- aber `dns-sd` fand GLEICHZEITIG `p1-smartmeter` UND `p1-smartmeter-2`: der
+OTA-Hostname war in der Firmware für jedes Gerät identisch hart codiert, im Gegensatz zum
+Setup-AP-Namen (`P1-Setup-XXXX`), der schon immer korrekt per Chip-MAC eindeutig war -- fällt
+erst beim gleichzeitigen Testen mehrerer physischer Boards auf. Fix in
+`esp32-firmware/p1-smart-meter/sketch_ESP32_P1_Smart_Meter.ino`: OTA-Hostname jetzt ebenfalls
+`p1-smartmeter-XXXX` (Chip-MAC-Suffix). README/CHANGELOG/ESP_IDEEN.md aktualisiert. Kein
+PHP-Testlauf nötig (reine Firmware-Änderung), `.ino`-Klammernbalance geprüft.
+
+---
+
 ## 2026-07-30 (19) — Claude Code — Claude Sonnet 5
 **Auftrag:** Drei Erweiterungswünsche für die Mitgliederverwaltung: (1) Da bei Patricks Verein
 Verträge weggelassen werden (die Beitrittserklärung deckt AGB/Datenschutz/Preisliste/Statuten

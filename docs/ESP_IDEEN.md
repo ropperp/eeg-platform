@@ -66,6 +66,37 @@ EDA-Exportdateien vorliegen (Format-Muster nötig).
 
 ## Umgesetzt
 
+- **Bug: OTA-Netzwerkport in Arduino-IDE nicht erkennbar bei mehreren Geräten -- eigentliche
+  Ursache war ein mDNS-Namenskonflikt, nicht Firewall/Netzwerk (Patrick 03.08.2026):** Nach
+  Erhalt der bestellten Boards (4-MB-Flash bestätigt per `esptool flash_id`, bewusst so gewünscht
+  -- reicht für den geplanten Funktionsumfang inkl. einer möglichen RGB-Fehleranzeige locker,
+  siehe Partition-Scheme-Fix unten) zeigte die Arduino-IDE den Netzwerk-Port weiterhin nicht an.
+  Diagnose unabhängig von der IDE: `ping p1-smartmeter.local` löste auf und antwortete,
+  `dns-sd -B _arduino._tcp` fand den Dienst sofort -- mDNS auf Netzwerkebene also einwandfrei,
+  keine Firewall-/Client-Isolations-Blockade. Die Browse-Ausgabe zeigte aber GLEICHZEITIG
+  `p1-smartmeter` UND `p1-smartmeter-2`: der OTA-Hostname war in der Firmware für jedes Gerät
+  identisch hart codiert (`ArduinoOTA.setHostname("p1-smartmeter")`), der Setup-AP-Name
+  (`P1-Setup-XXXX`) dagegen schon immer korrekt per Chip-MAC eindeutig -- ein Inkonsistenz, die
+  erst beim Testen mit mehreren physischen Boards gleichzeitig auffiel (mit nur einem Testgerät
+  vorher nie sichtbar). Fix: OTA-Hostname jetzt nach demselben Muster eindeutig
+  (`p1-smartmeter-XXXX`). Sofort-Workaround für den Moment, bis alle Geräte den Fix haben:
+  Upload direkt per IP (`espota.py -i <ip> -p 3232 --auth=... -f firmware.bin`) statt über die
+  automatische Port-Erkennung der IDE.
+- **Flash-Headroom-Frage nach Serienbestellung geklärt (Patrick 03.08.2026):** Nach der
+  Bestell-Empfehlung (siehe Sitzungslog, Eintrag zu Prozessor/RAM/Flash) wollte Patrick wissen,
+  ob die tatsächlich bestellten/gelieferten Boards (4-MB-Flash, bewusst kostengünstig gewählt)
+  zur Firmware passen. Kompilier-Log zeigte 88 % Auslastung des 1,25-MB-OTA-App-Slots -- das
+  sagt aber nichts über den physischen Flash-Chip aus, sondern nur über das in der Arduino-IDE
+  gewählte Partition Scheme ("Default 4MB with spiffs"). Per `esptool flash_id` bestätigt:
+  Chip hat tatsächlich nur 4 MB (kein Fehlkauf, aber auch kein Flash-Upgrade gegenüber dem alten
+  Testgerät). Da die Firmware kein SPIFFS/LittleFS/FFat nutzt (nur `Preferences`/NVS fürs
+  WLAN-Config), Partition Scheme auf "Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)"
+  umgestellt -- kostet nichts, weil das ungenutzte Dateisystem ohnehin nie beschrieben wird,
+  bringt den App-Slot von 1,25 MB auf 1,9 MB. Damit sank die Auslastung auf 59 % bei
+  unverändertem Sketch. Patrick hat sich danach bewusst für die 4-MB-Boards entschieden (passt
+  für den geplanten Funktionsumfang, inkl. einer angedachten RGB-Fehleranzeige) -- kein
+  Hardware-Wechsel nötig. Wichtig beim Umstellen des Partition Scheme: einmalig per USB-Kabel
+  flashen, nicht per OTA, weil sich dabei die Partitionstabelle selbst ändert.
 - **Bug: ein physischer Zähler mit Bezug+Einspeisung als zwei Zählpunkte registriert bekam nie
   vollständig Live-Daten (Patrick 30.07.2026):** Patrick fragte nach, ob die ESP-Zählung schon
   berücksichtigt, dass EIN Zähler zwei Zählpunktnummern haben kann (z.B. ein Bezugs- und ein
