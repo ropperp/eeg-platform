@@ -20,6 +20,28 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Mitgliederliste zeigt bei EEGs ohne eigene Verträge die Zählpunktnummer statt Vertragsstatus.**
+  Ist `contracts_enabled` für eine EEG deaktiviert (die Beitrittserklärung genügt als Vertrag +
+  SEPA-Mandat, siehe bestehender Schalter unter Platform-Admin → EEG-Einstellungen), zeigen die
+  Spalten "Bezugsvertr."/"Einspeisevertr." dort nicht mehr Vertragsstatus, sondern die letzten
+  8 Stellen der Zählpunktnummer für Bezug bzw. Einspeisung (oder „—", falls noch kein
+  entsprechender Zählpunkt hinterlegt ist). EEGs mit aktiven Verträgen sehen weiterhin die
+  bisherige Vertragsstatus-Anzeige, unverändert.
+- **Zählpunkte schon beim Anlegen eines neuen Mitglieds erfassbar.** Bisher fragte das
+  Anlage-Formular gar nicht nach Zählpunkten -- die mussten immer erst nachträglich auf der
+  Mitglieds-Detailseite ergänzt werden. Neue, optionale Sektion "Zählpunkte" im
+  Mitglied-anlegen-Formular: zwei Checkboxen ("Bezieht Strom" / "Speist ein") blenden bei Bedarf
+  die passenden Felder ein (Zählpunktnummer, Zählernummer, sowie Jahresverbrauch bzw. Leistung
+  PV-Anlage/geplante Einspeisung) -- praktisch beim manuellen Anlegen aus einer offline
+  unterschriebenen Beitrittserklärung, wenn diese Angaben schon vorliegen. Dieselbe
+  Zählernummer für beide Richtungen (Prosumer mit einem physischen Zähler) ist dabei
+  ausdrücklich kein Fehler.
+- **"Zuletzt angemeldet" je Mitglied sichtbar.** Neue Spalte in der Mitgliederliste sowie
+  Anzeige auf der Mitglieds-Detailseite: Datum/Uhrzeit des letzten Logins (`users.last_login_at`,
+  wurde bereits bei jedem Login aktualisiert, war bisher aber nirgends in der Oberfläche zu
+  sehen), sonst "Noch nicht angemeldet" (Login-Konto vorhanden, aber noch nie benutzt) bzw. „—"
+  (kein Login-Konto). Hilfreich, um zu erkennen, ob ein neu angelegtes Mitglied sich überhaupt
+  schon eingeloggt hat (z.&nbsp;B. bevor eine SEPA-Vereinbarung o.&nbsp;Ä. erwartet wird).
 - **Pre-Launch-Hinweis-Popup für Mitglieder.** Beim Login (Mitglieder-Ansicht, nicht für
   Obmänner/Platform-Admins) erscheint jetzt bei jedem Login ein Hinweis, dass sich die
   Plattform noch in der Entwicklungs-/Vorbereitungsphase befindet und sich Inhalte jederzeit

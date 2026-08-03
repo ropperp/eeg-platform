@@ -740,6 +740,40 @@ function createMemberRecord(string $communityId, array $f): array
 }
 
 /**
+ * Legt bei der Mitglied-Neuanlage optional gleich einen Zählpunkt an (statt erst hinterher auf
+ * der Detailseite), z.B. wenn beim manuellen Anlegen aus einer Offline-Beitrittserklärung schon
+ * bekannt ist, ob/wie das Mitglied bezieht oder einspeist. $extra: 'meter_code' (13-stellige
+ * Zählernummer), plus je nach Typ 'jahresverbrauch_kwh' bzw. 'engpassleistung_kw'/
+ * 'geplante_einspeisung_kwh' -- dieselben Felder wie beim späteren Hinzufügen über
+ * /portal/members/:id/metering-points. Die Zählpunktnummer selbst wurde vom Aufrufer bereits auf
+ * Eindeutigkeit geprüft (siehe POST /portal/members); eine geteilte Zählernummer ist dagegen kein
+ * Fehler (Prosumer-Regelfall), nur eine informative Postfach-Meldung wie beim regulären Hinzufügen.
+ */
+function createMeteringPointForMember(string $communityId, string $memberId, string $znr, string $type, array $extra): void
+{
+    $meterCode = trim($extra['meter_code'] ?? '') ?: null;
+    if ($meterCode) {
+        $sharedWith = DB::fetchOne(
+            "SELECT 1 FROM metering_points WHERE community_id = ? AND meter_code = ? AND active = true",
+            [$communityId, $meterCode]
+        );
+        if ($sharedWith) {
+            notifyMeterCodeShared($communityId, $meterCode);
+        }
+    }
+    $jahresverbrauch = trim((string)($extra['jahresverbrauch_kwh'] ?? '')) !== '' ? (float)str_replace(',', '.', $extra['jahresverbrauch_kwh']) : null;
+    $engpassleistung  = trim((string)($extra['engpassleistung_kw'] ?? '')) !== '' ? (float)str_replace(',', '.', $extra['engpassleistung_kw']) : null;
+    $geplanteEinsp    = trim((string)($extra['geplante_einspeisung_kwh'] ?? '')) !== '' ? (float)str_replace(',', '.', $extra['geplante_einspeisung_kwh']) : null;
+
+    DB::execute(
+        'INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, type, meter_code, jahresverbrauch_kwh, engpassleistung_kw, geplante_einspeisung_kwh, registered_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
+         ON CONFLICT (community_id, zaehlpunkt_nr) DO NOTHING',
+        [$communityId, $memberId, $znr, $type, $meterCode, $jahresverbrauch, $engpassleistung, $geplanteEinsp]
+    );
+}
+
+/**
  * Schreibt einen Eintrag ins Admin-Aktivitätslog (Abrechnung, Mitglieder, EDA-Import,
  * Fehlermeldungen, Änderungen an Mitglied/EEG). Absichtlich fehlertolerant: ein Logging-
  * Fehler darf die eigentliche Aktion nie verhindern.
@@ -2047,14 +2081,23 @@ $router->get('/portal/members', function () {
                         NOT (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval)
                         OR (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT mp.meter_reachable)
                     )
-                ) AS hat_esp_fehler
+                ) AS hat_esp_fehler,
+                MAX(u.last_login_at) AS last_login_at,
+                (SELECT mp2.zaehlpunkt_nr FROM metering_points mp2
+                 WHERE mp2.member_id = m.id AND mp2.type IN ('consumer', 'prosumer') AND mp2.active = true
+                 ORDER BY mp2.created_at LIMIT 1) AS znr_bezug,
+                (SELECT mp2.zaehlpunkt_nr FROM metering_points mp2
+                 WHERE mp2.member_id = m.id AND mp2.type IN ('producer', 'prosumer') AND mp2.active = true
+                 ORDER BY mp2.created_at LIMIT 1) AS znr_einspeisung
          FROM members m
+         LEFT JOIN users u ON u.id = m.user_id
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
          LEFT JOIN invoices i ON i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL
          WHERE m.community_id = ?
          GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
         [$espOfflineMinutes, $espOfflineMinutes, $communityId]
     );
+    $contractsEnabled = contractsEnabled($communityId);
     require ROOT . '/src/views/pages/member_list.php';
 });
 
@@ -2124,6 +2167,47 @@ $router->post('/portal/members', function () {
         return;
     }
 
+    // Optionale Zählpunkte gleich bei der Anlage (statt erst hinterher auf der Detailseite) --
+    // Bezug und Einspeisung haben eigene Zählpunktnummern (AT...), auch wenn es derselbe
+    // physische Zähler/dieselbe Zählernummer ist (Prosumer). Beide Checkboxen sind optional.
+    $znrBezugNew = null;
+    $znrEinspNew = null;
+    if (!empty($_POST['add_bezug_zp'])) {
+        $znrBezugNew = strtoupper(trim($_POST['bezug_zaehlpunkt_nr'] ?? ''));
+        if ($znrBezugNew === '') {
+            $error = 'Bitte die Zählpunktnummer für den Bezugs-Zählpunkt angeben (oder das Häkchen entfernen).';
+            require ROOT . '/src/views/pages/member_form.php';
+            return;
+        }
+    }
+    if (!empty($_POST['add_einspeisung_zp'])) {
+        $znrEinspNew = strtoupper(trim($_POST['einspeisung_zaehlpunkt_nr'] ?? ''));
+        if ($znrEinspNew === '') {
+            $error = 'Bitte die Zählpunktnummer für den Einspeise-Zählpunkt angeben (oder das Häkchen entfernen).';
+            require ROOT . '/src/views/pages/member_form.php';
+            return;
+        }
+    }
+    if ($znrBezugNew && $znrEinspNew && $znrBezugNew === $znrEinspNew) {
+        $error = 'Bezugs- und Einspeise-Zählpunkt dürfen nicht dieselbe Zählpunktnummer haben (dieselbe Zählernummer ist bei einem Prosumer dagegen normal).';
+        require ROOT . '/src/views/pages/member_form.php';
+        return;
+    }
+    foreach (array_filter([$znrBezugNew, $znrEinspNew]) as $znrToCheck) {
+        $znrOwner = DB::fetchOne(
+            "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
+             JOIN members m ON m.id = mp.member_id
+             WHERE mp.community_id = ? AND mp.zaehlpunkt_nr = ?",
+            [$communityId, $znrToCheck]
+        );
+        if ($znrOwner) {
+            $error = 'Die Zählpunktnummer ' . $znrToCheck . ' ist bereits vergeben — an '
+                . $znrOwner['first_name'] . ' ' . $znrOwner['last_name'] . ' (KdNr ' . ($znrOwner['kundennummer'] ?? '—') . ').';
+            require ROOT . '/src/views/pages/member_form.php';
+            return;
+        }
+    }
+
     $consentFields = [
         'zustimmung_mitgliedschaft', 'zustimmung_vollmacht', 'zustimmung_widerrufsfrist',
         'zustimmung_email_kommunikation', 'zustimmung_datenschutz', 'zustimmung_agb',
@@ -2140,6 +2224,20 @@ $router->post('/portal/members', function () {
     $result = createMemberRecord($communityId, array_merge($_POST, ['andere_eeg' => isset($_POST['andere_eeg'])]));
     logAudit($communityId, 'member.create', 'member', $result['member_id'],
         'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' angelegt (KdNr ' . $result['kundennummer'] . ')');
+
+    if ($znrBezugNew) {
+        createMeteringPointForMember($communityId, $result['member_id'], $znrBezugNew, 'consumer', [
+            'meter_code'          => trim($_POST['bezug_meter_code'] ?? ''),
+            'jahresverbrauch_kwh' => $_POST['bezug_jahresverbrauch_kwh'] ?? '',
+        ]);
+    }
+    if ($znrEinspNew) {
+        createMeteringPointForMember($communityId, $result['member_id'], $znrEinspNew, 'producer', [
+            'meter_code'               => trim($_POST['einspeisung_meter_code'] ?? ''),
+            'engpassleistung_kw'       => $_POST['einspeisung_engpassleistung_kw'] ?? '',
+            'geplante_einspeisung_kwh' => $_POST['einspeisung_geplante_einspeisung_kwh'] ?? '',
+        ]);
+    }
 
     // Erstlogin-Einladung wurde per E-Mail verschickt -> kein Temp-Passwort am Bildschirm nötig.
     if ($result['invite_sent']) {
@@ -2164,6 +2262,7 @@ $router->post('/portal/members', function () {
              WHERE m.community_id = ? GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
             [$communityId]
         );
+        $contractsEnabled = contractsEnabled($communityId);
         require ROOT . '/src/views/pages/member_list.php';
         exit;
     }
@@ -2402,6 +2501,9 @@ $router->get('/portal/members/:id', function ($params) {
     $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at DESC', [$params['id']]);
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
+    $member['last_login_at'] = $member['user_id']
+        ? (DB::fetchOne('SELECT last_login_at FROM users WHERE id = ?', [$member['user_id']])['last_login_at'] ?? null)
+        : null;
     require ROOT . '/src/views/pages/member_detail.php';
 });
 

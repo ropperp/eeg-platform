@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-07-30 (19) — Claude Code — Claude Sonnet 5
+**Auftrag:** Drei Erweiterungswünsche für die Mitgliederverwaltung: (1) Da bei Patricks Verein
+Verträge weggelassen werden (die Beitrittserklärung deckt AGB/Datenschutz/Preisliste/Statuten
+bereits ab), soll die Mitgliederliste statt Bezugs-/Einspeisevertrag-Status die Zählpunktnummer
+für Bezug bzw. Einspeisung (letzte 8 Stellen) zeigen. (2) Beim manuellen Anlegen eines Mitglieds
+(z.&nbsp;B. aus einer offline unterschriebenen Beitrittserklärung) sollen gleich optional
+Zählpunkte mit Details (Jahresverbrauch, PV-Leistung, geplante Einspeisung) angelegt werden
+können, statt das immer erst nachträglich zu tun. (3) Anzeige, wann sich ein Mitglied zuletzt
+eingeloggt hat (oder "noch nicht angemeldet"), um zu erkennen, ob ein neu angelegter Zugang
+überhaupt schon benutzt wurde.
+**Ergebnis:** (1) Mitgliederliste (`member_list.php`) zeigt die ZP-Spalten nur, wenn
+`contracts_enabled` für die jeweilige EEG aus ist (bestehender Schalter) -- EEGs mit aktiven
+Verträgen sehen unverändert den Vertragsstatus. (2) Neue optionale "Zählpunkte"-Sektion im
+Anlage-Formular (`member_form.php`, zwei Checkboxen Bezug/Einspeisung mit Feldern), serverseitig
+in POST /portal/members validiert (Pflichtfeld bei aktivierter Checkbox, Duplikat-Prüfung,
+Bezug≠Einspeisung) und über neue Helper-Funktion `createMeteringPointForMember()` angelegt --
+nutzt dieselbe `notifyMeterCodeShared()`-Logik wie das reguläre Hinzufügen, falls beide
+Richtungen dieselbe Zählernummer bekommen (Prosumer). (3) `users.last_login_at` wurde bereits bei
+jedem Login geschrieben (`Auth.php`), war aber nirgends sichtbar -- jetzt neue Spalte in der
+Mitgliederliste und Badge auf der Detailseite. Keine Schemaänderungen nötig (alle verwendeten
+Spalten existierten schon). `php -l` + `php tests/run.php` (77/77) grün. UI konnte in dieser
+Umgebung nicht live getestet werden (kein Docker-Daemon verfügbar, nur Code-Review + Lint/Tests).
+
+---
+
 ## 2026-07-30 (18) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nachgefragt, warum über die Microsoft-Graph-Anbindung verschickte E-Mails im
 Postfach nicht als gesendet zu sehen sind -- ob dafür noch etwas konfiguriert werden muss.

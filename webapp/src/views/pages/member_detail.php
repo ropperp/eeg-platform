@@ -19,6 +19,13 @@
   <?php else: ?>
   <span class="badge badge-gray" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail"><?= icon('envelope-simple') ?> Offline</span>
   <?php endif; ?>
+  <?php if (empty($member['user_id'])): ?>
+  <span class="badge badge-gray" title="Kein Login-Konto vorhanden">Kein Zugang</span>
+  <?php elseif (empty($member['last_login_at'])): ?>
+  <span class="badge badge-yellow" title="Login-Konto vorhanden, aber noch nie eingeloggt">Noch nicht angemeldet</span>
+  <?php else: ?>
+  <span class="badge badge-gray" title="Letzter Login">Zuletzt angemeldet: <?= date('d.m.Y H:i', strtotime($member['last_login_at'])) ?></span>
+  <?php endif; ?>
   <div style="margin-left:auto;display:flex;gap:.5rem">
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
