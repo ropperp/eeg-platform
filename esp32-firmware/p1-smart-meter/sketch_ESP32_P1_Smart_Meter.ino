@@ -798,7 +798,17 @@ void setup() {
 
     configTime(0, 0, ntpServer);   // NTP (UTC) fuer ts im Payload
 
-    ArduinoOTA.setHostname("p1-smartmeter");
+    // Eindeutiger OTA-/mDNS-Hostname pro Geraet (gleiches Muster wie der Setup-AP-Name oben,
+    // "P1-Setup-XXXX") -- bei mehreren gleichzeitig im selben Netz laufenden Geraeten sonst ein
+    // mDNS-Namenskonflikt: der zweite/dritte Zaehler bekommt automatisch "p1-smartmeter-2"/"-3"
+    // zugewiesen, was sich bei jedem Boot aendern kann und in der Arduino-IDE-Port-Liste nicht
+    // mehr zuverlaessig einem bestimmten physischen Geraet zuzuordnen ist (Patrick, 03.08.2026,
+    // beim Testen mit mehreren Boards entdeckt: `dns-sd -B _arduino._tcp` zeigte "p1-smartmeter"
+    // UND "p1-smartmeter-2" gleichzeitig).
+    uint64_t chipId = ESP.getEfuseMac();
+    char otaHostname[24];
+    snprintf(otaHostname, sizeof(otaHostname), "p1-smartmeter-%04X", (uint16_t)(chipId & 0xFFFF));
+    ArduinoOTA.setHostname(otaHostname);
     ArduinoOTA.setPassword("GreenData2026!");
     ArduinoOTA.onStart([]() { Serial.println("OTA Start"); });
     ArduinoOTA.onEnd([]()   { Serial.println("OTA Ende");  });

@@ -59,14 +59,22 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   aufs Gerät verteilt werden). Benutzername/Passwort vom Obmann/Admin erhalten (siehe
   `scripts/mqtt_secure_setup.sh` im Hauptrepo) und im selben Formular eintragen -- der Broker
   verlangt das inzwischen auf beiden Ports.
-- OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied. Taucht der
-  Netzwerk-Port in der Arduino-IDE (Tools → Port) nicht auf: `WiFi.setSleep(false)` wird seit
-  30.07.2026 direkt nach dem WLAN-Connect gesetzt (Modem-Sleep verzögert/verwirft sonst
-  eingehende mDNS-Multicast-Pakete, macht den Port "mal da, mal nicht" sichtbar). Zusätzlich
-  prüfen: Rechner und ESP im selben WLAN/Subnetz (keine Client-/AP-Isolation, kein Gastnetz),
-  ~10-20 s nach dem Boot warten, Port-Dropdown notfalls neu öffnen. Funktioniert es weiterhin
-  nicht, per IP direkt hochladen (`espota.py -i <esp-ip> -p 3232 --auth=<passwort> -f
-  firmware.bin`, IP steht im seriellen Log als "WLAN verbunden. IP: …" oder im Router).
+- OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied. Der
+  OTA-/mDNS-Hostname ist seit 03.08.2026 pro Gerät eindeutig (`p1-smartmeter-XXXX`, letzte
+  4 Hex-Stellen der Chip-MAC, gleiches Muster wie der Setup-AP-Name `P1-Setup-XXXX`) — vorher
+  hatten alle Geräte denselben Hostnamen `p1-smartmeter`, was bei mehreren gleichzeitig laufenden
+  Geräten zu einem mDNS-Namenskonflikt führte (`dns-sd -B _arduino._tcp` zeigte dann z. B.
+  `p1-smartmeter` UND `p1-smartmeter-2` gleichzeitig, nicht zuverlässig einem bestimmten
+  physischen Gerät zuordenbar). Taucht der Netzwerk-Port in der Arduino-IDE (Tools → Port)
+  trotzdem nicht auf: `WiFi.setSleep(false)` wird seit 30.07.2026 direkt nach dem WLAN-Connect
+  gesetzt (Modem-Sleep verzögert/verwirft sonst eingehende mDNS-Multicast-Pakete, macht den Port
+  "mal da, mal nicht" sichtbar). Zusätzlich prüfen: Rechner und ESP im selben WLAN/Subnetz (keine
+  Client-/AP-Isolation, kein Gastnetz) -- lässt sich unabhängig von der Arduino-IDE testen mit
+  `ping <hostname>.local` und `dns-sd -B _arduino._tcp` (macOS); antworten beide, liegt es nicht
+  an Firewall/Netzwerk, sondern höchstens an der IDE-Portliste (Dropdown neu öffnen oder IDE neu
+  starten, ~10-20 s nach dem Boot warten). Funktioniert es weiterhin nicht, per IP direkt
+  hochladen (`espota.py -i <esp-ip> -p 3232 --auth=<passwort> -f firmware.bin`, IP steht im
+  seriellen Log als "WLAN verbunden. IP: …" oder im Router).
 
 ## Bezug zur Plattform (`eeg-platform`-Repo)
 

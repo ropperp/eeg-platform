@@ -328,6 +328,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **ESP32-Firmware: OTA-Hostname war für alle Geräte identisch, führte bei mehreren
+  gleichzeitig laufenden Geräten zu mDNS-Namenskonflikt.** `ArduinoOTA.setHostname("p1-smartmeter")`
+  war hart codiert und für jedes geflashte Gerät gleich -- beim Testen mit mehreren physischen
+  Boards zeigte `dns-sd -B _arduino._tcp` gleichzeitig `p1-smartmeter` UND `p1-smartmeter-2`
+  (mDNS löst Namenskollisionen selbst per Auto-Suffix auf, das sich aber je nach Bootreihenfolge
+  ändern kann und keinem bestimmten physischen Gerät zuverlässig zuzuordnen ist). Jetzt eindeutig
+  je Gerät (`p1-smartmeter-XXXX`, letzte 4 Hex-Stellen der Chip-MAC), gleiches Muster wie der
+  bereits vorher korrekt eindeutige Setup-AP-Name (`P1-Setup-XXXX`).
 - **Über Microsoft Graph versendete E-Mails landeten nicht im "Gesendete Elemente"-Ordner.**
   `Mailer::send()` rief `sendMail` bisher mit `saveToSentItems: false` auf -- technisch kam
   jede Mail an (HTTP 202), aber im Postfach der konfigurierten `sender_address` war im
