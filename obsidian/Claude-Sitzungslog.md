@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-03 (21) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nach einer echten Support-Anfrage zwei Wünsche: (1) beim Support-Icon in der
+Obmann-Sidebar einen roten Punkt mit Zahl für ungelesene Nachrichten (E-Mail-Benachrichtigung
+funktioniert schon, aber ohne Portal-Übersicht weiß man nicht, was neu ist). (2) Im Dark Mode
+ist beim Support ein Feld inkl. Schrift weiß -- unlesbar. Bitte auch die gesamte Plattform auf
+Kontrastprobleme im Dark Mode prüfen.
+**Ergebnis:** (1) Neue Spalte `support_tickets.manager_read_at` (Migration
+`database/migrate_20260824.sql`), gesetzt beim Öffnen der Ticket-Detailseite
+(`GET /portal/support/:id`). Sidebar-Badge zeigt jetzt die Anzahl ungelesener
+Mitglieder-Nachrichten (nicht mehr nur "offene Tickets") in Rot statt Gelb; zusätzlich ein
+kleiner roter Punkt je Ticket mit ungelesener Nachricht in der Übersichtsliste
+(`support_tickets.php`). (2) Ursache gefunden: die Nachrichten-Blase für Mitglieder-Nachrichten
+in `my_support_detail.php`/`support_ticket_detail.php` hatte `background:#eff6ff` fix im PHP
+verdrahtet, ohne eigene Textfarbe -- im Dark Mode erbte der Text die fast weiße
+Standard-Body-Farbe, landete aber weiterhin auf hellem Hintergrund. Neue CSS-Klasse
+`.msg-bubble-member` in `app.css` mit eigener `[data-theme="dark"]`-Variante (Blau-Schema wie
+`.btn-tint-blue`) statt Inline-Hex. Danach systematisch die ganze Plattform nach demselben
+Muster durchsucht (`grep` auf hartcodierte `background:#...` in allen Views) -- keine weiteren
+echten Bugs gefunden, alle übrigen Treffer sind entweder dekorativ (Fortschrittsbalken ohne
+Text) oder bewusst theme-unabhängig (Unterschrift-Canvas, PDF/Druck-Vorlagen wie Verträge/
+Jahresübersicht, E-Mail-Vorschau in `admin_mail_settings.php`, die einen echten Mail-Client
+simuliert -- dort ist ein fixes Weiß korrekt). `php -l` + `php tests/run.php` (77/77) grün.
+
+---
+
 ## 2026-08-03 (20) — Claude Code — Claude Sonnet 5
 **Auftrag:** Ob die neu bestellten ESP32-Boards von den Hardwareanforderungen her passen (Log
 mit Flash-/RAM-Auslastung + Chip-Erkennung geteilt). Dann: OTA-Netzwerkport wird in der

@@ -20,6 +20,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Ungelesen-Badge für Support-Tickets im Obmann-Sidebar.** Bisher zeigte der Support-Tickets-
+  Menüpunkt nur die Anzahl offener Tickets (gelb). Jetzt ein roter Badge mit der Anzahl
+  ungelesener Mitglieder-Nachrichten (neue Spalte `support_tickets.manager_read_at`, gesetzt
+  beim Öffnen der Ticket-Detailseite) -- verschwindet automatisch, sobald ein Manager das
+  jeweilige Ticket öffnet, auch wenn danach eine neue Mitglieder-Nachricht eintrifft. Zusätzlich
+  ein kleiner roter Punkt je ungelesenem Ticket in der Ticket-Übersichtsliste.
 - **Mitgliederliste zeigt bei EEGs ohne eigene Verträge die Zählpunktnummer statt Vertragsstatus.**
   Ist `contracts_enabled` für eine EEG deaktiviert (die Beitrittserklärung genügt als Vertrag +
   SEPA-Mandat, siehe bestehender Schalter unter Platform-Admin → EEG-Einstellungen), zeigen die
@@ -328,6 +334,16 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **Dark Mode: Support-Ticket-Nachrichten des Mitglieds unlesbar (weißer Text auf hellem
+  Kasten).** Die Nachrichten-Blase für die eigene Nachricht in Support-Ticket-Threads
+  (`my_support_detail.php`, `support_ticket_detail.php`) war fix `background:#eff6ff` ohne
+  eigene Textfarbe -- im Dark Mode landete die geerbte, fast weiße Body-Textfarbe auf dem
+  weiterhin hellen Kasten. Jetzt neue Klasse `.msg-bubble-member` in `app.css` mit eigener
+  Dark-Mode-Variante (gleiches Blau-Schema wie `.btn-tint-blue`). Anschließend die ganze
+  Plattform nach demselben Muster durchsucht (hartcodierte Hintergrundfarben ohne passende
+  Textfarbe) -- keine weiteren Treffer; alle übrigen Fälle sind entweder rein dekorativ (Balken
+  ohne Text) oder bewusst fix (Unterschrift-Canvas, PDF/Druck-Vorlagen, E-Mail-Vorschau, die
+  einen echten Mail-Client simuliert).
 - **ESP32-Firmware: OTA-Hostname war für alle Geräte identisch, führte bei mehreren
   gleichzeitig laufenden Geräten zu mDNS-Namenskonflikt.** `ArduinoOTA.setHostname("p1-smartmeter")`
   war hart codiert und für jedes geflashte Gerät gleich -- beim Testen mit mehreren physischen

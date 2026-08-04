@@ -140,6 +140,14 @@ a:hover { text-decoration: underline; }
 [data-theme="dark"] .btn-tint-amber:hover { background: #5c2409; }
 [data-theme="dark"] .btn-tint-red:hover   { background: #5c1010; }
 
+/* Nachrichten-Blase für die eigene (Mitglieds-)Nachricht in Support-Ticket-Threads
+   (my_support_detail.php, support_ticket_detail.php) -- war vorher als fixes #eff6ff ohne
+   eigene Textfarbe direkt im PHP verdrahtet, wodurch im Dark Mode die geerbte, dann fast weiße
+   Body-Textfarbe auf dem weiterhin hellen Kasten landete (Text quasi unsichtbar). Gleiches
+   Blau-Schema wie .btn-tint-blue, damit es zur restlichen Plattform passt. */
+.msg-bubble-member { background: #eff6ff; color: #1d4ed8; }
+[data-theme="dark"] .msg-bubble-member { background: #0c4a6e; color: #7dd3fc; }
+
 /* ─── Cards ──────────────────────────────────────── */
 .card {
   background: var(--white);

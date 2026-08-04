@@ -154,6 +154,7 @@
         $offeneNotifications = 0;
         $unassignedMeteringPoints = 0;
         $membersWithEspError = 0;
+        $unreadSupportMessages = 0;
         if ($ar['community_id'] ?? null) {
           DB::setCommunity($ar['community_id']);
           $pendingApplications = (int)DB::fetchOne(
@@ -168,8 +169,16 @@
               "SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND member_id IS NULL",
               [$ar['community_id']]
           )['cnt'];
-          $openSupportTickets = (int)DB::fetchOne(
-              "SELECT COUNT(*) AS cnt FROM support_tickets WHERE community_id = ? AND status = 'offen'",
+          // Ungelesene Nachrichten (nicht nur "offene Tickets", siehe Patrick 03.08.2026): eine
+          // Mitglieder-Nachricht zaehlt als ungelesen, solange kein Manager seit ihrem Eintreffen
+          // die Ticket-Detailseite geoeffnet hat (support_tickets.manager_read_at wird dort
+          // gesetzt, siehe GET /portal/support/:id).
+          $unreadSupportMessages = (int)DB::fetchOne(
+              "SELECT COUNT(*) AS cnt
+               FROM support_ticket_messages sm
+               JOIN support_tickets st ON st.id = sm.ticket_id
+               WHERE st.community_id = ? AND sm.is_staff = false
+                 AND sm.created_at > COALESCE(st.manager_read_at, '-infinity'::timestamptz)",
               [$ar['community_id']]
           )['cnt'];
           // Live-Fehlerzähler (kein "gelesen"-Status wie bei Notifications, siehe Patrick
@@ -206,8 +215,8 @@
       </a>
       <a href="/portal/support" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/support') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('chat-circle-text') ?></span><span class="sidebar-text">Support-Tickets</span>
-        <?php if ($openSupportTickets > 0): ?>
-          <span class="badge badge-yellow" style="margin-left:.4rem"><?= $openSupportTickets ?></span>
+        <?php if ($unreadSupportMessages > 0): ?>
+          <span class="badge badge-red" style="margin-left:.4rem"><?= $unreadSupportMessages ?></span>
         <?php endif; ?>
       </a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
