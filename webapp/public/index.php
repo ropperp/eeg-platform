@@ -4291,7 +4291,12 @@ $router->get('/portal/support', function () {
         $params[] = $statusFilter;
     }
     $tickets = DB::fetchAll(
-        "SELECT t.*, m.first_name, m.last_name
+        "SELECT t.*, m.first_name, m.last_name,
+                EXISTS(
+                    SELECT 1 FROM support_ticket_messages sm
+                    WHERE sm.ticket_id = t.id AND sm.is_staff = false
+                      AND sm.created_at > COALESCE(t.manager_read_at, '-infinity'::timestamptz)
+                ) AS hat_ungelesen
          FROM support_tickets t JOIN members m ON m.id = t.member_id
          WHERE $where ORDER BY (t.status = 'offen') DESC, t.updated_at DESC",
         $params
@@ -4311,6 +4316,9 @@ $router->get('/portal/support/:id', function ($params) {
     );
     if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
     $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
+    // Öffnen der Detailseite gilt als "gelesen" -- alle bisherigen Mitglieder-Nachrichten dieses
+    // Tickets zählen ab jetzt nicht mehr zum Ungelesen-Badge in der Sidebar.
+    DB::execute('UPDATE support_tickets SET manager_read_at = now() WHERE id = ?', [$ticket['id']]);
     require ROOT . '/src/views/pages/support_ticket_detail.php';
 });
 

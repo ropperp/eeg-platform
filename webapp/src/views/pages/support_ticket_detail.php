@@ -13,7 +13,7 @@
 
 <div class="card" style="margin-bottom:1.5rem;max-width:44rem">
   <?php foreach ($messages as $m): ?>
-    <div style="margin-bottom:1rem;padding:.75rem 1rem;border-radius:8px;background:<?= $m['is_staff'] ? 'var(--gray-100)' : '#eff6ff' ?>">
+    <div class="<?= $m['is_staff'] ? '' : 'msg-bubble-member' ?>" style="margin-bottom:1rem;padding:.75rem 1rem;border-radius:8px;background:<?= $m['is_staff'] ? 'var(--gray-100)' : '' ?>">
       <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem">
         <strong><?= htmlspecialchars($m['author_label']) ?></strong><?= $m['is_staff'] ? ' (Verwaltung)' : '' ?> ·
         <?= date('d.m.Y H:i', strtotime($m['created_at'])) ?>
