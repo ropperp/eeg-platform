@@ -63,15 +63,27 @@ class MeteringPointData:
     timeseries: pd.DataFrame  # eine Zeile je Monatsimport: time, kwh_erzeugung, kwh_teilnahme, kwh_ueberschuss, kwh_restueberschuss
 
 
+@dataclass
+class LoadResult:
+    metering_points: list[MeteringPointData]
+    # Der im Datei-Kopf deklarierte Auswertungszeitraum (immer ein voller Kalendermonat) --
+    # bewusst NICHT aus den (teils unterjährig verkürzten) Teilnahmezeiträumen einzelner
+    # Zählpunkte abgeleitet, damit Billing::missingMonths() zuverlässig erkennt, welcher Monat
+    # importiert wurde (Patrick, 05.08.2026: "damit man wirklich alle Daten von diesem Quartal
+    # hat und nicht gar einen Monat vergessen hat").
+    period_from: object
+    period_to: object
+
+
 class EnergyDataSource(Protocol):
     """Interface: heute XLSX-Import, morgen KEP-API — gleiche Ausgabe."""
-    def load(self, source: str, community_id: str) -> list[MeteringPointData]: ...
+    def load(self, source: str, community_id: str) -> LoadResult: ...
 
 
 class XlsxDataSource:
     """Liest den EDA-Energiedatenreport (Monatsexport) aus dem Anwenderportal."""
 
-    def load(self, filepath: str, community_id: str) -> list[MeteringPointData]:
+    def load(self, filepath: str, community_id: str) -> LoadResult:
         log.info("Lese XLSX: %s", filepath)
         xl = pd.ExcelFile(filepath)
 
@@ -86,6 +98,7 @@ class XlsxDataSource:
 
         overview = self._parse_gesamtuebersicht(xl, sheet_gesamt)
         detail = self._parse_detailuebersicht(xl, sheet_detail)
+        period_from, period_to = self._parse_auswertungszeitraum(xl, sheet_gesamt)
 
         result = []
         for zaehlpunkt_nr, meta in overview.items():
@@ -105,7 +118,24 @@ class XlsxDataSource:
                 quality=meta["quality"],
                 timeseries=pd.DataFrame([row]),
             ))
-        return result
+        return LoadResult(metering_points=result, period_from=period_from, period_to=period_to)
+
+    @staticmethod
+    def _parse_auswertungszeitraum(xl: pd.ExcelFile, sheet_name: str) -> tuple:
+        """Liest "Auswertungszeitraum von"/"bis" aus dem Datei-Kopf (immer ein voller
+        Kalendermonat) -- siehe Kommentar bei LoadResult."""
+        raw = pd.read_excel(xl, sheet_name=sheet_name, header=None)
+        von = bis = None
+        for i in range(min(10, len(raw))):
+            label = str(raw.iloc[i, 0]).strip().lower() if not pd.isna(raw.iloc[i, 0]) else ""
+            if label == "auswertungszeitraum von":
+                von = pd.to_datetime(str(raw.iloc[i, 1]).strip(), dayfirst=True, errors="coerce")
+            elif label == "auswertungszeitraum bis":
+                bis = pd.to_datetime(str(raw.iloc[i, 1]).strip(), dayfirst=True, errors="coerce")
+        if von is None or bis is None or pd.isna(von) or pd.isna(bis):
+            raise ValueError('„Auswertungszeitraum von/bis" im Datei-Kopf nicht gefunden oder unlesbar.')
+        tz = "Europe/Vienna"
+        return von.tz_localize(tz), bis.tz_localize(tz)
 
     @staticmethod
     def _find_sheet(xl: pd.ExcelFile, expected_name: str) -> str | None:
@@ -244,6 +274,8 @@ def import_to_db(
     data: list[MeteringPointData],
     filename: str,
     user_id: str | None,
+    file_period_from,
+    file_period_to,
 ) -> dict:
     """
     Siehe docs/ESP_IDEEN.md Punkt 3: gleicht die im EDA-Export enthaltenen Zählpunkte mit dem
@@ -325,9 +357,6 @@ def import_to_db(
             "(siehe Abschnitt „Neu angelegt\" oben)."
         )
 
-    period_from = None
-    period_to = None
-
     with conn.cursor() as cur:
         for mp_data in data:
             zp = mp_data.zaehlpunkt_nr
@@ -340,13 +369,11 @@ def import_to_db(
                 warnings.append(f"Keine Energiedaten für Zählpunkt {zp}")
                 continue
 
-            # Zeitraum ermitteln
+            # Nur für den Duplikat-Check innerhalb dieses Zählpunkts -- der GESAMTE Zeitraum
+            # dieses Imports (für eda_imports.period_from/period_to) kommt aus dem Datei-Kopf
+            # (file_period_from/file_period_to), nicht aus diesen Einzelwerten (siehe LoadResult).
             ts_min = mp_data.timeseries["time"].min()
             ts_max = mp_data.timeseries["time"].max()
-            if period_from is None or ts_min < period_from:
-                period_from = ts_min
-            if period_to is None or ts_max > period_to:
-                period_to = ts_max
 
             # Duplikat-Check: dieser Zählpunkt hat für exakt dieses Monatsdatum schon einen
             # Wert? (Ein Quartal besteht bewusst aus DREI separaten Monatsimporten mit je einem
@@ -413,8 +440,8 @@ def import_to_db(
                 community_id,
                 user_id,
                 filename,
-                period_from,
-                period_to,
+                file_period_from,
+                file_period_to,
                 total_records,
                 json.dumps(warnings),
                 json.dumps(neu_angelegt),
@@ -434,8 +461,8 @@ def import_to_db(
         "records": total_records,
         "warnings": warnings,
         "neu_angelegt": neu_angelegt,
-        "period_from": str(period_from) if period_from else None,
-        "period_to": str(period_to) if period_to else None,
+        "period_from": str(file_period_from),
+        "period_to": str(file_period_to),
     }
 
 
@@ -458,8 +485,11 @@ def main():
             community_id = str(row[0])
 
         source = XlsxDataSource()
-        data = source.load(args.file, community_id)
-        result = import_to_db(conn, community_id, data, os.path.basename(args.file), args.user_id)
+        loaded = source.load(args.file, community_id)
+        result = import_to_db(
+            conn, community_id, loaded.metering_points, os.path.basename(args.file), args.user_id,
+            loaded.period_from, loaded.period_to,
+        )
         print(json.dumps(result, indent=2, ensure_ascii=False))
 
     finally:

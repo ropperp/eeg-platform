@@ -34,7 +34,7 @@ class Billing
         );
         if ($existing) return $existing;
 
-        [$periodFrom, $periodTo, $freigabeNach] = self::quarterDates($quartal);
+        [$periodFrom, $periodTo, $freigabeNach] = self::periodDates($quartal);
 
         DB::execute(
             'INSERT INTO billing_runs (community_id, quartal, period_from, period_to, freigabe_nach, status)
@@ -227,11 +227,13 @@ class Billing
      * Prüft, ob die Datenqualität des Zeitraums eine Freigabe (noch) verhindert. Ergebnis:
      * eine deutsche Begründung, wenn NICHT freigegeben werden darf, sonst null (= freigebbar).
      *
-     * Zwei Kriterien, beide müssen erfüllt sein:
-     *  1. Der aus dem EDA-Monatsbericht übernommene Gesamtstatus (billing_runs.eda_status) darf
+     * Drei Kriterien, alle müssen erfüllt sein:
+     *  1. Für jeden Kalendermonat im Zeitraum muss überhaupt schon ein EDA-Import vorliegen
+     *     (siehe missingMonths()) -- sonst könnte ein ganzer Monat unbemerkt fehlen.
+     *  2. Der aus dem EDA-Monatsbericht übernommene Gesamtstatus (billing_runs.eda_status) darf
      *     nicht 'unvollstaendig' sein. 'unbekannt' (Ausgangswert) blockiert NICHT, damit ein
-     *     Lauf auch ohne gepflegten Status freigegeben werden kann, solange Kriterium 2 passt.
-     *  2. Im Abrechnungszeitraum dürfen keine nicht belastbaren Ersatzwerte (Qualität L3)
+     *     Lauf auch ohne gepflegten Status freigegeben werden kann, solange die übrigen Kriterien passen.
+     *  3. Im Abrechnungszeitraum dürfen keine nicht belastbaren Ersatzwerte (Qualität L3)
      *     mehr vorliegen -- die ändern sich laut EDA mit hoher Wahrscheinlichkeit noch.
      */
     public static function datenqualitaetProblem(string $billingRunId): ?string
@@ -239,13 +241,23 @@ class Billing
         $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ?', [$billingRunId]);
         if (!$run) throw new RuntimeException('Abrechnungslauf nicht gefunden');
 
+        // Wichtigster Check zuerst: liegt für JEDEN Kalendermonat im Zeitraum überhaupt schon
+        // ein EDA-Import vor? Sonst würde z.B. bei einem Quartal ein schlicht vergessener
+        // mittlerer Monat unbemerkt mit 0 statt den echten Werten verrechnet (Patrick, 05.08.2026).
+        DB::setCommunity($run['community_id']);
+        $missingMonths = self::missingMonths($run['community_id'], $run['period_from'], $run['period_to']);
+        if (!empty($missingMonths)) {
+            return 'Für folgende(n) Monat(e) in diesem Zeitraum liegt noch KEIN EDA-Import vor: '
+                 . implode(', ', $missingMonths) . '. Bitte zuerst den/die fehlenden Monatsexport(e) '
+                 . 'über „EDA-Daten importieren" hochladen.';
+        }
+
         if (($run['eda_status'] ?? 'unbekannt') === 'unvollstaendig') {
             return 'Der EDA-Monatsbericht weist die Werte für diesen Zeitraum als unvollständig '
                  . 'bzw. nicht belastbar aus. Bitte erst freigeben, sobald ein Bericht den '
                  . 'Zeitraum als vollständig meldet (Datenstatus im Abrechnungslauf setzen).';
         }
 
-        DB::setCommunity($run['community_id']);
         $l3 = DB::fetchOne(
             "SELECT COUNT(*) AS n FROM eda_measurements
              WHERE community_id = ? AND time >= ? AND time < ?::date + INTERVAL '1 day'
@@ -335,14 +347,58 @@ class Billing
         return ['months' => $aktiveMonate, 'amount' => round($aktiveMonate * $monatsBeitrag, 2)];
     }
 
-    private static function quarterDates(string $quartal): array
+    /**
+     * Berechnet Anfang/Ende eines Abrechnungslaufs -- entweder für ein Quartal ("2026-Q1") oder,
+     * seit 05.08.2026 auf Wunsch von Patrick, für einen einzelnen Monat ("2026-07"). EDA liefert
+     * ohnehin nur Monatsexporte; ein Quartalslauf entsteht aus drei Monatsimporten (siehe
+     * missingMonths()), ein Monatslauf braucht nur den einen.
+     */
+    private static function periodDates(string $periode): array
     {
-        [$year, $q] = explode('-Q', $quartal);
-        $starts = ['1' => '01-01', '2' => '04-01', '3' => '07-01', '4' => '10-01'];
-        $ends   = ['1' => '03-31', '2' => '06-30', '3' => '09-30', '4' => '12-31'];
-        $from   = $year . '-' . $starts[$q];
-        $to     = $year . '-' . $ends[$q];
+        if (preg_match('/^(\d{4})-Q([1-4])$/', $periode, $m)) {
+            $starts = ['1' => '01-01', '2' => '04-01', '3' => '07-01', '4' => '10-01'];
+            $ends   = ['1' => '03-31', '2' => '06-30', '3' => '09-30', '4' => '12-31'];
+            $from = $m[1] . '-' . $starts[$m[2]];
+            $to   = $m[1] . '-' . $ends[$m[2]];
+        } elseif (preg_match('/^(\d{4})-(0[1-9]|1[0-2])$/', $periode, $m)) {
+            $from = $m[1] . '-' . $m[2] . '-01';
+            $to   = date('Y-m-t', strtotime($from));
+        } else {
+            throw new InvalidArgumentException(
+                'Ungültiges Zeitraum-Format (erwartet z.B. "2026-Q1" für ein Quartal oder "2026-07" für einen Monat): ' . $periode
+            );
+        }
         $freigabe = date('Y-m-d', strtotime($to . ' +60 days'));
         return [$from, $to, $freigabe];
+    }
+
+    /**
+     * Prüft, ob für ALLE Kalendermonate im Zeitraum eines Laufs (bei einem Quartal also drei
+     * Monate) bereits ein EDA-Import vorliegt -- unabhängig von Datenqualität/Vollständigkeit,
+     * rein ob überhaupt schon Daten für diesen Monat importiert wurden. Verhindert, dass ein
+     * Quartal abgerechnet wird, obwohl z.B. der mittlere Monat schlicht vergessen wurde
+     * (Patrick, 05.08.2026). `eda_imports.period_from`/`period_to` stammen dafür bewusst aus dem
+     * "Auswertungszeitraum" im Kopf der EDA-Datei (siehe eda-parser/parser.py), nicht aus den
+     * (teils unterjährig verkürzten) Teilnahmezeiträumen einzelner Zählpunkte -- nur so deckt der
+     * gespeicherte Zeitraum zuverlässig den ganzen Kalendermonat ab.
+     * @return string[] fehlende Monate im Format "YYYY-MM", leer = alles vorhanden.
+     */
+    public static function missingMonths(string $communityId, string $periodFrom, string $periodTo): array
+    {
+        $months = [];
+        $cursor = strtotime(date('Y-m-01', strtotime($periodFrom)));
+        $endTs  = strtotime($periodTo);
+        while ($cursor <= $endTs) {
+            $months[] = date('Y-m', $cursor);
+            $cursor = strtotime('+1 month', $cursor);
+        }
+
+        $imported = DB::fetchAll(
+            "SELECT DISTINCT to_char(period_from, 'YYYY-MM') AS monat FROM eda_imports
+             WHERE community_id = ? AND period_from >= ? AND period_from <= ?",
+            [$communityId, $periodFrom, $periodTo]
+        );
+        $importedMonths = array_column($imported, 'monat');
+        return array_values(array_diff($months, $importedMonths));
     }
 }

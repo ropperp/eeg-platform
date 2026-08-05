@@ -16,11 +16,15 @@ ob_start();
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
     <div>
       <h3 style="margin-bottom:.25rem">Neuen Abrechnungslauf anlegen</h3>
-      <p style="color:var(--gray-600);font-size:.85rem">Format: Jahr-Q Quartalsnummer, z.B. <code>2026-Q1</code>.</p>
+      <p style="color:var(--gray-600);font-size:.85rem">
+        Quartal (z.B. <code>2026-Q1</code>) oder einzelner Monat (z.B. <code>2026-07</code>) --
+        EDA liefert ohnehin nur Monatsexporte, ein Quartalslauf braucht die drei zugehörigen
+        Monatsimporte.
+      </p>
     </div>
     <form method="post" action="/portal/billing/create" style="display:flex;gap:.5rem">
-      <input type="text" name="quartal" placeholder="2026-Q1" pattern="\d{4}-Q[1-4]" required
-             style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px;width:120px">
+      <input type="text" name="quartal" placeholder="2026-Q1 oder 2026-07" pattern="\d{4}-(Q[1-4]|(0[1-9]|1[0-2]))" required
+             style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px;width:170px">
       <button type="submit" class="btn btn-primary">Anlegen</button>
     </form>
   </div>
@@ -52,7 +56,7 @@ ob_start();
 <!-- Suche -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center">
-    <input type="text" id="billing-search" placeholder="Quartal suchen (z.B. 2026-Q1)…"
+    <input type="text" id="billing-search" placeholder="Zeitraum suchen (z.B. 2026-Q1 oder 2026-07)…"
            style="flex:1;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
            oninput="filterBilling()">
     <select id="billing-status" onchange="filterBilling()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
@@ -67,7 +71,7 @@ ob_start();
   <table id="billing-table">
     <thead>
       <tr>
-        <th>Quartal</th>
+        <th>Bezeichnung</th>
         <th>Zeitraum</th>
         <th>Status</th>
         <th>EDA-Datenqualität</th>
@@ -81,13 +85,24 @@ ob_start();
         $edaStatus = $run['eda_status'] ?? 'unbekannt';
         $edaLabel  = ['unbekannt' => 'noch nicht geprüft', 'vollstaendig' => 'vollständig (belastbar)', 'unvollstaendig' => 'unvollständig'][$edaStatus] ?? $edaStatus;
         $edaBadge  = ['unbekannt' => 'gray', 'vollstaendig' => 'green', 'unvollstaendig' => 'yellow'][$edaStatus] ?? 'gray';
-        // Freigabe ist erlaubt, sobald die Daten belastbar sind: Status nicht 'unvollständig'.
-        // Der zusätzliche automatische L3-Check läuft serverseitig in Billing::finalize().
-        $freigabeErlaubt = $edaStatus !== 'unvollstaendig';
+        $missingMonths = $missingMonthsByRun[$run['id']] ?? [];
+        // Freigabe ist erlaubt, sobald für jeden Monat ein EDA-Import vorliegt UND die Daten
+        // belastbar sind (Status nicht 'unvollständig'). Der zusätzliche automatische L3-Check
+        // läuft serverseitig in Billing::finalize()/datenqualitaetProblem().
+        $freigabeErlaubt = empty($missingMonths) && $edaStatus !== 'unvollstaendig';
       ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
         <td><?= htmlspecialchars($run['quartal']) ?></td>
-        <td><?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?></td>
+        <td>
+          <?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?>
+          <?php if (!empty($missingMonths)): ?>
+            <div style="margin-top:.3rem">
+              <span class="badge badge-red" style="font-size:.7rem" title="Für diese(n) Monat(e) liegt noch kein EDA-Import vor">
+                <?= icon('warning-circle') ?> fehlt: <?= htmlspecialchars(implode(', ', $missingMonths)) ?>
+              </span>
+            </div>
+          <?php endif; ?>
+        </td>
         <td>
           <?php $badges = ['pending' => 'gray', 'ready' => 'yellow', 'done' => 'green']; ?>
           <span class="badge badge-<?= $badges[$run['status']] ?? 'gray' ?>">
@@ -129,7 +144,9 @@ ob_start();
                 <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem"><?= icon('check-circle') ?> Freigeben</button>
               </form>
             <?php else: ?>
-              <span style="font-size:.8rem;color:var(--gray-600)">Freigabe gesperrt: EDA-Daten unvollständig</span>
+              <span style="font-size:.8rem;color:var(--gray-600)">
+                <?= !empty($missingMonths) ? 'Freigabe gesperrt: Monat(e) fehlen noch' : 'Freigabe gesperrt: EDA-Daten unvollständig' ?>
+              </span>
             <?php endif; ?>
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
@@ -233,10 +250,16 @@ function filterBilling() {
     <li><strong>L2</strong> – Ersatzwert, belastbar → belastbar (ändert sich mit hoher Wahrscheinlichkeit nicht mehr)</li>
     <li><strong>L3</strong> – Ersatzwert, <em>nicht</em> belastbar → ändert sich wahrscheinlich noch; laut EDA <strong>nicht</strong> abzurechnen</li>
   </ul>
-  <p style="font-size:.875rem;color:var(--gray-600)">
-    Freigegeben werden kann, sobald der EDA-Monatsbericht (Eder-XLSX) den Zeitraum als <strong>vollständig</strong>
+  <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:.5rem">
+    Freigegeben werden kann, sobald der EDA-Monatsbericht den Zeitraum als <strong>vollständig</strong>
     meldet und keine L3-Werte mehr vorliegen. Den Gesamtstatus aus dem Bericht trägst du oben in der Spalte
     „EDA-Datenqualität" ein; die Prüfung auf verbliebene L3-Werte läuft zusätzlich automatisch bei der Freigabe.
+  </p>
+  <p style="font-size:.875rem;color:var(--gray-600)">
+    Zusätzlich prüft die Plattform automatisch, ob für <strong>jeden Kalendermonat</strong> im
+    Zeitraum überhaupt schon ein EDA-Import vorliegt (bei einem Quartal also alle drei Monate) --
+    fehlt einer, erscheint das oben als roter Hinweis „fehlt: …" und die Freigabe bleibt gesperrt,
+    damit nie versehentlich ein vergessener Monat mit 0 statt den echten Werten verrechnet wird.
   </p>
 </div>
 
