@@ -359,7 +359,13 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   man den jeweiligen Menüpunkt bereits geöffnet hatte -- genau das Gegenteil des Sinns eines
   Benachrichtigungs-Badges. Jetzt wird der Badge im eingeklappten Zustand zu einem kleinen
   Punkt ohne Zahl direkt auf dem Icon selbst (`.sidebar.collapsed a .badge`, absolut
-  positioniert), bleibt also auch dort sichtbar.
+  positioniert), bleibt also auch dort sichtbar. **Nachgebessert:** Der Punkt übernahm dabei
+  zunächst die blasse Pastellfarbe von `.badge-red`/`.badge-yellow` (gedacht für eine Pille MIT
+  Zahl, nicht für einen reinen Punkt) -- im Dark Mode praktisch unsichtbar. Jetzt fixes,
+  kräftiges Rot/Orange (`.sidebar.collapsed a .badge-red`/`-yellow`, unabhängig vom Theme).
+  Ebenso beim Rollen-Umschalter das 🔴-Emoji vor den Options-Namen wieder entfernt (dessen
+  Farbe lässt sich innerhalb einer `<option>` nicht per CSS beeinflussen, wirkte blass/falsch)
+  -- der verlässliche Hinweis bleibt der kleine, farblich fixierte Punkt am Dropdown selbst.
 - **Dark Mode: Support-Ticket-Nachrichten des Mitglieds unlesbar (weißer Text auf hellem
   Kasten).** Die Nachrichten-Blase für die eigene Nachricht in Support-Ticket-Threads
   (`my_support_detail.php`, `support_ticket_detail.php`) war fix `background:#eff6ff` ohne
