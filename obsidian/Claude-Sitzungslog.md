@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-05 (23) — Claude Code — Claude Sonnet 5
+**Auftrag:** Der neue Support-Tickets-Badge war in der eingeklappten (Icon-only) Sidebar
+komplett unsichtbar -- Screenshot zeigte: kein Punkt im Startfenster, nur wenn man selbst auf
+"Support" geht (dort dann wieder eingeklappt genauso unsichtbar). Zusätzlich gewünscht: da
+Patrick gleichzeitig Platform-Admin UND Obmann ist, soll beim Rollen-Umschalter in der
+Kopfzeile ebenfalls ein roter Punkt erscheinen, wenn in der jeweils anderen Rolle etwas Neues
+wartet (z. B. Support-Ticket beim Obmann, während man als Platform-Admin arbeitet).
+**Ergebnis:** Ursache gefunden: `.sidebar { overflow-x:hidden }` + `.sidebar.collapsed` (52px
+breit) schnitt den Badge ab, weil im schmalen Zustand nach Icon + Abstand kein Platz mehr blieb
+-- Badge existierte im HTML, war aber immer unsichtbar, solange die Sidebar eingeklappt war
+(voreingestellter Normalzustand). Fix: `.sidebar.collapsed a .badge` wird zu einem kleinen
+Punkt ohne Zahl, absolut positioniert direkt auf dem Icon. Zusätzlich neuer roter Punkt beim
+Rollen-Auswahl-Dropdown (`portal.php`): für jede Rolle außer der aktiven wird geprüft, ob
+offene Postfach-Benachrichtigungen oder ungelesene Support-Nachrichten vorliegen (nur für
+`manager`-Rollen relevant); trifft das auf mind. eine NICHT aktive Rolle zu, erscheint ein
+kleiner roter Punkt am Dropdown selbst, zusätzlich 🔴 vor der betroffenen Rolle in der Liste.
+`DB::setCommunity()` wird nach der Prüfschleife wieder auf die tatsächlich aktive Community
+zurückgesetzt, damit nachfolgende Sidebar-Abfragen nicht in der falschen Community laufen.
+`php -l` + `php tests/run.php` (77/77) grün.
+
+---
+
 ## 2026-08-04 (22) — Claude Code — Claude Sonnet 5
 **Auftrag:** Button in der Mitgliederliste, der nur erscheint, wenn sich jemand noch nie
 angemeldet hat -- sendet die Willkommens-E-Mail mit 24h-gültigem Erstlogin-Link erneut. Zusätzlich

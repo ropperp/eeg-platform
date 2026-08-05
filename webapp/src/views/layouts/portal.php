@@ -42,18 +42,60 @@
       <?php endif; ?>
 
       <?php if (count($roles) > 1): ?>
+        <?php
+          // Wer wie Patrick gleichzeitig Platform-Admin UND Obmann ist, sieht sonst nicht, dass in
+          // der gerade NICHT aktiven Rolle etwas Neues wartet (z.B. ein Support-Ticket beim
+          // Obmann, während man gerade als Platform-Admin unterwegs ist) -- Patrick, 05.08.2026.
+          // Geprüft werden dieselben "roten" Kategorien wie im Obmann-Sidebar selbst (offene
+          // Postfach-Benachrichtigungen + ungelesene Support-Nachrichten); reine Info-Zähler wie
+          // Neuanmeldungen (gelb) bleiben bewusst außen vor.
+          $roleHasNews = [];
+          $anyOtherRoleHasNews = false;
+          foreach ($roles as $r) {
+              $key = ($r['community_id'] ?? '') . '|' . $r['role'];
+              $hasNews = false;
+              if ($r['role'] === 'manager' && !empty($r['community_id'])) {
+                  DB::setCommunity($r['community_id']);
+                  $hasNews = (bool)DB::fetchOne(
+                      "SELECT (
+                          EXISTS(SELECT 1 FROM notifications WHERE community_id = ? AND status = 'offen')
+                          OR EXISTS(
+                              SELECT 1 FROM support_ticket_messages sm JOIN support_tickets st ON st.id = sm.ticket_id
+                              WHERE st.community_id = ? AND sm.is_staff = false
+                                AND sm.created_at > COALESCE(st.manager_read_at, '-infinity'::timestamptz)
+                          )
+                      ) AS x",
+                      [$r['community_id'], $r['community_id']]
+                  )['x'];
+              }
+              $roleHasNews[$key] = $hasNews;
+              if ($hasNews && $r !== $ar) { $anyOtherRoleHasNews = true; }
+          }
+          // Community-Kontext wieder auf die tatsächlich aktive Rolle zurücksetzen -- sonst
+          // würden nachfolgende Abfragen dieser Anfrage (z.B. die Sidebar-Badges weiter unten)
+          // versehentlich in der zuletzt in der Schleife geprüften Community laufen.
+          if ($ar['community_id'] ?? null) { DB::setCommunity($ar['community_id']); }
+        ?>
+        <div style="position:relative;display:inline-block">
         <select onchange="switchRole(this)" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
           <?php foreach ($roles as $r): ?>
+            <?php $key = ($r['community_id'] ?? '') . '|' . $r['role']; ?>
             <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>"
               <?= ($r === Auth::activeRole()) ? 'selected' : '' ?>>
+              <?php if (!empty($roleHasNews[$key])): ?>🔴 <?php endif; ?>
               <?php if ($r['role'] === 'platform_admin'): ?>
-                <?= icon('wrench') ?> Plattform-Admin
+                Plattform-Admin
               <?php else: ?>
                 <?= htmlspecialchars($r['community_name'] ?? '') ?> (<?= $r['role'] ?>)
               <?php endif; ?>
             </option>
           <?php endforeach; ?>
         </select>
+        <?php if ($anyOtherRoleHasNews): ?>
+          <span title="Eine deiner anderen Rollen hat Neuigkeiten (Postfach/Support)"
+                style="position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#dc2626;border:2px solid var(--white)"></span>
+        <?php endif; ?>
+        </div>
         <form id="switch-form" method="post" action="/portal/switch-role" style="display:none">
           <input type="hidden" name="community_id" id="sw-community">
           <input type="hidden" name="role" id="sw-role">

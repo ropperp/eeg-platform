@@ -20,6 +20,13 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Neuigkeiten-Punkt beim Rollen-Umschalter für Mehrfach-Rollen-Accounts.** Wer wie Patrick
+  gleichzeitig Platform-Admin UND Obmann einer EEG ist, sah bisher nicht, dass in der gerade
+  NICHT aktiven Rolle etwas Neues wartet (z. B. ein neues Support-Ticket beim Obmann, während
+  man gerade als Platform-Admin unterwegs ist). Der Rollen-Auswahl-Dropdown in der Kopfzeile
+  zeigt jetzt einen roten Punkt, sobald mindestens eine der eigenen Rollen offene
+  Postfach-Benachrichtigungen oder ungelesene Support-Nachrichten hat; die betroffene Rolle
+  ist zusätzlich direkt in der Dropdown-Liste markiert (🔴 davor).
 - **"Einladung erneut senden" für Mitglieder, die sich noch nie eingeloggt haben.** In der
   Mitgliederliste erscheint bei der Spalte "Zuletzt angemeldet" jetzt ein Button
   ("Einladung erneut senden"), sobald ein Mitglied ein Login-Konto hat, sich aber noch nie
@@ -345,6 +352,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
 
 ### Behoben
+- **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei
+  "Support-Tickets") wurde bei eingeklappter Sidebar (nur Icons, 52px breit) komplett
+  abgeschnitten -- `.sidebar` hat `overflow-x:hidden`, und für Icon + Abstand + Badge war im
+  schmalen Zustand kein Platz mehr. Dadurch war der Hinweis auf Neuigkeiten nur sichtbar, wenn
+  man den jeweiligen Menüpunkt bereits geöffnet hatte -- genau das Gegenteil des Sinns eines
+  Benachrichtigungs-Badges. Jetzt wird der Badge im eingeklappten Zustand zu einem kleinen
+  Punkt ohne Zahl direkt auf dem Icon selbst (`.sidebar.collapsed a .badge`, absolut
+  positioniert), bleibt also auch dort sichtbar.
 - **Dark Mode: Support-Ticket-Nachrichten des Mitglieds unlesbar (weißer Text auf hellem
   Kasten).** Die Nachrichten-Blase für die eigene Nachricht in Support-Ticket-Threads
   (`my_support_detail.php`, `support_ticket_detail.php`) war fix `background:#eff6ff` ohne
