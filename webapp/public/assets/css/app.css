@@ -265,11 +265,23 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
   border-radius: var(--radius);
   color: var(--gray-600); font-size: .9rem; margin-bottom: .25rem;
   white-space: nowrap;
+  position: relative;
 }
 .sidebar a:hover, .sidebar a.active { background: var(--green-light); color: var(--green); }
-.sidebar-icon { flex-shrink: 0; font-size: 1.1rem; line-height: 1; }
+.sidebar-icon { flex-shrink: 0; font-size: 1.1rem; line-height: 1; position: relative; }
 .sidebar-text { transition: opacity .15s; }
 .sidebar.collapsed .sidebar-text { opacity: 0; width: 0; overflow: hidden; }
+/* Eingeklappte Sidebar (nur Icons, 52px breit): für Text+Badge ist dort kein Platz mehr, und
+   .sidebar hat overflow-x:hidden -- der Neuigkeiten-Badge (z.B. "Support-Tickets") wurde dadurch
+   bisher komplett abgeschnitten und unsichtbar (Patrick, 05.08.2026: "im Startfenster seh ich
+   keinen Punkt, nur wenn ich in den Reiter Support geh"). Im eingeklappten Zustand wird der
+   Badge daher zu einem kleinen Punkt ohne Zahl, oben rechts auf dem Icon selbst. */
+.sidebar.collapsed a .badge {
+  position: absolute; top: -2px; left: 14px; margin: 0 !important;
+  min-width: 9px; width: 9px; height: 9px;
+  padding: 0; font-size: 0; line-height: 0; overflow: hidden;
+  border: 2px solid var(--white);
+}
 .portal-content { flex: 1; padding: 2rem; min-width: 0; }
 
 /* ─── Profil-Dropdown ────────────────────────────── */
