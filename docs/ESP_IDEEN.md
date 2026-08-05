@@ -26,46 +26,36 @@ Schutzbeschaltung (Spannungsteiler o. Ä.) betreiben.
 
 **Status:** in Erprobung.
 
-### 3. EDA-Monatsexport-Import mit automatischem Zählpunkt-Abgleich
-**Idee (Patrick, 24.07.2026):** Beim Hochladen des **EDA-Monatsexports** (der Datei, die man
-ohnehin für die Quartalsabrechnung importiert) soll die Plattform die enthaltenen Zählpunkte
-automatisch mit dem eigenen Bestand abgleichen und Abweichungen klar melden — nicht nur eine
-generische Fehlermeldung, sondern jeweils **ausformuliert, warum** etwas nicht passt.
-
-**Gewünschtes Verhalten:**
-1. Alle Zählpunkte (Zählpunktnummern) aus der Datei extrahieren.
-2. Mit den in der EEG angelegten Zählpunkten abgleichen:
-   - **In der Datei, aber noch nicht angelegt →** automatisch anlegen (soweit eindeutig
-     möglich) und im Report auflisten, was neu angelegt wurde.
-   - **In der Plattform aktiv, aber in der Datei nicht enthalten („fehlt") →** Warnung mit
-     Begründung (z. B. „Zählpunkt AT00… ist bei uns aktiv, taucht im EDA-Export für diesen
-     Monat aber nicht auf — evtl. Abmeldung, Zählerwechsel oder Datenlücke; bitte prüfen.").
-   - **In der Datei, aber keinem Mitglied/keiner Anlage zuordenbar („zu viel") →** Warnung mit
-     Begründung (z. B. „Zählpunkt AT00… ist im EDA-Export, gehört aber zu keinem Mitglied dieser
-     EEG — gehört er hierher, fehlt eine Zuordnung; sonst ist es ein Fremd-Zählpunkt.").
-3. **Ergebnis als übersichtlicher Report:** Abschnitte „neu angelegt", „Warnungen (fehlt/zu
-   viel)", „Fehler", jeweils mit **verständlicher, ausformulierter Begründung** statt rohem
-   „Error". Import soll auch bei Warnungen durchlaufen, klare Fehler (unlesbare Datei, falsches
-   Format) sauber erklären.
-
-**Für die Umsetzung zu klären / berücksichtigen (Plattform-Seite):**
-- **Dateiformat des EDA-Monatsexports** genau festlegen (Eder-XLSX?): welche Spalten enthalten
-  Zählpunktnummer, Zeitraum, Werte, Wertekategorie (L1/L2/L3, siehe `docs/EDA_DATENQUALITAET.md`)?
-- **Zuordnung Zählpunkt → Mitglied** bei automatisch angelegten: welchem Mitglied zuordnen? Wohl
-  zunächst „offen/nicht zugeordnet" markieren und der Obmann verknüpft manuell — sonst rät die
-  Plattform falsch.
-- Aufsetzen auf dem bestehenden EDA-Import (`eda_imports`/`eda_measurements`, `migrate_20260716`)
-  und der Abrechnungs-Datenqualitätslogik (`Billing::datenqualitaetProblem()`).
-- Nachvollziehbarkeit: Import-Lauf + Ergebnis im **Audit-Log** festhalten (seit 2026-08-15 mit
-  Vorher/Nachher-Werten) — wer hat wann welche Zählpunkte automatisch angelegt.
-
-**Status:** noch nicht begonnen — Backlog. Nächster sinnvoller Schritt, sobald echte
-EDA-Exportdateien vorliegen (Format-Muster nötig).
-
 ---
 
 ## Umgesetzt
 
+- **EDA-Monatsexport-Import auf echtes Dateiformat umgestellt + automatischer
+  Zählpunkt-Abgleich abgeschlossen (Patrick, 05.08.2026):** Der Zählpunkt-Abgleich selbst
+  (neu anlegen/Warnungen bei fehlenden/zusätzlichen Zählpunkten, Report statt roher
+  Fehlermeldung) war schon seit 29.07.2026 fertig -- offen war nur noch das tatsächliche
+  Dateiformat, das vorher geraten war (Sheets „Übersicht"/„Energiedaten" mit 4-Spalten-Blöcken
+  je Zählpunkt für 15-Min-Werte) und nie an einer echten EDA-Datei getestet wurde. Patrick hat
+  jetzt einen echten Energiedatenreport (Monatsexport) geliefert -- tatsächliches Format:
+  Sheets „Gesamtübersicht" (eine Zeile je Zählpunkt und Monat mit der bereits fertig
+  zugeteilten „abrechnungsrelevanten Energiemenge", siehe `docs/AUFTEILUNGSSCHLUESSEL.md`) und
+  „Detailübersicht" (Einzelkomponenten, u. a. Restüberschuss). `eda-parser/parser.py`
+  komplett auf dieses reale Format umgeschrieben: Header-Zeile wird dynamisch per
+  "Zählpunktnummer"-Suche gefunden statt fixer Zeilennummern, Spalten per Substring-Suche
+  (robust gegen kleine Formulierungsänderungen), Energierichtung (VERBRAUCH/ERZEUGUNG)
+  bestimmt jetzt eindeutig `type_hint` statt einer Erzeugung/Verbrauch-Summen-Vermutung, worst-
+  case-Ableitung der Datenqualität bei kommagetrennten Werten ("L1,L3" → L3). Da EDA pro Monat
+  nur EINE Zeile je Zählpunkt liefert (keine 15-Min-Auflösung), landet jetzt genau eine
+  `eda_measurements`-Zeile pro Zählpunkt und Monat in der DB -- ein Quartals-Abrechnungslauf
+  braucht also drei separate Monatsimporte, deren Werte sich beim Berechnen der Rechnungen
+  automatisch über den Quartalszeitraum aufsummieren (`Billing::generateDrafts()` bleibt dafür
+  unverändert, da es ohnehin per `SUM(...) WHERE time BETWEEN ...` arbeitet). Verifiziert durch
+  Testlauf des neuen Parsers gegen die reale Datei (alle 10 Zählpunkte korrekt geparst,
+  abrechnungsrelevante Werte stimmen exakt mit den EDA-Spaltenwerten überein). Nebenbei die
+  nie angebundene, veraltete `check_billing_readiness()`-Funktion (starre 60-Tage-Regel,
+  längst durch `Billing::datenqualitaetProblem()` ersetzt) aus dem Parser entfernt sowie
+  veraltete Hinweistexte in `eda_upload.php` (60-Tage-Fenster, falsches Dateiname-Beispiel)
+  korrigiert.
 - **Bug: OTA-Netzwerkport in Arduino-IDE nicht erkennbar bei mehreren Geräten -- eigentliche
   Ursache war ein mDNS-Namenskonflikt, nicht Firewall/Netzwerk (Patrick 03.08.2026):** Nach
   Erhalt der bestellten Boards (4-MB-Flash bestätigt per `esptool flash_id`, bewusst so gewünscht

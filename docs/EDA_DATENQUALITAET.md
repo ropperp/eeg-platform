@@ -54,10 +54,10 @@ Tage längst vorbei wären.
 `billing_runs.freigabe_nach` wird weiter befüllt, dient aber nur noch als grober informativer
 Richtwert.
 
-## Quelle: EDA-Monatsbericht (Eder-XLSX)
+## Quelle: EDA-Monatsbericht (Energiedatenreport)
 
-Der Monatsbericht des Abrechnungs-Tools enthält u. a. die Sheets „Gesamtübersicht" und
-„Detailübersicht" mit den relevanten OBIS-Kennzahlen, z. B.:
+Der Monatsbericht enthält die Sheets „Gesamtübersicht" und „Detailübersicht" mit den
+relevanten OBIS-Kennzahlen, z. B.:
 
 | Größe | OBIS |
 |-------|------|
@@ -65,6 +65,14 @@ Der Monatsbericht des Abrechnungs-Tools enthält u. a. die Sheets „Gesamtüber
 | Verbrauch lt. Messung | 1-1.9.0 G.01T |
 | Anteil gemeinschaftliche Erzeugung | 1-1.2.9.0 G.02 |
 
-Der monatlich vom Netzbetreiber gelieferte Bericht ist die Grundlage, um den `eda_status` eines
-Laufs auf `vollstaendig` bzw. `unvollstaendig` zu setzen. Ein automatischer XLSX-Import, der das
-setzt (statt der manuellen Auswahl), ist der nächste sinnvolle Ausbauschritt.
+**Seit 05.08.2026 automatisch:** `eda-parser/parser.py` liest diese Datei direkt beim Import
+unter „EDA-Daten importieren" (`/portal/eda/upload`) ein (bestätigtes reales Format anhand einer
+echten Exportdatei -- vorher war hier eine geratene, nie getestete Sheet-/Spaltenstruktur
+hinterlegt, die nicht zur echten Datei passte). Pro Zählpunkt übernimmt der Import direkt die
+Spalte „Status Datenübermittlung" (Vollständig/Unvollständig → `eda_measurements.completeness`)
+und „Datenqualität" (L1/L2/L3, ggf. kommagetrennt → schlechtester enthaltener Wert wird
+gespeichert). Der **Gesamtstatus eines Abrechnungslaufs** (`billing_runs.eda_status`) wird
+weiterhin manuell in der Abrechnungsübersicht gesetzt (eine Datei deckt nur einen Monat ab, ein
+Lauf aber ein ganzes Quartal aus drei Monatsdateien -- der automatische L3-Check in
+`Billing::datenqualitaetProblem()` sperrt die Freigabe aber ohnehin unabhängig davon, sobald
+irgendwo im Zeitraum noch L3-Werte liegen).

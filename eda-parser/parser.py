@@ -1,12 +1,31 @@
 """
 EDA-XLSX-Parser
-Importiert 15-Min-Energiedaten vom EDA-Anwenderportal in die Datenbank.
-Dateiformat: RC108175_2026-05-11T00_00-2026-06-11T23_45.xlsx
+Importiert den monatlichen EDA-Energiedatenreport (Anwenderportal, Sheets "Gesamtübersicht" +
+"Detailübersicht") in die Datenbank. Eine Datei deckt IMMER genau einen Kalendermonat ab -- für
+einen Quartals-Abrechnungslauf werden drei Monatsdateien nacheinander hochgeladen/importiert,
+die Beträge summieren sich beim Abrechnen automatisch (Billing::generateDrafts() summiert über
+den ganzen Quartalszeitraum, siehe webapp/src/Billing.php).
+
+Format bestätigt anhand einer echten Exportdatei (Patrick, 05.08.2026) -- vorher war hier eine
+geratene Struktur ("Übersicht"/"Energiedaten"-Sheets mit 4-Spalten-Blöcken je Zählpunkt), die nie
+an einer echten Datei getestet wurde und nicht dem tatsächlichen EDA-Format entsprach.
+
+Aufbau der echten Datei (siehe docs/EDA_DATENQUALITAET.md, docs/AUFTEILUNGSSCHLUESSEL.md):
+- "Gesamtübersicht": eine Zeile je Zählpunkt für den ganzen Monat, mit den bereits fertig
+  aufgeteilten, ABRECHNUNGSRELEVANTEN Energiemengen (Spalte "Verbrauch, abrechnungsrelevante
+  Energiemenge" bzw. "Erzeugung, abrechnungsrelevante Energiemenge") -- das ist exakt das, was
+  Billing::generateDrafts() als kwh_teilnahme (Bezug) bzw. kwh_erzeugung (Einspeisung) braucht.
+  Zusätzlich Status Datenübermittlung (Vollständig/Unvollständig), Datenqualität (L1/L2/L3,
+  kommagetrennt möglich) und Stammdaten (Vorname/Nachname/Adresse) zur Orientierung.
+- "Detailübersicht": dieselben Zählpunkte, aber mit den Einzelkomponenten (Gesamtverbrauch,
+  Eigendeckung, Restüberschuss, ...) -- wird hier nur ergänzend für kwh_ueberschuss/
+  kwh_restueberschuss gelesen (in Billing.php nicht abrechnungswirksam, aber Teil des Schemas/
+  für Transparenz gedacht).
 
 Datenquellen-Interface ist abstrakt gehalten → späterer Wechsel auf KEP-API ohne Umbau.
 
 Aufruf:
-  python parser.py --file RC108175_2026-05-11T00_00-2026-06-11T23_45.xlsx \
+  python parser.py --file RC108175_2026070120260731_20260805T200419.xlsx \
                    --community strompool-feldkirchen \
                    --user-id <uuid>
 """
@@ -15,10 +34,7 @@ import argparse
 import json
 import logging
 import os
-import re
-import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Protocol
 
 import pandas as pd
@@ -40,10 +56,11 @@ DB_DSN = (
 @dataclass
 class MeteringPointData:
     zaehlpunkt_nr: str
-    meter_code: str
-    completeness: str     # COMPLETE | INCOMPLETE
-    quality: str          # L1 | L2 | L3
-    timeseries: pd.DataFrame  # columns: time, kwh_erzeugung, kwh_teilnahme, kwh_ueberschuss, kwh_restueberschuss
+    meter_code: str          # EDA liefert keine Zählernummer -- immer leer, siehe Kommentar unten
+    type_hint: str            # 'consumer' | 'producer' -- direkt aus "Energierichtung", keine Vermutung mehr
+    completeness: str         # COMPLETE | INCOMPLETE
+    quality: str               # L1 | L2 | L3 (schlechtester Wert, falls die Datei mehrere kommagetrennt nennt)
+    timeseries: pd.DataFrame  # eine Zeile je Monatsimport: time, kwh_erzeugung, kwh_teilnahme, kwh_ueberschuss, kwh_restueberschuss
 
 
 class EnergyDataSource(Protocol):
@@ -52,35 +69,41 @@ class EnergyDataSource(Protocol):
 
 
 class XlsxDataSource:
-    """Liest die EDA-XLSX aus dem Anwenderportal."""
+    """Liest den EDA-Energiedatenreport (Monatsexport) aus dem Anwenderportal."""
 
     def load(self, filepath: str, community_id: str) -> list[MeteringPointData]:
         log.info("Lese XLSX: %s", filepath)
         xl = pd.ExcelFile(filepath)
 
-        sheet_uebersicht = self._find_sheet(xl, "Übersicht")
-        sheet_energiedaten = self._find_sheet(xl, "Energiedaten")
-        if not sheet_uebersicht or not sheet_energiedaten:
+        sheet_gesamt = self._find_sheet(xl, "Gesamtübersicht")
+        sheet_detail = self._find_sheet(xl, "Detailübersicht")
+        if not sheet_gesamt or not sheet_detail:
             raise ValueError(
-                "XLSX hat nicht die erwarteten Sheets 'Übersicht' und 'Energiedaten'. "
+                "XLSX hat nicht die erwarteten Sheets 'Gesamtübersicht' und 'Detailübersicht' "
+                "(EDA-Energiedatenreport, Monatsexport). "
                 f"Tatsächlich vorhandene Sheets: {xl.sheet_names}"
             )
 
-        overview = self._parse_overview(xl, sheet_uebersicht)
-        energy = self._parse_energy(xl, sheet_energiedaten)
+        overview = self._parse_gesamtuebersicht(xl, sheet_gesamt)
+        detail = self._parse_detailuebersicht(xl, sheet_detail)
 
         result = []
         for zaehlpunkt_nr, meta in overview.items():
-            ts = energy.get(zaehlpunkt_nr)
-            if ts is None:
-                log.warning("Zählpunkt %s in Übersicht, aber nicht in Energiedaten", zaehlpunkt_nr)
-                ts = pd.DataFrame()
+            zusatz = detail.get(zaehlpunkt_nr, {})
+            row = {
+                "time": meta["time"],
+                "kwh_erzeugung": meta["kwh_wert"] if meta["type_hint"] == "producer" else None,
+                "kwh_teilnahme": meta["kwh_wert"] if meta["type_hint"] == "consumer" else None,
+                "kwh_ueberschuss": zusatz.get("kwh_ueberschuss"),
+                "kwh_restueberschuss": zusatz.get("kwh_restueberschuss"),
+            }
             result.append(MeteringPointData(
                 zaehlpunkt_nr=zaehlpunkt_nr,
-                meter_code=meta["meter_code"],
+                meter_code="",  # EDA-Report enthält keine Zählernummer, nur die Zählpunktnummer
+                type_hint=meta["type_hint"],
                 completeness=meta["completeness"],
                 quality=meta["quality"],
-                timeseries=ts,
+                timeseries=pd.DataFrame([row]),
             ))
         return result
 
@@ -93,88 +116,126 @@ class XlsxDataSource:
                 return name
         return None
 
-    def _parse_overview(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
-        df = pd.read_excel(xl, sheet_name=sheet_name, header=0)
-        result = {}
-        for _, row in df.iterrows():
-            # Spaltennamen variieren je nach Export — flexibel per Substring suchen
-            zp = self._find_col(row, ["Zählpunkt", "ZP", "Metering"])
-            mc = self._find_col(row, ["MeterCode", "Meter Code"])
-            comp = self._find_col(row, ["Vollständigkeit", "Completeness", "COMPLETE"])
-            qual = self._find_col(row, ["Qualität", "Quality", "Datenqualität"])
-            if zp:
-                result[str(zp).strip()] = {
-                    "meter_code": str(mc).strip() if mc else "",
-                    "completeness": "COMPLETE" if comp and "COMPLETE" in str(comp).upper() else "INCOMPLETE",
-                    "quality": str(qual).strip() if qual else "L1",
-                }
-        return result
-
-    def _parse_energy(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
-        df = pd.read_excel(xl, sheet_name=sheet_name, header=None)
-
-        # Zeilenpositionen der Zählpunktnummern und MeterCodes aus Header ermitteln
-        # Erste Spalte = Zeitstempel, danach je Zählpunkt 4 Spaltengruppen
-        header_rows = df.iloc[:5]
-        col_map = {}  # zaehlpunkt_nr → start_col_index
-
-        for col in range(1, len(df.columns), 4):
-            for row_idx in range(5):
-                val = str(header_rows.iloc[row_idx, col]) if col < len(df.columns) else ""
-                if val.startswith("AT") and len(val) > 30:
-                    meter_code_val = str(header_rows.iloc[row_idx + 1, col]) if row_idx + 1 < 5 else ""
-                    col_map[val.strip()] = {
-                        "start": col,
-                        "meter_code": meter_code_val.strip(),
-                    }
-                    break
-
-        # Datenzeilen: ab Zeile wo erster Wert ein Datum ist
-        data_start = 0
-        for i, row in df.iterrows():
-            val = row.iloc[0]
-            if isinstance(val, datetime) or (isinstance(val, str) and re.match(r"\d{2}\.\d{2}\.\d{4}", val)):
-                data_start = i
-                break
-
-        result = {}
-        for zp, info in col_map.items():
-            c = info["start"]
-            mc = info["meter_code"]
-            rows = []
-            for i in range(data_start, len(df)):
-                ts_raw = df.iloc[i, 0]
-                if pd.isna(ts_raw):
-                    continue
-                ts = pd.to_datetime(ts_raw, dayfirst=True, errors="coerce")
-                if pd.isna(ts):
-                    continue
-                ts = ts.tz_localize("Europe/Vienna", ambiguous="NaT", nonexistent="NaT")
-
-                def safe(col_offset):
-                    try:
-                        v = df.iloc[i, c + col_offset]
-                        return float(v) / 1000.0 if not pd.isna(v) else None  # Wh → kWh
-                    except (IndexError, ValueError, TypeError):
-                        return None
-
-                rows.append({
-                    "time": ts,
-                    "kwh_erzeugung": safe(0),
-                    "kwh_teilnahme": safe(1),
-                    "kwh_ueberschuss": safe(2),
-                    "kwh_restueberschuss": safe(3),
-                })
-            result[zp] = pd.DataFrame(rows)
-        return result
+    @staticmethod
+    def _find_header_row(raw: pd.DataFrame, marker: str = "zählpunktnummer") -> int:
+        """Die echten Spaltenüberschriften stehen nicht in Zeile 1 -- davor liegen EC-ID,
+        Auswertungszeitraum-von/bis usw. Sucht die Zeile, die "Zählpunktnummer" enthält, statt
+        eine feste Zeilennummer anzunehmen (robuster gegenüber künftigen Formatanpassungen)."""
+        for i in range(min(15, len(raw))):
+            for val in raw.iloc[i]:
+                if isinstance(val, str) and val.strip().lower() == marker:
+                    return i
+        raise ValueError(f"Header-Zeile mit Spalte '{marker}' nicht gefunden.")
 
     @staticmethod
-    def _find_col(row, keywords: list[str]):
-        for key in row.index:
+    def _find_col(columns, keywords: list[str]) -> str | None:
+        """Sucht eine Spalte per Substring (case-insensitive) -- robust gegenüber kleinen
+        Formulierungsunterschieden zwischen EDA-Exportversionen, statt exakter Spaltennamen."""
+        for col in columns:
+            col_str = str(col).lower()
             for kw in keywords:
-                if kw.lower() in str(key).lower():
-                    return row[key]
+                if kw.lower() in col_str:
+                    return col
         return None
+
+    @staticmethod
+    def _worst_quality(raw_value: str) -> str:
+        """Datenqualität kann kommagetrennt mehrere Kategorien nennen (z.B. "L1,L3", wenn sich
+        innerhalb des Monats die Qualität geändert hat). Für die Abrechnung zählt der
+        SCHLECHTESTE enthaltene Wert (L3 blockiert die Freigabe, siehe Billing::ABRECHNUNGS_QUALITY
+        bzw. docs/EDA_DATENQUALITAET.md)."""
+        s = str(raw_value).upper()
+        if "L3" in s: return "L3"
+        if "L2" in s: return "L2"
+        return "L1"
+
+    def _parse_gesamtuebersicht(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
+        raw = pd.read_excel(xl, sheet_name=sheet_name, header=None)
+        header_row = self._find_header_row(raw)
+        df = pd.read_excel(xl, sheet_name=sheet_name, header=header_row)
+        df = df.iloc[1:]  # direkt unter der Kopfzeile steht eine Beschreibungszeile ("Bezeichnung so wie im EDA Portal ...") -- keine Daten
+
+        col_zp       = self._find_col(df.columns, ["Zählpunktnummer"])
+        col_richtung = self._find_col(df.columns, ["Energierichtung"])
+        col_zeitraum = self._find_col(df.columns, ["Zeitraum"])
+        col_verbrauch = self._find_col(df.columns, ["Verbrauch, abrechnungsrelevante", "Verbrauch,abrechnungsrelevante"])
+        col_erzeugung = self._find_col(df.columns, ["Erzeugung, abrechnungsrelevante", "Erzeugung,abrechnungsrelevante"])
+        col_status   = self._find_col(df.columns, ["Status Datenübermittlung"])
+        col_qualitaet = self._find_col(df.columns, ["Datenqualität"])
+        if not all([col_zp, col_richtung, col_zeitraum, col_verbrauch, col_erzeugung, col_status, col_qualitaet]):
+            raise ValueError(
+                "Gesamtübersicht: nicht alle erwarteten Spalten gefunden "
+                f"(Zählpunktnummer/Energierichtung/Zeitraum/abrechnungsrelevante Mengen/Status/Datenqualität). "
+                f"Vorhandene Spalten: {list(df.columns)}"
+            )
+
+        result = {}
+        for _, row in df.iterrows():
+            zp = row[col_zp]
+            if pd.isna(zp) or not str(zp).strip().upper().startswith("AT"):
+                continue
+            zp = str(zp).strip()
+
+            richtung = str(row[col_richtung]).strip().upper()
+            type_hint = "producer" if richtung == "ERZEUGUNG" else "consumer"
+
+            # "Zeitraum" ist der tatsächliche Teilnahmezeitraum dieses Zählpunkts im Monat
+            # (z.B. "02.07.2026-31.07.2026" bei unterjährigem Beitritt) -- das Enddatum wird als
+            # Zeitstempel dieser Monatszeile verwendet (siehe Billing.php: SUM über
+            # period_from..period_to je Quartal, drei Monatszeilen fallen automatisch zusammen).
+            zeitraum = str(row[col_zeitraum]).strip()
+            bis_str = zeitraum.split("-")[-1].strip()
+            ts = pd.to_datetime(bis_str, dayfirst=True, errors="coerce")
+            if pd.isna(ts):
+                log.warning("Zählpunkt %s: Zeitraum '%s' nicht lesbar, überspringe.", zp, zeitraum)
+                continue
+            ts = ts.tz_localize("Europe/Vienna", ambiguous="NaT", nonexistent="NaT")
+
+            kwh_wert = row[col_erzeugung] if type_hint == "producer" else row[col_verbrauch]
+            kwh_wert = float(kwh_wert) if not pd.isna(kwh_wert) else 0.0
+
+            status = str(row[col_status]).strip().lower()
+            completeness = "COMPLETE" if status == "vollständig" else "INCOMPLETE"
+
+            result[zp] = {
+                "type_hint": type_hint,
+                "time": ts,
+                "kwh_wert": kwh_wert,
+                "completeness": completeness,
+                "quality": self._worst_quality(row[col_qualitaet]),
+            }
+        return result
+
+    def _parse_detailuebersicht(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
+        """Liefert nur die Ergänzungswerte kwh_ueberschuss/kwh_restueberschuss je Zählpunkt (aus
+        den Detailspalten "Gesamt/Überschusserzeugung..." und "Restüberschuss..."). Die
+        abrechnungsrelevanten Hauptwerte kommen bewusst aus der Gesamtübersicht (siehe
+        _parse_gesamtuebersicht), nicht von hier -- das erspart, "Eigendeckung"/"Restüberschuss"
+        selbst nachzurechnen, was EDA bereits fertig geliefert hat."""
+        raw = pd.read_excel(xl, sheet_name=sheet_name, header=None)
+        header_row = self._find_header_row(raw)
+        df = pd.read_excel(xl, sheet_name=sheet_name, header=header_row)
+
+        col_zp = self._find_col(df.columns, ["Zählpunktnummer"])
+        col_ueberschuss = self._find_col(df.columns, ["Gesamt/Überschusserzeugung", "Überschusserzeugung"])
+        col_rest = self._find_col(df.columns, ["Restüberschuss"])
+        if not col_zp:
+            return {}
+
+        result = {}
+        for _, row in df.iterrows():
+            zp = row[col_zp]
+            # Filtert automatisch die Beschreibungs-/Markerzeilen ("Summe der Energiedaten",
+            # "Energiedaten je Zählpunkt") UND die Community-Gesamtzeile heraus -- deren
+            # Zählpunktnummer-Zelle ist leer.
+            if pd.isna(zp) or not str(zp).strip().upper().startswith("AT"):
+                continue
+            zp = str(zp).strip()
+            result[zp] = {
+                "kwh_ueberschuss": float(row[col_ueberschuss]) if col_ueberschuss and not pd.isna(row[col_ueberschuss]) else None,
+                "kwh_restueberschuss": float(row[col_rest]) if col_rest and not pd.isna(row[col_rest]) else None,
+            }
+        return result
 
 
 def import_to_db(
@@ -225,16 +286,16 @@ def import_to_db(
         log.warning("Fehlender Zählpunkt: %s", missing)
 
     # Unbekannte Zählpunkte: im Export enthalten, bei uns noch gar nicht registriert ->
-    # automatisch anlegen, aber bewusst inaktiv und ohne Mitglied-Zuordnung.
+    # automatisch anlegen, aber bewusst inaktiv und ohne Mitglied-Zuordnung. Der Typ kommt jetzt
+    # direkt aus der EDA-"Energierichtung" (type_hint) statt aus einer Erzeugung/Verbrauch-Summen-
+    # Vermutung wie zuvor -- eindeutig statt geraten, weil EDA jede Richtung als eigenen Zählpunkt
+    # meldet (siehe Prosumer-Korrektur vom 30.07.2026: ein physischer Zähler kann zwei
+    # Zählpunktnummern haben, aber jede Zeile im Export ist eindeutig VERBRAUCH oder ERZEUGUNG).
     with conn.cursor() as cur:
         for mp_data in data:
             zp = mp_data.zaehlpunkt_nr
             if zp in registered:
                 continue
-
-            erzeugung_summe = float(mp_data.timeseries["kwh_erzeugung"].sum()) if not mp_data.timeseries.empty else 0.0
-            teilnahme_summe = float(mp_data.timeseries["kwh_teilnahme"].sum()) if not mp_data.timeseries.empty else 0.0
-            type_guess = "producer" if erzeugung_summe > teilnahme_summe else "consumer"
 
             cur.execute(
                 """
@@ -243,17 +304,17 @@ def import_to_db(
                 VALUES (%s, NULL, %s, %s, %s, false, CURRENT_DATE)
                 RETURNING id
                 """,
-                (community_id, zp, mp_data.meter_code, type_guess)
+                (community_id, zp, mp_data.meter_code, mp_data.type_hint)
             )
             new_id = str(cur.fetchone()[0])
             registered[zp] = new_id
             neu_angelegt.append({
                 "zaehlpunkt_nr": zp,
                 "meter_code": mp_data.meter_code,
-                "type_guess": type_guess,
+                "type_guess": mp_data.type_hint,
                 "metering_point_id": new_id,
             })
-            log.warning("Zählpunkt %s automatisch angelegt (Typ-Vermutung: %s, unzugeordnet)", zp, type_guess)
+            log.warning("Zählpunkt %s automatisch angelegt (Typ laut EDA: %s, unzugeordnet)", zp, mp_data.type_hint)
 
     # Eine zusammenfassende Warnung (nicht pro Zählpunkt -- die Details stehen im eigenen
     # "Neu angelegt"-Abschnitt der UI) sorgt dafür, dass der Import trotzdem als "warning" statt
@@ -287,7 +348,9 @@ def import_to_db(
             if period_to is None or ts_max > period_to:
                 period_to = ts_max
 
-            # Duplikat-Check: gleicher Zeitraum schon importiert?
+            # Duplikat-Check: dieser Zählpunkt hat für exakt dieses Monatsdatum schon einen
+            # Wert? (Ein Quartal besteht bewusst aus DREI separaten Monatsimporten mit je einem
+            # anderen Datum je Zählpunkt -- die kollidieren hier nicht miteinander.)
             cur.execute(
                 """
                 SELECT COUNT(*) FROM eda_measurements
@@ -299,8 +362,9 @@ def import_to_db(
             existing = cur.fetchone()[0]
             if existing > 0:
                 raise ValueError(
-                    f"Duplikat: Zählpunkt {zp} hat bereits {existing} Datensätze "
-                    f"für den Zeitraum {ts_min} – {ts_max}. Import abgebrochen."
+                    f"Duplikat: Zählpunkt {zp} hat bereits {existing} Datensatz/Datensätze "
+                    f"für den Zeitraum {ts_min} – {ts_max}. Import abgebrochen (evtl. wurde "
+                    "dieser Monat schon einmal importiert?)."
                 )
 
             # Einfügen
@@ -334,7 +398,7 @@ def import_to_db(
                 rows,
             )
             total_records += len(rows)
-            log.info("Zählpunkt %s: %d Datensätze importiert (%s, %s)", zp, len(rows), mp_data.quality, mp_data.completeness)
+            log.info("Zählpunkt %s: %d Datensatz/Datensätze importiert (%s, %s)", zp, len(rows), mp_data.quality, mp_data.completeness)
 
         # Import-Protokoll
         cur.execute(
@@ -375,77 +439,11 @@ def import_to_db(
     }
 
 
-def check_billing_readiness(conn, community_id: str, quartal: str) -> dict:
-    """
-    Prüft ob für das Quartal eine Abrechnung möglich ist.
-    Regeln:
-    1. Alle registrierten Zählpunkte müssen COMPLETE sein
-    2. 60-Tage-Korrekturfenster muss abgelaufen sein
-    3. Vollständiger Zeitraum muss abgedeckt sein
-    """
-    from datetime import date, timedelta
-
-    # Quartal-Zeitraum bestimmen
-    year, q = quartal.split("-Q")
-    year = int(year)
-    q = int(q)
-    quarter_starts = {1: (1, 1), 2: (4, 1), 3: (7, 1), 4: (10, 1)}
-    quarter_ends = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
-    period_from = date(year, *quarter_starts[q])
-    period_to = date(year, *quarter_ends[q])
-    freigabe_nach = period_to + timedelta(days=60)  # 60-Tage-Korrekturfenster
-
-    issues = []
-
-    if date.today() < freigabe_nach:
-        issues.append(
-            f"60-Tage-Korrekturfenster noch nicht abgelaufen "
-            f"(Freigabe ab {freigabe_nach.strftime('%d.%m.%Y')} möglich)"
-        )
-
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(
-            "SELECT id, zaehlpunkt_nr FROM metering_points WHERE community_id = %s AND active = true",
-            (community_id,)
-        )
-        metering_points = cur.fetchall()
-
-        for mp in metering_points:
-            cur.execute(
-                """
-                SELECT COUNT(*) as cnt,
-                       COUNT(*) FILTER (WHERE completeness = 'COMPLETE') as complete_cnt
-                FROM eda_measurements
-                WHERE community_id = %s AND metering_point_id = %s
-                  AND time >= %s AND time < %s + INTERVAL '1 day'
-                """,
-                (community_id, mp["id"], period_from, period_to)
-            )
-            row = cur.fetchone()
-            if row["cnt"] == 0:
-                issues.append(f"Keine EDA-Daten für Zählpunkt {mp['zaehlpunkt_nr']}")
-            elif row["complete_cnt"] < row["cnt"]:
-                issues.append(
-                    f"Zählpunkt {mp['zaehlpunkt_nr']}: "
-                    f"{row['cnt'] - row['complete_cnt']} von {row['cnt']} Intervallen INCOMPLETE"
-                )
-
-    return {
-        "ready": len(issues) == 0,
-        "quartal": quartal,
-        "period_from": str(period_from),
-        "period_to": str(period_to),
-        "freigabe_nach": str(freigabe_nach),
-        "issues": issues,
-    }
-
-
 def main():
-    parser = argparse.ArgumentParser(description="EDA-XLSX-Importer")
+    parser = argparse.ArgumentParser(description="EDA-XLSX-Importer (Monatsexport)")
     parser.add_argument("--file", required=True, help="Pfad zur XLSX-Datei")
     parser.add_argument("--community", required=True, help="Community-Slug")
     parser.add_argument("--user-id", help="UUID des importierenden Users")
-    parser.add_argument("--check-billing", help="Quartal prüfen z.B. 2026-Q2")
     args = parser.parse_args()
 
     conn = psycopg2.connect(DB_DSN)
@@ -458,11 +456,6 @@ def main():
             if not row:
                 raise SystemExit(f"Community '{args.community}' nicht gefunden")
             community_id = str(row[0])
-
-        if args.check_billing:
-            result = check_billing_readiness(conn, community_id, args.check_billing)
-            print(json.dumps(result, indent=2, ensure_ascii=False))
-            return
 
         source = XlsxDataSource()
         data = source.load(args.file, community_id)
