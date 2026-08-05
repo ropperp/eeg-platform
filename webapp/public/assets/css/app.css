@@ -282,6 +282,13 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
   padding: 0; font-size: 0; line-height: 0; overflow: hidden;
   border: 2px solid var(--white);
 }
+/* .badge-red/-yellow sind für eine Pille MIT Zahl dahinter gedacht (helles, dezentes
+   Pastell-Hintergrund + kräftige Textfarbe) -- als reiner Punkt ohne Zahl (siehe Regel oben)
+   wirkte dieses blasse Pastell kaum erkennbar, im Dark Mode praktisch unsichtbar (Patrick,
+   05.08.2026: "bitte in einem richtigen Kirschrot, so ist der Punkt nicht erkenntlich"). Hier
+   bewusst ein kräftiger, fixer Farbton statt der thema-abhängigen Variablen/Pastelltöne. */
+.sidebar.collapsed a .badge-red    { background: #dc2626 !important; }
+.sidebar.collapsed a .badge-yellow { background: #d97706 !important; }
 .portal-content { flex: 1; padding: 2rem; min-width: 0; }
 
 /* ─── Profil-Dropdown ────────────────────────────── */

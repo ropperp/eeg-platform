@@ -49,27 +49,22 @@
           // Geprüft werden dieselben "roten" Kategorien wie im Obmann-Sidebar selbst (offene
           // Postfach-Benachrichtigungen + ungelesene Support-Nachrichten); reine Info-Zähler wie
           // Neuanmeldungen (gelb) bleiben bewusst außen vor.
-          $roleHasNews = [];
           $anyOtherRoleHasNews = false;
           foreach ($roles as $r) {
-              $key = ($r['community_id'] ?? '') . '|' . $r['role'];
-              $hasNews = false;
-              if ($r['role'] === 'manager' && !empty($r['community_id'])) {
-                  DB::setCommunity($r['community_id']);
-                  $hasNews = (bool)DB::fetchOne(
-                      "SELECT (
-                          EXISTS(SELECT 1 FROM notifications WHERE community_id = ? AND status = 'offen')
-                          OR EXISTS(
-                              SELECT 1 FROM support_ticket_messages sm JOIN support_tickets st ON st.id = sm.ticket_id
-                              WHERE st.community_id = ? AND sm.is_staff = false
-                                AND sm.created_at > COALESCE(st.manager_read_at, '-infinity'::timestamptz)
-                          )
-                      ) AS x",
-                      [$r['community_id'], $r['community_id']]
-                  )['x'];
-              }
-              $roleHasNews[$key] = $hasNews;
-              if ($hasNews && $r !== $ar) { $anyOtherRoleHasNews = true; }
+              if ($r === $ar || $r['role'] !== 'manager' || empty($r['community_id'])) { continue; }
+              DB::setCommunity($r['community_id']);
+              $hasNews = (bool)DB::fetchOne(
+                  "SELECT (
+                      EXISTS(SELECT 1 FROM notifications WHERE community_id = ? AND status = 'offen')
+                      OR EXISTS(
+                          SELECT 1 FROM support_ticket_messages sm JOIN support_tickets st ON st.id = sm.ticket_id
+                          WHERE st.community_id = ? AND sm.is_staff = false
+                            AND sm.created_at > COALESCE(st.manager_read_at, '-infinity'::timestamptz)
+                      )
+                  ) AS x",
+                  [$r['community_id'], $r['community_id']]
+              )['x'];
+              if ($hasNews) { $anyOtherRoleHasNews = true; }
           }
           // Community-Kontext wieder auf die tatsächlich aktive Rolle zurücksetzen -- sonst
           // würden nachfolgende Abfragen dieser Anfrage (z.B. die Sidebar-Badges weiter unten)
@@ -79,10 +74,12 @@
         <div style="position:relative;display:inline-block">
         <select onchange="switchRole(this)" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
           <?php foreach ($roles as $r): ?>
-            <?php $key = ($r['community_id'] ?? '') . '|' . $r['role']; ?>
             <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>"
               <?= ($r === Auth::activeRole()) ? 'selected' : '' ?>>
-              <?php if (!empty($roleHasNews[$key])): ?>🔴 <?php endif; ?>
+              <?php // Kein Emoji-Präfix hier -- dessen Farbe lässt sich innerhalb einer <option>
+                    // nicht per CSS auf ein sattes Rot setzen (Patrick, 05.08.2026: "richtiges
+                    // Kirschrot" gewünscht, das 🔴-Emoji wirkte blass/falsch). Der verlässliche,
+                    // farblich steuerbare Hinweis ist der kleine Punkt direkt am Dropdown unten. ?>
               <?php if ($r['role'] === 'platform_admin'): ?>
                 Plattform-Admin
               <?php else: ?>

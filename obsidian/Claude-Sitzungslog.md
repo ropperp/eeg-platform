@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-05 (24) — Claude Code — Claude Sonnet 5
+**Auftrag:** Der Neuigkeiten-Punkt aus Eintrag 23 ist jetzt sichtbar, aber die Farbe stimmt
+nicht -- "bitte in einem richtigen Kirschrot, so ist der Punkt nicht erkenntlich" (Screenshots
+zeigten einen blassen/kaum sichtbaren Punkt bei "Support" in der eingeklappten Sidebar sowie
+ein rötliches Emoji-Zeichen statt eines echten Punkts beim Rollen-Umschalter).
+**Ergebnis:** Zwei Ursachen gefunden und behoben: (1) `.sidebar.collapsed a .badge` übernahm
+bisher `background` von `.badge-red`/`.badge-yellow` -- diese Klassen sind für eine Pille MIT
+Zahl gedacht (helles Pastell + kräftige Textfarbe), als reiner Punkt ohne Zahl blieb nur das
+blasse Pastell übrig, im Dark Mode (`#450a0a`, sehr dunkel) praktisch unsichtbar. Jetzt fixes
+kräftiges Rot (`#dc2626`) bzw. Orange (`#d97706`) unabhängig vom Theme. (2) Beim
+Rollen-Umschalter zeigte die 🔴-Emoji-Markierung vor dem Options-Namen zusätzlich blass/falsch
+gefärbt -- Emoji-Farbe ist plattformabhängig und lässt sich innerhalb einer `<option>` nicht per
+CSS beeinflussen. Emoji entfernt, verlässlicher Hinweis bleibt nur der bereits vorhandene, fix
+`#dc2626` gefärbte Punkt direkt am Dropdown. Nebenbei totes `$roleHasNews`-Array entfernt (wurde
+nach Entfernen der Emoji-Anzeige nirgends mehr gelesen). `php -l` + `php tests/run.php` (77/77)
+grün.
+
+---
+
 ## 2026-08-05 (23) — Claude Code — Claude Sonnet 5
 **Auftrag:** Der neue Support-Tickets-Badge war in der eingeklappten (Icon-only) Sidebar
 komplett unsichtbar -- Screenshot zeigte: kein Punkt im Startfenster, nur wenn man selbst auf
