@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'Router', 'Billing', 'Mailer'] as $class) {
+foreach (['DB', 'Auth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaAutoImporter'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -4980,6 +4980,10 @@ $router->get('/admin/communities/:id', function ($params) {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$params['id']]);
     if (!$community) { http_response_code(404); return; }
+    // Entschlüsselt fürs Formular: der Platform-Admin muss das EDA-Portal-Passwort tatsächlich
+    // ablesen können (z.B. um sich selbst einzuloggen), anders als z.B. das Graph-Client-Secret,
+    // das nur die App selbst braucht -- siehe encryptSecret()/decryptSecret() in functions.php.
+    $community['eda_login_password'] = decryptSecret($community['eda_login_password_enc'] ?? null);
     // Bewusst ohne DB::setCommunity/RLS-Abhängigkeit: der Platform-Admin muss die Mitglieder
     // JEDER EEG hier sehen können, nicht nur die seiner aktuell aktiven Rolle.
     $members = DB::fetchAll(
@@ -5072,8 +5076,17 @@ $router->post('/admin/users/:id/delete', function ($params) {
 $router->post('/admin/communities/:id', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+
+    // EDA-Portal-Passwort nur überschreiben, wenn tatsächlich ein neues eingegeben wurde --
+    // das Feld wird beim Laden nie im Klartext vorbefüllt (siehe admin_community.php), ein
+    // leeres Absenden darf das gespeicherte Passwort also nicht versehentlich löschen.
+    $current = DB::fetchOne('SELECT eda_login_password_enc FROM communities WHERE id = ?', [$params['id']]);
+    $newEdaPassword = trim($_POST['eda_login_password'] ?? '');
+    $edaPasswordEnc = $newEdaPassword !== '' ? encryptSecret($newEdaPassword) : ($current['eda_login_password_enc'] ?? null);
+
     DB::execute(
-        'UPDATE communities SET name=?, marktpartner_id=?, zvr_number=?, address=?, iban=?, bic=?, active=? WHERE id=?',
+        'UPDATE communities SET name=?, marktpartner_id=?, zvr_number=?, address=?, iban=?, bic=?, active=?,
+             eda_login_email=?, eda_login_password_enc=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['marktpartner_id'] ?? '') ?: null,
@@ -5082,6 +5095,8 @@ $router->post('/admin/communities/:id', function ($params) {
             trim($_POST['iban'] ?? '') ?: null,
             trim($_POST['bic'] ?? '') ?: null,
             isset($_POST['active']) ? 'true' : 'false',
+            trim($_POST['eda_login_email'] ?? '') ?: null,
+            $edaPasswordEnc,
             $params['id'],
         ]
     );
@@ -5321,7 +5336,8 @@ $router->post('/admin/mail-settings', function () {
          SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
              signature_logo_base64 = ?, signature_logo_type = ?,
              signature_logo_width = ?, signature_logo_height = ?,
-             backup_alert_email_1 = ?, backup_alert_email_2 = ?, support_notification_email = ?, updated_at = now()
+             backup_alert_email_1 = ?, backup_alert_email_2 = ?, support_notification_email = ?,
+             eda_import_mailbox_address = ?, updated_at = now()
          WHERE id = 1',
         [
             trim($_POST['tenant_id'] ?? '') ?: null,
@@ -5337,6 +5353,7 @@ $router->post('/admin/mail-settings', function () {
             trim($_POST['backup_alert_email_1'] ?? '') ?: null,
             trim($_POST['backup_alert_email_2'] ?? '') ?: null,
             trim($_POST['support_notification_email'] ?? '') ?: 'office@stromfueralle.at',
+            trim($_POST['eda_import_mailbox_address'] ?? '') ?: null,
         ]
     );
     $mailAfter = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
@@ -5349,6 +5366,7 @@ $router->post('/admin/mail-settings', function () {
         'signature_logo_width' => 'Logo-Breite', 'signature_logo_height' => 'Logo-Höhe',
         'backup_alert_email_1' => 'Alarm-E-Mail 1', 'backup_alert_email_2' => 'Alarm-E-Mail 2',
         'support_notification_email' => 'Support-Ticket-Benachrichtigung an',
+        'eda_import_mailbox_address' => 'EDA-Import-Postfach',
     ]);
     if (($current['client_secret'] ?? null) !== ($mailAfter['client_secret'] ?? null)) {
         $mailChanges['client_secret'] = ['label' => 'Client-Secret', 'von' => '(verborgen)', 'auf' => '(geändert)'];
@@ -5362,6 +5380,24 @@ $router->post('/admin/mail-settings', function () {
         logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Mail-Konfiguration gespeichert (keine Änderung)');
     }
     header('Location: /admin/mail-settings?success=1');
+    exit;
+});
+
+/**
+ * Manueller Testlauf des EDA-Postfach-Imports (siehe EdaAutoImporter.php) -- normalerweise
+ * läuft das per Cron (scripts/eda_auto_import.php), dieser Button ist zum Testen/Nachstoßen,
+ * ohne auf den nächsten Cron-Durchlauf warten zu müssen.
+ */
+$router->post('/admin/mail-settings/eda-import-run', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    try {
+        $lines = EdaAutoImporter::run();
+        logAudit(null, 'eda.auto_import.manual_run', null, null, 'EDA-Postfach-Import manuell angestoßen: ' . implode(' | ', $lines));
+        header('Location: /admin/mail-settings?eda_run=' . urlencode(implode("\n", $lines)));
+    } catch (\Throwable $e) {
+        header('Location: /admin/mail-settings?eda_run_error=' . urlencode($e->getMessage()));
+    }
     exit;
 });
 

@@ -8,6 +8,32 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-05 (27) — Claude Code — Claude Sonnet 5
+**Auftrag:** Fortsetzung von (26), Punkt 3: Zugang zum EDA-Anwenderportal ist E-Mail + Passwort;
+Patrick kann dort einen eigenen Export-User anlegen, an dessen E-Mail-Adresse der Exportlink
+geschickt wird -- am liebsten an ein neues, dediziertes Postfach `eda@stromfueralle.at`, über
+dieselbe Microsoft-Graph-Anbindung, die schon organisationsweit für den Mailversand genutzt wird.
+**Ergebnis:** Automatischen Postfach-Import umgesetzt, das eigentliche Auslösen des Exports im
+EDA-Portal (Login + Klick) bleibt bewusst manuell -- dafür fehlen die DOM-Details des Portals,
+blind zusammengeklickte Selektoren wären nur Schein-Automatisierung. Neu: `GraphMailReader.php`
+(liest ein Postfach über Microsoft Graph, Mail.Read -- Mailer.php dafür `config()`/
+`getAccessToken()` public gemacht statt dupliziert), `EdaAutoImporter.php` (Kernlogik: Anhang
+oder ersten Link im Mailtext herunterladen, Marktpartner-ID aus dem EDA-Dateinamensschema
+`RC108175_...` lesen, passende EEG nachschlagen, `eda-parser/parser.py` aufrufen, Audit-Log-
+Eintrag, Mail als gelesen markieren; bei Fehlern bleibt die Mail ungelesen + Alarm-Mail an die
+Backup-Alarm-Adressen), `scripts/eda_auto_import.php` als Cron-Wrapper (analog
+`health_alert.php`). Neue Spalten `communities.eda_login_email/eda_login_password_enc`
+(verschlüsselt wie WLAN-Passwörter) und `platform_mail_config.eda_import_mailbox_address`
+(migrate_20260825.sql) mit Admin-UI: EDA-Zugangsdaten je EEG bei „EEG konfigurieren", neuer
+Abschnitt „EDA-Automatik" bei den E-Mail-Einstellungen (Postfachadresse + „Jetzt prüfen"-Button
+zum Testen ohne Cron). CLAUDE.md/Infrastruktur.md um Einrichtungsschritte ergänzt (Shared
+Mailbox anlegen, zusätzliche Berechtigung `Mail.Read` für die bestehende Azure-App, Cron-Eintrag).
+Nicht verifizierbar ohne echte EDA-Exportmail: dass der Download-Link ohne weiteren
+Portal-Login abrufbar ist -- als offene Annahme dokumentiert, Fallback bleibt der bestehende
+manuelle Upload über `/portal/eda/upload`.
+
+---
+
 ## 2026-08-05 (26) — Claude Code — Claude Sonnet 5
 **Auftrag:** Drei Wünsche nach dem EDA-Parser-Umbau: (1) Das Datum soll zuverlässig aus der
 Excel-Tabelle selbst kommen, damit man bei einer späteren Quartalsabrechnung wirklich alle

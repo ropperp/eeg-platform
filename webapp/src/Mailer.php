@@ -11,7 +11,12 @@ declare(strict_types=1);
  */
 class Mailer
 {
-    private static function config(): ?array
+    /**
+     * Öffentlich (statt private), damit andere Graph-Nutzer derselben App-Registrierung --
+     * aktuell GraphMailReader.php für den EDA-Postfach-Import -- Tenant-ID/Client-ID/Client-Secret
+     * mitverwenden können, ohne die OAuth-Logik zu duplizieren.
+     */
+    public static function config(): ?array
     {
         $cfg = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
         if (!$cfg || empty($cfg['tenant_id']) || empty($cfg['client_id']) || empty($cfg['client_secret']) || empty($cfg['sender_address'])) {
@@ -25,7 +30,7 @@ class Mailer
         return self::config() !== null;
     }
 
-    private static function getAccessToken(array $cfg): string
+    public static function getAccessToken(array $cfg): string
     {
         $url = 'https://login.microsoftonline.com/' . rawurlencode($cfg['tenant_id']) . '/oauth2/v2.0/token';
         $postFields = http_build_query([
