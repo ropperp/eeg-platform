@@ -8,6 +8,40 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-05 (26) — Claude Code — Claude Sonnet 5
+**Auftrag:** Drei Wünsche nach dem EDA-Parser-Umbau: (1) Das Datum soll zuverlässig aus der
+Excel-Tabelle selbst kommen, damit man bei einer späteren Quartalsabrechnung wirklich alle
+Monate hat und keinen vergisst; ein reiner Monatslauf soll auch funktionieren, nicht nur
+Quartale. (2) Im Testmodus testweise Rechnungen für einen/alle Kunden erstellen können, inkl.
+Bearbeitungsmodus, um den Mitgliedsbeitrag zu reduzieren/gutzuschreiben/Rabatt zu geben. (3)
+EDA-Portal-Automatisierung: Login/Monatsexport-Auswahl automatisieren und bei Eintreffen der
+Download-Link-E-Mail automatisch die Datei holen.
+**Ergebnis:** (1) und teilweise (2) umgesetzt, (3) noch offen (Rückfragen gestellt, siehe unten).
+`Billing::periodDates()` (vormals `quarterDates()`) akzeptiert jetzt zusätzlich zum
+Quartalsformat auch einen einzelnen Monat ("2026-07"); `/portal/billing` erlaubt beides beim
+Anlegen eines Laufs. Neue `Billing::missingMonths()`: prüft, ob für jeden Kalendermonat im
+Zeitraum eines Laufs überhaupt ein `eda_imports`-Eintrag existiert -- als drittes,
+höchstprioritäres Kriterium in `datenqualitaetProblem()` ergänzt (blockiert die Freigabe) und
+zusätzlich schon in der Abrechnungsübersicht als roter Hinweis sichtbar, nicht erst beim
+Freigabe-Versuch. Damit das zuverlässig funktioniert, liest `eda-parser/parser.py` jetzt den im
+Datei-Kopf deklarierten "Auswertungszeitraum von/bis" (immer ein voller Kalendermonat) separat
+aus (`LoadResult.period_from/period_to`) und nutzt ihn für `eda_imports.period_from/period_to`
+-- vorher wurde das aus dem Minimum/Maximum der (teils unterjährig verkürzten)
+Zählpunkt-Teilnahmezeiträume abgeleitet, was den Monat nicht immer zuverlässig als vollständig
+markiert hätte. (2) Recherche ergab: Testweise Rechnungen erstellen (für alle aktiven
+Mitglieder) UND die Positionen jeder einzelnen Rechnung anschließend bearbeiten (Betrag ändern,
+Position hinzufügen -- z.B. Mitgliedsbeitrag reduzieren oder Rabatt geben) existiert bereits
+vollständig (`Billing::generateDrafts()` + `/portal/billing/invoices/:id/edit`), ebenso ein
+"Abrechnungslauf löschen"-Button für einen kompletten Verwurf nach dem Testen -- dem Nutzer
+erklärt statt dupliziert. (3) EDA-Portal-Login-Automatisierung + E-Mail-getriggerter
+Datei-Download: Rückfragen zu Zugangsdaten-Speicherung/Sicherheit, 2FA/CAPTCHA am Portal und
+Postfach-Zugriffsweg gestellt, bevor Code geschrieben wird (echte externe Zugangsdaten, nicht
+leichtfertig automatisierbar). `php -l` + `php tests/run.php` (77/77) grün; neuer Parser erneut
+gegen die reale Datei getestet (Datei-Zeitraum jetzt korrekt 2026-07-01–2026-07-31 statt aus
+Einzelwerten abgeleitet).
+
+---
+
 ## 2026-08-05 (25) — Claude Code — Claude Sonnet 5
 **Auftrag:** Echten EDA-Monatsexport (xlsx, Sheets „Gesamtübersicht"/„Detailübersicht") als
 Datei-Upload geschickt mit der Bitte, darauf basierend das Abrechnungssystem zu bauen -- ein

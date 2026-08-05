@@ -20,6 +20,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **Monats-Abrechnungsläufe + automatische Prüfung auf fehlende Monate.** Ein Abrechnungslauf
+  kann jetzt neben einem Quartal (`2026-Q1`) auch für einen einzelnen Monat (`2026-07`) angelegt
+  werden -- praktisch für Testläufe oder EEGs, die monatlich statt quartalsweise abrechnen.
+  Wichtiger: die Plattform prüft jetzt automatisch, ob für **jeden Kalendermonat** im
+  Abrechnungszeitraum überhaupt schon ein EDA-Import vorliegt (`Billing::missingMonths()`) --
+  bei einem Quartal also alle drei Monate. Fehlt einer, erscheint in der Abrechnungsübersicht
+  ein roter Hinweis ("fehlt: 2026-08") und die endgültige Freigabe bleibt gesperrt, damit nie
+  versehentlich ein vergessener Monat mit 0 statt den echten Werten verrechnet wird. Dafür
+  liest `eda-parser/parser.py` den im Datei-Kopf deklarierten "Auswertungszeitraum" (immer ein
+  voller Kalendermonat) jetzt separat aus und speichert ihn als `eda_imports.period_from`/
+  `period_to` -- zuverlässiger als die zuvor verwendete Ableitung aus den (teils unterjährig
+  verkürzten) Teilnahmezeiträumen einzelner Zählpunkte.
 - **EDA-Monatsexport-Import auf das echte Dateiformat umgestellt.** `eda-parser/parser.py`
   erwartete bisher eine geratene, nie an einer echten Datei getesteten Struktur (Sheets
   „Übersicht"/„Energiedaten", 15-Min-Zeitreihen in 4-Spalten-Blöcken je Zählpunkt). Anhand

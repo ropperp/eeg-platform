@@ -3563,6 +3563,12 @@ $router->get('/portal/billing', function () {
     foreach (DB::fetchAll('SELECT * FROM billing_run_extra_items WHERE community_id = ? ORDER BY created_at', [$communityId]) as $ei) {
         $extraItemsByRun[$ei['billing_run_id']][] = $ei;
     }
+    // Fehlende Monatsimporte je Lauf schon in der Übersicht sichtbar machen, nicht erst als
+    // Fehlermeldung beim Freigabe-Versuch (siehe Billing::missingMonths(), Patrick 05.08.2026).
+    $missingMonthsByRun = [];
+    foreach ($runs as $run) {
+        $missingMonthsByRun[$run['id']] = Billing::missingMonths($communityId, $run['period_from'], $run['period_to']);
+    }
     require ROOT . '/src/views/pages/billing.php';
 });
 
@@ -3667,8 +3673,8 @@ $router->post('/portal/billing/create', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $quartal = trim($_POST['quartal'] ?? '');
-    if (!preg_match('/^\d{4}-Q[1-4]$/', $quartal)) {
-        header('Location: /portal/billing?error=' . urlencode('Ungültiges Quartalsformat (z.B. 2026-Q1).'));
+    if (!preg_match('/^\d{4}-(Q[1-4]|(0[1-9]|1[0-2]))$/', $quartal)) {
+        header('Location: /portal/billing?error=' . urlencode('Ungültiges Zeitraum-Format (z.B. 2026-Q1 für ein Quartal oder 2026-07 für einen Monat).'));
         exit;
     }
     try {
