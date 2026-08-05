@@ -21,23 +21,34 @@ zwei Modelle, die bei der Anmeldung der EEG beim Netzbetreiber je Zählpunkt fes
 ## Wer berechnet das — und wo taucht das Ergebnis in dieser Plattform auf?
 
 **Kärnten Netz** (der Verteilnetzbetreiber) wendet den bei ihm hinterlegten Schlüssel an und
-liefert das Ergebnis über das **EDA-Anwenderportal** als Monatsexport (XLSX) — dieselbe Datei,
-die unter „EDA-Daten importieren" (`/portal/eda/upload`) hochgeladen wird. Für jeden Zählpunkt
-enthält diese Datei bereits die fertig aufgeteilten Viertelstundenwerte:
+liefert das Ergebnis über das **EDA-Anwenderportal** als monatlichen Energiedatenreport (XLSX,
+Sheets „Gesamtübersicht"/„Detailübersicht") — dieselbe Datei, die unter „EDA-Daten importieren"
+(`/portal/eda/upload`) hochgeladen wird. Eine Datei deckt immer genau einen Kalendermonat ab;
+für einen Quartals-Abrechnungslauf werden die drei Monatsdateien des Quartals nacheinander
+importiert (die Beträge summieren sich beim Abrechnen automatisch über den Zeitraum).
 
-| EDA-Spalte             | Bedeutung                                                          |
-|-------------------------|---------------------------------------------------------------------|
-| `kwh_erzeugung`         | Erzeugung des Zählpunkts (Einspeiser)                               |
-| `kwh_teilnahme`         | **Bereits zugeteilte** Menge — das, was laut Aufteilungsschlüssel auf diesen Zählpunkt entfällt |
-| `kwh_ueberschuss`       | Überschuss, der ins öffentliche Netz eingespeist wurde              |
-| `kwh_restueberschuss`   | Verbleibender Überschuss nach Verrechnung                           |
+Für jeden Zählpunkt enthält das Sheet „Gesamtübersicht" pro Monat bereits die fertig
+zugeteilte, abrechnungsrelevante Energiemenge — je nach „Energierichtung" (VERBRAUCH/ERZEUGUNG)
+in einer der beiden Spalten:
 
-`eda-parser/parser.py` importiert diese Spalten unverändert in `eda_measurements`.
-`Billing::generateDrafts()` (`webapp/src/Billing.php`) summiert direkt `kwh_teilnahme` (→
-„Bezug aus der Gemeinschaft", wird dem Mitglied verrechnet) und `kwh_erzeugung` (→
-Einspeisevergütung) über den Abrechnungszeitraum. **Die Plattform übernimmt also nur bereits
-fertig aufgeteilte Werte — sie entscheidet nicht, welches Modell gilt oder wie viel Prozent
-wer bekommt.**
+| Reale EDA-Spalte (Gesamtübersicht)                    | Interne DB-Spalte (`eda_measurements`) | Bedeutung |
+|--------------------------------------------------------|------------------------------------------|-----------|
+| „Verbrauch, abrechnungsrelevante Energiemenge" (nur bei VERBRAUCH-Zeilen) | `kwh_teilnahme` | Bereits zugeteilte Bezugsmenge aus der Gemeinschaft — das, was laut Aufteilungsschlüssel auf diesen Zählpunkt entfällt und dem Mitglied verrechnet wird |
+| „Erzeugung, abrechnungsrelevante Energiemenge" (nur bei ERZEUGUNG-Zeilen) | `kwh_erzeugung` | Von der Gemeinschaft tatsächlich verbrauchter Anteil der Erzeugung — Grundlage der Einspeisevergütung |
+
+Zusätzlich liefert das Sheet „Detailübersicht" dieselben Zählpunkte mit den Einzelkomponenten
+(Gesamtverbrauch, Eigendeckung, Restüberschuss usw.) — daraus werden nur noch
+`kwh_ueberschuss`/`kwh_restueberschuss` ergänzend übernommen (rein informativ, siehe unten).
+
+`eda-parser/parser.py` übernimmt die bereits fertig berechneten Werte unverändert in
+`eda_measurements`. `Billing::generateDrafts()` (`webapp/src/Billing.php`) summiert direkt
+`kwh_teilnahme` (→ „Bezug aus der Gemeinschaft", wird dem Mitglied verrechnet) und
+`kwh_erzeugung` (→ Einspeisevergütung) über den Abrechnungszeitraum. `kwh_ueberschuss`/
+`kwh_restueberschuss` fließen **nicht** in die Rechnungsberechnung ein (der Restüberschuss --
+das ins öffentliche Netz eingespeiste bzw. vom Netz bezogene Residuum -- wird bereits außerhalb
+der EEG-Plattform vom jeweiligen Netzbetreiber/Lieferanten verrechnet). **Die Plattform
+übernimmt also nur bereits fertig aufgeteilte Werte — sie entscheidet nicht, welches Modell
+gilt oder wie viel Prozent wer bekommt.**
 
 ## Warum keine eigene Berechnung in der Plattform?
 

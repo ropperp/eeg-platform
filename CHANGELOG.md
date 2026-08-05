@@ -20,6 +20,21 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **EDA-Monatsexport-Import auf das echte Dateiformat umgestellt.** `eda-parser/parser.py`
+  erwartete bisher eine geratene, nie an einer echten Datei getesteten Struktur (Sheets
+  „Übersicht"/„Energiedaten", 15-Min-Zeitreihen in 4-Spalten-Blöcken je Zählpunkt). Anhand
+  eines echten EDA-Energiedatenreports (Monatsexport) komplett neu geschrieben: liest jetzt die
+  tatsächlichen Sheets „Gesamtübersicht" (bereits fertig zugeteilte, abrechnungsrelevante
+  Energiemenge je Zählpunkt und Monat) und „Detailübersicht" (Restüberschuss/Überschuss als
+  Zusatzinfo). Header-Zeile und Spalten werden dynamisch per Namenssuche gefunden statt fixer
+  Zeilennummern -- robuster gegenüber kleinen Formatänderungen. Da EDA pro Monat nur eine Zeile
+  je Zählpunkt liefert, braucht ein Quartals-Abrechnungslauf jetzt drei separate Monatsimporte;
+  `Billing::generateDrafts()` summiert die Werte automatisch über den Quartalszeitraum, keine
+  Änderung an der Abrechnungslogik selbst nötig. Zusätzlich: Energierichtung (VERBRAUCH/
+  ERZEUGUNG) bestimmt den Zählpunkt-Typ jetzt eindeutig statt geraten; veraltete, nie
+  angebundene 60-Tage-Logik (`check_billing_readiness()`) entfernt; Hinweistexte in
+  `eda_upload.php` korrigiert. Details: `docs/AUFTEILUNGSSCHLUESSEL.md`,
+  `docs/EDA_DATENQUALITAET.md`, `docs/ESP_IDEEN.md`.
 - **Neuigkeiten-Punkt beim Rollen-Umschalter für Mehrfach-Rollen-Accounts.** Wer wie Patrick
   gleichzeitig Platform-Admin UND Obmann einer EEG ist, sah bisher nicht, dass in der gerade
   NICHT aktiven Rolle etwas Neues wartet (z. B. ein neues Support-Ticket beim Obmann, während

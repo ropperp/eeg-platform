@@ -43,8 +43,12 @@
 <div class="card">
   <h3 style="margin-bottom:1rem">XLSX hochladen</h3>
   <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:1.5rem">
-    Laden Sie die XLSX-Datei aus dem <strong>EDA-Anwenderportal</strong> hoch.
-    Dateiname-Format: <code>RC108175_2026-05-11T00_00-2026-06-11T23_45.xlsx</code>
+    Laden Sie den <strong>Energiedatenreport (Monatsexport)</strong> aus dem
+    <strong>EDA-Anwenderportal</strong> hoch (Sheets „Gesamtübersicht" und „Detailübersicht").
+    Eine Datei deckt immer genau <strong>einen Kalendermonat</strong> ab -- für einen
+    Quartals-Abrechnungslauf bitte alle drei Monatsdateien des Quartals nacheinander hier
+    hochladen. Die Beträge werden beim Berechnen der Rechnungen automatisch über den ganzen
+    Quartalszeitraum summiert.
   </p>
 
   <form method="post" action="/portal/eda/upload" enctype="multipart/form-data">
@@ -71,9 +75,11 @@
   <h3 style="margin-bottom:.75rem"><?= icon('info') ?> Wichtiger Hinweis</h3>
   <p style="font-size:.875rem;color:var(--gray-600)">
     Die EDA-Daten sind die <strong>einzige rechtlich bindende Abrechnungsgrundlage</strong>.
-    Nach erfolgreichem Import prüft das System automatisch ob alle Zählpunkte vollständig (COMPLETE)
-    und ob das 60-Tage-Korrekturfenster abgelaufen ist.
-    Erst dann wird der Freigabe-Button in der Abrechnung aktiviert.
+    Für die Rechnungsberechnung zählen ausschließlich Werte der Qualität <strong>L1/L2</strong>
+    (echt gemessen bzw. belastbarer Ersatzwert) -- Zeiträume mit noch vorhandenen
+    <strong>L3</strong>-Werten (nicht belastbarer Ersatzwert) sperren die endgültige Freigabe
+    des Abrechnungslaufs automatisch, bis ein neuerer Monatsreport keine L3-Werte mehr meldet.
+    Details dazu: <code>docs/EDA_DATENQUALITAET.md</code>.
   </p>
 </div>
 

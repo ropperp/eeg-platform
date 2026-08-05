@@ -8,6 +8,36 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-05 (25) — Claude Code — Claude Sonnet 5
+**Auftrag:** Echten EDA-Monatsexport (xlsx, Sheets „Gesamtübersicht"/„Detailübersicht") als
+Datei-Upload geschickt mit der Bitte, darauf basierend das Abrechnungssystem zu bauen -- ein
+Quartal soll aus mehreren Monatsexporten zusammengesetzt werden.
+**Ergebnis:** Vor dem Programmieren zuerst per Explore-Subagent den bestehenden Stand geklärt:
+Der Zählpunkt-Abgleich beim Import war schon seit 29.07.2026 fertig, aber
+`eda-parser/parser.py` war auf ein komplett geratenes, nie an einer echten Datei getestetes
+Dateiformat kalibriert (Sheets „Übersicht"/„Energiedaten", 15-Min-Zeitreihen) -- passte nicht
+zur echten Datei. Die reale Datei selbst mit `openpyxl` analysiert: Sheet „Gesamtübersicht"
+liefert pro Zählpunkt und Monat bereits die fertig zugeteilte „abrechnungsrelevante
+Energiemenge" (nach Richtung VERBRAUCH/ERZEUGUNG), exakt das, was `Billing::generateDrafts()`
+als `kwh_teilnahme`/`kwh_erzeugung` braucht -- keine eigene Aufteilungsschlüssel-Berechnung
+nötig, EDA liefert das Ergebnis schon fertig (deckt sich mit `docs/AUFTEILUNGSSCHLUESSEL.md`).
+`eda-parser/parser.py` komplett neu geschrieben: Header-Zeile per Namenssuche ("Zählpunktnummer")
+statt fixer Zeilennummer gefunden, Spalten per Substring-Suche, Datenqualität bei
+kommagetrennten Werten ("L1,L3") worst-case auf L3 abgebildet, Zählpunkt-Typ direkt aus
+Energierichtung statt Erzeugung/Verbrauch-Summen-Vermutung. Da EDA nur eine Zeile pro Monat und
+Zählpunkt liefert, schreibt der Import jetzt genau eine `eda_measurements`-Zeile je Zählpunkt
+und Monat -- ein Quartal ergibt sich aus drei Monatsimporten, die `Billing::generateDrafts()`
+unverändert per SUM() über den Zeitraum zusammenfasst (keine PHP-Änderung nötig). Neuen Parser
+gegen die reale Datei getestet (ohne DB, reine Parsing-Verifikation): alle 10 Zählpunkte korrekt
+erkannt, Werte stimmen exakt mit den EDA-Spalten überein. Nebenbei die nie angebundene,
+veraltete `check_billing_readiness()`-Funktion (starre 60-Tage-Regel) entfernt und
+Hinweistexte in `eda_upload.php` korrigiert (falsches Dateiname-Beispiel, veraltete
+60-Tage-Erwähnung). `docs/AUFTEILUNGSSCHLUESSEL.md`, `docs/EDA_DATENQUALITAET.md` und
+`docs/ESP_IDEEN.md` (Punkt 3 von "Offen" nach "Umgesetzt" verschoben) aktualisiert. `php -l` +
+`php tests/run.php` (77/77) grün; `python3 -m py_compile` für den Parser grün.
+
+---
+
 ## 2026-08-05 (24) — Claude Code — Claude Sonnet 5
 **Auftrag:** Der Neuigkeiten-Punkt aus Eintrag 23 ist jetzt sichtbar, aber die Farbe stimmt
 nicht -- "bitte in einem richtigen Kirschrot, so ist der Punkt nicht erkenntlich" (Screenshots
