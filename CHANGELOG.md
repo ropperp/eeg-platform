@@ -20,6 +20,17 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Neu / Funktionen
+- **"Einladung erneut senden" für Mitglieder, die sich noch nie eingeloggt haben.** In der
+  Mitgliederliste erscheint bei der Spalte "Zuletzt angemeldet" jetzt ein Button
+  ("Einladung erneut senden"), sobald ein Mitglied ein Login-Konto hat, sich aber noch nie
+  angemeldet hat (z. B. weil die ursprüngliche Willkommens-Mail im Spam landete oder der
+  24-Stunden-Link inzwischen abgelaufen ist) -- versendet dieselbe Willkommens-Mail wie beim
+  Anlegen, mit neuem, wieder 24 Stunden gültigem Erstlogin-Link (neue Route
+  `POST /portal/members/:id/resend-invite`). Bereits aktive Mitglieder sehen den Button nicht
+  mehr (und die Route lehnt den Versand serverseitig ab, sobald `last_login_at` gesetzt ist --
+  dafür gibt es die bestehende "Passwort zurücksetzen"-Funktion auf der Detailseite). Ein
+  abgelaufener oder bereits genutzter Link zeigte schon vorher korrekt "Link ist ungültig oder
+  abgelaufen, bitte neuen Link anfordern" (`reset_password.php`) -- das war schon vorhanden.
 - **Ungelesen-Badge für Support-Tickets im Obmann-Sidebar.** Bisher zeigte der Support-Tickets-
   Menüpunkt nur die Anzahl offener Tickets (gelb). Jetzt ein roter Badge mit der Anzahl
   ungelesener Mitglieder-Nachrichten (neue Spalte `support_tickets.manager_read_at`, gesetzt

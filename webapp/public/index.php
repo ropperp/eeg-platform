@@ -2483,6 +2483,53 @@ $router->post('/portal/members/:id/reset-password', function ($params) {
     exit;
 });
 
+/**
+ * Willkommens-E-Mail (Erstlogin-Link, 24h gültig) erneut senden -- für Mitglieder, die sich seit
+ * dem Anlegen noch nie eingeloggt haben (z.B. weil die ursprüngliche Mail im Spam landete oder der
+ * erste Link inzwischen abgelaufen ist). Bewusst eine eigene Route statt reset-password oben
+ * wiederzuverwenden: andere Vorlage ("Willkommen" statt "Passwort zurücksetzen"), andere
+ * Standard-Gültigkeit (24h statt 10min) und ein serverseitiger Schutz gegen Mehrfachnutzung durch
+ * bereits aktive Mitglieder (siehe last_login_at-Prüfung unten).
+ */
+$router->post('/portal/members/:id/resend-invite', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    if (!$member['user_id']) { http_response_code(404); echo 'Kein Login-Konto vorhanden.'; return; }
+    $user = DB::fetchOne('SELECT email, last_login_at FROM users WHERE id = ?', [$member['user_id']]);
+    if (!empty($user['last_login_at'])) {
+        header('Location: /portal/members?error=' . urlencode('Dieses Mitglied hat sich bereits angemeldet -- bitte stattdessen "Passwort zurücksetzen" auf der Mitglieds-Detailseite verwenden.'));
+        exit;
+    }
+    $token = Auth::createResetToken($user['email'], 86400);
+    if (!$token) {
+        header('Location: /portal/members?error=' . urlencode('Kein aktiver Login-Zugang für diese E-Mail-Adresse gefunden.'));
+        exit;
+    }
+    try {
+        $link = htmlspecialchars(passwordResetLink($token));
+        $anrede = mailSalutation($member);
+        $mail = renderMailTemplate('invite', [
+            'vorname'     => htmlspecialchars($member['first_name']),
+            'anrede'      => htmlspecialchars($anrede['anrede']),
+            'nachname'    => htmlspecialchars($anrede['nachname']),
+            'link'        => $link,
+            'gueltigkeit' => '24 Stunden',
+        ],
+            'Willkommen bei Strom für alle – Zugang einrichten',
+            '<p>{{anrede}} {{nachname}},</p>'
+            . '<p>Ihr Zugang zum Mitgliederportal wurde angelegt. Bitte vergeben Sie über folgenden Link '
+            . 'innerhalb der nächsten {{gueltigkeit}} Ihr persönliches Passwort:</p>'
+            . '<p><a href="{{link}}">{{link}}</a></p>'
+        );
+        Mailer::send($user['email'], $mail['subject'], $mail['body']);
+        header('Location: /portal/members?success=invite_resent');
+    } catch (\Throwable $e) {
+        header('Location: /portal/members?error=' . urlencode('E-Mail-Versand fehlgeschlagen: ' . $e->getMessage()));
+    }
+    exit;
+});
+
 $router->get('/portal/members/:id', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     // Nicht über die aktive Rolle scopen: Platform-Admins müssen ein Mitglied auch dann ansehen
