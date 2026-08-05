@@ -14,8 +14,13 @@ $contractsEnabled = $contractsEnabled ?? true;
 
 <?php if (($_GET['success'] ?? '') === 'invite_sent'): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde angelegt, Einladung mit Erstlogin-Link wurde per E-Mail verschickt.</div>
+<?php elseif (($_GET['success'] ?? '') === 'invite_resent'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Einladung mit neuem Erstlogin-Link (24 Stunden gültig) wurde erneut per E-Mail verschickt.</div>
 <?php elseif (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Mitglied wurde gespeichert.</div>
+<?php endif; ?>
+<?php if (!empty($_GET['error'])): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
 <?php endif; ?>
 
 <?php if (!empty($successTempPw)): ?>
@@ -192,7 +197,11 @@ $contractsEnabled = $contractsEnabled ?? true;
           <?php if (empty($m['user_id'])): ?>
             <span style="color:var(--gray-400)">—</span>
           <?php elseif (empty($lastLoginAt)): ?>
-            <span style="color:#b45309">Noch nicht angemeldet</span>
+            <span style="color:#b45309;display:block;margin-bottom:.25rem">Noch nicht angemeldet</span>
+            <form method="post" action="/portal/members/<?= $m['id'] ?>/resend-invite" style="display:inline"
+                  onsubmit="return confirm('Willkommens-E-Mail mit neuem Erstlogin-Link (24 Stunden gültig) erneut an <?= htmlspecialchars(addslashes($m['email'])) ?> senden?')">
+              <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.72rem;padding:.2rem .5rem"><?= icon('envelope-simple') ?> Einladung erneut senden</button>
+            </form>
           <?php else: ?>
             <?= date('d.m.Y H:i', strtotime($lastLoginAt)) ?>
           <?php endif; ?>

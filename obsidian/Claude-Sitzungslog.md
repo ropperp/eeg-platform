@@ -8,6 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-04 (22) — Claude Code — Claude Sonnet 5
+**Auftrag:** Button in der Mitgliederliste, der nur erscheint, wenn sich jemand noch nie
+angemeldet hat -- sendet die Willkommens-E-Mail mit 24h-gültigem Erstlogin-Link erneut. Zusätzlich
+gewünscht: klickt jemand auf einen alten/abgelaufenen Link, soll eine verständliche Meldung
+kommen ("Link abgelaufen, bitte neuen Link anfordern").
+**Ergebnis:** Neue Route `POST /portal/members/:id/resend-invite` (sendet dieselbe
+"invite"-Mailvorlage wie beim Erstanlegen, 24h-Token via `Auth::createResetToken()`),
+serverseitig gegen Mehrfachnutzung durch bereits aktive Mitglieder abgesichert
+(`last_login_at`-Prüfung). Button in `member_list.php` erscheint nur bei
+Login-Konto-vorhanden-aber-noch-nie-eingeloggt, direkt bei "Noch nicht angemeldet" in der
+zuletzt hinzugefügten Spalte. Die "abgelaufener Link"-Meldung mit Verweis auf
+`/portal/forgot-password` existierte bereits vollständig (`reset_password.php`, wird von
+allen Token-Links inkl. Einladung gemeinsam genutzt) -- keine Änderung nötig, nur verifiziert.
+`php -l` + `php tests/run.php` (77/77) grün.
+
+---
+
 ## 2026-08-03 (21) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nach einer echten Support-Anfrage zwei Wünsche: (1) beim Support-Icon in der
 Obmann-Sidebar einen roten Punkt mit Zahl für ungelesene Nachrichten (E-Mail-Benachrichtigung
