@@ -8,6 +8,20 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (28) — Claude Code — Claude Sonnet 5
+**Auftrag:** Screenshot eines fehlgeschlagenen manuellen EDA-Uploads (`/portal/eda/upload`):
+Parser-Fehler direkt beim Lesen der XLSX, Python-Traceback endet in
+`zoneinfo/_common.py, load_tzdata`.
+**Ergebnis:** Infrastruktur-Lücke, kein Parser-Logikfehler -- Alpine liefert von sich aus keine
+IANA-Zeitzonendatenbank (`/usr/share/zoneinfo`) mit; Pythons `zoneinfo`-Modul (von pandas beim
+Excel-Datumsparsing transitiv verwendet) schlägt ohne diese Datenbank fehl. `webapp/Dockerfile`
+installiert jetzt zusätzlich das Alpine-Paket `tzdata` (statt eines separaten pip-Pakets, damit
+auch PHP-Datumsfunktionen von derselben Systemdatenbank profitieren). Wirkt erst nach
+`docker compose up -d --build`; in dieser Sandbox ohne Docker-Daemon nicht baubar/testbar --
+sollte nach dem nächsten Rebuild auf dem Server verifiziert werden.
+
+---
+
 ## 2026-08-05 (27) — Claude Code — Claude Sonnet 5
 **Auftrag:** Fortsetzung von (26), Punkt 3: Zugang zum EDA-Anwenderportal ist E-Mail + Passwort;
 Patrick kann dort einen eigenen Export-User anlegen, an dessen E-Mail-Adresse der Exportlink
