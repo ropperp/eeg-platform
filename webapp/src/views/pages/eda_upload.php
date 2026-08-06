@@ -6,6 +6,10 @@
   <div class="alert alert-error" style="margin-bottom:1rem"><?= $error ?></div>
 <?php endif; ?>
 
+<?php if (isset($_GET['deleted'])): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Import gelöscht -- die zugehörigen Messwerte wurden entfernt.</div>
+<?php endif; ?>
+
 <?php if (!empty($result)): ?>
   <div class="alert alert-<?= empty($result['warnings']) ? 'success' : 'warning' ?>" style="margin-bottom:1rem">
     <strong>Import abgeschlossen.</strong>
@@ -69,6 +73,50 @@
       <button type="submit" class="btn btn-primary btn-lg">Import starten</button>
     </div>
   </form>
+</div>
+
+<div class="card" style="margin-top:1.5rem">
+  <h3 style="margin-bottom:1rem"><?= icon('list') ?> Bisherige Importe (<?= count($imports ?? []) ?>)</h3>
+  <?php if (empty($imports)): ?>
+    <p style="font-size:.875rem;color:var(--gray-600)">Noch keine EDA-Daten importiert.</p>
+  <?php else: ?>
+    <div style="overflow-x:auto">
+      <table style="font-size:.85rem;width:100%">
+        <thead>
+          <tr><th>Datei</th><th>Zeitraum</th><th>Datensätze</th><th>Status</th><th>Importiert</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($imports as $imp): ?>
+            <?php $sb = ['ok' => 'green', 'warning' => 'yellow', 'error' => 'red']; ?>
+            <tr>
+              <td><code style="font-size:.78rem"><?= htmlspecialchars($imp['filename']) ?></code></td>
+              <td><?= date('d.m.Y', strtotime($imp['period_from'])) ?> – <?= date('d.m.Y', strtotime($imp['period_to'])) ?></td>
+              <td><?= number_format((int)$imp['records_imported'], 0, ',', '.') ?></td>
+              <td><span class="badge badge-<?= $sb[$imp['status']] ?? 'gray' ?>"><?= htmlspecialchars($imp['status']) ?></span></td>
+              <td>
+                <?= date('d.m.Y H:i', strtotime($imp['imported_at'])) ?>
+                <?php if (!empty($imp['first_name'])): ?>
+                  <br><span style="color:var(--gray-600);font-size:.78rem"><?= htmlspecialchars($imp['first_name'] . ' ' . $imp['last_name']) ?></span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <form method="post" action="/portal/eda/imports/<?= $imp['id'] ?>/delete" style="display:inline"
+                      onsubmit="return confirmDangerDelete('EDA-Import „<?= htmlspecialchars(addslashes($imp['filename'])) ?>“ inkl. aller dabei importierten Messwerte')">
+                  <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem" title="Import löschen"><?= icon('trash') ?></button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.8rem;color:var(--gray-600);margin-top:.75rem">
+      Löschen entfernt den Import-Eintrag UND die dabei importierten Messwerte für diesen
+      Zeitraum -- damit lässt sich dieselbe Datei danach erneut hochladen (der Import
+      verweigert sonst mit „Duplikat"). Bereits berechnete Rechnungs-Entwürfe werden dadurch
+      NICHT rückwirkend aktualisiert -- ggf. den Abrechnungslauf danach neu berechnen.
+    </p>
+  <?php endif; ?>
 </div>
 
 <div class="card" style="margin-top:1.5rem">
