@@ -4660,13 +4660,32 @@ $router->post('/portal/applications/:id/reject', function ($params) {
 });
 
 // ─── Portal: EDA-Import ─────────────────────────────────
+// Import-Historie dieser Community: für die Übersicht auf /portal/eda/upload (welche Dateien
+// wurden für welchen Zeitraum importiert) UND für den Lösch-Button dort (siehe
+// /portal/eda/imports/:id/delete weiter unten).
+function edaImportsForCommunity(string $communityId): array
+{
+    DB::setCommunity($communityId);
+    return DB::fetchAll(
+        'SELECT ei.*, u.first_name, u.last_name
+         FROM eda_imports ei
+         LEFT JOIN users u ON u.id = ei.imported_by
+         WHERE ei.community_id = ?
+         ORDER BY ei.imported_at DESC',
+        [$communityId]
+    );
+}
+
 $router->get('/portal/eda/upload', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
+    $imports = edaImportsForCommunity(Auth::activeCommunityId());
     require ROOT . '/src/views/pages/eda_upload.php';
 });
 
 $router->post('/portal/eda/upload', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    $imports = edaImportsForCommunity($communityId);
 
     if (!isset($_FILES['xlsx']) || $_FILES['xlsx']['error'] !== UPLOAD_ERR_OK) {
         $error = 'Upload fehlgeschlagen (Fehlercode: ' . ($_FILES['xlsx']['error'] ?? '?') . ')';
@@ -4695,7 +4714,6 @@ $router->post('/portal/eda/upload', function () {
     );
     $output = shell_exec($cmd);
     $result = json_decode($output, true);
-    $communityId = Auth::activeCommunityId();
     if ($result === null) {
         // Bewusst großzügig (statt der früheren 500 Zeichen): der Parser loggt INFO/WARNING-
         // Zeilen (z.B. "Fehlender Zählpunkt" je nicht mehr im Export vorhandenem Zählpunkt) VOR
@@ -4716,7 +4734,46 @@ $router->post('/portal/eda/upload', function () {
         }
     }
 
+    // Neu laden, damit der gerade eben erzeugte (oder bei einem Duplikat-Fehler eben NICHT
+    // erzeugte) Import sofort in der Liste unten auftaucht, statt erst nach einem Reload.
+    $imports = edaImportsForCommunity($communityId);
+
     require ROOT . '/src/views/pages/eda_upload.php';
+});
+
+/**
+ * Löscht einen EDA-Import wieder -- den Log-Eintrag UND die dabei importierten Messwerte
+ * (eda_measurements), damit dieselbe Datei anschließend erneut hochgeladen werden kann (der
+ * Parser verweigert sonst mit "Duplikat", siehe import_to_db() in eda-parser/parser.py).
+ * eda_measurements hat KEINEN Verweis auf den einzelnen Import zurück (nur time/community_id/
+ * metering_point_id) -- gelöscht wird deshalb alles im exakten Zeitraum dieses Imports für diese
+ * Community, genau wie die Duplikat-Prüfung selbst prüft. Träfe für exakt denselben Zeitraum
+ * zufällig noch ein ZWEITER Import vor (in der Praxis nicht vorgesehen -- EDA liefert eine Datei
+ * pro Monat), würden dessen Messwerte mitgelöscht; die Metering-Points selbst (inkl. automatisch
+ * angelegter, siehe neu_angelegt) bleiben bewusst unangetastet, nur die Energiedaten verschwinden.
+ * Rührt NICHT an bereits berechneten Abrechnungslauf-Entwürfen -- deren invoice_items sind
+ * statische Kopien, die durch das Löschen der Rohdaten nicht rückwirkend aktualisiert werden.
+ */
+$router->post('/portal/eda/imports/:id/delete', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $imp = DB::fetchOne('SELECT * FROM eda_imports WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$imp) { http_response_code(404); return; }
+
+    $deletedMeasurements = DB::execute(
+        "DELETE FROM eda_measurements WHERE community_id = ? AND time >= ? AND time < ?::date + INTERVAL '1 day'",
+        [$communityId, $imp['period_from'], $imp['period_to']]
+    );
+    DB::execute('DELETE FROM eda_imports WHERE id = ?', [$imp['id']]);
+
+    logAudit($communityId, 'eda.import.delete', 'eda_import', $imp['id'],
+        'EDA-Import "' . $imp['filename'] . '" (' . date('d.m.Y', strtotime($imp['period_from'])) . ' – '
+        . date('d.m.Y', strtotime($imp['period_to'])) . ') gelöscht, ' . $deletedMeasurements . ' Messwert-Datensätze entfernt.');
+
+    header('Location: /portal/eda/upload?deleted=1');
+    exit;
 });
 
 /**

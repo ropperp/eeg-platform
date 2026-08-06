@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (31) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nach dem "Duplikat"-Testfehler (siehe unten) gefragt, wo importierte EDA-Dateien
+gelöscht werden können -- Antwort war eine manuelle SQL-Anleitung. Patrick möchte das stattdessen
+als richtige Funktion: eine Liste aller importierten Dateien mit Zeitraum, und einen
+Löschen-Button je Import.
+**Ergebnis:** `/portal/eda/upload` zeigt jetzt unter dem Upload-Formular eine Tabelle "Bisherige
+Importe" (Datei, Zeitraum, Datensätze, Status-Badge, Importiert-am/von, Löschen-Button) aus
+`eda_imports`. Neue Route `POST /portal/eda/imports/:id/delete` (manager-geschützt, mit
+`confirmDangerDelete()`-Sicherheitsabfrage wie beim Abrechnungslauf-Löschen) entfernt den
+Import-Log-Eintrag UND die dabei importierten `eda_measurements` -- danach lässt sich dieselbe
+Datei erneut hochladen, ohne dass der Parser mit "Duplikat" abbricht. Da `eda_measurements`
+keinen Rückverweis auf den einzelnen Import hat, wird nach exaktem Zeitraum gelöscht (genau wie
+die Duplikat-Prüfung selbst); Metering-Points bleiben unangetastet, nur die Energiedaten
+verschwinden. Kleiner Hinweistext macht klar, dass bereits berechnete Rechnungs-Entwürfe dadurch
+NICHT automatisch neu berechnet werden. `php tests/run.php` weiterhin 77/77 grün, auf den
+bestehenden PR #51 gepusht (noch offen).
+
+---
+
 ## 2026-08-06 (30) — Claude Code — Claude Sonnet 5
 **Auftrag:** Auf der Rechnung soll nur eine Bezugs- bzw. Einspeisungszeile erscheinen, wenn das
 Mitglied tatsächlich bezieht bzw. einspeist -- plus Freigabe zum Pushen/PR-Erstellen für die
