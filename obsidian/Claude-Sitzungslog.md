@@ -8,6 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (32) — Claude Code — Claude Sonnet 5
+**Auftrag:** Wieder eine als „Parser-Fehler" angezeigte Meldung geschickt -- diesmal endete sie
+aber mit einem sauberen, vollständigen JSON-Erfolgsergebnis (10 Datensätze importiert).
+**Ergebnis:** Echter, eigenständiger Bug gefunden, unabhängig vom 500→4000-Zeichen-Fix von
+vorhin: Der Parser-Aufruf leitete stderr mit `2>&1` in denselben String wie stdout um. Pythons
+`logging` schreibt INFO/WARNING-Zeilen auf stderr, das JSON-Ergebnis kommt von `print()` auf
+stdout -- kombiniert ergibt das "<Logzeilen>{json}", und `json_decode()` verlangt, dass der
+GESAMTE String gültiges JSON ist. Das schlug bei JEDEM Import fehl, sobald auch nur eine
+Logzeile davor stand (immer der Fall, allein durch "Lese XLSX") -- ein Import wurde also selbst
+bei vollem Erfolg als "Parser-Fehler" gemeldet, obwohl die Daten korrekt in der DB landeten.
+Neue Klasse `EdaParserRunner.php` (per `proc_open()` mit getrennten Pipes für stdout/stderr statt
+einer Shell-Umleitung) ersetzt die bisherigen `shell_exec(...2>&1)`-Aufrufe in beiden Importpfaden
+(manueller Upload in `public/index.php` UND `EdaAutoImporter.php`) -- stdout wird jetzt korrekt
+als JSON geparst, stderr dient nur noch für die Fehlerdiagnose, wenn wirklich etwas schiefging.
+Mit einem kleinen Test-Python-Skript (stderr-Logzeilen + stdout-JSON) lokal verifiziert, dass die
+Trennung tatsächlich funktioniert. `php tests/run.php` weiterhin 77/77 grün.
+
 ## 2026-08-06 (31) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nach dem "Duplikat"-Testfehler (siehe unten) gefragt, wo importierte EDA-Dateien
 gelöscht werden können -- Antwort war eine manuelle SQL-Anleitung. Patrick möchte das stattdessen

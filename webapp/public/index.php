@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaAutoImporter'] as $class) {
+foreach (['DB', 'Auth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -4706,22 +4706,17 @@ $router->post('/portal/eda/upload', function () {
     $communitySlug = Auth::activeCommunitySlug();
     $userId = Auth::userId();
 
-    $cmd = sprintf(
-        'python3 /var/www/html/eda-parser/parser.py --file %s --community %s --user-id %s 2>&1',
-        escapeshellarg($savePath),
-        escapeshellarg($communitySlug),
-        escapeshellarg($userId)
-    );
-    $output = shell_exec($cmd);
-    $result = json_decode($output, true);
+    $parserResult = EdaParserRunner::run($savePath, $communitySlug, $userId);
+    $result = json_decode($parserResult['stdout'], true);
     if ($result === null) {
-        // Bewusst großzügig (statt der früheren 500 Zeichen): der Parser loggt INFO/WARNING-
-        // Zeilen (z.B. "Fehlender Zählpunkt" je nicht mehr im Export vorhandenem Zählpunkt) VOR
-        // einem eventuellen Fehler -- bei mehreren Warnungen war die eigentliche Fehlermeldung/
-        // der Traceback am Ende bei 500 Zeichen schon abgeschnitten und für die Fehlersuche
-        // unbrauchbar.
-        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($output ?? 'Keine Ausgabe', 0, 4000));
-        logAudit($communityId, 'eda.import', null, null, 'EDA-Import fehlgeschlagen: ' . substr($output ?? 'Keine Ausgabe', 0, 4000), true);
+        // stdout/stderr sauber getrennt (siehe EdaParserRunner.php) -- vorher landeten Logzeilen
+        // (stderr) und das JSON-Ergebnis (stdout) über ein simples "2>&1" in einem String, wodurch
+        // json_decode() auf dem kombinierten String IMMER fehlschlug, sobald der Parser
+        // mindestens eine Logzeile ausgegeben hatte (bei jedem Lauf der Fall) -- ein erfolgreicher
+        // Import wurde dadurch fälschlich als "Parser-Fehler" angezeigt.
+        $diag = EdaParserRunner::diagnostics($parserResult);
+        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($diag, 0, 4000));
+        logAudit($communityId, 'eda.import', null, null, 'EDA-Import fehlgeschlagen: ' . substr($diag, 0, 4000), true);
     } else {
         logAudit($communityId, 'eda.import', null, null,
             'EDA-Import: ' . ($result['records'] ?? '?') . ' Datensätze importiert' . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''));
