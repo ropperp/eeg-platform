@@ -1,7 +1,13 @@
 FROM php:8.2-fpm-alpine
 
 # PHP Extensions + Python für EDA-Parser
-RUN apk add --no-cache nginx libpq-dev python3 py3-pip \
+# tzdata: Alpine liefert von sich aus KEINE IANA-Zeitzonendatenbank (/usr/share/zoneinfo) mit --
+# Pythons zoneinfo-Modul (ab 3.9, von pandas beim Excel-Datumsparsing/lokaler Zeitzonenauflösung
+# transitiv genutzt) schlägt ohne dieses Paket mit "No time zone found with key ..." fehl, siehe
+# Parser-Fehler beim EDA-Import ("zoneinfo/_common.py, load_tzdata"). apk-Paket statt separatem
+# pip-Paket "tzdata", weil es zusätzlich PHP-Datumsfunktionen (date_default_timezone_set u.ä.)
+# zugutekommt, die dieselbe Systemdatenbank verwenden.
+RUN apk add --no-cache nginx libpq-dev python3 py3-pip tzdata \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && docker-php-ext-install pdo pdo_pgsql \
     && pecl install redis \

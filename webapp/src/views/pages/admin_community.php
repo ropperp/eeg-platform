@@ -41,6 +41,29 @@
       </div>
     </div>
   </div>
+
+  <div class="card" style="margin-bottom:1.5rem">
+    <h3 style="margin-bottom:.5rem">EDA-Anwenderportal-Zugang</h3>
+    <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:1rem">
+      Zugangsdaten des dafür angelegten Export-Users im EDA-Anwenderportal -- rein zur zentralen
+      Aufbewahrung (verschlüsselt gespeichert). Der monatliche Exportlink wird von EDA an die
+      Login-Adresse dieses Users gemailt; damit die Plattform ihn automatisch abholen und
+      importieren kann, muss dieser User im EDA-Portal so eingerichtet sein, dass der Exportlink
+      an das zentrale Postfach <code>eda@stromfueralle.at</code> geht (Konfiguration des
+      Postfachs selbst: <a href="/admin/mail-settings">E-Mail-Einstellungen</a>).
+    </p>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>EDA-Login-E-Mail</label>
+        <input type="text" name="eda_login_email" value="<?= htmlspecialchars($community['eda_login_email'] ?? '') ?>">
+      </div>
+      <div class="form-group">
+        <label>EDA-Login-Passwort</label>
+        <input type="text" name="eda_login_password" value="<?= htmlspecialchars($community['eda_login_password'] ?? '') ?>" placeholder="unverändert lassen: leer absenden">
+      </div>
+    </div>
+  </div>
+
   <button type="submit" class="btn btn-primary">Speichern</button>
 </form>
 

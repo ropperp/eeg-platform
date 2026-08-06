@@ -101,3 +101,19 @@ Das Client Secret läuft nach der gewählten Zeit ab (aktuell gültig bis **27.0
 ## Code
 
 Siehe `send_mail.py` — Vorlage zum Versenden von Mails über dieses Setup. Empfänger, Betreff und Inhalt sind ganz oben im Skript konfigurierbar.
+
+---
+
+## Erweiterung (25.08.2026): Mail.Read für automatischen EDA-Postfach-Import
+
+Für `EdaAutoImporter.php` (liest Exportlink-Mails aus `eda@stromfueralle.at` aus, siehe
+CLAUDE.md Abschnitt "Update (laufendes System)") braucht dieselbe App-Registrierung
+`stromfueralle-mailer` zusätzlich zu `Mail.Send` die Anwendungsberechtigung **`Mail.Read`**:
+
+1. App `stromfueralle-mailer` → **API-Berechtigungen** → **"+ Berechtigung hinzufügen"**
+2. **Microsoft Graph** → **Anwendungsberechtigungen** → `Mail.Read` suchen → Checkbox aktivieren
+3. **Administratorzustimmung für [Tenant] erteilen**
+
+`Mail.Read` als Application Permission erlaubt wie `Mail.Send` Zugriff auf **jedes** Postfach im
+Tenant — deshalb auch hier ein eigenes, dediziertes Postfach (`eda@stromfueralle.at`, analog zu
+`noreply@stromfueralle.at` in Schritt 4 oben) statt eines persönlichen verwenden.

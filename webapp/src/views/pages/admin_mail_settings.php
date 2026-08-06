@@ -153,6 +153,36 @@
   </form>
 </div>
 
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('folder-open') ?> EDA-Automatik</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Postfach, das die monatlichen Exportlinks aus dem EDA-Anwenderportal empfängt (eigene
+    Shared Mailbox, zusätzlich zur Absenderadresse oben -- benötigt Anwendungsberechtigung
+    <code>Mail.Read</code> für dieselbe Azure-App-Registrierung). Ungelesene Mails darin werden
+    regelmäßig per Cron automatisch heruntergeladen und importiert (<code>scripts/eda_auto_import.php</code>,
+    siehe <code>EdaAutoImporter.php</code>) -- die EDA-Login-Zugangsdaten je EEG werden bei der
+    jeweiligen <a href="/admin">EEG selbst</a> hinterlegt.
+  </p>
+  <?php if (isset($_GET['eda_run'])): ?>
+    <div class="alert alert-success" style="margin-bottom:1rem;white-space:pre-line"><?= htmlspecialchars($_GET['eda_run']) ?></div>
+  <?php endif; ?>
+  <?php if (isset($_GET['eda_run_error'])): ?>
+    <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['eda_run_error']) ?></div>
+  <?php endif; ?>
+  <form method="post" action="/admin/mail-settings" style="margin-bottom:1rem">
+    <div class="form-group" style="max-width:24rem">
+      <label>Postfachadresse</label>
+      <input type="email" name="eda_import_mailbox_address" value="<?= htmlspecialchars($mailConfig['eda_import_mailbox_address'] ?? '') ?>" placeholder="eda@stromfueralle.at">
+      <small style="color:var(--gray-600)">Leer = Automatik deaktiviert.</small>
+    </div>
+    <button type="submit" class="btn btn-primary">Speichern</button>
+  </form>
+  <form method="post" action="/admin/mail-settings/eda-import-run">
+    <button type="submit" class="btn btn-secondary">Jetzt prüfen</button>
+    <small style="color:var(--gray-600);margin-left:.5rem">Liest das Postfach sofort aus, statt auf den nächsten Cron-Durchlauf zu warten.</small>
+  </form>
+</div>
+
 <?php
   $logoDataUri = !empty($mailConfig['signature_logo_base64'])
     ? 'data:' . ($mailConfig['signature_logo_type'] ?: 'image/png') . ';base64,' . $mailConfig['signature_logo_base64']

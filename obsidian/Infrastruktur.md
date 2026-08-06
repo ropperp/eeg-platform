@@ -184,6 +184,31 @@ docker compose up -d --build
 > `/config`-Formular Benutzername/Passwort nachgetragen werden. Bei einer echten
 > Neuinstallation ruft `scripts/setup.sh` dieses Skript automatisch mit auf.
 
+> **Einmalig nach dem Update vom 25.08.2026** (automatischer EDA-Postfach-Import): der
+> monatliche EDA-Energiedatenreport kann jetzt automatisch importiert werden, statt ihn von
+> Hand über `/portal/eda/upload` hochzuladen -- `EdaAutoImporter.php` liest ein zentrales
+> Postfach über Microsoft Graph aus, lädt die Exportdatei herunter und übergibt sie an
+> `eda-parser/parser.py` (Community-Zuordnung über die Marktpartner-ID im Dateinamen,
+> z. B. `RC108175_...`). Einmalig einzurichten:
+> 1. Shared Mailbox `eda@stromfueralle.at` in Microsoft 365 anlegen (wie `noreply@...`).
+> 2. Zusätzliche Anwendungsberechtigung `Mail.Read` (Application Permission, Admin-Zustimmung)
+>    für dieselbe Azure-App `stromfueralle-mailer` -- sie hat bereits `Mail.Send`.
+> 3. Im EDA-Anwenderportal einen Export-User anlegen, dessen Login-/Benachrichtigungsadresse auf
+>    `eda@stromfueralle.at` zeigt -- **das Anfordern/Auslösen des Exports im Portal selbst
+>    bleibt vorerst manuell** (Login + Klick auf "Export"), nur das Abholen danach läuft automatisch.
+> 4. Platform-Admin → E-Mail-Einstellungen → "EDA-Automatik": Postfachadresse eintragen (leer =
+>    aus). Je EEG optional EDA-Login-Zugangsdaten hinterlegen (nur zentrale Aufbewahrung,
+>    verschlüsselt wie WLAN-Passwörter).
+> 5. Cron (einmal täglich reicht):
+>    ```bash
+>    ( crontab -l 2>/dev/null; echo "0 7 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
+>    ```
+> Testen ohne Cron abzuwarten: Platform-Admin → E-Mail-Einstellungen → "Jetzt prüfen". Nicht
+> automatisch verarbeitbare Mails bleiben ungelesen + Alarm-Mail; Fallback bleibt der manuelle
+> Upload über `/portal/eda/upload`. **Noch nicht an einer echten EDA-Mail verifiziert:** dass der
+> Download-Link ohne weiteren Portal-Login abrufbar ist -- falls nicht, bräuchte
+> `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

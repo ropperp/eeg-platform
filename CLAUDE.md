@@ -519,6 +519,45 @@ docker compose up -d --build
 > Bei einer echten Neuinstallation ruft `scripts/setup.sh` dieses Skript automatisch mit auf,
 > nichts weiter zu tun.
 
+> **Einmalig nach dem Update vom 25.08.2026** (automatischer EDA-Postfach-Import): der
+> monatliche EDA-Energiedatenreport kann jetzt automatisch importiert werden, statt ihn von
+> Hand über `/portal/eda/upload` hochzuladen -- `EdaAutoImporter.php` liest ein zentrales
+> Postfach über Microsoft Graph aus, lädt die Exportdatei herunter und übergibt sie an
+> `eda-parser/parser.py` (Community-Zuordnung über die Marktpartner-ID im Dateinamen,
+> z. B. `RC108175_...`). Einmalig einzurichten, alles über die Platform-Admin-Oberfläche außer
+> dem Cron-Eintrag:
+> 1. **Shared Mailbox `eda@stromfueralle.at`** in Microsoft 365 anlegen (wie
+>    `noreply@stromfueralle.at`, siehe `docs/vorlagen/Anleitung_Mailversand_Azure_GraphAPI.md`).
+> 2. **Zusätzliche Anwendungsberechtigung `Mail.Read`** (Application Permission, Admin-Zustimmung
+>    erteilen) für dieselbe Azure-App-Registrierung `stromfueralle-mailer` -- sie hat bereits
+>    `Mail.Send` für den Mailversand, `Mail.Read` erlaubt ihr zusätzlich, JEDES Postfach im
+>    Tenant zu lesen (genau wie bei `Mail.Send` deshalb bewusst ein eigenes, dediziertes
+>    Postfach statt eines persönlichen).
+> 3. Im EDA-Anwenderportal einen eigenen Export-User anlegen, dessen Login-E-Mail (bzw. dessen
+>    Benachrichtigungsadresse) auf `eda@stromfueralle.at` zeigt -- **das eigentliche Anfordern/
+>    Auslösen des Exports im Portal bleibt vorerst ein manueller Schritt** (Login + Klick auf
+>    "Export"), nur das Abholen des danach gemailten Downloads passiert automatisch.
+> 4. Platform-Admin → E-Mail-Einstellungen → Abschnitt "EDA-Automatik": Postfachadresse
+>    eintragen (Feld leer = Automatik aus). Bei jeder EEG (Platform-Admin → EEG bearbeiten)
+>    optional die EDA-Login-Zugangsdaten hinterlegen (nur zur zentralen Aufbewahrung,
+>    verschlüsselt wie WLAN-Passwörter -- nicht für einen automatisierten Login).
+> 5. Cron-Eintrag auf dem Host (einmal täglich reicht, EDA-Exporte fallen ohnehin nur monatlich an):
+>    ```bash
+>    ( crontab -l 2>/dev/null; echo "0 7 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
+>    ```
+> Zum Testen ohne auf den Cron zu warten: Platform-Admin → E-Mail-Einstellungen → "Jetzt
+> prüfen". Kann eine Mail nicht automatisch verarbeitet werden (z. B. Community nicht
+> zuordenbar, Download schlägt fehl), bleibt sie ungelesen im Postfach und es geht eine
+> Alarm-Mail an die Backup-Alarm-Adressen -- Fallback bleibt in jedem Fall der manuelle Upload
+> über `/portal/eda/upload`.
+>
+> **Nicht verifizierte Annahme** (an einer echten EDA-Exportmail noch zu prüfen): dass der von
+> EDA verschickte Download-Link ohne weiteren Portal-Login abrufbar ist (üblich bei zeitlich
+> befristeten, signierten Links). Verlangt der Link stattdessen eine aktive Portal-Session,
+> schlägt der automatische Download fehl (Alarm-Mail) und `EdaAutoImporter.php` müsste um einen
+> Login-Schritt (z. B. Headless-Browser) erweitert werden -- dafür fehlen aktuell die
+> DOM-Details des Portals.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
