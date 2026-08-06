@@ -4697,8 +4697,13 @@ $router->post('/portal/eda/upload', function () {
     $result = json_decode($output, true);
     $communityId = Auth::activeCommunityId();
     if ($result === null) {
-        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($output ?? 'Keine Ausgabe', 0, 500));
-        logAudit($communityId, 'eda.import', null, null, 'EDA-Import fehlgeschlagen: ' . substr($output ?? 'Keine Ausgabe', 0, 500), true);
+        // Bewusst großzügig (statt der früheren 500 Zeichen): der Parser loggt INFO/WARNING-
+        // Zeilen (z.B. "Fehlender Zählpunkt" je nicht mehr im Export vorhandenem Zählpunkt) VOR
+        // einem eventuellen Fehler -- bei mehreren Warnungen war die eigentliche Fehlermeldung/
+        // der Traceback am Ende bei 500 Zeichen schon abgeschnitten und für die Fehlersuche
+        // unbrauchbar.
+        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($output ?? 'Keine Ausgabe', 0, 4000));
+        logAudit($communityId, 'eda.import', null, null, 'EDA-Import fehlgeschlagen: ' . substr($output ?? 'Keine Ausgabe', 0, 4000), true);
     } else {
         logAudit($communityId, 'eda.import', null, null,
             'EDA-Import: ' . ($result['records'] ?? '?') . ' Datensätze importiert' . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''));

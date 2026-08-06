@@ -79,10 +79,13 @@ class EdaAutoImporter
         $result = json_decode((string)$output, true);
 
         if ($result === null) {
-            self::fail($mailbox, $id, $subject, 'Parser-Fehler für ' . $community['name'] . ': ' . substr((string)$output, 0, 500));
+            // Siehe gleiches Limit im manuellen Upload-Handler (public/index.php): 500 Zeichen
+            // reichten nicht, sobald der Parser vor dem eigentlichen Fehler schon mehrere
+            // "Fehlender Zählpunkt"-Warnungen geloggt hatte.
+            self::fail($mailbox, $id, $subject, 'Parser-Fehler für ' . $community['name'] . ': ' . substr((string)$output, 0, 4000));
             DB::execute(
                 'INSERT INTO audit_log (community_id, aktion, beschreibung, ist_fehler) VALUES (?, ?, ?, true)',
-                [$community['id'], 'eda.auto_import_error', 'Automatischer EDA-Import fehlgeschlagen: ' . substr((string)$output, 0, 500)]
+                [$community['id'], 'eda.auto_import_error', 'Automatischer EDA-Import fehlgeschlagen: ' . substr((string)$output, 0, 4000)]
             );
             return "FEHLER [{$subject}]: Parser-Fehler für {$community['name']}";
         }
