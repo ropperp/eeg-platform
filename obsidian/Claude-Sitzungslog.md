@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (29) — Claude Code — Claude Sonnet 5
+**Auftrag:** (1) Fehlermeldung eines EDA-Imports lief nach den ersten „Fehlender
+Zählpunkt"-Warnungen einfach ab, ohne die eigentliche Ursache zu zeigen. (2) Bei einer
+Monatsrechnung (z.B. 2026-07) dürfen nur Mitglieder verrechnet werden, die in diesem Monat auch
+schon Mitglied waren -- selbst wenn der Lauf erst später (z.B. im August) erstellt wird, darf ein
+erst im August beigetretenes Mitglied nicht in der Juli-Abrechnung auftauchen; das Gleiche soll
+für den Mitgliedsbeitrag gelten (nur die Zeit verrechnen, in der man dabei war).
+**Ergebnis:** (1) `substr($output, 0, 500)` in beiden Fehlerpfaden (manueller Upload +
+EdaAutoImporter) auf 4000 Zeichen angehoben -- die vier Warnungen allein füllten die alten 500
+Zeichen fast komplett, wodurch der eigentliche Traceback nie sichtbar wurde. (2) Zwei
+Lücken in `Billing::generateDrafts()` gefunden: Die Mitglieder-Auswahlabfrage filterte nur nach
+`status='active'`, nicht nach Beitrittsdatum -- ein Mitglied, das erst nach dem
+Abrechnungszeitraum beigetreten ist, bekam trotzdem eine (wenn auch 0-EUR-)Rechnung in einem
+zurückliegenden Lauf. Jetzt zusätzlich `m.member_since <= period_to` in der WHERE-Klausel.
+Zweitens wurde Energie (Bezug/Einspeisung) für ein MITTEN im Zeitraum beigetretenes Mitglied
+bisher für den KOMPLETTEN Zeitraum abgerechnet, nicht nur ab dem Beitrittsdatum (nur der
+Mitgliedsbeitrag war über `mitgliedsbeitragAnteilig()` schon anteilig -- die Energie-Summe nicht)
+-- die eda_measurements-Abfrage summiert jetzt nur noch ab `GREATEST(period_from, member_since)`,
+tagesgenau statt wie beim Mitgliedsbeitrag nur monatsgenau (EDA-Messwerte liegen ohnehin
+zeitgenau vor). `php tests/run.php` weiterhin 77/77 grün (reine DB-Änderung, keine neue
+Unit-Test-Abdeckung möglich ohne DB-Fixture). Wie gehabt auf den Feature-Branch gepusht, aber
+(noch) NICHT nach `main` gemergt/PR erstellt -- wartet auf Freigabe durch Patrick.
+
+---
+
 ## 2026-08-06 (28) — Claude Code — Claude Sonnet 5
 **Auftrag:** Screenshot eines fehlgeschlagenen manuellen EDA-Uploads (`/portal/eda/upload`):
 Parser-Fehler direkt beim Lesen der XLSX, Python-Traceback endet in
