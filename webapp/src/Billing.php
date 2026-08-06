@@ -72,12 +72,20 @@ class Billing
             // manuelle Änderungen -- bewusst, "Neu berechnen" = frisch aus den EDA-Daten).
             DB::execute('DELETE FROM invoices WHERE billing_run_id = ?', [$billingRunId]);
 
+            // m.member_since <= period_to: ein erst NACH diesem Abrechnungszeitraum beigetretenes
+            // Mitglied taucht in diesem Lauf gar nicht erst auf -- auch nicht mit einer
+            // 0-EUR-Rechnung. Wird ein Lauf rückwirkend erstellt (z.B. im August die
+            // Juli-Abrechnung), darf ein erst im August beigetretenes Mitglied dort nicht
+            // erscheinen (Patrick, 06.08.2026). Mitglieder, die VOR/WÄHREND des Zeitraums
+            // beigetreten sind, bleiben erfasst -- ihr Mitgliedsbeitrag wird weiterhin unten über
+            // mitgliedsbeitragAnteilig() anteilig berechnet, ihre Energie-Positionen unten über
+            // GREATEST(period_from, member_since) auf die Zeit ab ihrem Beitritt begrenzt.
             $members = DB::fetchAll(
                 'SELECT m.*, mp.id AS mp_id, mp.type AS mp_type, mp.zaehlpunkt_nr
                  FROM members m
                  JOIN metering_points mp ON mp.member_id = m.id AND mp.community_id = m.community_id
-                 WHERE m.community_id = ? AND m.status = ?',
-                [$run['community_id'], 'active']
+                 WHERE m.community_id = ? AND m.status = ? AND m.member_since <= ?',
+                [$run['community_id'], 'active', $run['period_to']]
             );
 
             // Aktuell gültige Tarife für den Abrechnungszeitraum laden
@@ -110,6 +118,15 @@ class Billing
                 $items  = [];
                 $saldo  = 0.0;
 
+                // Untere Grenze für die Energie-Summierung: der spätere von Zeitraumbeginn und
+                // tatsächlichem Beitrittsdatum -- ein Mitglied, das mitten im Abrechnungszeitraum
+                // beigetreten ist, wird für Energie VOR seinem Beitritt nicht verrechnet (analog
+                // zur bereits bestehenden monatsgenauen Anteiligkeit beim Mitgliedsbeitrag, siehe
+                // mitgliedsbeitragAnteilig() -- hier sogar tagesgenau, weil die EDA-Messwerte
+                // selbst schon zeitgenau vorliegen). Beide Werte sind 'YYYY-MM-DD'-Strings aus der
+                // DB, alphabetischer Vergleich entspricht hier der chronologischen Reihenfolge.
+                $periodFromForMember = max($run['period_from'], $member['member_since']);
+
                 foreach ($group['metering_points'] as $mp) {
                     // EDA-Daten aus Abrechnungszeitraum summieren
                     $energyData = DB::fetchOne(
@@ -122,7 +139,7 @@ class Billing
                            -- Nur belastbare Werte abrechnen (L1/L2). L3 = nicht belastbarer
                            -- Ersatzwert, laut EDA nicht abzurechnen (siehe ABRECHNUNGS_QUALITY).
                            AND quality IN (\'L1\', \'L2\')',
-                        [$run['community_id'], $mp['mp_id'], $run['period_from'], $run['period_to']]
+                        [$run['community_id'], $mp['mp_id'], $periodFromForMember, $run['period_to']]
                     );
 
                     if (in_array($mp['mp_type'], ['consumer', 'prosumer']) && $energyData['kwh_bezug'] > 0) {

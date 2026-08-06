@@ -78,9 +78,11 @@
 \def\obmanntel{<<<EEG_OBMANN_TELEFON>>>}
 \def\kontaktemail{<<<EEG_KONTAKT_EMAIL>>>}
 \def\kontoinhaber{<<<EEG_KONTOINHABER>>>}
-% Positionstabelle: RAW-Listen (mehrere Zählpunkte möglich) haben Vorrang;
-% ohne PHP-Erweiterung greift der Fallback auf je eine einzelne Bezugs-/
-% Einspeisungszeile (optional mit Zählpunktnummer als zweiter Zeile).
+% Positionstabelle: RAW-Listen (mehrere Zählpunkte möglich). Leer = dieses Mitglied hat für
+% den Zeitraum keine einzige Bezugs-/Einspeisungsposition (z.B. reiner Einspeiser ohne Bezug
+% oder reiner Verbraucher ohne PV) -- die ganze Zeile inkl. Trennlinie wird dann komplett
+% ausgeblendet statt einer Zeile mit 0,00 kWh (Patrick, 06.08.2026: nur zeigen, was wirklich
+% zutrifft). BEZUG_KWH/-TARIF/-BETRAG/-ZAEHLPUNKT werden dafür nicht mehr verwendet (siehe unten).
 \def\rawbezugliste{<<<RAW_BEZUG_POSITIONEN_LISTE>>>}
 \def\raweinspeisungliste{<<<RAW_EINSPEISUNG_POSITIONEN_LISTE>>>}
 \def\bezugzp{<<<BEZUG_ZAEHLPUNKT>>>}
@@ -159,9 +161,9 @@ oben angegebenen Zeitraum:
 % php-erweiterung-rechnungsvariablen.md) -- jede Zeile zeigt den Produktnamen
 % und darunter, als zweite (kleinere, graue) Zeile IN DERSELBEN Zelle, die
 % 33-stellige Zählpunktnummer; Menge/Tarif/Betrag gehören zu dieser einen
-% Zählpunkt-Zeile. Ohne PHP-Erweiterung (RAW-Liste leer) zeigt die Vorlage
-% automatisch die alte Einzeiler-Fallback-Zeile (optional mit Zählpunktnummer
-% über BEZUG_ZAEHLPUNKT/EINSPEISUNG_ZAEHLPUNKT).
+% Zählpunkt-Zeile. Ist die RAW-Liste leer (kein einziger Bezug/Einspeisung
+% für dieses Mitglied in diesem Zeitraum), fällt NICHTS zurück -- die ganze
+% Zeile bleibt weg statt einer 0,00-kWh-Zeile für etwas, das gar nicht zutrifft.
 % Spaltenbreiten: 82+20+24+26mm Inhalt + 3×6mm Abstand = 170mm = \textwidth.
 {\renewcommand{\arraystretch}{1.3}%
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{82mm}@{\hspace{6mm}}%
@@ -178,20 +180,16 @@ oben angegebenen Zeitraum:
   % Zählpunktnummer -- \\ würde (auch in einer p-Spalte!) die ganze
   % Tabellenzeile beenden statt nur innerhalb der Zelle umzubrechen, dadurch
   % würden Menge/Tarif/Betrag in die NÄCHSTE Zeile hineinrutschen.
-  \ifx\rawbezugliste\empty
-    Energiebezug aus der Gemeinschaft%
-    \ifx\bezugzp\empty\else\newline{\footnotesize\color{midgray}Zählpunkt: \bezugzp}\fi
-    & <<<BEZUG_KWH>>> & <<<BEZUG_TARIF>>> & <<<BEZUG_BETRAG>>>\\
-  \else
+  % Kein Fallback mehr: hat dieses Mitglied in diesem Zeitraum keinen einzigen Bezugs- bzw.
+  % Einspeisungsposten (RAW-Liste leer), bleibt die ganze Zeile samt Trennlinie einfach weg --
+  % ein reiner Einspeiser bekommt so keine "Bezug 0,00 kWh"-Zeile mehr angezeigt und umgekehrt.
+  \ifx\rawbezugliste\empty\else
     \rawbezugliste
+    \arrayrulecolor{rulegray}\hline
   \fi
-  \arrayrulecolor{rulegray}\hline
-  \ifx\raweinspeisungliste\empty
-    Einspeisevergütung (Gutschrift)%
-    \ifx\einspeisungzp\empty\else\newline{\footnotesize\color{midgray}Zählpunkt: \einspeisungzp}\fi
-    & <<<EINSPEISUNG_KWH>>> & <<<EINSPEISUNG_TARIF>>> & $-$\,<<<EINSPEISUNG_BETRAG>>>\\
-  \else
+  \ifx\raweinspeisungliste\empty\else
     \raweinspeisungliste
+    \arrayrulecolor{rulegray}\hline
   \fi
   \hline
   Mitgliedsbeitrag & & & <<<MITGLIEDSBEITRAG>>>\\
