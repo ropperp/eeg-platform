@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (30) — Claude Code — Claude Sonnet 5
+**Auftrag:** Auf der Rechnung soll nur eine Bezugs- bzw. Einspeisungszeile erscheinen, wenn das
+Mitglied tatsächlich bezieht bzw. einspeist -- plus Freigabe zum Pushen/PR-Erstellen für die
+zuvor besprochenen, noch offenen Änderungen.
+**Ergebnis:** Ursache in `latex-service/templates/rechnung.tex` gefunden: Die
+Positionstabelle hatte einen Fallback, der bei leerer RAW-Positionsliste (= Mitglied hat für den
+Zeitraum GAR KEINEN Bezug/GAR KEINE Einspeisung, z.B. reiner Einspeiser ohne Bezug) trotzdem
+eine Zeile mit 0,00 kWh gerendert hat, statt die Zeile einfach wegzulassen -- der Fallback war
+ursprünglich für den Einzeiler-Fall gedacht, wird aber seit Einführung der RAW-Zeile-pro-Zählpunkt
+nie mehr für einen ECHTEN Einzelposten erreicht, nur noch für den Nullfall. Fallback entfernt:
+Bezugs-/Einspeisungsblock (inkl. Trennlinie) wird jetzt komplett ausgeblendet, wenn die jeweilige
+RAW-Liste leer ist. `php tests/run.php` weiterhin 77/77 grün (LaTeX-Rendering selbst ohne
+LaTeX-Compiler in dieser Sandbox nicht kompilierbar/testbar -- \ifx/\fi-Zählung geprüft,
+balanciert). Alle drei ausstehenden Commits (Fehlermeldungs-Limit, Mitglieder-Beitrittsdatum,
+diese Bezug/Einspeisung-Zeile) jetzt gepusht + PR erstellt wie von Patrick freigegeben.
+Hinweis für Patrick: falls die Rechnungsvorlage über `/admin/templates` bereits individuell
+angepasst/hochgeladen wurde, gilt dieser Fix nur für die mitgelieferte Standardvorlage im Repo --
+eine schon angepasste eigene Vorlage auf dem Server müsste manuell nachgezogen werden.
+
+---
+
 ## 2026-08-06 (29) — Claude Code — Claude Sonnet 5
 **Auftrag:** (1) Fehlermeldung eines EDA-Imports lief nach den ersten „Fehlender
 Zählpunkt"-Warnungen einfach ab, ohne die eigentliche Ursache zu zeigen. (2) Bei einer
