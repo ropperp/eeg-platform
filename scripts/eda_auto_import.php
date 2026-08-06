@@ -20,6 +20,7 @@ require '/var/www/html/src/functions.php';
 require '/var/www/html/src/DB.php';
 require '/var/www/html/src/Mailer.php';
 require '/var/www/html/src/GraphMailReader.php';
+require '/var/www/html/src/EdaParserRunner.php';
 require '/var/www/html/src/EdaAutoImporter.php';
 
 foreach (EdaAutoImporter::run() as $line) {

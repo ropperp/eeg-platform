@@ -70,22 +70,18 @@ class EdaAutoImporter
         $savePath = '/var/www/html/storage/uploads/' . uniqid('eda_auto_') . '_' . basename($filename);
         file_put_contents($savePath, $content);
 
-        $cmd = sprintf(
-            'python3 /var/www/html/eda-parser/parser.py --file %s --community %s 2>&1',
-            escapeshellarg($savePath),
-            escapeshellarg($community['slug'])
-        );
-        $output = shell_exec($cmd);
-        $result = json_decode((string)$output, true);
+        // stdout (JSON) und stderr (Logzeilen) sauber getrennt -- siehe EdaParserRunner.php:
+        // ein simples "2>&1" hätte json_decode() auf jedem Lauf fehlschlagen lassen, sobald der
+        // Parser mindestens eine Logzeile ausgegeben hat (immer der Fall), auch bei vollem Erfolg.
+        $parserResult = EdaParserRunner::run($savePath, $community['slug']);
+        $result = json_decode($parserResult['stdout'], true);
 
         if ($result === null) {
-            // Siehe gleiches Limit im manuellen Upload-Handler (public/index.php): 500 Zeichen
-            // reichten nicht, sobald der Parser vor dem eigentlichen Fehler schon mehrere
-            // "Fehlender Zählpunkt"-Warnungen geloggt hatte.
-            self::fail($mailbox, $id, $subject, 'Parser-Fehler für ' . $community['name'] . ': ' . substr((string)$output, 0, 4000));
+            $diag = EdaParserRunner::diagnostics($parserResult);
+            self::fail($mailbox, $id, $subject, 'Parser-Fehler für ' . $community['name'] . ': ' . substr($diag, 0, 4000));
             DB::execute(
                 'INSERT INTO audit_log (community_id, aktion, beschreibung, ist_fehler) VALUES (?, ?, ?, true)',
-                [$community['id'], 'eda.auto_import_error', 'Automatischer EDA-Import fehlgeschlagen: ' . substr((string)$output, 0, 4000)]
+                [$community['id'], 'eda.auto_import_error', 'Automatischer EDA-Import fehlgeschlagen: ' . substr($diag, 0, 4000)]
             );
             return "FEHLER [{$subject}]: Parser-Fehler für {$community['name']}";
         }
