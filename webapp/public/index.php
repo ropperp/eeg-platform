@@ -3568,6 +3568,12 @@ $router->get('/portal/billing', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    // POST /portal/billing/generate (u.a.) leiten bei einem Fehler auf ?error=... um -- diese
+    // Route hat das bisher nie in die $error-Variable übernommen, die die View unten prüft
+    // (!empty($error)), wodurch eine fehlgeschlagene Berechnung (z.B. wegen L3-Werten) komplett
+    // ohne jede Rückmeldung blieb, obwohl sie korrekt geloggt wurde (Patrick, 07.08.2026:
+    // "Wollte Rechnung berechnen, geht aber nicht, und es kommt auch nichts").
+    $error = $_GET['error'] ?? null;
     $runs = DB::fetchAll(
         'SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]
     );
@@ -4678,12 +4684,25 @@ $router->post('/portal/applications/:id/reject', function ($params) {
 function edaImportsForCommunity(string $communityId): array
 {
     DB::setCommunity($communityId);
+    // quality_l1/l2/l3: Datenqualität direkt aus den importierten Messwerten ausgelesen (Patrick,
+    // 07.08.2026: "Bitte die EDA-Datenqualität aus der Datei auslesen und auch anzeigen") --
+    // period_from/period_to sind hier beides TIMESTAMPTZ-Spalten (eda_imports), ein direkter
+    // >=/<=-Vergleich gegen em.time (ebenfalls TIMESTAMPTZ) ist deshalb zeitzonenunabhängig
+    // korrekt, ganz ohne ::date-Umwandlung (siehe die Zeitzonen-Fallgrube bei
+    // Billing::missingMonths(), wo genau das nötig war -- dort waren die Vergleichswerte
+    // hingegen reine DATE-Strings aus billing_runs).
     return DB::fetchAll(
-        'SELECT ei.*, u.first_name, u.last_name
+        "SELECT ei.*, u.first_name, u.last_name,
+                (SELECT COUNT(*) FROM eda_measurements em WHERE em.community_id = ei.community_id
+                   AND em.time >= ei.period_from AND em.time <= ei.period_to AND em.quality = 'L1') AS quality_l1,
+                (SELECT COUNT(*) FROM eda_measurements em WHERE em.community_id = ei.community_id
+                   AND em.time >= ei.period_from AND em.time <= ei.period_to AND em.quality = 'L2') AS quality_l2,
+                (SELECT COUNT(*) FROM eda_measurements em WHERE em.community_id = ei.community_id
+                   AND em.time >= ei.period_from AND em.time <= ei.period_to AND em.quality = 'L3') AS quality_l3
          FROM eda_imports ei
          LEFT JOIN users u ON u.id = ei.imported_by
          WHERE ei.community_id = ?
-         ORDER BY ei.imported_at DESC',
+         ORDER BY ei.imported_at DESC",
         [$communityId]
     );
 }

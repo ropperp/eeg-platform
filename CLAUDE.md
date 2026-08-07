@@ -11,8 +11,10 @@ Task-Anweisungen, sofern nicht ausdrücklich anders gesagt.
 
 > Ausnahme: Läuft eine Sitzung in einer Umgebung mit einer **fest vorgegebenen Arbeits-Branch**
 > (z. B. Claude Code on the web mit `claude/...`-Branch), wird dort committet und gepusht, nicht
-> direkt auf `main`. Der Merge nach `main` erfolgt dann per Pull Request. Auf dem Produktivserver
-> wird weiterhin nur `main` deployt.
+> direkt auf `main`. Der Merge nach `main` erfolgt dann per Pull Request -- **und zwar sofort**:
+> PR erstellen und selbst mergen, ohne vorher nachzufragen (Patrick, 07.08.2026: "bitte immer
+> gleich pushen PR und merge. IMMER"). Nicht auf eine Bestätigung warten. Auf dem Produktivserver
+> wird weiterhin nur `main` deployt (Patrick pullt/baut dort selbst).
 
 ## Git-Workflow: Branches, Tags & Versionierung
 

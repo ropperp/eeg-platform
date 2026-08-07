@@ -16,7 +16,9 @@ Seit 0.9.0 mit schlanker Branch-/Tag-Strategie:
   Änderungen dürfen direkt auf `main`.
 - **Feature-Branches** (`feature/<kurzname>` bzw. der von der Umgebung vorgegebene
   `claude/<...>`-Branch) für größere/riskante Arbeit → testen (`make test` + CI) → per Pull
-  Request nach `main` mergen. Hält `main` jederzeit lauffähig.
+  Request nach `main` mergen. Hält `main` jederzeit lauffähig. Auf einem fest vorgegebenen
+  Arbeits-Branch (Claude Code on the web): PR sofort selbst erstellen UND mergen, ohne
+  nachzufragen (Patrick, 07.08.2026).
 - **Tags** (`vX.Y.Z`, Semantic Versioning) markieren getestete Stände: PATCH = Bugfix,
   MINOR = neue Funktion, MAJOR/`1.0.0` = großer Umbau bzw. Produktivstart. `0.x` = vor dem
   Produktivstart. Jeder Tag hat einen `CHANGELOG.md`-Eintrag.

@@ -9,7 +9,7 @@ ob_start();
   <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
 <?php if (isset($_GET['success'])): ?>
-  <div class="alert alert-success">Gespeichert.</div>
+  <div class="alert alert-success"><?= $_GET['success'] !== '1' ? htmlspecialchars($_GET['success']) : 'Gespeichert.' ?></div>
 <?php endif; ?>
 
 <div class="card" style="margin-bottom:1rem">

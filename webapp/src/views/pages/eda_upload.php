@@ -83,16 +83,28 @@
     <div style="overflow-x:auto">
       <table style="font-size:.85rem;width:100%">
         <thead>
-          <tr><th>Datei</th><th>Zeitraum</th><th>Datensätze</th><th>Status</th><th>Importiert</th><th>Aktionen</th></tr>
+          <tr><th>Datei</th><th>Zeitraum</th><th>Datensätze</th><th>Status</th><th>Datenqualität</th><th>Importiert</th><th>Aktionen</th></tr>
         </thead>
         <tbody>
           <?php foreach ($imports as $imp): ?>
-            <?php $sb = ['ok' => 'green', 'warning' => 'yellow', 'error' => 'red']; ?>
+            <?php
+              $sb = ['ok' => 'green', 'warning' => 'yellow', 'error' => 'red'];
+              $belastbar = (int)$imp['quality_l1'] + (int)$imp['quality_l2'];
+              $l3 = (int)$imp['quality_l3'];
+            ?>
             <tr>
               <td><code style="font-size:.78rem"><?= htmlspecialchars($imp['filename']) ?></code></td>
               <td><?= date('d.m.Y', strtotime($imp['period_from'])) ?> – <?= date('d.m.Y', strtotime($imp['period_to'])) ?></td>
               <td><?= number_format((int)$imp['records_imported'], 0, ',', '.') ?></td>
               <td><span class="badge badge-<?= $sb[$imp['status']] ?? 'gray' ?>"><?= htmlspecialchars($imp['status']) ?></span></td>
+              <td>
+                <?php if ($belastbar === 0 && $l3 === 0): ?>
+                  <span style="color:var(--gray-600)">—</span>
+                <?php else: ?>
+                  <?php if ($belastbar > 0): ?><span class="badge badge-green" style="font-size:.72rem" title="L1/L2 -- echt gemessen bzw. belastbarer Ersatzwert"><?= $belastbar ?> belastbar</span><?php endif; ?>
+                  <?php if ($l3 > 0): ?><span class="badge badge-red" style="font-size:.72rem" title="L3 -- nicht belastbarer Ersatzwert, wird nicht abgerechnet"><?= $l3 ?> L3</span><?php endif; ?>
+                <?php endif; ?>
+              </td>
               <td>
                 <?= date('d.m.Y H:i', strtotime($imp['imported_at'])) ?>
                 <?php if (!empty($imp['first_name'])): ?>

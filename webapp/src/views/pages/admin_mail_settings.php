@@ -5,6 +5,9 @@
   <h2 style="margin:0"><?= icon('envelope-simple') ?> E-Mail-Einstellungen (Microsoft Graph)</h2>
 </div>
 
+<?php if (!empty($_GET['error'])): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
+<?php endif; ?>
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Einstellungen gespeichert.</div>
 <?php endif; ?>
