@@ -2,6 +2,9 @@
 
 <h2 style="margin-bottom:1.5rem"><?= icon('gear') ?> EEG-Einstellungen</h2>
 
+<?php if (!empty($_GET['error'])): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
+<?php endif; ?>
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Einstellungen gespeichert.</div>
 <?php endif; ?>

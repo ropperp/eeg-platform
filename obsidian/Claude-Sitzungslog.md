@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-07 (35) — Claude Code — Claude Sonnet 5
+**Auftrag:** Neue Rechnungsnummer "noch nicht übernommen". EDA-Datenqualität soll schon beim
+Hochladen der Datei ausgelesen und angezeigt werden. Genereller Wunsch: Fehlermeldungen IMMER
+anzeigen, bevor nichts passiert -- konkret: "Rechnungen berechnen" geklickt, es passiert nichts,
+keine Rückmeldung.
+**Ergebnis:** Echten, systemischen Bug gefunden: mehrere POST-Routen leiten bei einem Fehler auf
+`?error=...` um, aber die zugehörige GET-Route hat den Query-Parameter nie in die von der View
+geprüfte `$error`-Variable übernommen -- die Fehlermeldung (inkl. Audit-Log-Eintrag) wurde zwar
+korrekt erzeugt, aber der Nutzer sah nie etwas davon. Betraf `/portal/billing` (das erklärt
+direkt "Rechnung berechnen geht nicht, es kommt nichts" -- der neue L3-Block aus (34) griff
+vermutlich bereits, nur eben unsichtbar, weshalb auch die neue Rechnungsnummer nie zum Einsatz
+kam), `/portal/settings` und `/admin/mail-settings` (dort fehlte die Fehleranzeige komplett).
+Alle drei behoben; zusätzlich zeigt `/portal/billing` bei Erfolg jetzt den echten Meldungstext
+statt eines hartkodierten "Gespeichert." EDA-Datenqualität: `edaImportsForCommunity()` liest jetzt
+per Subquery aus `eda_measurements` (nicht aus der Datei erneut, sondern aus den beim Import schon
+gespeicherten Qualitätswerten je Zählpunkt) die Anzahl L1/L2 ("belastbar") vs. L3 ("nicht
+belastbar") je Import aus und zeigt sie als neue Spalte in der "Bisherige Importe"-Tabelle auf
+`/portal/eda/upload` -- bewusst als TIMESTAMPTZ-zu-TIMESTAMPTZ-Vergleich (period_from/period_to
+aus eda_imports direkt gegen em.time), um dieselbe Zeitzonen-Fallgrube wie bei
+`Billing::missingMonths()` erst gar nicht zu riskieren. `php tests/run.php` weiterhin 77/77 grün.
+
 ## 2026-08-06 (34) — Claude Code — Claude Sonnet 5
 **Auftrag:** Neues Rechnungsnummer-Schema (`RE-26XXXX_RCYYYYYY_Nachname_Vorname`, laufende Nummer
 ab 0001). Klarstellung zu (33): der Mitgliedsbeitrag ist wirklich nur EINMAL pro Mitglied fällig
