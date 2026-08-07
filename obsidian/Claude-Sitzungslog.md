@@ -8,6 +8,32 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (34) — Claude Code — Claude Sonnet 5
+**Auftrag:** Neues Rechnungsnummer-Schema (`RE-26XXXX_RCYYYYYY_Nachname_Vorname`, laufende Nummer
+ab 0001). Klarstellung zu (33): der Mitgliedsbeitrag ist wirklich nur EINMAL pro Mitglied fällig
+(2 €/Monat für die Vereinsmitgliedschaft selbst), unabhängig von der Zählpunkt-Anzahl -- die
+Multiplikation aus (33) war ein Missverständnis meinerseits. Zusätzlich: bei Qualität L3 soll
+schon das Berechnen der Rechnungs-Entwürfe verweigert werden, nicht erst die Freigabe.
+**Ergebnis:** `Billing::generateDrafts()` -- Mitgliedsbeitrag-Multiplikation aus (33) zurückgebaut
+(wieder einmal pro Mitglied). Neues Rechnungsnummer-Format `RE-<Jahr 2-stellig><laufende Nummer,
+4-stellig>_<Marktpartner-ID>_<Nachname>_<Vorname>` (Firmenmitglieder: company_name statt
+Nachname, Vorname leer) -- laufende Nummer je EEG UND Jahr getrennt (nicht plattformweit
+gemeinsam, weil jede EEG ein eigener Verein mit eigener, lückenloser Nummerierung nach § 11 UStG
+ist), ermittelt über die Anzahl bereits bestehender Rechnungen dieser EEG in diesem Jahr (bleibt
+bei mehrfachem "Neu berechnen" desselben Laufs stabil, da nur die eigenen Entwürfe vorher
+gelöscht werden). Neue private `Billing::slugName()` transliteriert deutsche Umlaute und entfernt
+alles außer Buchstaben/Ziffern (die Rechnungsnummer dient auch als SEPA-Verwendungszweck/
+EndToEndId und PDF-Dateiname). Dabei aufgefallen: EndToEndId ist laut ISO-20022/pain.008 auf 35
+Zeichen begrenzt -- die neue, deutlich längere Rechnungsnummer kann das bei längeren Namen
+überschreiten (Beispielrechnung: "RE-260001_RC108175_Hoefferer_Ingrid" = bereits genau 35
+Zeichen) und hätte sonst die komplette SEPA-Datei bei der Bank zum Absturz gebracht --
+`sepaPain008Xml()` kürzt EndToEndId jetzt defensiv auf 35 Zeichen. `Billing::l3Count()` aus
+`datenqualitaetProblem()` herausgezogen und zusätzlich in `generateDrafts()` verwendet: liegen
+noch L3-Werte im Zeitraum vor, wirft die Methode jetzt schon beim Berechnen der Entwürfe eine
+RuntimeException (surfaced über die bestehende try/catch-Fehlerbehandlung in
+`/portal/billing/generate`), nicht erst bei der Freigabe. `php tests/run.php` weiterhin 77/77
+grün; `slugName()`-Transliteration (Umlaute, Bindestrich, Apostroph) manuell gegengeprüft.
+
 ## 2026-08-06 (33) — Claude Code — Claude Sonnet 5
 **Auftrag:** Nach dem ersten echten Testlauf (EDA-Import Juli + Rechnungen berechnen) gleich
 mehrere Beobachtungen auf einmal: (1) Mitgliedsbeitrag wird nur einmal pro Mitglied verrechnet,
