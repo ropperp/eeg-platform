@@ -65,6 +65,22 @@ class Billing
         }
 
         DB::setCommunity($run['community_id']);
+
+        // Nicht nur die endgültige Freigabe (finalize()/datenqualitaetProblem()), sondern schon
+        // das Berechnen der Entwürfe selbst ablehnen, solange noch nicht belastbare Ersatzwerte
+        // (Qualität L3) im Zeitraum liegen -- sonst zeigt der Entwurf z.B. "0,00 kWh Bezug" an,
+        // was leicht als "dieses Mitglied hat wirklich nichts bezogen" missverstanden werden kann,
+        // obwohl die Daten schlicht noch nicht final sind (Patrick, 06.08.2026: "Bei L3 auch keine
+        // Abrechnung zulassen").
+        $l3n = self::l3Count($run['community_id'], $run['period_from'], $run['period_to']);
+        if ($l3n > 0) {
+            throw new RuntimeException(
+                'Es liegen noch ' . $l3n . ' nicht belastbare Ersatzwerte (Qualität L3) im '
+                . 'Abrechnungszeitraum vor -- noch keine Rechnungen berechenbar. Bitte den '
+                . 'nächsten EDA-Monatsbericht abwarten, bis keine L3-Werte mehr gemeldet werden.'
+            );
+        }
+
         DB::beginTransaction();
 
         try {
@@ -92,11 +108,24 @@ class Billing
             $tariff = self::getTariffForPeriod($run['community_id'], $run['period_from']);
             $tax    = self::getTaxForPeriod($run['community_id'], $run['period_from']);
 
-            // Fortlaufende Rechnungsnummer
-            $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$run['community_id']]);
-            $prefix    = ($community['marktpartner_id'] ?? 'EEG') . '-' . $run['quartal'] . '-';
-
-            $invoiceSeq = 1;
+            // Rechnungsnummer-Schema (Patrick, 06.08.2026): RE-<Jahr 2-stellig><laufende Nummer,
+            // 4-stellig>_<Marktpartner-ID>_<Nachname>_<Vorname>, z.B. "RE-260001_RC108175_Muster_Erika".
+            // Die laufende Nummer ist je EEG (Marktpartner-ID) UND Jahr fortlaufend und beginnt bei
+            // 0001 -- pro EEG getrennt, weil jede EEG ein eigener Verein mit eigener, laut § 11 UStG
+            // lückenloser Rechnungsnummerierung ist (nicht plattformweit gemeinsam). Ermittelt über
+            // die Anzahl bereits vorhandener Rechnungen dieser EEG in diesem Jahr (nicht über eine
+            // eigene Zählertabelle) -- da "Neu berechnen" die eigenen Entwürfe dieses Laufs vorher
+            // löscht (siehe oben), zählen dabei nur ANDERE, bereits bestehende Rechnungen mit, die
+            // Nummern bleiben also bei mehrfachem Neuberechnen dieses Laufs stabil.
+            $community  = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$run['community_id']]);
+            $rcNummer   = $community['marktpartner_id'] ?? 'RC000000';
+            $jahr       = date('y');
+            $numPrefix  = 'RE-' . $jahr;
+            $existing   = DB::fetchOne(
+                "SELECT COUNT(*) AS n FROM invoices WHERE community_id = ? AND rechnungsnummer LIKE ?",
+                [$run['community_id'], $numPrefix . '%']
+            );
+            $invoiceSeq = (int)($existing['n'] ?? 0) + 1;
 
             // Manuelle Zusatzpositionen (z.B. einmaliger Rabatt) gelten für alle Rechnungen
             // dieses Laufs -- vom Manager vor der Freigabe über /portal/billing erfasst.
@@ -160,7 +189,10 @@ class Billing
                 }
 
                 // Mitgliedsbeitrag anteilig nach tatsächlicher Mitgliedsdauer (siehe
-                // Billing::mitgliedsbeitragAnteilig).
+                // Billing::mitgliedsbeitragAnteilig) -- EINMAL pro Mitglied, unabhängig von der
+                // Zählpunkt-Anzahl. Der Beitrag gilt der Vereinsmitgliedschaft selbst, nicht dem
+                // einzelnen Zählpunkt (Patrick, 06.08.2026, Klarstellung zur vorherigen -- falsch
+                // verstandenen -- Anfrage: "2€ im Monat, auch bei 1, 2, 3, 4 ... Zählpunkten").
                 $anteil  = self::mitgliedsbeitragAnteilig(
                     $run['period_from'], $run['period_to'],
                     $member['member_since'], (float)$tariff['mitgliedsbeitrag_eur']
@@ -178,7 +210,15 @@ class Billing
                     $saldo += (float)$extra['amount_eur'];
                 }
 
-                $rechnungsnummer = $prefix . str_pad((string)$invoiceSeq++, 3, '0', STR_PAD_LEFT);
+                if (!empty($member['company_name'])) {
+                    $nachname = self::slugName($member['company_name']);
+                    $vorname  = '';
+                } else {
+                    $nachname = self::slugName($member['last_name']);
+                    $vorname  = self::slugName($member['first_name']);
+                }
+                $rechnungsnummer = $numPrefix . str_pad((string)$invoiceSeq++, 4, '0', STR_PAD_LEFT)
+                    . '_' . $rcNummer . '_' . $nachname . '_' . $vorname;
 
                 DB::execute(
                     'INSERT INTO invoices (billing_run_id, community_id, member_id, rechnungsnummer, saldo_eur, pdf_path)
@@ -275,19 +315,42 @@ class Billing
                  . 'Zeitraum als vollständig meldet (Datenstatus im Abrechnungslauf setzen).';
         }
 
-        $l3 = DB::fetchOne(
-            "SELECT COUNT(*) AS n FROM eda_measurements
-             WHERE community_id = ? AND time >= ? AND time < ?::date + INTERVAL '1 day'
-               AND quality = 'L3'",
-            [$run['community_id'], $run['period_from'], $run['period_to']]
-        );
-        if ((int)($l3['n'] ?? 0) > 0) {
-            return 'Es liegen noch ' . (int)$l3['n'] . ' nicht belastbare Ersatzwerte (Qualität L3) '
+        $l3n = self::l3Count($run['community_id'], $run['period_from'], $run['period_to']);
+        if ($l3n > 0) {
+            return 'Es liegen noch ' . $l3n . ' nicht belastbare Ersatzwerte (Qualität L3) '
                  . 'im Abrechnungszeitraum vor. Diese ändern sich laut EDA mit hoher '
                  . 'Wahrscheinlichkeit noch -- bitte den nächsten EDA-Monatsbericht abwarten, bis '
                  . 'keine L3-Werte mehr gemeldet werden.';
         }
         return null;
+    }
+
+    /** Anzahl nicht belastbarer Ersatzwerte (Qualität L3) im Zeitraum -- siehe ABRECHNUNGS_QUALITY. */
+    private static function l3Count(string $communityId, string $periodFrom, string $periodTo): int
+    {
+        $l3 = DB::fetchOne(
+            "SELECT COUNT(*) AS n FROM eda_measurements
+             WHERE community_id = ? AND time >= ? AND time < ?::date + INTERVAL '1 day'
+               AND quality = 'L3'",
+            [$communityId, $periodFrom, $periodTo]
+        );
+        return (int)($l3['n'] ?? 0);
+    }
+
+    /**
+     * Für den Namensteil der Rechnungsnummer (RE-260001_RC108175_Muster_Erika): deutsche Umlaute
+     * transliterieren, alles außer Buchstaben/Ziffern entfernen (keine Leerzeichen/Bindestriche/
+     * Sonderzeichen in einer Rechnungsnummer, die auch als SEPA-Verwendungszweck/EndToEndId und
+     * PDF-Dateiname verwendet wird).
+     */
+    private static function slugName(string $name): string
+    {
+        $name = str_replace(
+            ['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß'],
+            ['ae', 'oe', 'ue', 'Ae', 'Oe', 'Ue', 'ss'],
+            $name
+        );
+        return preg_replace('/[^A-Za-z0-9]+/', '', $name) ?? '';
     }
 
     /**
@@ -410,10 +473,20 @@ class Billing
             $cursor = strtotime('+1 month', $cursor);
         }
 
+        // eda_imports.period_from ist TIMESTAMPTZ und wird vom Parser als Europe/Vienna-
+        // Mitternacht gespeichert (siehe eda-parser/parser.py: tz_localize("Europe/Vienna")),
+        // z.B. 01.07.2026 00:00 Wien = 30.06.2026 22:00 UTC. Ohne "AT TIME ZONE" formatiert
+        // to_char() den Wert in der SESSION-Zeitzone der DB-Verbindung (Standard: UTC) -- ein
+        // Juli-Import wurde dadurch als "2026-06" einsortiert und erschien nie als für Juli
+        // vorhanden. "fehlt: 2026-07" blieb deshalb bestehen, obwohl längst importiert war
+        // (Patrick, 06.08.2026). Aus demselben Grund bewusst OHNE period_from/period_to-
+        // Eingrenzung in der WHERE-Klausel -- dieselbe Verschiebung hätte dort Zeilen genau am
+        // Monatsrand fälschlich herausfiltern können; bei der überschaubaren Anzahl an Imports
+        // pro Community ist der Abgleich unten in PHP (array_diff) unkritisch und robuster.
         $imported = DB::fetchAll(
-            "SELECT DISTINCT to_char(period_from, 'YYYY-MM') AS monat FROM eda_imports
-             WHERE community_id = ? AND period_from >= ? AND period_from <= ?",
-            [$communityId, $periodFrom, $periodTo]
+            "SELECT DISTINCT to_char(period_from AT TIME ZONE 'Europe/Vienna', 'YYYY-MM') AS monat
+             FROM eda_imports WHERE community_id = ?",
+            [$communityId]
         );
         $importedMonths = array_column($imported, 'monat');
         return array_values(array_diff($months, $importedMonths));

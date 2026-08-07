@@ -2068,12 +2068,25 @@ $router->get('/portal/members', function () {
     // online war ODER online ist, dessen Zähler (P1-Signal) aber nicht erreichbar ist -- exakt
     // dieselbe Logik wie die Status-Kachelzeile im Obmann-Dashboard (espOfflineAfterMinutes()).
     $espOfflineMinutes = espOfflineAfterMinutes();
+    // open_amount bewusst als eigene Subquery, NICHT als weiterer JOIN + SUM(...) FILTER: ein
+    // zusätzlicher LEFT JOIN invoices NEBEN dem LEFT JOIN metering_points hätte (beides 1:n zu
+    // members) ein klassisches Fan-out-Problem erzeugt -- bei z.B. 2 Zählpunkten UND 1 offener
+    // Rechnung entstehen 2 kombinierte Zeilen (Kreuzprodukt), wodurch SUM(i.saldo_eur) dieselbe
+    // Rechnung doppelt zählt. Genau das ließ "Offener Betrag" bei jedem Mitglied mit 2
+    // Zählpunkten (eigener Bezugs- UND Einspeisungs-Zählpunkt) exakt doppelt so hoch erscheinen
+    // wie bei einem Mitglied mit nur einem Zählpunkt (Patrick, 06.08.2026: "warum steht bei ein
+    // paar schon 4,00€" bei nur einer einzigen Juli-Abrechnung). Eine Subquery ist vom
+    // metering_points-JOIN völlig unabhängig und kann daher nicht mitmultipliziert werden.
     $members = DB::fetchAll(
         "SELECT m.*,
                 COUNT(DISTINCT mp.id) AS metering_point_count,
                 bool_or(mp.type IN ('consumer', 'prosumer')) FILTER (WHERE mp.active) AS hat_bezug,
                 bool_or(mp.type IN ('producer', 'prosumer')) FILTER (WHERE mp.active) AS hat_einspeisung,
-                COALESCE(SUM(i.saldo_eur) FILTER (WHERE i.saldo_eur > 0 AND i.sent_at IS NULL), 0) AS open_amount,
+                COALESCE(
+                    (SELECT SUM(i.saldo_eur) FROM invoices i
+                     WHERE i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL),
+                    0
+                ) AS open_amount,
                 EXISTS(SELECT 1 FROM membership_applications ma WHERE ma.member_id = m.id) AS via_online,
                 bool_or(mp.active AND mp.esp_last_seen_at IS NOT NULL) AS hat_esp_bekannt,
                 bool_or(
@@ -2092,7 +2105,6 @@ $router->get('/portal/members', function () {
          FROM members m
          LEFT JOIN users u ON u.id = m.user_id
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
-         LEFT JOIN invoices i ON i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL
          WHERE m.community_id = ?
          GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
         [$espOfflineMinutes, $espOfflineMinutes, $communityId]

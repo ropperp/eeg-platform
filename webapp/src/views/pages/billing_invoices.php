@@ -96,7 +96,7 @@ $paymentMeta = [
         <td style="font-size:.8rem"><code><?= htmlspecialchars($inv['rechnungsnummer']) ?></code></td>
         <td style="text-align:right;white-space:nowrap">
           <?php $betrag = (float)$inv['brutto_eur']; ?>
-          <span style="color:<?= $betrag < 0 ? '#16a34a' : '#111827' ?>"><?= number_format($betrag, 2, ',', '.') ?> €</span>
+          <span style="color:<?= $betrag < 0 ? '#16a34a' : 'var(--gray-800)' ?>;font-weight:600"><?= number_format($betrag, 2, ',', '.') ?> €</span>
         </td>
         <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y', strtotime($inv['created_at'])) ?></td>
         <td>

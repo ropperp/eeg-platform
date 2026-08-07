@@ -233,7 +233,11 @@ function sepaPain008Xml(
     foreach ($txns as $t) {
         $txXml .=
             '<DrctDbtTxInf>'
-          .   '<PmtId><EndToEndId>' . $x($t['end_to_end_id'] ?? 'NOTPROVIDED') . '</EndToEndId></PmtId>'
+          // EndToEndId ist laut ISO-20022-Schema (pain.008) auf 35 Zeichen begrenzt -- die
+          // Rechnungsnummer (seit 06.08.2026 inkl. Marktpartner-ID + Nach-/Vorname, siehe
+          // Billing::generateDrafts()) kann bei längeren Namen darüber liegen; ohne Kürzung
+          // würde die Bank die ganze SEPA-Datei ablehnen.
+          .   '<PmtId><EndToEndId>' . $x(substr((string)($t['end_to_end_id'] ?? 'NOTPROVIDED'), 0, 35)) . '</EndToEndId></PmtId>'
           .   '<InstdAmt Ccy="EUR">' . $money($t['amount']) . '</InstdAmt>'
           .   '<DrctDbtTx><MndtRltdInf>'
           .     '<MndtId>' . $x($t['mandate_ref']) . '</MndtId>'

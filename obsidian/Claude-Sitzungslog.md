@@ -8,6 +8,66 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-06 (34) — Claude Code — Claude Sonnet 5
+**Auftrag:** Neues Rechnungsnummer-Schema (`RE-26XXXX_RCYYYYYY_Nachname_Vorname`, laufende Nummer
+ab 0001). Klarstellung zu (33): der Mitgliedsbeitrag ist wirklich nur EINMAL pro Mitglied fällig
+(2 €/Monat für die Vereinsmitgliedschaft selbst), unabhängig von der Zählpunkt-Anzahl -- die
+Multiplikation aus (33) war ein Missverständnis meinerseits. Zusätzlich: bei Qualität L3 soll
+schon das Berechnen der Rechnungs-Entwürfe verweigert werden, nicht erst die Freigabe.
+**Ergebnis:** `Billing::generateDrafts()` -- Mitgliedsbeitrag-Multiplikation aus (33) zurückgebaut
+(wieder einmal pro Mitglied). Neues Rechnungsnummer-Format `RE-<Jahr 2-stellig><laufende Nummer,
+4-stellig>_<Marktpartner-ID>_<Nachname>_<Vorname>` (Firmenmitglieder: company_name statt
+Nachname, Vorname leer) -- laufende Nummer je EEG UND Jahr getrennt (nicht plattformweit
+gemeinsam, weil jede EEG ein eigener Verein mit eigener, lückenloser Nummerierung nach § 11 UStG
+ist), ermittelt über die Anzahl bereits bestehender Rechnungen dieser EEG in diesem Jahr (bleibt
+bei mehrfachem "Neu berechnen" desselben Laufs stabil, da nur die eigenen Entwürfe vorher
+gelöscht werden). Neue private `Billing::slugName()` transliteriert deutsche Umlaute und entfernt
+alles außer Buchstaben/Ziffern (die Rechnungsnummer dient auch als SEPA-Verwendungszweck/
+EndToEndId und PDF-Dateiname). Dabei aufgefallen: EndToEndId ist laut ISO-20022/pain.008 auf 35
+Zeichen begrenzt -- die neue, deutlich längere Rechnungsnummer kann das bei längeren Namen
+überschreiten (Beispielrechnung: "RE-260001_RC108175_Hoefferer_Ingrid" = bereits genau 35
+Zeichen) und hätte sonst die komplette SEPA-Datei bei der Bank zum Absturz gebracht --
+`sepaPain008Xml()` kürzt EndToEndId jetzt defensiv auf 35 Zeichen. `Billing::l3Count()` aus
+`datenqualitaetProblem()` herausgezogen und zusätzlich in `generateDrafts()` verwendet: liegen
+noch L3-Werte im Zeitraum vor, wirft die Methode jetzt schon beim Berechnen der Entwürfe eine
+RuntimeException (surfaced über die bestehende try/catch-Fehlerbehandlung in
+`/portal/billing/generate`), nicht erst bei der Freigabe. `php tests/run.php` weiterhin 77/77
+grün; `slugName()`-Transliteration (Umlaute, Bindestrich, Apostroph) manuell gegengeprüft.
+
+## 2026-08-06 (33) — Claude Code — Claude Sonnet 5
+**Auftrag:** Nach dem ersten echten Testlauf (EDA-Import Juli + Rechnungen berechnen) gleich
+mehrere Beobachtungen auf einmal: (1) Mitgliedsbeitrag wird nur einmal pro Mitglied verrechnet,
+unabhängig von der Zählpunkt-Anzahl -- soll pro Zählpunkt gelten. (2) Abrechnungsübersicht zeigt
+weiterhin "fehlt: 2026-07", obwohl der Import längst gemacht wurde -- Fehlermeldung soll
+verständlicher werden. (3) Zu geringer Kontrast bei den Rechnungsbeträgen. (4) Bei nur einer
+einzigen Juli-Abrechnung zeigt die Mitgliederliste bei manchen schon 4,00€ Offener Betrag statt
+2,00€. (5) Auf der PDF-Rechnung erscheinen weiterhin Bezug- UND Einspeisungszeile, obwohl das
+Mitglied nur eines von beidem hat (mit angehängter Beispiel-PDF von Stefanie Schwaiger).
+**Ergebnis:** Vier echte Bugs gefunden und behoben, einer als Deployment-Lücke erklärt:
+(1) `Billing::generateDrafts()` multipliziert den anteiligen Mitgliedsbeitrag jetzt mit
+`count($group['metering_points'])`. (2) `Billing::missingMonths()`: `eda_imports.period_from`
+ist TIMESTAMPTZ und wird vom Parser als Europe/Vienna-Mitternacht gespeichert (01.07. 00:00 Wien
+= 30.06. 22:00 UTC) -- `to_char()` ohne `AT TIME ZONE` formatierte das in der UTC-Session-Zeitzone
+der DB-Verbindung, ein Juli-Import landete dadurch im Monats-Bucket "2026-06" und "fehlte" für
+Juli für immer. Fix: `to_char(period_from AT TIME ZONE 'Europe/Vienna', ...)`, zusätzlich die
+period_from/period_to-WHERE-Eingrenzung entfernt (gleiche Fallgrube, überschaubare Datenmenge
+macht den PHP-seitigen array_diff-Abgleich unkritisch). (3) `billing_invoices.php`: der
+Rechnungsbetrag war hart auf `#111827` (dunkles Blaugrau) codiert -- unsichtbar im Dark Mode.
+Jetzt `var(--gray-800)` (themafähiges Token) + fett. (4) `/portal/members`: klassisches
+SQL-Fan-out -- `LEFT JOIN metering_points` UND `LEFT JOIN invoices` in derselben Query (beides
+1:n) erzeugte bei 2 Zählpunkten + 1 offener Rechnung ein Kreuzprodukt aus 2 Zeilen, wodurch
+`SUM(i.saldo_eur)` dieselbe Rechnung doppelt zählte -- exakt bei Mitgliedern mit eigenem Bezugs-
+UND Einspeisungs-Zählpunkt reproduziert. Fix: `open_amount` als unabhängige Subquery statt JOIN.
+(5) War in Wirklichkeit BEREITS in Sitzung (30) behoben (`rechnung.tex`-Fallback entfernt, PR
+#51) -- aber `latex-service/docker/entrypoint.sh` kopiert die mitgelieferten Standard-Vorlagen
+nur EINMALIG auf ein leeres `/opt/eeg/latex-templates`-Volume; ein `git pull` aktualisiert die
+schon einmal befüllte Live-Datei nie automatisch. Patrick braucht dafür einen manuellen Kopier-
+Befehl (kein Code-Fix nötig, siehe Chat-Antwort). Nebenbefund aus der PDF: die 0,00-kWh-Zeilen bei
+Stefanie sind zusätzlich auch deshalb 0, weil der Juli-Import komplett Qualität L3 hat (nicht
+belastbar, wird laut Billing::ABRECHNUNGS_QUALITY korrekt nicht abgerechnet) -- kein Bug, sondern
+erwartetes Verhalten bis ein späterer Monatsbericht die Qualität auf L1/L2 hochstuft.
+`php tests/run.php` weiterhin 77/77 grün.
+
 ## 2026-08-06 (32) — Claude Code — Claude Sonnet 5
 **Auftrag:** Wieder eine als „Parser-Fehler" angezeigte Meldung geschickt -- diesmal endete sie
 aber mit einem sauberen, vollständigen JSON-Erfolgsergebnis (10 Datensätze importiert).
