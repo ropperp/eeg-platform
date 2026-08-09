@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-09 (36) — Claude Code — Claude Sonnet 5
+**Auftrag:** Vorher gefragt, wie man das MQTT-Passwort herausfindet (Antwort: steht in `.env`
+auf dem Server, `grep MQTT_ .env`). Dann Screenshot eines Mitglieds, dessen Zählernummer entfernt
+wurde (Zähler außer Betrieb): trotzdem zeigt die Zählpunkt-Tabelle weiterhin "Erreichbar" und
+einen "WLAN-Info anzeigen"-Link. Soll korrigiert werden: ohne Zählernummer keine ESP-/Zähler-
+Statusanzeige.
+**Ergebnis:** Root Cause: `esp_last_seen_at`/`meter_reachable`/`esp_online` bleiben auf dem
+Zählpunkt-Datensatz stehen, auch wenn `meter_code` (Zählernummer) später wieder gelöscht wird --
+alle Statusanzeigen prüften bisher nur `mp.active`, nie `meter_code`. Behoben an allen drei
+Stellen mit demselben Muster: `member_detail.php` (ESP-Spalte + Zähler-Spalte in der
+Zählpunkt-Tabelle zeigen jetzt "—" ohne Zählernummer, "WLAN-Info anzeigen" nur noch mit
+Zählernummer), `/portal/members`-Abfrage (Mitgliederliste, "Zähler"-Spalte OK/Fehler-Badge:
+`hat_esp_bekannt`/`hat_esp_fehler` zusätzlich auf `mp.meter_code IS NOT NULL` geprüft) und die
+beiden `total_meters`-Zählungen für den Live-Dashboard-"nicht alle Zählpunkte online"-Hinweis
+(`communityLivePower()` + `/api/v1/live`-ähnlicher Block). `php tests/run.php` weiterhin 77/77
+grün (kleiner PHP-Parse-Fehler beim ersten Versuch durch unescapte doppelte Anführungszeichen in
+einem SQL-Kommentar selbst verursacht und sofort behoben).
+
 ## 2026-08-07 (35) — Claude Code — Claude Sonnet 5
 **Auftrag:** Neue Rechnungsnummer "noch nicht übernommen". EDA-Datenqualität soll schon beim
 Hochladen der Datei ausgelesen und angezeigt werden. Genereller Wunsch: Fehlermeldungen IMMER
