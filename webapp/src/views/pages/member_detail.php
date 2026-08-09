@@ -200,6 +200,11 @@
             // sonst könnte ein hängengebliebenes Gerät für immer als online angezeigt werden.
             $espEffectivelyOnline = !empty($mp['esp_online']) && !empty($mp['esp_last_seen_at'])
                 && (time() - strtotime($mp['esp_last_seen_at'])) < $espOfflineMinutes * 60;
+            // ESP-/Zähler-Spalten unten zeigen nur etwas an, wenn eine Zählernummer hinterlegt
+            // ist: esp_last_seen_at/meter_reachable bleiben auf dem Zählpunkt stehen, auch wenn
+            // die Zählernummer später entfernt wurde (Zähler außer Betrieb) -- ohne diese Sperre
+            // stand dort weiterhin "Erreichbar"/"WLAN-Info", obwohl gar kein Zähler mehr
+            // eingetragen ist (Patrick, 09.08.2026).
           ?>
           <tr>
             <td><code style="font-size:.75rem"><?= htmlspecialchars($mp['zaehlpunkt_nr']) ?></code></td>
@@ -220,7 +225,9 @@
               <?php endif; ?>
             </td>
             <td style="font-size:.78rem;white-space:nowrap">
-              <?php if ($espEffectivelyOnline): ?>
+              <?php if (empty($mp['meter_code'])): ?>
+                <span style="color:var(--gray-600)">—</span>
+              <?php elseif ($espEffectivelyOnline): ?>
                 <span class="badge badge-green"><?= icon('check-circle') ?> Online</span>
               <?php elseif (!empty($mp['esp_last_seen_at'])): ?>
                 <span class="badge badge-gray" title="Zuletzt online: <?= date('d.m.Y H:i', strtotime($mp['esp_last_seen_at'])) ?>">
@@ -229,7 +236,7 @@
               <?php else: ?>
                 <span class="badge badge-gray" style="color:var(--gray-600)">Keine ESP-Daten</span>
               <?php endif; ?>
-              <?php if (!empty($mp['esp_last_seen_at'])): ?>
+              <?php if (!empty($mp['meter_code']) && !empty($mp['esp_last_seen_at'])): ?>
                 <br>
                 <button type="button" onclick="showWifiInfo('<?= $member['id'] ?>','<?= $mp['id'] ?>')"
                         style="background:none;border:none;cursor:pointer;color:var(--gray-600);font-size:.72rem;padding:.15rem 0;text-decoration:underline">
@@ -238,7 +245,7 @@
               <?php endif; ?>
             </td>
             <td style="font-size:.78rem;white-space:nowrap">
-              <?php if (empty($mp['esp_last_seen_at'])): ?>
+              <?php if (empty($mp['meter_code']) || empty($mp['esp_last_seen_at'])): ?>
                 <span style="color:var(--gray-600)">—</span>
               <?php elseif (!empty($mp['meter_reachable'])): ?>
                 <span class="badge badge-green"><?= icon('check-circle') ?> Erreichbar</span>

@@ -222,7 +222,7 @@ function communityLivePower(string $communityId): array
     // unvollständig, siehe Patrick 30.07.2026).
     $total = DB::fetchOne(
         "SELECT COUNT(*) AS cnt FROM metering_points
-         WHERE community_id = ? AND active = true AND esp_last_seen_at IS NOT NULL",
+         WHERE community_id = ? AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL",
         [$communityId]
     );
     return [
@@ -1151,7 +1151,7 @@ $router->get('/api/live/:slug', function ($params) {
     // Zählpunkte vs. die gerade aktiven -- siehe communityLivePower() (Patrick, 30.07.2026).
     $totalMeters = DB::fetchOne(
         "SELECT COUNT(*) AS cnt FROM metering_points
-         WHERE community_id = ? AND active = true AND esp_last_seen_at IS NOT NULL",
+         WHERE community_id = ? AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL",
         [$community['id']]
     );
 
@@ -2088,9 +2088,14 @@ $router->get('/portal/members', function () {
                     0
                 ) AS open_amount,
                 EXISTS(SELECT 1 FROM membership_applications ma WHERE ma.member_id = m.id) AS via_online,
-                bool_or(mp.active AND mp.esp_last_seen_at IS NOT NULL) AS hat_esp_bekannt,
+                -- mp.meter_code IS NOT NULL zusätzlich zu mp.active: esp_last_seen_at/
+                -- meter_reachable bleiben auf dem Zählpunkt stehen, auch wenn die Zählernummer
+                -- später entfernt wurde (Zähler außer Betrieb, Zählpunkt selbst aber weiterhin
+                -- aktiv) -- ohne diese Sperre zeigte die Zähler-Spalte für so ein Mitglied
+                -- weiterhin OK/Fehler statt kein Zähler (Patrick, 09.08.2026).
+                bool_or(mp.active AND mp.meter_code IS NOT NULL AND mp.esp_last_seen_at IS NOT NULL) AS hat_esp_bekannt,
                 bool_or(
-                    mp.active AND mp.esp_last_seen_at IS NOT NULL AND (
+                    mp.active AND mp.meter_code IS NOT NULL AND mp.esp_last_seen_at IS NOT NULL AND (
                         NOT (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval)
                         OR (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT mp.meter_reachable)
                     )
