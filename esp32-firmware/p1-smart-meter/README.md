@@ -59,8 +59,9 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   aufs Gerät verteilt werden). Benutzername/Passwort vom Obmann/Admin erhalten (siehe
   `scripts/mqtt_secure_setup.sh` im Hauptrepo) und im selben Formular eintragen -- der Broker
   verlangt das inzwischen auf beiden Ports.
-- OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied. Der
-  OTA-/mDNS-Hostname ist seit 03.08.2026 pro Gerät eindeutig (`p1-smartmeter-XXXX`, letzte
+- OTA-Updates (`ArduinoOTA`) — Firmware-Updates ohne Vor-Ort-Termin beim Mitglied, aber ein
+  manueller "Push" vom eigenen Rechner (gleiches WLAN/Subnetz nötig). Der OTA-/mDNS-Hostname ist
+  seit 03.08.2026 pro Gerät eindeutig (`p1-smartmeter-XXXX`, letzte
   4 Hex-Stellen der Chip-MAC, gleiches Muster wie der Setup-AP-Name `P1-Setup-XXXX`) — vorher
   hatten alle Geräte denselben Hostnamen `p1-smartmeter`, was bei mehreren gleichzeitig laufenden
   Geräten zu einem mDNS-Namenskonflikt führte (`dns-sd -B _arduino._tcp` zeigte dann z. B.
@@ -75,6 +76,65 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
   starten, ~10-20 s nach dem Boot warten). Funktioniert es weiterhin nicht, per IP direkt
   hochladen (`espota.py -i <esp-ip> -p 3232 --auth=<passwort> -f firmware.bin`, IP steht im
   seriellen Log als "WLAN verbunden. IP: …" oder im Router).
+- **Automatisches Firmware-Update über GitHub Releases** (seit 09.08.2026, Patrick: "dann brauch
+  ich nicht mehr zu jedem Kunden zu fahren"). Anders als `ArduinoOTA` oben ist das ein "Pull" --
+  jedes Gerät fragt selbstständig (Standard: stündlich, `/config` → "automatische
+  firmware-updates") bei GitHub nach, ob es eine neuere passende Firmware-Version gibt, lädt sie
+  bei Bedarf herunter und flasht sich selbst. Kein Kabel, kein gemeinsames WLAN, kein
+  Vor-Ort-Termin nötig -- funktioniert auch bei Geräten, die schon beim Mitglied zuhause verbaut
+  sind. Details, Release-Ablauf und wichtige Einschränkungen: siehe eigener Abschnitt unten.
+
+## Automatisches Firmware-Update (GitHub Releases)
+
+Jedes Gerät prüft periodisch (Standard: stündlich, `checkForFirmwareUpdate()` im Sketch) über
+die GitHub-API, ob ein neuerer passender Release mit angehängter `.bin`-Datei existiert, lädt
+sie herunter und flasht sich selbst (`HTTPUpdate`, danach automatischer Neustart).
+
+### Neue Version veröffentlichen
+
+1. `FIRMWARE_VERSION` im Sketch erhöhen (z. B. `"1.0.0"` → `"1.1.0"`) -- sonst erkennt kein Gerät
+   den neuen Release als "neuer".
+2. Kompilieren und exportieren: Arduino-IDE → Sketch → **Sketch exportieren** (oder Skizze
+   kompilieren, dann die erzeugte `.bin` im Build-Ordner suchen). Die Datei vor dem Hochladen auf
+   `p1-smartmeter.bin` umbenennen -- der Dateiname muss exakt passen (`OTA_ASSET_NAME` im Sketch).
+3. Auf GitHub einen neuen Release anlegen:
+   - Tag: `p1-smartmeter-v` + die neue Version, also z. B. `p1-smartmeter-v1.1.0` (**nicht**
+     einfach `v1.1.0` -- dieses Präfix ist bewusst anders als die `vX.Y.Z`-Tags der Plattform
+     selbst im selben Repo, siehe `CLAUDE.md`, damit sich die beiden nie in die Quere kommen).
+   - Die `p1-smartmeter.bin` als Anhang (Asset) hochladen.
+   - **Beta/interner Test:** Checkbox **"Set as a pre-release"** aktivieren. Geräte im Feld
+     ignorieren Pre-Releases automatisch (per API-Feld `"prerelease":true`) -- so lassen sich
+     beliebig viele Testversionen veröffentlichen, ohne dass ein Kundengerät sie je bekommt. Zum
+     Testen selbst: Gerät mit `ArduinoOTA` oder Kabel manuell auf diese Version bringen.
+   - **Echter Rollout:** Checkbox NICHT aktivieren ("Set as the latest release" stattdessen).
+     Ab dem nächsten stündlichen Check holt sich jedes Gerät mit `cfgAutoUpdate` (Standard: an)
+     automatisch die neue Version.
+4. Testen: Im `/config`-Formular eines Testgeräts auf "jetzt auf update prüfen" klicken statt auf
+   den nächsten stündlichen Check zu warten -- Ergebnis erscheint im Log-Ringpuffer auf der
+   Startseite (`/`) des Geräts.
+
+### Wichtige Einschränkungen (bitte vor dem ersten echten Rollout lesen)
+
+- **Ungetestet/nicht kompiliert:** Der Code für dieses Feature wurde in dieser Sitzung geschrieben,
+  aber in dieser Umgebung steht kein ESP32-Toolchain zur Verfügung -- es wurde **nicht kompiliert
+  oder auf echter Hardware getestet**. Bitte zuerst auf einem Testgerät (Kabel oder `ArduinoOTA`,
+  nicht automatisch) verifizieren, dass es kompiliert und der Update-Ablauf tatsächlich
+  funktioniert, bevor irgendein Kundengerät `cfgAutoUpdate` aktiv hat.
+- **Neue Abhängigkeit:** Bibliothek `ArduinoJson` (Benoit Blanchon, v7) muss einmalig über den
+  Library Manager der Arduino-IDE installiert werden -- vorher hatte dieses Projekt keine
+  JSON-Bibliothek als Abhängigkeit.
+- **Kein Rollback bei kaputter Firmware.** Der Sketch nutzt aktuell keine explizite
+  App-Rollback-Bestätigung (`esp_ota_mark_app_valid_cancel_rollback()`) -- eine fehlerhafte
+  Version, die zwar erfolgreich flasht, sich danach aber aufhängt oder nicht mehr bootet, springt
+  NICHT automatisch auf die vorherige Version zurück. Deshalb unbedingt zuerst als Pre-Release
+  (Beta) auf eigener Testhardware verifizieren, dass ein Release tatsächlich stabil läuft, bevor
+  er als echter (nicht-Pre-)Release for alle Kundengeräte veröffentlicht wird.
+- Der Update-Vorgang selbst (Download + Flash) blockiert den ESP32 kurzzeitig (typischerweise
+  wenige bis ~30 Sekunden je nach WLAN-Geschwindigkeit und Firmware-Größe) -- in dieser Zeit
+  werden keine P1-Telegramme verarbeitet oder MQTT-Nachrichten gesendet, das Gerät startet
+  danach automatisch neu.
+- Um das GitHub-Repo für die Update-Suche zu wechseln (z. B. eigenes, separates Firmware-Repo
+  statt `eeg-platform`): `OTA_UPDATE_REPO` im Sketch anpassen (Format `"owner/repo"`).
 
 ## Bezug zur Plattform (`eeg-platform`-Repo)
 

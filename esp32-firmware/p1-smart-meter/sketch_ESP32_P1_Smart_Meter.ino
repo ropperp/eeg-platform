@@ -37,6 +37,11 @@
 #include <PubSubClient.h>
 #include <time.h>
 #include <DNSServer.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <ArduinoJson.h>   // Library Manager: "ArduinoJson" (Benoit Blanchon), v7 -- fuer
+                           // checkForFirmwareUpdate() weiter unten, einzige zusaetzliche
+                           // Abhaengigkeit fuer das automatische Firmware-Update.
 
 // -- Konfiguration (im Setup gesetzt, bleibt im Flash) --
 String cfgSsid    = "";
@@ -65,6 +70,24 @@ int    cfgLiveSec    = 5;           // Live-Daten-Intervall in Sekunden -- BEWUS
 
 // -- Zeit (NTP fuer Zeitstempel im Payload) --
 const char* ntpServer = "pool.ntp.org";
+
+// -- Firmware-Auto-Update (GitHub Releases) --------------------------------
+// Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
+// diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
+#define FIRMWARE_VERSION  "1.0.0"
+// owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
+// alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
+#define OTA_UPDATE_REPO   "ropperp/eeg-platform"
+// Tag-Praefix UND exakter Dateiname des .bin-Anhangs am Release. Bewusst NICHT einfach "v" als
+// Praefix: dasselbe Repo vergibt auch "vX.Y.Z"-Tags fuer die Plattform selbst (siehe CLAUDE.md) --
+// ein eigenes Praefix verhindert, dass ein Plattform-Release faelschlich als Firmware-Update
+// erkannt wird (bzw. dass die Firmware-Update-Suche einen Plattform-Release ohne .bin-Anhang
+// findet und dort haengen bleibt, siehe checkForFirmwareUpdate()).
+#define OTA_TAG_PREFIX    "p1-smartmeter-v"
+#define OTA_ASSET_NAME    "p1-smartmeter.bin"
+
+bool cfgAutoUpdate = true;   // automatische Firmware-Updates ein/aus (im /config-Formular)
+int  cfgUpdateSec  = 3600;   // Pruefintervall in Sekunden, Standard 1 Stunde
 
 // Zwei moegliche Transportwege fuer PubSubClient -- WiFiClientSecure fuer TLS (Port 8883),
 // WiFiClient fuer unverschluesselt (z.B. Port 1883 im eigenen, vertrauenswuerdigen Netz).
@@ -556,6 +579,128 @@ void loadConfig() {
   cfgMqttTopic = prefs.getString("mqtt_topic", "");
   cfgStatusSec = prefs.getInt("status_sec", 30);
   cfgLiveSec   = prefs.getInt("live_sec", 5);
+  cfgAutoUpdate = prefs.getBool("auto_update", true);
+  cfgUpdateSec  = prefs.getInt("update_sec", 3600);
+}
+
+// ── Firmware-Auto-Update (GitHub Releases) ────────────────────
+// Vergleicht zwei "X.Y.Z"-Versionsstrings numerisch (nicht alphabetisch, sonst waere "9" > "10").
+// true, wenn remote > current.
+bool isNewerVersion(const String& current, const String& remote) {
+  int curParts[3] = {0, 0, 0};
+  int remParts[3] = {0, 0, 0};
+  int idx = 0, start = 0;
+  for (int i = 0; i <= (int)current.length() && idx < 3; i++) {
+    if (i == (int)current.length() || current[i] == '.') {
+      curParts[idx++] = current.substring(start, i).toInt();
+      start = i + 1;
+    }
+  }
+  idx = 0; start = 0;
+  for (int i = 0; i <= (int)remote.length() && idx < 3; i++) {
+    if (i == (int)remote.length() || remote[i] == '.') {
+      remParts[idx++] = remote.substring(start, i).toInt();
+      start = i + 1;
+    }
+  }
+  for (int i = 0; i < 3; i++) {
+    if (remParts[i] != curParts[i]) return remParts[i] > curParts[i];
+  }
+  return false;
+}
+
+// Sucht den neuesten passenden Firmware-Release auf GitHub und flasht ihn bei Bedarf.
+//
+// Tag-Schema: OTA_TAG_PREFIX + Version, z.B. "p1-smartmeter-v1.2.0". Bewusst NICHT der bequeme
+// "/releases/latest"-Endpunkt (der liefert den neuesten Release ueberhaupt, ungeachtet des
+// Tag-Schemas) -- dasselbe Repo (eeg-platform) vergibt auch "vX.Y.Z"-Tags fuer die Plattform
+// selbst (siehe CLAUDE.md), "/releases/latest" wuerde also je nach Reihenfolge auch mal einen
+// Plattform-Release OHNE .bin-Anhang liefern. Stattdessen wird die Release-Liste (neueste
+// zuerst) durchsucht und der erste Treffer genommen, dessen Tag mit OTA_TAG_PREFIX beginnt.
+//
+// Beta-Testing: einen Release bei GitHub beim Anlegen als "This is a pre-release" markieren --
+// GitHub liefert "prerelease":true mit, das wird hier ignoriert/uebersprungen. So lassen sich
+// beliebig viele Beta-Versionen fuer eigene Testgeraete anlegen (per Kabel/ArduinoOTA manuell
+// aufspielen), ohne dass ein Kundengeraet sie automatisch bekommt -- erst ein "echter"
+// (nicht-Pre-)Release wird ausgerollt.
+void checkForFirmwareUpdate() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  WiFiClientSecure client;
+  client.setInsecure();  // wie beim MQTT-TLS-Transport (applyMqttClientMode()) -- kein Zertifikat
+                          // auf dem Geraet noetig, die Verbindung ist trotzdem verschluesselt.
+  HTTPClient http;
+  http.useHTTP10(true);  // vereinfacht das Streaming fuer deserializeJson() unten (kein Chunked Encoding)
+  String url = "https://api.github.com/repos/" + String(OTA_UPDATE_REPO) + "/releases?per_page=10";
+  if (!http.begin(client, url)) {
+    addLog("Update-Check: Verbindung zu GitHub fehlgeschlagen");
+    return;
+  }
+  http.addHeader("User-Agent", "p1-smartmeter-esp32");  // GitHub verlangt zwingend einen User-Agent, sonst HTTP 403
+  http.addHeader("Accept", "application/vnd.github+json");
+
+  int code = http.GET();
+  if (code != 200) {
+    addLog("Update-Check fehlgeschlagen (HTTP " + String(code) + ")");
+    http.end();
+    return;
+  }
+
+  // Nur die tatsaechlich benoetigten Felder parsen (Filter) -- der volle Response ist pro
+  // Release mehrere KB gross (viele fuer uns irrelevante Felder), auf dem ESP32 mit begrenztem
+  // RAM sonst unnoetig teuer bzw. riskant bei mehreren Releases in der Liste.
+  JsonDocument filter;
+  filter[0]["tag_name"] = true;
+  filter[0]["prerelease"] = true;
+  filter[0]["draft"] = true;
+  filter[0]["assets"][0]["name"] = true;
+  filter[0]["assets"][0]["browser_download_url"] = true;
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+  http.end();
+  if (err) {
+    addLog("Update-Check: JSON-Fehler (" + String(err.c_str()) + ")");
+    return;
+  }
+
+  for (JsonObject release : doc.as<JsonArray>()) {
+    if (release["draft"] | false) continue;
+    if (release["prerelease"] | false) continue;   // Beta -- fuer Kundengeraete ignorieren
+    String tag = release["tag_name"] | "";
+    if (!tag.startsWith(OTA_TAG_PREFIX)) continue;  // gehoert zu einem anderen Projekt/der Plattform
+
+    String remoteVersion = tag.substring(String(OTA_TAG_PREFIX).length());
+    if (!isNewerVersion(FIRMWARE_VERSION, remoteVersion)) {
+      return;  // aeltester/gleich neuer passender Release zuerst gefunden -> nichts zu tun
+    }
+
+    String assetUrl = "";
+    for (JsonObject asset : release["assets"].as<JsonArray>()) {
+      String name = asset["name"] | "";
+      if (name == OTA_ASSET_NAME) {
+        const char* dlUrl = asset["browser_download_url"] | "";
+        assetUrl = String(dlUrl);
+        break;
+      }
+    }
+    if (assetUrl.length() == 0) {
+      addLog("Update " + remoteVersion + " gefunden, aber kein Anhang '" + String(OTA_ASSET_NAME) + "'");
+      return;
+    }
+
+    addLog("Neue Firmware " + remoteVersion + " gefunden, lade herunter...");
+    Serial.println("Firmware-Update: " + assetUrl);
+    WiFiClientSecure updateClient;
+    updateClient.setInsecure();
+    httpUpdate.rebootOnUpdate(true);  // Geraet startet nach erfolgreichem Update automatisch neu
+    t_httpUpdate_return ret = httpUpdate.update(updateClient, assetUrl);
+    // HTTP_UPDATE_OK wird hier nie erreicht -- das Geraet startet vorher neu (rebootOnUpdate).
+    if (ret == HTTP_UPDATE_FAILED) {
+      addLog("Update fehlgeschlagen: " + httpUpdate.getLastErrorString());
+    }
+    return;  // nur den ersten passenden (= neuesten) Release pro Aufruf pruefen
+  }
 }
 
 // ── Mit gespeichertem WLAN verbinden (true bei Erfolg) ────────
@@ -697,6 +842,13 @@ String buildSettingsPage() {
   h += "<div class='hint'>wird automatisch klein geschrieben</div>";
   h += "<label>verschluesselungskey (32 zeichen)</label><input id='key' maxlength='32' value='" + aesKeyHex + "' placeholder='leer lassen, um den gespeicherten zu behalten'>";
   h += "<div class='hint'>" + keyHint + "</div>";
+  h += "<div class='sec'>";
+  h += "<label style='display:flex;align-items:center;gap:8px;margin-top:0'><input type='checkbox' id='autoupd' style='width:auto'" + String(cfgAutoUpdate ? " checked" : "") + ">automatische firmware-updates</label>";
+  h += "<div class='hint'>prueft regelmaessig github auf eine neue firmware-version und installiert sie automatisch (kein kabel/ota-termin noetig). aktuelle version: " + String(FIRMWARE_VERSION) + "</div>";
+  h += "<label>pruefintervall (sekunden)</label><input id='usec' type='number' min='60' value='" + String(cfgUpdateSec) + "' placeholder='3600'>";
+  h += "<div class='hint'>default: 3600 (1 stunde).</div>";
+  h += "<button class='save' style='background:#374151;margin-top:10px' onclick='checkUpdateNow()'>jetzt auf update pruefen</button>";
+  h += "</div>";
   h += "<div id='mqtt' class='sec' style='display:none'>";
   h += "<label>mqtt-topic (optional)</label><input id='mtopic' value='" + cfgMqttTopic + "' placeholder='leer = eeg/{rc}/meter/{zaehler}/live'>";
   h += "<div class='hint'>platzhalter: {rc} = rc-nummer, {zaehler} = zaehlernummer. leer lassen = standard-schema.</div>";
@@ -728,8 +880,11 @@ String buildSettingsPage() {
   h += "b.append('mqtt_pass',document.getElementById('mpass').value);";
   h += "b.append('status_sec',document.getElementById('ssec').value);";
   h += "b.append('live_sec',document.getElementById('lsec').value);";
+  h += "b.append('auto_update',document.getElementById('autoupd').checked?'1':'0');";
+  h += "b.append('update_sec',document.getElementById('usec').value);";
   h += "fetch('/saveconfig',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()})";
   h += ".then(function(){var m=document.getElementById('msg');m.style.display='block';m.textContent='gespeichert.';});}";
+  h += "function checkUpdateNow(){fetch('/checkupdate',{method:'POST'}).then(function(r){return r.text();}).then(function(t){var m=document.getElementById('msg');m.style.display='block';m.textContent=t;});}";
   h += "function forget(){if(confirm('wlan-daten loeschen und neu starten?'))";
   h += "fetch('/forgetwifi',{method:'POST'}).then(function(){alert('esp startet neu im setup-modus.');});}";
   h += "</script></body></html>";
@@ -763,6 +918,11 @@ void handleSaveConfig() {
   cfgLiveSec = server.arg("live_sec").toInt();
   if (cfgLiveSec < 2) cfgLiveSec = 5;
   prefs.putInt("live_sec", cfgLiveSec);
+  cfgAutoUpdate = server.arg("auto_update") == "1";
+  prefs.putBool("auto_update", cfgAutoUpdate);
+  cfgUpdateSec = server.arg("update_sec").toInt();
+  if (cfgUpdateSec < 60) cfgUpdateSec = 3600;
+  prefs.putInt("update_sec", cfgUpdateSec);
   cfgMqttUser = server.arg("mqtt_user");
   prefs.putString("mqtt_user", cfgMqttUser);
   String newPass = server.arg("mqtt_pass");
@@ -781,6 +941,15 @@ void handleForgetWifi() {
   server.send(200, "text/plain", "OK");
   delay(800);
   ESP.restart();
+}
+
+// Manueller Anstoss von checkForFirmwareUpdate() ueber den "jetzt pruefen"-Button im
+// /config-Formular -- Antwort geht sofort raus, das eigentliche Ergebnis landet im Log-Ringpuffer
+// (sichtbar auf "/"), damit der Browser nicht auf einen evtl. minutenlangen Download+Flash-Vorgang warten muss.
+void handleCheckUpdate() {
+  if (!requireAuth()) return;
+  server.send(200, "text/plain", "Pruefe im Hintergrund -- Ergebnis siehe Log auf der Startseite.");
+  checkForFirmwareUpdate();
 }
 
 // ── Setup ─────────────────────────────────────────────────────
@@ -834,6 +1003,7 @@ void setup() {
     server.on("/config",     []() { if (!requireAuth()) return; server.send(200, "text/html", buildSettingsPage()); });
     server.on("/saveconfig", HTTP_POST, handleSaveConfig);
     server.on("/forgetwifi", HTTP_POST, handleForgetWifi);
+    server.on("/checkupdate", HTTP_POST, handleCheckUpdate);
 
     server.begin();
     Serial.println("Webserver gestartet");
@@ -881,6 +1051,19 @@ void loop() {
         hb += "}";
         mqttClient.publish(st.c_str(), hb.c_str(), true);
       }
+    }
+  }
+
+  // Periodische Firmware-Update-Pruefung (siehe checkForFirmwareUpdate() weiter oben). Jedes
+  // Geraet haengt an einem eigenen Internetanschluss (unterschiedliche Mitglieder zuhause), ein
+  // gemeinsames GitHub-Rate-Limit ist deshalb praktisch ausgeschlossen -- eine Versatz-/
+  // Jitter-Logik zwischen mehreren Geraeten ist hier bewusst nicht noetig.
+  static unsigned long lastUpdateCheck = 0;
+  if (cfgAutoUpdate) {
+    unsigned long now = millis();
+    if (lastUpdateCheck == 0 || now - lastUpdateCheck >= (unsigned long)cfgUpdateSec * 1000) {
+      lastUpdateCheck = now;
+      checkForFirmwareUpdate();
     }
   }
 

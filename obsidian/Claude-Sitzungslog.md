@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-10 (38) — Claude Code — Claude Sonnet 5
+**Auftrag:** Ob ein ESP32 stündlich selbst auf GitHub nach neuer Firmware suchen und sich
+automatisch aktualisieren kann, statt bei jedem Update zu jedem Kunden fahren oder OTA im
+selben WLAN hochspielen zu müssen. Wunsch danach konkretisiert: Beta-Versionen sollen nur für
+eigene Testgeräte sein, Kundengeräte sollen automatisch nur die "echte", fehlerfreie Version
+bekommen; das GitHub-Repo dafür soll im Code leicht änderbar sein (aktuell `eeg-platform`).
+**Ergebnis:** In `esp32-firmware/p1-smart-meter/sketch_ESP32_P1_Smart_Meter.ino` umgesetzt:
+`checkForFirmwareUpdate()` fragt periodisch (Standard stündlich, im `/config`-Formular ein-/
+ausschaltbar) `GET /repos/<repo>/releases` ab (bewusst NICHT den bequemen `/releases/latest`-
+Endpunkt, weil dasselbe Repo auch eigene `vX.Y.Z`-Tags für die Plattform selbst vergibt, siehe
+CLAUDE.md -- eigenes Tag-Präfix `p1-smartmeter-v` verhindert Verwechslung), sucht darin den
+neuesten Release mit passendem Präfix, überspringt dabei automatisch alles mit
+`"prerelease":true` (= GitHub-Betaflag "Set as a pre-release") und lädt bei einer neueren
+Version den `.bin`-Anhang über `HTTPUpdate` herunter, flasht sich selbst und startet neu. Beta-
+Testing kostenlos über genau dieses GitHub-Feature gelöst -- Patrick kann beliebig viele
+Pre-Releases anlegen, ohne dass ein Kundengerät sie je bekommt, erst ein "echter" Release wird
+ausgerollt. `OTA_UPDATE_REPO` als eigenes `#define` leicht umtragbar. Neue Abhängigkeit:
+ArduinoJson (v7, gefiltertes Parsen wegen begrenztem RAM). README.md um vollständigen
+Release-Ablauf (Tag-/Asset-Namensschema, Pre-Release-Checkbox) und wichtige Einschränkungen
+ergänzt: **kein ESP32-Compiler in dieser Sitzung verfügbar, Code also nicht kompiliert/auf
+Hardware getestet**, kein automatisches App-Rollback bei einer kaputten Version (unbedingt zuerst
+als Pre-Release auf eigener Testhardware verifizieren, bevor ein echter Release für Kundengeräte
+veröffentlicht wird). `php tests/run.php` weiterhin 77/77 grün (unberührt, reine
+Firmware-Änderung).
+
 ## 2026-08-09 (37) — Claude Code — Claude Sonnet 5
 **Auftrag:** MQTT-Fernzugriff (siehe CLAUDE.md, Stand 30.07. "noch nicht eingerichtet") sollte
 jetzt eigentlich funktionieren -- Patrick bekam aber keine Pakete über die Domain und wusste
