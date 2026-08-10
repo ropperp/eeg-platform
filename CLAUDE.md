@@ -583,20 +583,27 @@ docker compose up -d --build
 > DOM-Details des Portals.
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
-> änderbar): bisher lagen `MQTT_USER`/`MQTT_PASSWORD` ausschließlich in `.env` auf dem Server
-> (zufälliger 24-stelliger Hex-String, nirgends auf der Plattform selbst einsehbar). Jetzt gibt
-> es unter Platform-Admin → E-Mail-Einstellungen → "MQTT-Zugangsdaten" ein Formular (inkl.
-> "einfaches Passwort vorschlagen"-Button) -- das speichert den WUNSCH-Wert aber nur in der DB
-> (`platform_mqtt_config`), die Webapp kann Docker/Dateien auf dem Host nicht direkt anfassen.
-> Damit eine dort gespeicherte Änderung wirklich beim Broker ankommt:
+> änderbar, seit dem gleichen Tag auch per Knopfdruck automatisch angewendet): bisher lagen
+> `MQTT_USER`/`MQTT_PASSWORD` ausschließlich in `.env` auf dem Server (zufälliger 24-stelliger
+> Hex-String, nirgends auf der Plattform selbst einsehbar). Jetzt gibt es unter Platform-Admin →
+> E-Mail-Einstellungen → "MQTT-Zugangsdaten" ein Formular (inkl. "einfaches Passwort
+> vorschlagen"-Button) -- "Speichern & anwenden" trägt den Wunschwert in die DB
+> (`platform_mqtt_config`, `pending_apply=true`) ein. Die Webapp kann Docker/Dateien auf dem Host
+> nicht direkt anfassen, deshalb übernimmt ein Host-Cron-Job das eigentliche Anwenden:
 > ```bash
-> cd /opt/eeg-platform
-> ./scripts/mqtt_secure_setup.sh --apply
+> # einmalig einrichten, z.B. jede Minute:
+> ( crontab -l 2>/dev/null; echo "* * * * * cd /opt/eeg-platform && bash scripts/mqtt_apply_pending.sh >> /var/log/eeg-mqtt-apply.log 2>&1" ) | crontab -
 > ```
-> Liest Benutzername/Passwort aus der DB, schreibt sie nach `.env`, erzeugt die
-> Mosquitto-Passwort-Datei neu und startet `mosquitto` + `mqtt-subscriber` neu. Wie bei jeder
-> Änderung der MQTT-Zugangsdaten: danach verliert jedes bereits im Feld laufende ESP32-Gerät die
-> Verbindung, bis im eigenen `/config`-Formular das neue Passwort nachgetragen wird.
+> `scripts/mqtt_apply_pending.sh` prüft `pending_apply`, ruft bei Bedarf
+> `scripts/mqtt_secure_setup.sh --apply` auf (liest Benutzername/Passwort aus der DB, schreibt
+> sie nach `.env`, erzeugt die Mosquitto-Passwort-Datei neu, startet `mosquitto` +
+> `mqtt-subscriber` neu) und markiert die Änderung danach in der DB als erledigt
+> (`applied_at`) -- die Plattform-Oberfläche zeigt diesen Status an. Ohne diesen Cron-Job bleibt
+> eine gespeicherte Änderung als "wird in Kürze angewendet" hängen; manueller Fallback (auch
+> ohne eingerichteten Cron) bleibt `./scripts/mqtt_secure_setup.sh --apply` direkt auf dem
+> Server. Wie bei jeder Änderung der MQTT-Zugangsdaten: danach verliert jedes bereits im Feld
+> laufende ESP32-Gerät die Verbindung, bis im eigenen `/config`-Formular das neue Passwort
+> nachgetragen wird.
 
 Bei neuen DB-Migrations:
 ```bash

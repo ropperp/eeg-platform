@@ -5296,11 +5296,11 @@ $router->get('/admin/mail-settings', function () {
 });
 
 /**
- * Speichert den GEWÜNSCHTEN MQTT-Benutzernamen/Passwort -- wirkt sich NICHT sofort auf den
- * echten Broker aus (die Webapp kann weder Docker noch Dateien auf dem Host anfassen). Erst
- * `./scripts/mqtt_secure_setup.sh --apply` auf dem Server liest diese Werte aus der DB, erzeugt
- * die Mosquitto-Passwort-Datei neu, aktualisiert .env und startet mosquitto + mqtt-subscriber
- * neu (siehe Hinweistext im Formular selbst).
+ * Speichert den GEWÜNSCHTEN MQTT-Benutzernamen/Passwort und setzt pending_apply -- die Webapp
+ * kann weder Docker noch Dateien auf dem Host direkt anfassen, das eigentliche Anwenden auf den
+ * echten Broker übernimmt scripts/mqtt_apply_pending.sh als Host-Cron (siehe migrate_20260827.sql
+ * und CLAUDE.md), sobald pending_apply=true dort ankommt -- typischerweise binnen einer Minute.
+ * Manueller Fallback (falls der Cron noch nicht eingerichtet ist): `mqtt_secure_setup.sh --apply`.
  */
 $router->post('/admin/mqtt-settings', function () {
     Auth::requireLogin();
@@ -5308,10 +5308,10 @@ $router->post('/admin/mqtt-settings', function () {
     $mqttUser = trim($_POST['mqtt_user'] ?? '') ?: 'eeg-device';
     $mqttPassword = trim($_POST['mqtt_password'] ?? '');
     DB::execute(
-        'UPDATE platform_mqtt_config SET mqtt_user = ?, mqtt_password = ?, updated_at = now() WHERE id = 1',
+        'UPDATE platform_mqtt_config SET mqtt_user = ?, mqtt_password = ?, pending_apply = true, updated_at = now() WHERE id = 1',
         [$mqttUser, $mqttPassword]
     );
-    logAudit(null, 'mqtt_config.update', 'platform_mqtt_config', '1', 'MQTT-Zugangsdaten geändert (Benutzer: ' . $mqttUser . ') -- noch nicht auf dem Server angewendet.');
+    logAudit(null, 'mqtt_config.update', 'platform_mqtt_config', '1', 'MQTT-Zugangsdaten geändert (Benutzer: ' . $mqttUser . '), Anwendung auf den Broker angestoßen.');
     header('Location: /admin/mail-settings?mqtt_success=1');
     exit;
 });

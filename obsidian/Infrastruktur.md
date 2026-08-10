@@ -212,15 +212,18 @@ docker compose up -d --build
 > `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
-> änderbar): Platform-Admin → E-Mail-Einstellungen → "MQTT-Zugangsdaten" speichert einen
-> Wunschwert nur in der DB (`platform_mqtt_config`) -- die Webapp kann Docker/Dateien auf dem
-> Host nicht direkt anfassen. Zum Anwenden auf dem Server:
+> änderbar, per Knopfdruck automatisch angewendet): Platform-Admin → E-Mail-Einstellungen →
+> "MQTT-Zugangsdaten" → "Speichern & anwenden" speichert einen Wunschwert in der DB
+> (`platform_mqtt_config`, `pending_apply=true`) -- die Webapp kann Docker/Dateien auf dem Host
+> nicht direkt anfassen, ein Host-Cron übernimmt das Anwenden:
 > ```bash
-> cd /opt/eeg-platform && ./scripts/mqtt_secure_setup.sh --apply
+> ( crontab -l 2>/dev/null; echo "* * * * * cd /opt/eeg-platform && bash scripts/mqtt_apply_pending.sh >> /var/log/eeg-mqtt-apply.log 2>&1" ) | crontab -
 > ```
-> Liest Benutzername/Passwort aus der DB, schreibt `.env`, erzeugt die Passwort-Datei neu,
-> startet `mosquitto` + `mqtt-subscriber` neu. Danach jedes ESP32-Gerät im `/config`-Formular
-> auf das neue Passwort umstellen.
+> Prüft `pending_apply`, ruft bei Bedarf `mqtt_secure_setup.sh --apply` auf (schreibt `.env`,
+> erzeugt die Passwort-Datei neu, startet `mosquitto` + `mqtt-subscriber` neu) und markiert die
+> Änderung als erledigt (`applied_at`, in der Oberfläche sichtbar). Ohne Cron-Job manueller
+> Fallback: `./scripts/mqtt_secure_setup.sh --apply` direkt auf dem Server. Danach jedes
+> ESP32-Gerät im `/config`-Formular auf das neue Passwort umstellen.
 
 Bei neuen DB-Migrations:
 ```bash

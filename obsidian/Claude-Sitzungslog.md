@@ -8,6 +8,19 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-10 (40) — Claude Code — Claude Sonnet 5
+**Auftrag:** Das Anwenden des MQTT-Passworts (bisher ein Server-Kommando zum Copy-Pasten, siehe
+(39)) soll auch per Button auf der Plattform gehen, nicht per SSH-Befehl.
+**Ergebnis:** `platform_mqtt_config` um `pending_apply`/`applied_at` erweitert
+(migrate_20260827.sql). "Speichern & anwenden" im Admin-Formular setzt `pending_apply=true`;
+neues Skript `scripts/mqtt_apply_pending.sh` (Host-Cron, gleiches Muster wie
+`health_monitor.sh`, einmalig einzurichten -- minütlich) prüft dieses Flag und ruft bei Bedarf
+automatisch `mqtt_secure_setup.sh --apply` auf, markiert die Änderung danach in der DB als
+erledigt (`applied_at`). Formular zeigt den Status live an ("wird in Kürze angewendet" /
+"zuletzt angewendet: ..."). Manueller Befehl bleibt als Fallback sichtbar, falls der Cron
+(noch) nicht eingerichtet ist. CLAUDE.md/Infrastruktur.md aktualisiert. `php tests/run.php`
+weiterhin 77/77 grün.
+
 ## 2026-08-10 (39) — Claude Code — Claude Sonnet 5
 **Auftrag:** Drei Dinge: (1) "Rechnung anpassen" für später auf eine Merkliste setzen (ohne
 weitere Details, welche Anpassung genau gemeint ist -- Rückfrage gestellt statt geraten). (2) Ein
