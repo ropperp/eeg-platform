@@ -224,33 +224,55 @@ korrekten Mount (`/opt/eeg/timescaledb:/home/postgres/pgdata`) + Image-Pin auf f
 Docker Engine 29.x unterstützt nur API ≥ 1.40. Traefik:latest behebt das, zusätzlich ist `DOCKER_API_VERSION=1.40` in der compose-Datei gesetzt.
 
 ### MQTT-Broker von außerhalb des lokalen Netzes erreichen (für Mitglieder-ESP32s zuhause)
-**Stand 30.07.2026: noch nicht eingerichtet, aber geklärt wie.** `stromfueralle.at`/
-`portal.stromfueralle.at` lösen auf die öffentliche IP des **nginx-Proxy-Hosts**
-(10.0.0.144 / 80.122.212.226) auf -- eine andere Maschine als der EEG-Server (10.0.0.250,
-Raspberry Pi 5), auf dem Mosquitto läuft. Für MQTT läuft die Weiterleitung deshalb bewusst
-**nicht** über diesen nginx-Proxy (der kann ohnehin nur HTTP/HTTPS auf Port 80/443, kein
-rohes TCP/MQTT) und auch nicht über Traefik, sondern als eigene, direkte Kette am
-Heimnetz-Router von Patrick vorbei an beidem:
+**Seit 09.08.2026 eingerichtet und funktionsfähig.** `stromfueralle.at`/`portal.stromfueralle.at`
+lösen auf die öffentliche IP des **nginx-Proxy-Hosts** (10.0.0.144 / 80.122.212.226) auf -- eine
+andere Maschine als der EEG-Server (10.0.0.250, Raspberry Pi 5), auf dem Mosquitto läuft.
+Zufällig hat auch dieser Host dieselbe öffentliche IP (80.122.212.226) wie Patricks
+Heimnetz-Fritzbox, das ist aber kein Widerspruch -- beide hängen an derselben Fritzbox/
+Internetleitung, nur an unterschiedlichen internen Zielen. Für MQTT läuft die Weiterleitung
+deshalb bewusst **nicht** über den nginx-Proxy (der kann ohnehin nur HTTP/HTTPS auf Port
+80/443, kein rohes TCP/MQTT) und auch nicht über Traefik, sondern als eigene, direkte Kette an
+beidem vorbei:
 
 ```
-Internet → Fritzbox (Port-Weiterleitung 1883/8883) → pfSense (NAT-Weiterleitung)
+Internet → Fritzbox (Portfreigabe 8883 → pfSense) → pfSense (NAT-Weiterleitung 8883 → 10.0.0.250)
          → Raspberry Pi (10.0.0.250), direkt an Mosquitto
 ```
 
-Sowohl an der Fritzbox als auch an der pfSense muss je eine Port-Weiterleitung eingerichtet
-werden (Fritzbox: öffentlicher Port → pfSense-WAN-IP; pfSense: dieselbe Portnummer → interne
-IP 10.0.0.250). Erst seitdem Mosquitto TLS + Zugangsdaten verlangt (siehe
-`scripts/mqtt_secure_setup.sh`, Abschnitt „Update" oben) ist das überhaupt vertretbar --
-vorher (`allow_anonymous true`, kein TLS) hätte die Weiterleitung den Broker komplett offen
-ins Internet gestellt (jeder hätte Energiedaten mitlesen oder fälschen können). Bevor die
-Weiterleitung eingerichtet wird: prüfen, dass alle Geräte tatsächlich auf Port 8883 +
-Zugangsdaten umgestellt sind, nicht mehr auf dem unverschlüsselten 1883 -- dann nur noch 8883
-extern weiterleiten, 1883 intern/lokal belassen.
+Beide Freigaben sind eingerichtet: Fritzbox unter Internet → Freigaben → Portfreigaben
+(Gerät „pfSense", Port 8883 „MQTT TLS"), pfSense unter Firewall → NAT → Port Forward (WAN,
+TCP/UDP, Ziel-Port 8883 → Umleitungsziel 10.0.0.250:8883, Beschreibung „MQTT TLS EEG Raspi").
+Nur Port 8883 (TLS) ist extern freigegeben, 1883 (unverschlüsselt) bleibt intern/lokal --
+erst seit Mosquitto TLS + Zugangsdaten verlangt (siehe `scripts/mqtt_secure_setup.sh`,
+Abschnitt „Update" oben) ist die Weiterleitung überhaupt vertretbar.
 
-Alle eingehenden Nachrichten live mitlesen (Debugging, funktioniert schon jetzt im lokalen Netz):
+> **Stolperstein bei der Einrichtung (09.08.2026):** Die pfSense-NAT-Regel allein reichte nicht --
+> `nc`/Online-Port-Checker (z. B. yougetsignal.com „open port finder") zeigten Port 8883 von
+> außen weiterhin als **geschlossen**, obwohl sowohl die Fritzbox-Portfreigabe als auch die
+> pfSense-NAT-Regel korrekt eingetragen und aktiv waren. Ursache: die NAT-Regel hatte keine
+> zugehörige Freigabe unter **Firewall → Rules → WAN** -- pfSense übersetzt die Zieladresse
+> zwar (NAT), die Standard-Firewall (default deny) blockte das Paket aber trotzdem, weil dafür
+> zusätzlich eine eigene Allow-Regel nötig ist (wird beim Anlegen einer Portweiterleitung über
+> den Wizard normalerweise automatisch mit erzeugt, hier aber gefehlt). Behoben durch komplettes
+> Neuanlegen der NAT-Regel (dabei automatisch samt zugehöriger WAN-Firewall-Regel erzeugt) --
+> danach sofort erreichbar. **Merksatz:** Bei "NAT-Regel korrekt, Port trotzdem von außen zu"
+> zuerst Firewall → Rules → WAN auf eine aktive Freigabe für den betroffenen Port prüfen.
+
+Von außen testen (unabhängig vom eigenen Netz, das selbst ausgehende Verbindungen auf
+unüblichen Ports blockieren kann): Online-Port-Checker wie
+[yougetsignal.com](https://www.yougetsignal.com/tools/open-ports/) oder
+[canyouseeme.org](https://canyouseeme.org) mit der aktuellen Fritzbox-WAN-IP + Port 8883.
+
+Alle eingehenden Nachrichten live mitlesen (Debugging, lokal im Netz):
 ```bash
 docker compose exec mosquitto mosquitto_sub -h localhost -t 'eeg/#' -v -u "$MQTT_USER" -P "$MQTT_PASSWORD"
 ```
+Von einem Mac/PC außerhalb des lokalen Netzes (z. B. testweise vom eigenen Laptop, braucht
+`brew install mosquitto` für `mosquitto_sub`):
+```bash
+mosquitto_sub -h stromfueralle.at -p 8883 --insecure -t 'eeg/#' -v -u eeg-device -P "$MQTT_PASSWORD"
+```
+`--insecure`, weil das Zertifikat selbstsigniert ist (genau wie beim ESP32 via `setInsecure()`).
 
 ### 404 von Traefik trotz laufendem webapp
 Mögliche Ursachen, in dieser Reihenfolge prüfen:

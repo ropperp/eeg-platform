@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-09 (37) — Claude Code — Claude Sonnet 5
+**Auftrag:** MQTT-Fernzugriff (siehe CLAUDE.md, Stand 30.07. "noch nicht eingerichtet") sollte
+jetzt eigentlich funktionieren -- Patrick bekam aber keine Pakete über die Domain und wusste
+nicht, wie er testen kann. Gemeinsame Live-Fehlersuche per Terminal-Befehlen und Screenshots.
+**Ergebnis:** Reine Infrastruktur-Fehlersuche, kein Code geändert. Schrittweise eingegrenzt: (1)
+`dig`/`curl ifconfig.me` zeigten scheinbar zwei verschiedene IPs -- Fehlalarm meinerseits, lag
+nur daran, dass Patricks Mac beim Testen in einem anderen Netz als zu Hause war, nicht an
+falscher DNS. (2) Externe Port-Checker (yougetsignal.com) bestätigten Port 8883 als geschlossen,
+obwohl sowohl Fritzbox-Portfreigabe als auch pfSense-NAT-Regel korrekt eingetragen waren. (3)
+Tatsächliche Ursache: die pfSense-NAT-Regel hatte keine zugehörige Freigabe unter
+Firewall → Rules → WAN -- NAT übersetzt zwar, die Standard-Firewall blockte das Paket aber
+trotzdem ohne eigene Allow-Regel. Neuanlegen der NAT-Regel hat die WAN-Freigabe automatisch mit
+erzeugt, funktioniert seitdem. CLAUDE.md/Infrastruktur.md aktualisiert: Abschnitt "MQTT-Broker
+von außerhalb" von "noch nicht eingerichtet" auf "eingerichtet und funktionsfähig" gesetzt, den
+gefundenen Stolperstein (NAT ohne WAN-Firewall-Regel) als Merksatz dokumentiert, dazu Testbefehle
+für externe Erreichbarkeit (Online-Port-Checker, `mosquitto_sub` vom eigenen Rechner mit
+`--insecure`).
+
 ## 2026-08-09 (36) — Claude Code — Claude Sonnet 5
 **Auftrag:** Vorher gefragt, wie man das MQTT-Passwort herausfindet (Antwort: steht in `.env`
 auf dem Server, `grep MQTT_ .env`). Dann Screenshot eines Mitglieds, dessen Zählernummer entfernt
