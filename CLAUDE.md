@@ -582,6 +582,22 @@ docker compose up -d --build
 > Login-Schritt (z. B. Headless-Browser) erweitert werden -- dafür fehlen aktuell die
 > DOM-Details des Portals.
 
+> **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
+> änderbar): bisher lagen `MQTT_USER`/`MQTT_PASSWORD` ausschließlich in `.env` auf dem Server
+> (zufälliger 24-stelliger Hex-String, nirgends auf der Plattform selbst einsehbar). Jetzt gibt
+> es unter Platform-Admin → E-Mail-Einstellungen → "MQTT-Zugangsdaten" ein Formular (inkl.
+> "einfaches Passwort vorschlagen"-Button) -- das speichert den WUNSCH-Wert aber nur in der DB
+> (`platform_mqtt_config`), die Webapp kann Docker/Dateien auf dem Host nicht direkt anfassen.
+> Damit eine dort gespeicherte Änderung wirklich beim Broker ankommt:
+> ```bash
+> cd /opt/eeg-platform
+> ./scripts/mqtt_secure_setup.sh --apply
+> ```
+> Liest Benutzername/Passwort aus der DB, schreibt sie nach `.env`, erzeugt die
+> Mosquitto-Passwort-Datei neu und startet `mosquitto` + `mqtt-subscriber` neu. Wie bei jeder
+> Änderung der MQTT-Zugangsdaten: danach verliert jedes bereits im Feld laufende ESP32-Gerät die
+> Verbindung, bis im eigenen `/config`-Formular das neue Passwort nachgetragen wird.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

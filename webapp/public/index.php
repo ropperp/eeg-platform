@@ -5291,7 +5291,29 @@ $router->get('/admin/mail-settings', function () {
     $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
     try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
+    try { $mqttConfig = DB::fetchOne('SELECT * FROM platform_mqtt_config WHERE id = 1'); } catch (\Throwable $e) { $mqttConfig = null; }
     require ROOT . '/src/views/pages/admin_mail_settings.php';
+});
+
+/**
+ * Speichert den GEWÜNSCHTEN MQTT-Benutzernamen/Passwort -- wirkt sich NICHT sofort auf den
+ * echten Broker aus (die Webapp kann weder Docker noch Dateien auf dem Host anfassen). Erst
+ * `./scripts/mqtt_secure_setup.sh --apply` auf dem Server liest diese Werte aus der DB, erzeugt
+ * die Mosquitto-Passwort-Datei neu, aktualisiert .env und startet mosquitto + mqtt-subscriber
+ * neu (siehe Hinweistext im Formular selbst).
+ */
+$router->post('/admin/mqtt-settings', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $mqttUser = trim($_POST['mqtt_user'] ?? '') ?: 'eeg-device';
+    $mqttPassword = trim($_POST['mqtt_password'] ?? '');
+    DB::execute(
+        'UPDATE platform_mqtt_config SET mqtt_user = ?, mqtt_password = ?, updated_at = now() WHERE id = 1',
+        [$mqttUser, $mqttPassword]
+    );
+    logAudit(null, 'mqtt_config.update', 'platform_mqtt_config', '1', 'MQTT-Zugangsdaten geändert (Benutzer: ' . $mqttUser . ') -- noch nicht auf dem Server angewendet.');
+    header('Location: /admin/mail-settings?mqtt_success=1');
+    exit;
 });
 
 /**

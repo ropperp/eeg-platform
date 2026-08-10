@@ -211,6 +211,17 @@ docker compose up -d --build
 > Download-Link ohne weiteren Portal-Login abrufbar ist -- falls nicht, bräuchte
 > `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
 
+> **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
+> änderbar): Platform-Admin → E-Mail-Einstellungen → "MQTT-Zugangsdaten" speichert einen
+> Wunschwert nur in der DB (`platform_mqtt_config`) -- die Webapp kann Docker/Dateien auf dem
+> Host nicht direkt anfassen. Zum Anwenden auf dem Server:
+> ```bash
+> cd /opt/eeg-platform && ./scripts/mqtt_secure_setup.sh --apply
+> ```
+> Liest Benutzername/Passwort aus der DB, schreibt `.env`, erzeugt die Passwort-Datei neu,
+> startet `mosquitto` + `mqtt-subscriber` neu. Danach jedes ESP32-Gerät im `/config`-Formular
+> auf das neue Passwort umstellen.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
