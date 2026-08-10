@@ -65,13 +65,18 @@
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Zugangsdaten für den Mosquitto-Broker (auf den sich jedes ESP32-Gerät im <code>/config</code>-
     Formular einträgt). Standardmäßig ein zufälliger 24-stelliger Hex-String -- hier kannst du
-    stattdessen ein leichter merkbares Passwort festlegen. <strong>Wichtig:</strong> Speichern
-    trägt den Wunschwert nur hier in der Plattform ein -- der eigentliche Broker liest das erst
-    nach einem Befehl auf dem Server ein (siehe unten), die Plattform selbst kann Dateien auf dem
-    Server nicht direkt ändern.
+    stattdessen ein leichter merkbares Passwort festlegen. "Speichern &amp; anwenden" trägt die
+    Änderung sofort in die Plattform ein; ein Cron-Job auf dem Server (siehe CLAUDE.md) übernimmt
+    sie von dort automatisch auf den echten Broker, in der Regel binnen einer Minute -- die
+    Plattform selbst kann Dateien auf dem Server nicht direkt ändern, daher dieser kleine Umweg.
   </p>
   <?php if (isset($_GET['mqtt_success'])): ?>
-    <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert -- jetzt noch den Befehl unten auf dem Server ausführen, damit es wirksam wird.</div>
+    <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert -- wird automatisch angewendet (siehe Status unten).</div>
+  <?php endif; ?>
+  <?php if (!empty($mqttConfig['pending_apply'])): ?>
+    <div class="alert alert-warning" style="margin-bottom:1rem"><?= icon('hourglass') ?> Änderung gespeichert, wird in Kürze automatisch auf den Broker angewendet (Cron-Job auf dem Server, meist binnen einer Minute).</div>
+  <?php elseif (!empty($mqttConfig['applied_at'])): ?>
+    <div class="alert alert-success" style="margin-bottom:1rem"><?= icon('check-circle') ?> Zuletzt angewendet: <?= date('d.m.Y H:i', strtotime($mqttConfig['applied_at'])) ?>.</div>
   <?php endif; ?>
   <form method="post" action="/admin/mqtt-settings">
     <div class="grid-2">
@@ -86,15 +91,16 @@
     </div>
     <button type="button" class="btn btn-secondary" style="margin-bottom:1rem" onclick="suggestMqttPassword()">Einfaches Passwort vorschlagen</button>
     <br>
-    <button type="submit" class="btn btn-primary">Speichern</button>
+    <button type="submit" class="btn btn-primary">Speichern &amp; anwenden</button>
   </form>
   <div style="margin-top:1rem;padding:.75rem 1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px">
-    <small style="color:var(--gray-600);display:block;margin-bottom:.4rem">Danach auf dem Server ausführen, damit der Broker die neuen Zugangsdaten wirklich übernimmt (aktualisiert Passwort-Datei + <code>.env</code>, startet mosquitto + mqtt-subscriber neu):</small>
+    <small style="color:var(--gray-600);display:block;margin-bottom:.4rem">Falls der Cron-Job auf dem Server noch nicht eingerichtet ist (einmalige Einrichtung, siehe CLAUDE.md) oder es sofort statt in bis zu einer Minute wirksam werden soll, manuell ausführen:</small>
     <code style="font-size:.8rem;word-break:break-all">cd /opt/eeg-platform &amp;&amp; ./scripts/mqtt_secure_setup.sh --apply</code>
   </div>
   <p style="font-size:.8rem;color:var(--gray-600);margin-top:.75rem">
-    Danach müssen ALLE bereits im Feld laufenden ESP32-Geräte im eigenen <code>/config</code>-
-    Formular auf das neue Passwort umgestellt werden, sonst verlieren sie die Verbindung.
+    Nach dem Anwenden müssen ALLE bereits im Feld laufenden ESP32-Geräte im eigenen
+    <code>/config</code>-Formular auf das neue Passwort umgestellt werden, sonst verlieren sie
+    die Verbindung.
   </p>
 </div>
 
