@@ -9,6 +9,14 @@
 # --force. Nach dem Lauf müssen ALLE bereits im Feld laufenden ESP32-Geräte im /config-Formular
 # auf den neuen Benutzernamen/Passwort umgestellt werden (siehe Ausgabe am Ende) -- sonst können
 # sie sich ab dem Neustart des Brokers nicht mehr verbinden (allow_anonymous ist danach aus).
+#
+# --apply (seit 10.08.2026): statt ein zufälliges Passwort zu generieren, wird der GEWÜNSCHTE
+# Benutzername/Passwort aus der Plattform-Datenbank übernommen (Platform-Admin ->
+# E-Mail-Einstellungen -> "MQTT-Zugangsdaten" -- z.B. für ein leichter merkbares Passwort statt
+# des zufälligen 24-stelligen Hex-Strings). Die Plattform selbst kann Docker/Dateien auf dem Host
+# nicht direkt anfassen, deshalb bleibt dieser Kommandozeilen-Schritt nötig, um eine dort
+# gespeicherte Änderung wirklich auf den Broker anzuwenden:
+#   ./scripts/mqtt_secure_setup.sh --apply
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -24,9 +32,11 @@ set +a
 
 FORCE=false
 NO_RESTART=false
+APPLY=false
 for arg in "$@"; do
   case "$arg" in
     --force)      FORCE=true ;;
+    --apply)      APPLY=true ;;   # Zugangsdaten aus platform_mqtt_config (Plattform-DB) übernehmen
     --no-restart) NO_RESTART=true ;;  # von scripts/setup.sh genutzt -- Stack läuft dort noch
                                        # gar nicht, das anschließende "docker compose up" bringt
                                        # ohnehin alle Container inkl. mosquitto neu hoch.
@@ -75,11 +85,30 @@ else
 fi
 
 # ─── Benutzername/Passwort ───────────────────────────────────────
+if [ "$APPLY" = true ]; then
+  echo "Lese gewünschte MQTT-Zugangsdaten aus der Plattform-Datenbank (platform_mqtt_config)..."
+  MQTT_USER=$($COMPOSE exec -T timescaledb psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+    "SELECT mqtt_user FROM platform_mqtt_config WHERE id = 1" | tr -d '[:space:]')
+  MQTT_PASSWORD=$($COMPOSE exec -T timescaledb psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+    "SELECT mqtt_password FROM platform_mqtt_config WHERE id = 1" | tr -d '[:space:]')
+  if [ -z "$MQTT_USER" ] || [ -z "$MQTT_PASSWORD" ]; then
+    echo "Kein Benutzername/Passwort in der Plattform-Datenbank hinterlegt -- bitte zuerst unter"
+    echo "Platform-Admin -> E-Mail-Einstellungen -> \"MQTT-Zugangsdaten\" eintragen und speichern."
+    exit 1
+  fi
+  if grep -q '^MQTT_USER=' .env 2>/dev/null; then
+    sed -i "s/^MQTT_USER=.*/MQTT_USER=${MQTT_USER}/" .env
+    sed -i "s/^MQTT_PASSWORD=.*/MQTT_PASSWORD=${MQTT_PASSWORD}/" .env
+  else
+    { echo ""; echo "# MQTT (Mosquitto) -- siehe scripts/mqtt_secure_setup.sh"; \
+      echo "MQTT_USER=${MQTT_USER}"; echo "MQTT_PASSWORD=${MQTT_PASSWORD}"; } >> .env
+  fi
+  echo "✓ MQTT-Zugangsdaten aus der Plattform übernommen (Benutzer: ${MQTT_USER})."
 # Wichtig: auf den tatsächlichen WERT prüfen, nicht nur ob der Schlüssel existiert --
 # .env.example enthält die Zeile "MQTT_PASSWORD=" bereits (leer), die würde sonst als
 # "schon konfiguriert" durchgehen und nie ein echtes Passwort erzeugen.
-if [ -n "${MQTT_PASSWORD:-}" ] && [ "$FORCE" = false ]; then
-  echo "✓ MQTT_USER/MQTT_PASSWORD stehen bereits in .env -- wird nicht neu generiert (--force zum Erneuern)."
+elif [ -n "${MQTT_PASSWORD:-}" ] && [ "$FORCE" = false ]; then
+  echo "✓ MQTT_USER/MQTT_PASSWORD stehen bereits in .env -- wird nicht neu generiert (--force zum Erneuern, --apply für einen in der Plattform hinterlegten Wunschwert)."
 else
   MQTT_USER="eeg-device"
   MQTT_PASSWORD=$(openssl rand -hex 12)

@@ -8,6 +8,34 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-10 (39) — Claude Code — Claude Sonnet 5
+**Auftrag:** Drei Dinge: (1) "Rechnung anpassen" für später auf eine Merkliste setzen (ohne
+weitere Details, welche Anpassung genau gemeint ist -- Rückfrage gestellt statt geraten). (2) Ein
+einfacheres, merkbares MQTT-Passwort, das auf der Plattform sichtbar und änderbar ist. (3) Frage,
+ob die WLAN-Passwörter (Mitglieder-Heimnetz, vom ESP32 gemeldet) verschlüsselt sind und wie man
+sie ggf. einsehen kann.
+**Ergebnis:** (2) umgesetzt: `MQTT_USER`/`MQTT_PASSWORD` lagen bisher ausschließlich in `.env`
+auf dem Server, für die Webapp gar nicht einsehbar (kein `.env`-Mount, keine
+Environment-Variable). Neue Tabelle `platform_mqtt_config` (Klartext, wie zuvor auch in `.env` --
+keine Verschlechterung) macht die DB zur Quelle der Wahrheit; neuer Bereich "MQTT-Zugangsdaten"
+unter Platform-Admin → E-Mail-Einstellungen zeigt/speichert Benutzername + Passwort, inkl.
+"einfaches Passwort vorschlagen"-Button (Wort-Wort-Zahl-Schema, z.B. "sonne-baum-42" statt
+24-stelligem Hex). Da die Webapp Docker/Dateien auf dem Host nicht direkt anfassen kann, bleibt
+das Anwenden ein Server-Kommando: `scripts/mqtt_secure_setup.sh` um `--apply` erweitert (liest
+Wunschwerte aus der DB via `psql` über `docker compose exec`, schreibt `.env`, erzeugt die
+Mosquitto-Passwort-Datei neu, startet mosquitto + mqtt-subscriber neu) -- im Formular selbst als
+fertiger Copy-Paste-Befehl angezeigt. CLAUDE.md/Infrastruktur.md dokumentiert. (3) Beantwortet,
+kein Code nötig: WLAN-Passwörter werden bereits VOR dem Speichern verschlüsselt --
+`mqtt-subscriber/main.py` verschlüsselt das vom ESP32 per MQTT gemeldete Klartext-Passwort sofort
+bei Empfang (AES-256-CBC, kompatibel zu `encryptSecret()`/`decryptSecret()` in `functions.php`)
+und schreibt nur den Geheimtext nach `metering_points.wifi_password_enc` -- Klartext landet nie
+auf der Platte/in der DB. Sichtbar für Obmann/Admin über den Button "WLAN-Info anzeigen" auf der
+Mitglied-Detailseite (je Zählpunkt) -- entschlüsselt erst bei diesem Klick per eigenem
+Abruf-Endpoint (`/portal/members/:id/metering-points/:mpid/wifi-info`), nicht schon beim
+Seitenaufbau (damit das Klartext-Passwort nicht unnötig im initialen HTML landet, siehe
+`docs/ESP_IDEEN.md`). (1) offen -- Rückfrage an Patrick, was genau an der Rechnung angepasst
+werden soll. `php tests/run.php` weiterhin 77/77 grün.
+
 ## 2026-08-10 (38) — Claude Code — Claude Sonnet 5
 **Auftrag:** Ob ein ESP32 stündlich selbst auf GitHub nach neuer Firmware suchen und sich
 automatisch aktualisieren kann, statt bei jedem Update zu jedem Kunden fahren oder OTA im

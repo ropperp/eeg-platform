@@ -60,6 +60,53 @@
   </form>
 </div>
 
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('lock-key') ?> MQTT-Zugangsdaten</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Zugangsdaten für den Mosquitto-Broker (auf den sich jedes ESP32-Gerät im <code>/config</code>-
+    Formular einträgt). Standardmäßig ein zufälliger 24-stelliger Hex-String -- hier kannst du
+    stattdessen ein leichter merkbares Passwort festlegen. <strong>Wichtig:</strong> Speichern
+    trägt den Wunschwert nur hier in der Plattform ein -- der eigentliche Broker liest das erst
+    nach einem Befehl auf dem Server ein (siehe unten), die Plattform selbst kann Dateien auf dem
+    Server nicht direkt ändern.
+  </p>
+  <?php if (isset($_GET['mqtt_success'])): ?>
+    <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert -- jetzt noch den Befehl unten auf dem Server ausführen, damit es wirksam wird.</div>
+  <?php endif; ?>
+  <form method="post" action="/admin/mqtt-settings">
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Benutzername</label>
+        <input type="text" name="mqtt_user" id="mqtt-user-input" value="<?= htmlspecialchars($mqttConfig['mqtt_user'] ?? 'eeg-device') ?>">
+      </div>
+      <div class="form-group">
+        <label>Passwort</label>
+        <input type="text" name="mqtt_password" id="mqtt-pass-input" value="<?= htmlspecialchars($mqttConfig['mqtt_password'] ?? '') ?>" placeholder="noch keins gesetzt">
+      </div>
+    </div>
+    <button type="button" class="btn btn-secondary" style="margin-bottom:1rem" onclick="suggestMqttPassword()">Einfaches Passwort vorschlagen</button>
+    <br>
+    <button type="submit" class="btn btn-primary">Speichern</button>
+  </form>
+  <div style="margin-top:1rem;padding:.75rem 1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px">
+    <small style="color:var(--gray-600);display:block;margin-bottom:.4rem">Danach auf dem Server ausführen, damit der Broker die neuen Zugangsdaten wirklich übernimmt (aktualisiert Passwort-Datei + <code>.env</code>, startet mosquitto + mqtt-subscriber neu):</small>
+    <code style="font-size:.8rem;word-break:break-all">cd /opt/eeg-platform &amp;&amp; ./scripts/mqtt_secure_setup.sh --apply</code>
+  </div>
+  <p style="font-size:.8rem;color:var(--gray-600);margin-top:.75rem">
+    Danach müssen ALLE bereits im Feld laufenden ESP32-Geräte im eigenen <code>/config</code>-
+    Formular auf das neue Passwort umgestellt werden, sonst verlieren sie die Verbindung.
+  </p>
+</div>
+
+<script>
+function suggestMqttPassword() {
+  var words = ['sonne', 'baum', 'fluss', 'berg', 'wolke', 'stern', 'wind', 'regen', 'apfel', 'wiese', 'stein', 'feuer', 'strom', 'draht', 'kabel'];
+  var pick = function () { return words[Math.floor(Math.random() * words.length)]; };
+  var pw = pick() + '-' + pick() + '-' + Math.floor(10 + Math.random() * 90);
+  document.getElementById('mqtt-pass-input').value = pw;
+}
+</script>
+
 <h3 style="margin:0 0 .75rem;color:var(--gray-600);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">
   E-Mail (Microsoft Graph)
 </h3>
