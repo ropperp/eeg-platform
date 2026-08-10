@@ -247,13 +247,24 @@ Image-Pin auf feste Digest. Nie den `:pg16`-Tag unbewusst neu ziehen. Details:
 Docker Engine 29.x unterstützt nur API ≥ 1.40 → `DOCKER_API_VERSION=1.40` in der compose-Datei.
 
 ### MQTT-Broker von außerhalb des lokalen Netzes erreichen (für Mitglieder-ESP32s zuhause)
-**Stand 30.07.2026: noch nicht eingerichtet, aber geklärt wie.** Die Domain routet nicht zum
-Broker (anderer Host als der EEG-Server, nginx-Proxy terminiert ohnehin nur HTTP/HTTPS). Die
-Weiterleitung läuft stattdessen direkt am Heimnetz-Router vorbei an nginx/Traefik:
-Fritzbox (Port-Weiterleitung 1883/8883) → pfSense (NAT-Weiterleitung) → Raspberry Pi
-(10.0.0.250), direkt an Mosquitto. Erst seit TLS + Zugangsdaten (siehe Update-Hinweis oben)
-vertretbar, vorher wäre der Broker komplett offen ins Internet gestanden -- nur Port 8883
-extern weiterleiten, 1883 intern belassen. Alle Nachrichten live mitlesen (lokales Netz):
+**Seit 09.08.2026 eingerichtet und funktionsfähig.** Die Domain routet nicht zum Broker
+(anderer Host als der EEG-Server, nginx-Proxy terminiert ohnehin nur HTTP/HTTPS -- zufällig
+dieselbe öffentliche IP wie Patricks Fritzbox, da beide an derselben Leitung hängen, aber
+unterschiedliche interne Ziele). Die Weiterleitung läuft stattdessen direkt am Heimnetz-Router
+vorbei an nginx/Traefik: Fritzbox (Portfreigabe 8883 → pfSense) → pfSense (NAT-Weiterleitung
+8883 → 10.0.0.250) → Raspberry Pi, direkt an Mosquitto. Nur Port 8883 (TLS) extern freigegeben,
+1883 bleibt intern.
+
+> **Stolperstein bei der Einrichtung:** pfSense-NAT-Regel korrekt, Port laut Online-Port-Checker
+> trotzdem von außen zu -- Ursache war eine fehlende zugehörige Freigabe unter
+> Firewall → Rules → WAN (NAT übersetzt die Adresse, die Standard-Firewall blockt das Paket aber
+> trotzdem ohne eigene Allow-Regel dafür). Behoben durch Neuanlegen der NAT-Regel (dabei
+> automatisch mit WAN-Freigabe erzeugt). Merksatz: "NAT korrekt, Port trotzdem zu" → zuerst
+> Firewall → Rules → WAN prüfen.
+
+Von außen testen: Online-Port-Checker (yougetsignal.com, canyouseeme.org) mit der
+Fritzbox-WAN-IP + Port 8883 -- nicht vom eigenen Rechner aus (kann selbst unübliche
+ausgehende Ports blockieren). Alle Nachrichten live mitlesen (lokales Netz):
 ```bash
 docker compose exec mosquitto mosquitto_sub -h localhost -t 'eeg/#' -v -u "$MQTT_USER" -P "$MQTT_PASSWORD"
 ```
