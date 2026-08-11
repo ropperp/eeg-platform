@@ -348,7 +348,8 @@ Zwei Sackgassen unterwegs, die NICHT die Ursache waren: leeres `docker compose l
 ## Claude-Sitzungslog (Selbstdokumentation)
 
 Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,
-verwendetes Modell und den professionell zusammengefassten Auftrag: Claude Code schreibt in
-`obsidian/Claude-Sitzungslog.md` im Repo (wird in den Vault gespiegelt), Cowork/Chat direkt
-in den Vault unter `eeg-platform-notes/logs/JJJJ-MM-TT.md`. Details: Abschnitt
-„Selbstdokumentation" in `CLAUDE.md`.
+verwendetes Modell, den **ursprünglichen Prompt möglichst wörtlich** (Patrick braucht das für
+die Diplomarbeit-Dokumentation) sowie zusätzlich den professionell zusammengefassten Auftrag:
+Claude Code schreibt in `obsidian/Claude-Sitzungslog.md` im Repo (wird in den Vault
+gespiegelt), Cowork/Chat direkt in den Vault unter `eeg-platform-notes/logs/JJJJ-MM-TT.md`.
+Details: Abschnitt „Selbstdokumentation" in `CLAUDE.md`.
