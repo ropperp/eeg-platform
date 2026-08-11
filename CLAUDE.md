@@ -646,15 +646,18 @@ auch `/obsidian/Infrastruktur.md` entsprechend aktualisieren.**
 ## Selbstdokumentation (Claude-Sitzungslog)
 
 Patrick möchte nachvollziehen können, welches Claude-Modell wann mit welchem Auftrag
-gearbeitet hat. Deshalb schreibt **jede** Claude-Arbeitssitzung (Claude Code, Claude Chat,
-Cowork) am Ende einen kurzen Log-Eintrag.
+gearbeitet hat — er braucht das für die Dokumentation seiner Diplomarbeit. Deshalb schreibt
+**jede** Claude-Arbeitssitzung (Claude Code, Claude Chat, Cowork) am Ende einen kurzen
+Log-Eintrag, der **immer** Datum, Modell und den ursprünglichen Prompt festhält.
 
 **Format je Eintrag** (neueste zuerst):
 
 ```markdown
 ## JJJJ-MM-TT HH:MM — <Werkzeug> — <Modell>
+**Prompt:** <ursprünglicher Prompt/Auftrag des Nutzers, möglichst wörtlich zitiert — das ist
+der Teil, den Patrick für die Diplomarbeit-Dokumentation braucht, deshalb nicht umformulieren>
 **Auftrag:** <Anliegen des Nutzers, sprachlich geglättet und professionell
-zusammengefasst — nicht das wörtliche Diktat; 1–3 Sätze>
+zusammengefasst — zusätzlich zum wörtlichen Prompt, nicht statt ihm; 1–3 Sätze>
 **Ergebnis:** <was gemacht wurde: Commits, Dateien, offene Punkte; 1–3 Sätze>
 ```
 

@@ -8,6 +8,18 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-11 (41) — Claude Code — Claude Sonnet 5
+**Prompt:** "Bitte schreib in Github in Claude.md rein, dass er immer das Model und den Prompt
+mit dem aktuellen Datum irgendwo vermerkt. brauch es dann für die Dokumentation der
+Diplomarbeit."
+**Auftrag:** Der Sitzungslog-Eintrag jeder Claude-Sitzung soll künftig zusätzlich zur
+Zusammenfassung immer den ursprünglichen Prompt möglichst wörtlich enthalten (zusammen mit
+Datum und Modell, die es schon gab) -- als Beleg für die Diplomarbeit-Dokumentation.
+**Ergebnis:** `CLAUDE.md`-Abschnitt „Selbstdokumentation" und `obsidian/Infrastruktur.md` um
+ein verpflichtendes `**Prompt:**`-Feld (wörtliches Zitat) im Log-Eintragsformat erweitert,
+zusätzlich zum bisherigen geglätteten `**Auftrag:**`. Dieser Eintrag selbst folgt bereits dem
+neuen Format.
+
 ## 2026-08-10 (40) — Claude Code — Claude Sonnet 5
 **Auftrag:** Das Anwenden des MQTT-Passworts (bisher ein Server-Kommando zum Copy-Pasten, siehe
 (39)) soll auch per Button auf der Plattform gehen, nicht per SSH-Befehl.
