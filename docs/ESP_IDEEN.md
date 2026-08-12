@@ -30,6 +30,20 @@ Schutzbeschaltung (Spannungsteiler o. Ä.) betreiben.
 
 ## Umgesetzt
 
+- **Firmwareversion pro Zählpunkt auf der Plattform sichtbar (Patrick, 12.08.2026):** "wäre
+  aber doch noch cool ... wenn der ESP alle Stunde oder alle paar Stunden die aktuelle
+  Firmwareversion hochlädt und das auch in der App ... zeigt: Hat sich der ESP schon
+  abgedatet? Hat er sich noch nicht abgedatet? Um bei eventuellem Nicht-Updaten doch mal vor
+  Ort zu fahren." Der bestehende Status-Heartbeat (läuft ohnehin alle 10–300s, siehe
+  `heartbeat-intervall`) schickt jetzt zusätzlich `"fw": "<FIRMWARE_VERSION>"` mit -- kein
+  eigenes, selteneres Intervall nötig. `mqtt-subscriber` schreibt den Wert nach
+  `metering_points.esp_firmware_version` (migrate_20260828.sql). Die Plattform vergleicht das
+  gegen die neueste stabile GitHub-Release-Version (`latestFirmwareVersion()` in
+  `public/index.php`, 1h gecacht in `platform_settings`, Vorabversionen zählen bewusst nicht
+  als "neueste Version") und zeigt unter Mitglied → Zählpunkt sowie im WLAN-Info-Popup ein
+  Badge: "FW 1.0.0 · aktuell" (grün) oder "FW 1.0.0 · Update auf 1.1.0 verfügbar" (gelb) bzw.
+  "FW unbekannt" bei zu alter Firmware ohne `fw`-Feld.
+
 - **EDA-Monatsexport-Import auf echtes Dateiformat umgestellt + automatischer
   Zählpunkt-Abgleich abgeschlossen (Patrick, 05.08.2026):** Der Zählpunkt-Abgleich selbst
   (neu anlegen/Warnungen bei fehlenden/zusätzlichen Zählpunkten, Report statt roher

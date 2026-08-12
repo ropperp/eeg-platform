@@ -53,6 +53,10 @@ Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
     wurde — getrennt vom WLAN/MQTT-Online-Status des ESP selbst, damit sich Inselbetrieb/
     Stromausfall beim Mitglied (Zähler nicht erreichbar, ESP aber online) von einem
     ESP-/Plattform-Problem unterscheiden lässt (Punkt 4)
+  - `fw`: `FIRMWARE_VERSION` des Geräts, bei JEDEM Heartbeat mitgeschickt (seit 12.08.2026,
+    Patrick: soll auf der Plattform sichtbar sein, ob ein Gerät schon aktualisiert hat oder ein
+    Vor-Ort-Termin nötig ist). Wird unter Mitglied → Zählpunkt gegen die neueste GitHub-Release-
+    Version verglichen und als Badge angezeigt ("FW 1.0.0 · aktuell" bzw. "· Update verfügbar")
 - **MQTT über TLS (Port 8883) + Benutzername/Passwort**: `mqtt-port` im `/config`-Formular auf
   `8883` stellen schaltet automatisch auf `WiFiClientSecure` um (`setInsecure()` -- prüft das
   Server-Zertifikat nicht, verschlüsselt die Verbindung aber trotzdem; kein Zertifikat muss
@@ -154,9 +158,9 @@ verfügbar) vom selben Netz aus, das den Broker erreicht:
 
 ```bash
 # -u/-P: seit dem TLS/Auth-Setup (scripts/mqtt_secure_setup.sh) auf beiden Ports nötig.
-# Status-Heartbeat (setzt esp_online=true, aktualisiert esp_last_seen_at)
+# Status-Heartbeat (setzt esp_online=true, aktualisiert esp_last_seen_at, esp_firmware_version)
 mosquitto_pub -h <server-ip> -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
-  -t 'eeg/rc108175/meter/<zaehlernummer>/status' -m '{"status":"online","meter_ok":true}' -r
+  -t 'eeg/rc108175/meter/<zaehlernummer>/status' -m '{"status":"online","meter_ok":true,"fw":"1.0.0"}' -r
 
 # Live-Werte (Watt/Wh) -- alle 5-10s wiederholen, um "echte" Live-Daten zu simulieren
 mosquitto_pub -h <server-ip> -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \

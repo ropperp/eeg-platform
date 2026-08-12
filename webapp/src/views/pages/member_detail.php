@@ -238,6 +238,26 @@
               <?php endif; ?>
               <?php if (!empty($mp['meter_code']) && !empty($mp['esp_last_seen_at'])): ?>
                 <br>
+                <?php
+                  // Firmwareversion aus dem ESP-Heartbeat (esp_firmware_version) gegen die
+                  // neueste bekannte GitHub-Release-Version vergleichen (latestFirmwareVersion(),
+                  // 1h gecacht) -- Patrick will auf einen Blick sehen, ob ein Vor-Ort-Termin zum
+                  // manuellen Aktualisieren nötig ist (12.08.2026). "unbekannt" heißt: das Gerät
+                  // ist online, aber die Firmware ist zu alt, um die Version selbst mitzuschicken.
+                  $fwVersion = $mp['esp_firmware_version'] ?? null;
+                ?>
+                <?php if ($fwVersion && $latestFirmwareVersion): ?>
+                  <?php if (version_compare($fwVersion, $latestFirmwareVersion, '>=')): ?>
+                    <span class="badge badge-green" style="font-size:.68rem" title="Neueste bekannte Version: <?= htmlspecialchars($latestFirmwareVersion) ?>">FW <?= htmlspecialchars($fwVersion) ?> · aktuell</span>
+                  <?php else: ?>
+                    <span class="badge badge-yellow" style="font-size:.68rem" title="Update vor Ort einspielen oder Auto-Update abwarten">FW <?= htmlspecialchars($fwVersion) ?> · Update auf <?= htmlspecialchars($latestFirmwareVersion) ?> verfügbar</span>
+                  <?php endif; ?>
+                <?php elseif ($fwVersion): ?>
+                  <span class="badge badge-gray" style="font-size:.68rem;color:var(--gray-600)">FW <?= htmlspecialchars($fwVersion) ?></span>
+                <?php else: ?>
+                  <span class="badge badge-gray" style="font-size:.68rem;color:var(--gray-600)" title="Zu alte Firmware, um die Version zu melden">FW unbekannt</span>
+                <?php endif; ?>
+                <br>
                 <button type="button" onclick="showWifiInfo('<?= $member['id'] ?>','<?= $mp['id'] ?>')"
                         style="background:none;border:none;cursor:pointer;color:var(--gray-600);font-size:.72rem;padding:.15rem 0;text-decoration:underline">
                   WLAN-Info anzeigen
@@ -559,7 +579,11 @@ async function showWifiInfo(memberId, mpId) {
     alert('Noch keine WLAN-Diagnosedaten von diesem ESP übermittelt.');
     return;
   }
-  alert('WLAN-Diagnose\n\nSSID: ' + (d.ssid || '—') + '\nIP-Adresse: ' + (d.ip || '—') + '\nWLAN-Passwort: ' + (d.password || '—'));
+  let fwLine = 'Firmware: ' + (d.firmware_version || 'unbekannt (zu alte Firmware)');
+  if (d.firmware_version && d.latest_version) {
+    fwLine += d.firmware_version === d.latest_version ? ' (aktuell)' : ' (Update auf ' + d.latest_version + ' verfügbar)';
+  }
+  alert('WLAN-Diagnose\n\nSSID: ' + (d.ssid || '—') + '\nIP-Adresse: ' + (d.ip || '—') + '\nWLAN-Passwort: ' + (d.password || '—') + '\n' + fwLine);
 }
 </script>
 
