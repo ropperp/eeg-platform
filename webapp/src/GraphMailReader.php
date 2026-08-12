@@ -24,7 +24,7 @@ class GraphMailReader
     {
         $cfg = Mailer::config();
         if (!$cfg) {
-            throw new \RuntimeException('Microsoft-Graph ist nicht konfiguriert (Platform-Admin → E-Mail-Einstellungen).');
+            throw new \RuntimeException('Microsoft-Graph ist nicht konfiguriert (Platform-Admin → Einstellungen).');
         }
         $token = Mailer::getAccessToken($cfg);
 

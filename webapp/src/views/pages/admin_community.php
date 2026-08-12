@@ -50,7 +50,7 @@
       Login-Adresse dieses Users gemailt; damit die Plattform ihn automatisch abholen und
       importieren kann, muss dieser User im EDA-Portal so eingerichtet sein, dass der Exportlink
       an das zentrale Postfach <code>eda@stromfueralle.at</code> geht (Konfiguration des
-      Postfachs selbst: <a href="/admin/mail-settings">E-Mail-Einstellungen</a>).
+      Postfachs selbst: <a href="/admin/mail-settings">Einstellungen</a>).
     </p>
     <div class="grid-2">
       <div class="form-group">

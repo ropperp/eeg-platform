@@ -28,7 +28,7 @@ class EdaAutoImporter
         $cfg = DB::fetchOne('SELECT eda_import_mailbox_address FROM platform_mail_config WHERE id = 1');
         $mailbox = trim((string)($cfg['eda_import_mailbox_address'] ?? ''));
         if ($mailbox === '') {
-            return ['EDA-Auto-Import nicht konfiguriert (Platform-Admin → E-Mail-Einstellungen → Postfachadresse eintragen).'];
+            return ['EDA-Auto-Import nicht konfiguriert (Platform-Admin → Einstellungen → Postfachadresse eintragen).'];
         }
 
         $messages = GraphMailReader::listUnread($mailbox);

@@ -106,9 +106,9 @@ docker compose exec -T -e ALERT_REASON="Testalarm (manuell ausgelöst)" webapp \
   php < scripts/backup_alert.php
 ```
 Kommt keine Mail an, ist der Microsoft-Graph-Versand nicht konfiguriert (Platform-Admin →
-E-Mail-Einstellungen) oder es existiert kein aktiver Platform-Admin als Empfänger.
+Einstellungen) oder es existiert kein aktiver Platform-Admin als Empfänger.
 
-**Empfänger des Alarms** kommen aus **Platform-Admin → E-Mail-Einstellungen** (zwei frei
+**Empfänger des Alarms** kommen aus **Platform-Admin → Einstellungen** (zwei frei
 konfigurierbare Felder „Backup-Alarm an" — z. B. `office@stromfueralle.at` und die private
 Adresse). Sind beide leer, geht der Alarm an den ersten aktiven Platform-Admin. Alternativ per
 Umgebungsvariable `BACKUP_ALERT_EMAIL` erzwingbar. Weil die Adressen in der DB stehen, wirken sie

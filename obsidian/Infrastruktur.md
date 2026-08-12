@@ -198,21 +198,21 @@ docker compose up -d --build
 > 3. Im EDA-Anwenderportal einen Export-User anlegen, dessen Login-/Benachrichtigungsadresse auf
 >    `eda@stromfueralle.at` zeigt -- **das Anfordern/Auslösen des Exports im Portal selbst
 >    bleibt vorerst manuell** (Login + Klick auf "Export"), nur das Abholen danach läuft automatisch.
-> 4. Platform-Admin → E-Mail-Einstellungen → "EDA-Automatik": Postfachadresse eintragen (leer =
+> 4. Platform-Admin → Einstellungen → "EDA-Automatik": Postfachadresse eintragen (leer =
 >    aus). Je EEG optional EDA-Login-Zugangsdaten hinterlegen (nur zentrale Aufbewahrung,
 >    verschlüsselt wie WLAN-Passwörter).
 > 5. Cron (einmal täglich reicht):
 >    ```bash
 >    ( crontab -l 2>/dev/null; echo "0 7 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
 >    ```
-> Testen ohne Cron abzuwarten: Platform-Admin → E-Mail-Einstellungen → "Jetzt prüfen". Nicht
+> Testen ohne Cron abzuwarten: Platform-Admin → Einstellungen → "Jetzt prüfen". Nicht
 > automatisch verarbeitbare Mails bleiben ungelesen + Alarm-Mail; Fallback bleibt der manuelle
 > Upload über `/portal/eda/upload`. **Noch nicht an einer echten EDA-Mail verifiziert:** dass der
 > Download-Link ohne weiteren Portal-Login abrufbar ist -- falls nicht, bräuchte
 > `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
-> änderbar, per Knopfdruck automatisch angewendet): Platform-Admin → E-Mail-Einstellungen →
+> änderbar, per Knopfdruck automatisch angewendet): Platform-Admin → Einstellungen →
 > "MQTT-Zugangsdaten" → "Speichern & anwenden" speichert einen Wunschwert in der DB
 > (`platform_mqtt_config`, `pending_apply=true`) -- die Webapp kann Docker/Dateien auf dem Host
 > nicht direkt anfassen, ein Host-Cron übernimmt das Anwenden:
