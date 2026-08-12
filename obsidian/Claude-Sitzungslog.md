@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-12 (44) — Claude Code — Claude Sonnet 5
+**Prompt:** "bitte testen von einer älteren Version auf diese auf später verlegen. wichtig
+wäre mir, ändere in meinen code die mqtt IP-Adresse auf die Domain stromfueralle.at, den Port
+auf 8883 und den MQTT user auf eeg-device. Passwort muss noch selbst bei der einrichtung
+eingetragen werden. kann ich bei einer neueren Firmware-Version auch MQTT Userdaten ändern und
+die werden dann mit überschrieben? z.B. der Umzug auf eine andere Domain oder einen anderen
+MQTT User oder Port?"
+**Auftrag:** ESP32-Firmware-Standardwerte für neue Geräte auf den öffentlich erreichbaren
+MQTT-Broker (Domain statt LAN-IP, TLS-Port, festen Benutzernamen) umstellen; offener
+Auto-Update-Test verschoben statt vergessen; Frage geklärt, ob ein Firmware-Update bereits
+gespeicherte MQTT-Zugangsdaten überschreibt.
+**Ergebnis:** `cfgMqttHost`/`cfgMqttPort`/`cfgMqttUser`-Defaults (3 Stellen im Sketch:
+In-Memory-Init, `loadConfig()`, `/config`-Speichern-Fallback) von `10.0.0.250:1883` (kein User)
+auf `stromfueralle.at:8883` (TLS) / `eeg-device` geändert, Passwort bleibt leer (PR #65).
+`docs/ESP_IDEEN.md` um Punkt 6 (Auto-Update-Test ältere→aktuelle Version, verschoben) ergänzt.
+Frage beantwortet: NEIN, ein Firmware-Update überschreibt gespeicherte MQTT-Werte nicht (NVS/
+Preferences-Speicher getrennt vom Programmcode) -- die neuen Defaults gelten nur für noch nie
+eingerichtete Geräte. Für einen zentralen Umzug bereits laufender Geräte gibt es aktuell keinen
+Mechanismus; als mögliches künftiges Feature (MQTT-Befehlstopic für Remote-Reconfig) genannt,
+aber nicht ungefragt gebaut.
+
 ## 2026-08-12 (43) — Claude Code — Claude Sonnet 5
 **Prompt:** "Der Vorschlag aus der Eingabenliste war: Bitte auch als GitHub-Release taggen,
 damit die Auto-Update Firmware es findet. Was ich noch brauche, ist bitte das Arduino-File in
