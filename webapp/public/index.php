@@ -171,6 +171,75 @@ function espOfflineAfterMinutes(): int
 }
 
 /**
+ * Liefert die neueste verfügbare ESP-Firmwareversion (ohne "p1-smartmeter-v"-Präfix), damit die
+ * Mitglied-Detailseite je Zählpunkt anzeigen kann, ob das Gerät schon aktualisiert hat oder ein
+ * Vor-Ort-Termin nötig ist (Patrick, 12.08.2026). Gleiche Quelle wie checkForFirmwareUpdate() im
+ * ESP32-Sketch selbst: GitHub-Releases dieses Repos, gefiltert auf Tags mit dem Präfix, neuester
+ * nicht-Draft-Treffer gewinnt (Vorabversionen/Beta zählen bewusst NICHT als "neueste Version"
+ * für den Vergleich -- Feldgeräte sollen nicht als "veraltet" markiert werden, nur weil eine
+ * interne Testversion vorne liegt, siehe esp32-firmware/p1-smart-meter/README.md).
+ *
+ * @return string|null Versionsstring ohne Präfix (z.B. "1.2.0"), oder null wenn (noch) nichts
+ *                      bekannt ist (Cache leer und GitHub nicht erreichbar).
+ *
+ * Ergebnis wird 1h in platform_settings gecacht (migrate_20260828.sql) statt bei jedem
+ * Seitenaufruf einen eigenen GitHub-API-Request auszulösen (unauthentifiziertes Rate-Limit).
+ * Schlägt der Request fehl (kein Internet, GitHub down, Rate-Limit), bleibt der zuletzt bekannte
+ * Cache-Wert stehen -- eine Netzwerkstörung soll die Detailseite nie zum Absturz bringen.
+ */
+function latestFirmwareVersion(): ?string
+{
+    $repo = 'ropperp/eeg-platform';
+    $tagPrefix = 'p1-smartmeter-v';
+    try {
+        $cached = DB::fetchOne('SELECT latest_firmware_version, latest_firmware_checked_at FROM platform_settings WHERE id = 1');
+    } catch (\Throwable $e) {
+        return null;
+    }
+    $checkedAt = $cached['latest_firmware_checked_at'] ?? null;
+    $isFresh = $checkedAt && (time() - strtotime($checkedAt)) < 3600;
+    if ($isFresh) {
+        return $cached['latest_firmware_version'] ?: null;
+    }
+
+    $url = 'https://api.github.com/repos/' . $repo . '/releases?per_page=10';
+    $ctx = stream_context_create(['http' => [
+        'method'        => 'GET',
+        'header'        => "User-Agent: eeg-platform-firmware-check\r\nAccept: application/vnd.github+json\r\n",
+        'timeout'       => 5,
+        'ignore_errors' => true,
+    ]]);
+    $body = @file_get_contents($url, false, $ctx);
+    $releases = $body ? json_decode($body, true) : null;
+
+    $latest = null;
+    if (is_array($releases)) {
+        foreach ($releases as $release) {
+            $tag = $release['tag_name'] ?? '';
+            if (!empty($release['draft']) || !empty($release['prerelease'])) { continue; }
+            if (strpos($tag, $tagPrefix) !== 0) { continue; }
+            $latest = substr($tag, strlen($tagPrefix));
+            break; // Releases-Liste ist bereits neueste zuerst sortiert
+        }
+    }
+
+    try {
+        if ($latest !== null) {
+            DB::execute('UPDATE platform_settings SET latest_firmware_version = ?, latest_firmware_checked_at = now() WHERE id = 1', [$latest]);
+        } else {
+            // Kein gültiger Treffer -- trotzdem "geprüft" vermerken, sonst würde ein dauerhaft
+            // falsch konfiguriertes Repo/Tag-Präfix bei JEDEM Seitenaufruf erneut angefragt.
+            DB::execute('UPDATE platform_settings SET latest_firmware_checked_at = now() WHERE id = 1', []);
+        }
+    } catch (\Throwable $e) {
+        // Cache-Update fehlgeschlagen (z.B. Migration noch nicht eingespielt) -- Anzeige bleibt
+        // einfach ohne Vergleichswert, kein Fehler auf der Seite.
+    }
+
+    return $latest ?? ($cached['latest_firmware_version'] ?? null);
+}
+
+/**
  * Aktuelle Netto-Leistung (W) eines Mitglieds über dessen eigene aktive Zählpunkte, aus dem
  * jeweils NEUESTEN Messwert je Zählpunkt (nicht Summe über alle Zeilen -- siehe Live-Leistungs-
  * Bugfix vom 30.07.2026). Vorzeichenkonvention auf Wunsch von Patrick: positiv = es wird gerade
@@ -2568,6 +2637,7 @@ $router->get('/portal/members/:id', function ($params) {
     $member['last_login_at'] = $member['user_id']
         ? (DB::fetchOne('SELECT last_login_at FROM users WHERE id = ?', [$member['user_id']])['last_login_at'] ?? null)
         : null;
+    $latestFirmwareVersion = latestFirmwareVersion();
     require ROOT . '/src/views/pages/member_detail.php';
 });
 
@@ -2581,7 +2651,7 @@ $router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($p
     Auth::requireLogin(); Auth::requireRole('manager');
     header('Content-Type: application/json; charset=UTF-8');
     $mp = DB::fetchOne(
-        'SELECT mp.wifi_ssid, mp.wifi_ip, mp.wifi_password_enc, mp.community_id
+        'SELECT mp.wifi_ssid, mp.wifi_ip, mp.wifi_password_enc, mp.esp_firmware_version, mp.community_id
          FROM metering_points mp WHERE mp.id = ? AND mp.member_id = ?',
         [$params['mpid'], $params['id']]
     );
@@ -2590,9 +2660,11 @@ $router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($p
         http_response_code(403); echo json_encode(['error' => 'Kein Zugriff']); return;
     }
     echo json_encode([
-        'ssid'     => $mp['wifi_ssid'] ?? '',
-        'ip'       => $mp['wifi_ip'] ?? '',
-        'password' => decryptSecret($mp['wifi_password_enc']),
+        'ssid'             => $mp['wifi_ssid'] ?? '',
+        'ip'               => $mp['wifi_ip'] ?? '',
+        'password'         => decryptSecret($mp['wifi_password_enc']),
+        'firmware_version' => $mp['esp_firmware_version'] ?? '',
+        'latest_version'   => latestFirmwareVersion() ?? '',
     ]);
 });
 
@@ -4648,6 +4720,7 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         $metering_points = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at DESC', [$memberIdForRedirect]);
         $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$memberIdForRedirect]);
         $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$memberIdForRedirect, $communityId]);
+        $latestFirmwareVersion = latestFirmwareVersion();
         require ROOT . '/src/views/pages/member_detail.php';
         exit;
     }

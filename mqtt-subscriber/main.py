@@ -11,11 +11,13 @@ Payload: {"pp": 1200, "pm": 0, "ep": 21000000, "em": 6900000, "znr": "1121268533
 Zusätzlich: eeg/{community_slug}/meter/{znr}/status (retained, mit Last-Will-Testament der
 Firmware) -- Online/Zuletzt-online-Tracking der Ausleseeinheit (ESP32), siehe docs/ESP_IDEEN.md
 Punkt 2 und esp32-firmware/p1-smart-meter/. Payload: {"status": "online"|"offline", "ts": "...",
-"ssid": "...", "ip": "...", "wifi_password": "...", "meter_ok": true|false} -- ssid/ip/
-wifi_password/meter_ok sind optional (ältere Firmware-Stände schicken sie ggf. nicht mit).
-meter_ok = ob der ESP zuletzt ein gültiges P1-Telegramm vom Smart Meter empfangen hat (getrennt
-vom ESP-eigenen Online-Status -- bei Stromausfall/Inselbetrieb beim Mitglied bleibt der ESP über
-WLAN erreichbar, verliert aber die Verbindung zum Zähler, siehe docs/ESP_IDEEN.md Punkt 4).
+"ssid": "...", "ip": "...", "wifi_password": "...", "meter_ok": true|false, "fw": "1.0.0"} --
+ssid/ip/wifi_password/meter_ok/fw sind optional (ältere Firmware-Stände schicken sie ggf. nicht
+mit). meter_ok = ob der ESP zuletzt ein gültiges P1-Telegramm vom Smart Meter empfangen hat
+(getrennt vom ESP-eigenen Online-Status -- bei Stromausfall/Inselbetrieb beim Mitglied bleibt
+der ESP über WLAN erreichbar, verliert aber die Verbindung zum Zähler, siehe docs/ESP_IDEEN.md
+Punkt 4). fw = FIRMWARE_VERSION der Firmware (Patrick, 12.08.2026: soll auf der Plattform
+sichtbar sein, ob ein Gerät schon aktualisiert hat oder ein Vor-Ort-Termin nötig ist).
 """
 
 import base64
@@ -165,6 +167,10 @@ def update_status(community_id: str, metering_point_id: str, payload: dict, zaeh
     der Zähler nicht erreichbar ist (z.B. Inselbetrieb/Stromausfall beim Mitglied), siehe
     docs/ESP_IDEEN.md Punkt 4. meter_ok fehlt bei älteren Firmware-Ständen im Payload und
     bleibt dann unverändert (kein Downgrade auf "nicht erreichbar" nur wegen alter Firmware).
+    Gleiches Muster für esp_firmware_version (fw): COALESCE gegen den bisherigen Wert, damit
+    ein einzelner Heartbeat ohne "fw" (sehr alte Firmware) den zuletzt bekannten Stand nicht
+    überschreibt -- Anzeige "aktuell/Update verfügbar" siehe latestFirmwareVersion() in
+    webapp/public/index.php.
     """
     online = payload.get("status") == "online"
     last_seen_sql = ", esp_last_seen_at = now()" if online else ""
@@ -196,21 +202,24 @@ def update_status(community_id: str, metering_point_id: str, payload: dict, zaeh
                     UPDATE metering_points
                     SET esp_online = %s{last_seen_sql}{meter_sql},
                         wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip),
-                        wifi_password_enc = %s
+                        wifi_password_enc = %s,
+                        esp_firmware_version = COALESCE(%s, esp_firmware_version)
                     WHERE id = %s
                     """,
                     (online, *meter_params, payload.get("ssid"), payload.get("ip"),
-                     encrypt_secret(payload["wifi_password"]), metering_point_id)
+                     encrypt_secret(payload["wifi_password"]), payload.get("fw"), metering_point_id)
                 )
             else:
                 cur.execute(
                     f"""
                     UPDATE metering_points
                     SET esp_online = %s{last_seen_sql}{meter_sql},
-                        wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip)
+                        wifi_ssid = COALESCE(%s, wifi_ssid), wifi_ip = COALESCE(%s, wifi_ip),
+                        esp_firmware_version = COALESCE(%s, esp_firmware_version)
                     WHERE id = %s
                     """,
-                    (online, *meter_params, payload.get("ssid"), payload.get("ip"), metering_point_id)
+                    (online, *meter_params, payload.get("ssid"), payload.get("ip"),
+                     payload.get("fw"), metering_point_id)
                 )
         conn.commit()
     except Exception:

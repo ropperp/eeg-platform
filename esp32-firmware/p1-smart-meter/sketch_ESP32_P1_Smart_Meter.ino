@@ -549,6 +549,7 @@ void mqttReconnect() {
       String hb = "{\"status\":\"online\",\"ssid\":\"" + jsonEscape(WiFi.SSID()) +
                   "\",\"ip\":\"" + WiFi.localIP().toString() + "\"";
       if (cfgPass.length() > 0) hb += ",\"wifi_password\":\"" + jsonEscape(cfgPass) + "\"";
+      hb += ",\"fw\":\"" + String(FIRMWARE_VERSION) + "\"";
       hb += "}";
       mqttClient.publish(st.c_str(), hb.c_str(), true);
     }
@@ -1048,6 +1049,10 @@ void loop() {
         // das Config-Formular fuehrt immer zu ESP.restart(), also ebenfalls zu einem frischen
         // Connect). So liegt das Passwort seltener auf der Leitung, ohne dass es bei einem
         // echten WLAN-/Boot-Ereignis fehlt.
+        // fw (FIRMWARE_VERSION) dagegen bei JEDEM Heartbeat mit -- Patrick will auf der
+        // Plattform pro Zaehlpunkt sehen koennen, ob ein Geraet schon auf die neueste Version
+        // aktualisiert hat oder ob ein Vor-Ort-Termin noetig ist (12.08.2026).
+        hb += ",\"fw\":\"" + String(FIRMWARE_VERSION) + "\"";
         hb += "}";
         mqttClient.publish(st.c_str(), hb.c_str(), true);
       }

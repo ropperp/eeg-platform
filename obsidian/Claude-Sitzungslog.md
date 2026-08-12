@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-12 (42) — Claude Code — Claude Sonnet 5
+**Prompt:** "Zu der ESB-Firmware: Da wäre aber doch noch cool oder interessant, wenn der ESB
+alle Stunden oder alle paar Stunden die aktuelle Firmwareversion hochlädt und das auch in der
+App, unter „WLAN-Konfiguration" oder unter den ESB-Einstellungen auf meiner Webseite, so dass
+man die dann auch sieht: Hat sich der ESB schon abgedatet? Hat er sich noch nicht abgedatet?
+Um bei eventuell nicht Updaten doch mal vor Ort zu fahren und den ESB zu aktualisieren"
+**Auftrag:** Die ESP32-Firmware soll ihre aktuelle Version regelmäßig an die Plattform melden,
+damit pro Zählpunkt sichtbar ist, ob das Gerät bereits auf dem neuesten Stand ist oder ein
+Vor-Ort-Update nötig wird.
+**Ergebnis:** Bestehender Status-Heartbeat (läuft schon alle 10–300s) schickt jetzt zusätzlich
+`"fw": "<FIRMWARE_VERSION>"` mit, `mqtt-subscriber` speichert es in
+`metering_points.esp_firmware_version` (migrate_20260828.sql). Neue Funktion
+`latestFirmwareVersion()` in `public/index.php` fragt die neueste stabile GitHub-Release-
+Version ab (1h in `platform_settings` gecacht). Mitglied → Zählpunkt zeigt jetzt ein Badge
+("FW 1.0.0 · aktuell" / "· Update auf 1.1.0 verfügbar" / "FW unbekannt"), ebenso das
+WLAN-Info-Popup. `docs/ESP_IDEEN.md` und das Firmware-README aktualisiert. Alle 77 Tests
+weiterhin grün.
+
 ## 2026-08-11 (41) — Claude Code — Claude Sonnet 5
 **Prompt:** "Bitte schreib in Github in Claude.md rein, dass er immer das Model und den Prompt
 mit dem aktuellen Datum irgendwo vermerkt. brauch es dann für die Dokumentation der
