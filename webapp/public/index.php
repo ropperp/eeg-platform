@@ -156,7 +156,7 @@ function platformTestMode(): bool
 
 /**
  * Liefert die konfigurierte ESP-Offline-Schwelle in Minuten (siehe migrate_20260823.sql,
- * Platform-Admin -> E-Mail-Einstellungen -> Abschnitt "ESP32 / Ausleseeinheiten"). Ein ESP gilt
+ * Platform-Admin -> Einstellungen -> Abschnitt "ESP32 / Ausleseeinheiten"). Ein ESP gilt
  * nur dann als online, wenn die letzte Statusmeldung "online" war UND das nicht länger als
  * dieser Wert her ist -- Sicherheitsnetz gegen ein hängengebliebenes Gerät, dessen MQTT-
  * Last-Will-Testament nie auslöst (TCP-Verbindung technisch noch offen, Firmware aber tot).
@@ -5357,7 +5357,7 @@ $router->get('/admin/log/export', function () {
     exit;
 });
 
-// ─── Admin: E-Mail-Einstellungen (Microsoft Graph) ──────
+// ─── Admin: Einstellungen (Plattform-Technik + E-Mail/Microsoft Graph) ──────
 $router->get('/admin/mail-settings', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }

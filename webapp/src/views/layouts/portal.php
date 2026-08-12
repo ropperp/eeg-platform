@@ -159,7 +159,7 @@
         <span class="sidebar-icon"><?= icon('clipboard-text') ?></span><span class="sidebar-text">Aktivitätslog</span>
       </a>
       <a href="/admin/mail-settings" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/mail-settings') ? 'active' : '' ?>">
-        <span class="sidebar-icon"><?= icon('envelope-simple') ?></span><span class="sidebar-text">E-Mail-Einstellungen</span>
+        <span class="sidebar-icon"><?= icon('gear') ?></span><span class="sidebar-text">Einstellungen</span>
       </a>
       <a href="/admin/templates" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/templates') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>

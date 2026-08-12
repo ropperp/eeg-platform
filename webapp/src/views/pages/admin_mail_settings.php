@@ -1,8 +1,8 @@
-<?php $pageTitle = 'E-Mail-Einstellungen'; ob_start(); ?>
+<?php $pageTitle = 'Einstellungen'; ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
-  <h2 style="margin:0"><?= icon('envelope-simple') ?> E-Mail-Einstellungen (Microsoft Graph)</h2>
+  <h2 style="margin:0"><?= icon('gear') ?> Einstellungen</h2>
 </div>
 
 <?php if (!empty($_GET['error'])): ?>

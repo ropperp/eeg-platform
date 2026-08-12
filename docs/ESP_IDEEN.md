@@ -54,7 +54,7 @@ weiterhin als ungetestet auf echter Hardware.
   vor dem Wechsel gesichert; kommt innerhalb von 5 Minuten keine erfolgreiche Verbindung mit den
   neuen Werten zustande, fällt das Gerät automatisch darauf zurück (Rollback-Watchdog in
   `loop()`) -- ein Tippfehler in der neuen Domain soll kein Gerät dauerhaft trennen und einen
-  Vor-Ort-Termin erzwingen. Plattform-Seite: Platform-Admin → E-Mail-Einstellungen → "MQTT-
+  Vor-Ort-Termin erzwingen. Plattform-Seite: Platform-Admin → Einstellungen → "MQTT-
   Fernkonfiguration (Geräte)" speichert die Anfrage (`migrate_20260829.sql`,
   `platform_mqtt_config.device_reconfig_*`); `mqtt-subscriber` (`reconfig_broadcast_loop()`)
   holt sie alle 15s ab und published sie an ALLE bekannten Zählpunkte -- sowohl unter deren
@@ -239,7 +239,7 @@ weiterhin als ungetestet auf echter Hardware.
   lange das her ist. Ein hängengebliebenes Gerät (TCP-Verbindung technisch noch offen,
   Firmware aber abgestürzt) hätte theoretisch für immer als online angezeigt werden können,
   weil das MQTT-Last-Will-Testament dann nie auslöst. Jetzt zusätzliche, konfigurierbare
-  Zeitschwelle (Platform-Admin → E-Mail-Einstellungen → neuer Abschnitt „ESP32 /
+  Zeitschwelle (Platform-Admin → Einstellungen → neuer Abschnitt „ESP32 /
   Ausleseeinheiten", Standard 5 Minuten): ein Gerät gilt nur online, wenn `esp_online` UND
   `esp_last_seen_at` nicht älter als die Schwelle ist. Gleichzeitig die Einstellungsseite in
   „Plattform-Technik" und „E-Mail (Microsoft Graph)" unterteilt, damit klar ist, was

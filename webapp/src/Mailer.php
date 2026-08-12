@@ -65,13 +65,13 @@ class Mailer
     {
         $cfg = self::config();
         if (!$cfg) {
-            throw new \RuntimeException('Microsoft-Graph-Mailversand ist nicht konfiguriert (Platform-Admin → E-Mail-Einstellungen).');
+            throw new \RuntimeException('Microsoft-Graph-Mailversand ist nicht konfiguriert (Platform-Admin → Einstellungen).');
         }
         $token = self::getAccessToken($cfg);
 
         // Signatur (z.B. Kontakthinweis für Rückfragen zu Rechnungen/Verträgen) an jede
         // ausgehende Mail anhängen -- global für alle Vorlagen, konfigurierbar statt hart
-        // codiert (Platform-Admin -> E-Mail-Einstellungen).
+        // codiert (Platform-Admin -> Einstellungen).
         $fullBody = $htmlBody . (!empty($cfg['signature_html']) ? '<br><br>' . $cfg['signature_html'] : '');
 
         // Optionales Signatur-Logo: als Inline-Anhang (Content-ID) einbetten und per <img src=
@@ -124,7 +124,7 @@ class Mailer
         ];
         // Absender ist oft eine unüberwachte Shared Mailbox (noreply@...) -- Antworten der
         // Kunden sollen dann an ein tatsächlich gelesenes Postfach gehen. Optional, konfigurierbar
-        // über Platform-Admin -> E-Mail-Einstellungen statt hart codiert.
+        // über Platform-Admin -> Einstellungen statt hart codiert.
         if (!empty($cfg['reply_to'])) {
             $message['replyTo'] = [['emailAddress' => ['address' => $cfg['reply_to']]]];
         }

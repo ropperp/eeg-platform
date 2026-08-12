@@ -561,7 +561,7 @@ docker compose up -d --build
 >    Benachrichtigungsadresse) auf `eda@stromfueralle.at` zeigt -- **das eigentliche Anfordern/
 >    Auslösen des Exports im Portal bleibt vorerst ein manueller Schritt** (Login + Klick auf
 >    "Export"), nur das Abholen des danach gemailten Downloads passiert automatisch.
-> 4. Platform-Admin → E-Mail-Einstellungen → Abschnitt "EDA-Automatik": Postfachadresse
+> 4. Platform-Admin → Einstellungen → Abschnitt "EDA-Automatik": Postfachadresse
 >    eintragen (Feld leer = Automatik aus). Bei jeder EEG (Platform-Admin → EEG bearbeiten)
 >    optional die EDA-Login-Zugangsdaten hinterlegen (nur zur zentralen Aufbewahrung,
 >    verschlüsselt wie WLAN-Passwörter -- nicht für einen automatisierten Login).
@@ -569,7 +569,7 @@ docker compose up -d --build
 >    ```bash
 >    ( crontab -l 2>/dev/null; echo "0 7 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
 >    ```
-> Zum Testen ohne auf den Cron zu warten: Platform-Admin → E-Mail-Einstellungen → "Jetzt
+> Zum Testen ohne auf den Cron zu warten: Platform-Admin → Einstellungen → "Jetzt
 > prüfen". Kann eine Mail nicht automatisch verarbeitet werden (z. B. Community nicht
 > zuordenbar, Download schlägt fehl), bleibt sie ungelesen im Postfach und es geht eine
 > Alarm-Mail an die Backup-Alarm-Adressen -- Fallback bleibt in jedem Fall der manuelle Upload
@@ -586,7 +586,7 @@ docker compose up -d --build
 > änderbar, seit dem gleichen Tag auch per Knopfdruck automatisch angewendet): bisher lagen
 > `MQTT_USER`/`MQTT_PASSWORD` ausschließlich in `.env` auf dem Server (zufälliger 24-stelliger
 > Hex-String, nirgends auf der Plattform selbst einsehbar). Jetzt gibt es unter Platform-Admin →
-> E-Mail-Einstellungen → "MQTT-Zugangsdaten" ein Formular (inkl. "einfaches Passwort
+> Einstellungen → "MQTT-Zugangsdaten" ein Formular (inkl. "einfaches Passwort
 > vorschlagen"-Button) -- "Speichern & anwenden" trägt den Wunschwert in die DB
 > (`platform_mqtt_config`, `pending_apply=true`) ein. Die Webapp kann Docker/Dateien auf dem Host
 > nicht direkt anfassen, deshalb übernimmt ein Host-Cron-Job das eigentliche Anwenden:

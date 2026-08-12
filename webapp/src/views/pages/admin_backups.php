@@ -73,7 +73,7 @@ ob_start();
   </ul>
   <p style="font-size:.85rem;color:var(--gray-600)">
     Schlägt eine Sicherung fehl, geht automatisch eine Alarm-Mail an die in den
-    <a href="/admin/mail-settings">E-Mail-Einstellungen</a> hinterlegten Adressen.
+    <a href="/admin/mail-settings">Einstellungen</a> hinterlegten Adressen.
   </p>
 </div>
 

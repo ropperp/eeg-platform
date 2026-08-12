@@ -14,7 +14,7 @@ $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? A
 // ─── Status-Kachelzeile: Betriebsreife auf einen Blick (letzter EDA-Import, letztes
 // Backup, ESP online/offline, offene Rechnungen) -- siehe diplomarbeit-berater-Vorschlag. ───
 // "online" heißt: esp_online UND esp_last_seen_at ist nicht älter als die konfigurierte
-// Offline-Schwelle (espOfflineAfterMinutes(), Platform-Admin -> E-Mail-Einstellungen) --
+// Offline-Schwelle (espOfflineAfterMinutes(), Platform-Admin -> Einstellungen) --
 // Sicherheitsnetz gegen ein hängengebliebenes Gerät, dessen MQTT-LWT nie auslöst.
 $espOfflineMinutes = espOfflineAfterMinutes();
 $espStats = DB::fetchOne(
