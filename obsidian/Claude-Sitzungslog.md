@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-12 (45) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ja machen wir. Das mit dem Remote Reconfig. Müssen dann die Ports vom Kunden auch
+offen sein? Wenn ja, dann nicht"
+**Auftrag:** Freigabe für das zuvor vorgeschlagene Remote-Reconfig-Feature, unter der
+Bedingung, dass dafür keine offenen Ports am Router des Mitglieds nötig sind.
+**Ergebnis:** Frage geklärt und bestätigt: NEIN, keine offenen Ports nötig -- das Gerät baut
+die MQTT-Verbindung immer selbst ausgehend auf, ein Kommando kommt über genau diese bereits
+bestehende Verbindung zurück (grundlegend anders als der MQTT-Broker selbst, der auf Patricks
+eigener Fritzbox/pfSense eine Portfreigabe braucht). Feature gebaut (PR #67): neues
+Kommando-Topic `eeg/{rc}/meter/{znr}/cmd` (`onMqttMessage()` im ESP32-Sketch), über das die
+Plattform Host/Port/Benutzer/Passwort ALLER Geräte zentral ändern kann. Sicherheitsnetz:
+vorherige Werte werden gesichert, kein erfolgreicher Verbindungsaufbau mit den neuen Werten
+innerhalb 5 Minuten -> automatischer Rollback, damit ein Tippfehler kein Gerät dauerhaft
+trennt. Plattform-Seite: neue Karte "MQTT-Fernkonfiguration (Geräte)" unter Platform-Admin ->
+E-Mail-Einstellungen (`platform_mqtt_config.device_reconfig_*`, migrate_20260829.sql);
+`mqtt-subscriber` holt die Anfrage periodisch ab und published sie an alle bekannten
+Zählpunkte. `docs/ESP_IDEEN.md`/Firmware-README dokumentiert, `php tests/run.php` weiterhin
+77/77 grün. Firmware-Änderung nicht kompiliert/getestet (kein Toolchain in dieser Umgebung).
+
 ## 2026-08-12 (44) — Claude Code — Claude Sonnet 5
 **Prompt:** "bitte testen von einer älteren Version auf diese auf später verlegen. wichtig
 wäre mir, ändere in meinen code die mqtt IP-Adresse auf die Domain stromfueralle.at, den Port
