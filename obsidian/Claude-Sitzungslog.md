@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-12 (43) — Claude Code — Claude Sonnet 5
+**Prompt:** "Der Vorschlag aus der Eingabenliste war: Bitte auch als GitHub-Release taggen,
+damit die Auto-Update Firmware es findet. Was ich noch brauche, ist bitte das Arduino-File in
+einen Ordner, der gleich heißt, weil Arduino immer einen eigenen Ordner erstellt. Das ist
+mühsam. Bitte macht gleich einen Ordner, der gleich heißt, und darin ist die .ino-File."
+**Auftrag:** Zwei Punkte zur ESP-Firmware: (1) den aktuellen Firmwarestand als echtes
+GitHub-Release taggen, damit die Auto-Update-Geräte es finden; (2) die `.ino`-Datei so
+ablegen, dass Arduino beim Öffnen keinen eigenen, neuen Ordner mehr anlegen will.
+**Ergebnis:** (2) erledigt und gemerged: `sketch_ESP32_P1_Smart_Meter.ino` zu
+`p1-smart-meter.ino` umbenannt, liegt jetzt im gleichnamigen Ordner
+`esp32-firmware/p1-smart-meter/`, README entsprechend angepasst (PR #63). (1) NICHT
+selbstständig umsetzbar: das angebundene GitHub-MCP-Werkzeug kann Releases nur lesen
+(`list_releases`/`get_latest_release`/`get_release_by_tag`), nicht anlegen -- und ein
+kompiliertes `p1-smartmeter.bin` fehlt ebenfalls (kein ESP32-Toolchain in dieser Umgebung). Ein
+reiner Git-Tag ohne Release-Objekt würde von der ESP-Auto-Update-Prüfung (`/releases`-API,
+nicht `/tags`) gar nicht gefunden -- deshalb bewusst KEIN Tag gepusht, um keinen falschen
+Eindruck von "erledigt" zu erzeugen. Patrick wurde der bereits im README dokumentierte
+manuelle Ablauf (Sketch exportieren → `p1-smartmeter.bin` benennen → GitHub-Release mit Tag
+`p1-smartmeter-v1.0.0` + Anhang anlegen) als nächster Schritt genannt.
+
 ## 2026-08-12 (42) — Claude Code — Claude Sonnet 5
 **Prompt:** "Zu der ESB-Firmware: Da wäre aber doch noch cool oder interessant, wenn der ESB
 alle Stunden oder alle paar Stunden die aktuelle Firmwareversion hochlädt und das auch in der
