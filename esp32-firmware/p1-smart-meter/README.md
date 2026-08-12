@@ -62,6 +62,12 @@ Pinout siehe Kopfkommentar in `p1-smart-meter.ino`.
     Patrick: soll auf der Plattform sichtbar sein, ob ein Gerät schon aktualisiert hat oder ein
     Vor-Ort-Termin nötig ist). Wird unter Mitglied → Zählpunkt gegen die neueste GitHub-Release-
     Version verglichen und als Badge angezeigt ("FW 1.0.0 · aktuell" bzw. "· Update verfügbar")
+- **MQTT-Fernkonfiguration** (seit 12.08.2026): Gerät abonniert `eeg/{rc}/meter/{zaehler}/cmd`
+  (`onMqttMessage()`) -- die Plattform kann darüber Host/Port/Benutzer/Passwort ALLER bereits im
+  Feld laufenden Geräte zentral ändern (z.B. Domain-Umzug), ohne dass am Router des Mitglieds
+  irgendein Port offen sein muss (das Gerät baut die Verbindung ja selbst ausgehend auf). Details
+  und Sicherheitsnetz (automatischer Rollback bei falschen neuen Werten): siehe
+  `docs/ESP_IDEEN.md`.
 - **MQTT über TLS (Port 8883) + Benutzername/Passwort**: `mqtt-port` im `/config`-Formular auf
   `8883` stellen schaltet automatisch auf `WiFiClientSecure` um (`setInsecure()` -- prüft das
   Server-Zertifikat nicht, verschlüsselt die Verbindung aber trotzdem; kein Zertifikat muss

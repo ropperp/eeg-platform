@@ -42,6 +42,27 @@ weiterhin als ungetestet auf echter Hardware.
 
 ## Umgesetzt
 
+- **MQTT-Fernkonfiguration der Geräte (Patrick, 12.08.2026):** "kann ich bei einer neueren
+  Firmware-Version auch MQTT Userdaten ändern und die werden dann mit überschrieben? z.B. der
+  Umzug auf eine andere Domain oder einen anderen MQTT User oder Port?" -- nach Klärung, dass
+  dafür KEINE offenen Ports beim Mitglied nötig sind (Geräte bauen die MQTT-Verbindung selbst
+  ausgehend auf, ein neues Kommando-Topic nutzt einfach dieselbe bestehende Verbindung in
+  Gegenrichtung), umgesetzt: neues Topic `eeg/{rc}/meter/{znr}/cmd` (retained), auf das jedes
+  Gerät abonniert ist (`onMqttMessage()` im Sketch). Payload `{"mqtt_host":...,"mqtt_port":...,
+  "mqtt_user":...,"mqtt_pass":...}` (alle Felder optional) wird übernommen, in Preferences
+  gespeichert und die Verbindung neu aufgebaut. **Sicherheitsnetz:** die vorherigen Werte werden
+  vor dem Wechsel gesichert; kommt innerhalb von 5 Minuten keine erfolgreiche Verbindung mit den
+  neuen Werten zustande, fällt das Gerät automatisch darauf zurück (Rollback-Watchdog in
+  `loop()`) -- ein Tippfehler in der neuen Domain soll kein Gerät dauerhaft trennen und einen
+  Vor-Ort-Termin erzwingen. Plattform-Seite: Platform-Admin → E-Mail-Einstellungen → "MQTT-
+  Fernkonfiguration (Geräte)" speichert die Anfrage (`migrate_20260829.sql`,
+  `platform_mqtt_config.device_reconfig_*`); `mqtt-subscriber` (`reconfig_broadcast_loop()`)
+  holt sie alle 15s ab und published sie an ALLE bekannten Zählpunkte -- sowohl unter deren
+  Community-Slug als auch der Marktpartner-ID als Topic-Präfix, da nicht zentral bekannt ist,
+  welches der beiden ein einzelnes Gerät als `cfgRC` konfiguriert hat. Nur Geräte mit einer
+  Firmware ab dieser Funktion reagieren; ältere Geräte ignorieren das unbekannte Topic einfach
+  und müssen weiterhin von Hand über `/config` umgestellt werden.
+
 - **Firmwareversion pro Zählpunkt auf der Plattform sichtbar (Patrick, 12.08.2026):** "wäre
   aber doch noch cool ... wenn der ESP alle Stunde oder alle paar Stunden die aktuelle
   Firmwareversion hochlädt und das auch in der App ... zeigt: Hat sich der ESP schon

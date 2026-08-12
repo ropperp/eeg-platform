@@ -66,6 +66,13 @@ String cfgMqttHost = "stromfueralle.at";  // Broker-Domain oder IP
 int    cfgMqttPort = 8883;                // Broker-Port (8883 = TLS, siehe applyMqttClientMode())
 String cfgMqttUser  = "eeg-device";       // MQTT Benutzername (optional)
 String cfgMqttPass  = "";                 // MQTT Passwort (optional, bei Einrichtung einzutragen)
+
+// Fernkonfiguration per MQTT-Kommando gerade in der Schwebe (siehe onMqttMessage() und der
+// Rollback-Watchdog in loop()) -- true zwischen "neue Werte uebernommen" und "erfolgreich neu
+// verbunden ODER Timeout/Rollback".
+bool          pendingReconfigActive = false;
+unsigned long pendingReconfigSince  = 0;
+
 String cfgMqttTopic = "";           // Topic-Template (leer = Standard-Schema)
 int    cfgStatusSec  = 30;          // Heartbeat-Intervall in Sekunden (Status-Topic, ESP-Online-Check)
 int    cfgLiveSec    = 5;           // Live-Daten-Intervall in Sekunden -- BEWUSST getrennt von
@@ -91,6 +98,13 @@ const char* ntpServer = "pool.ntp.org";
 // findet und dort haengen bleibt, siehe checkForFirmwareUpdate()).
 #define OTA_TAG_PREFIX    "p1-smartmeter-v"
 #define OTA_ASSET_NAME    "p1-smartmeter.bin"
+
+// -- MQTT-Fernkonfiguration (siehe onMqttMessage()) ------------------------
+// Wie lange nach einer per MQTT empfangenen Aenderung von Host/Port/Benutzer/Passwort auf eine
+// erfolgreiche Verbindung mit den NEUEN Werten gewartet wird, bevor automatisch auf die alten,
+// bekannt funktionierenden Werte zurueckgefallen wird (Patrick, 12.08.2026: soll KEINEN
+// Vor-Ort-Termin erzwingen koennen, falls z.B. ein Tippfehler in der neuen Domain steckt).
+#define MQTT_RECONFIG_ROLLBACK_MS (5UL * 60UL * 1000UL)
 
 bool cfgAutoUpdate = true;   // automatische Firmware-Updates ein/aus (im /config-Formular)
 int  cfgUpdateSec  = 3600;   // Pruefintervall in Sekunden, Standard 1 Stunde
@@ -508,6 +522,14 @@ String statusTopic() {
   return String("eeg/") + cfgRC + "/meter/" + zn + "/status";
 }
 
+// Kommando-Topic fuer die MQTT-Fernkonfiguration (siehe onMqttMessage()), oder "" wenn rc/
+// zaehler noch nicht gesetzt -- gleiches Schema wie statusTopic()/live-Topic.
+String cmdTopic() {
+  String zn = topicSafe(cfgZaehler);
+  if (cfgRC.length() == 0 || zn.length() == 0) return "";
+  return String("eeg/") + cfgRC + "/meter/" + zn + "/cmd";
+}
+
 // Waehlt anhand des konfigurierten Ports den Transport: 8883 = TLS (WiFiClientSecure),
 // alles andere = unverschluesselt (WiFiClient). setInsecure() prueft KEIN Zertifikat --
 // verschluesselt die Verbindung trotzdem, ohne dass jedes Geraet ein CA-Zertifikat pflegen
@@ -559,7 +581,85 @@ void mqttReconnect() {
       hb += "}";
       mqttClient.publish(st.c_str(), hb.c_str(), true);
     }
+    // Kommando-Topic abonnieren -- ermoeglicht die MQTT-Fernkonfiguration (siehe
+    // onMqttMessage()) ueber genau diese vom Geraet selbst aufgebaute Verbindung, ganz ohne
+    // dass am Router des Mitglieds irgendein Port geoeffnet sein muesste.
+    String ct = cmdTopic();
+    if (ct.length() > 0) mqttClient.subscribe(ct.c_str());
   }
+}
+
+// Wird von mqttClient.loop() aufgerufen, sobald eine Nachricht auf einem abonnierten Topic
+// eintrifft (aktuell nur cmdTopic()). Ermoeglicht der Plattform, Host/Port/Benutzer/Passwort
+// eines bereits im Feld laufenden Geraets zentral zu aendern (z.B. Umzug auf eine andere
+// Domain), OHNE dass am Router des Mitglieds irgendein Port offen sein muss -- das Geraet baut
+// die MQTT-Verbindung selbst ausgehend auf, der Befehl kommt ueber genau diese bestehende
+// Verbindung zurueck, genau wie die Live-/Status-Nachrichten in der Gegenrichtung (Patrick,
+// 12.08.2026: "muessen dann die ports vom kunden auch offen sein? wenn ja, dann nicht" --
+// Antwort: nein, deshalb funktioniert es so).
+//
+// Payload (alle Felder optional, gleiche Namen wie im /config-Formular):
+//   {"mqtt_host":"neue.domain.at","mqtt_port":8883,"mqtt_user":"user","mqtt_pass":"pass"}
+//
+// Sicherheitsnetz: die bisherigen (bekannt funktionierenden) Werte werden vor dem Wechsel
+// gesichert. Kommt innerhalb von MQTT_RECONFIG_ROLLBACK_MS keine erfolgreiche Verbindung mit
+// den NEUEN Werten zustande (z.B. Tippfehler in der Domain), faellt der Rollback-Watchdog in
+// loop() automatisch auf die alten Werte zurueck -- ein falscher Push soll kein Geraet
+// dauerhaft von der Plattform trennen und einen Vor-Ort-Termin erzwingen (genau das, was diese
+// Funktion eigentlich vermeiden soll).
+void onMqttMessage(char* topicRaw, byte* payloadBytes, unsigned int length) {
+  String topic = String(topicRaw);
+  String payload;
+  payload.reserve(length + 1);
+  for (unsigned int i = 0; i < length; i++) payload += (char)payloadBytes[i];
+
+  // Retained Nachricht sofort loeschen (leeres retained Publish auf dasselbe Topic) -- ein
+  // Kommando soll genau einmal wirken, nicht bei jedem kuenftigen Reconnect erneut zugestellt
+  // werden. Muss VOR einem moeglichen Broker-/Passwort-Wechsel passieren, solange die aktuelle
+  // Verbindung noch steht.
+  mqttClient.publish(topic.c_str(), "", true);
+
+  if (length == 0) return;  // leere Nachricht (z.B. das eigene Loeschen oben) ignorieren
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, payload);
+  if (err) {
+    addLog("MQTT-Kommando: ungueltiges JSON ignoriert (" + String(err.c_str()) + ")");
+    return;
+  }
+
+  if (pendingReconfigActive) {
+    addLog("MQTT-Kommando ignoriert -- vorherige Fernkonfiguration noch nicht abgeschlossen");
+    return;
+  }
+
+  String newHost = doc["mqtt_host"] | cfgMqttHost;
+  int    newPort = doc["mqtt_port"] | cfgMqttPort;
+  String newUser = doc["mqtt_user"] | cfgMqttUser;
+  String newPass = doc["mqtt_pass"] | cfgMqttPass;
+
+  bool changed = (newHost != cfgMqttHost) || (newPort != cfgMqttPort) ||
+                 (newUser != cfgMqttUser) || (newPass != cfgMqttPass);
+  if (!changed) return;
+
+  prefs.putString("mqtt_host_prev", cfgMqttHost);
+  prefs.putInt("mqtt_port_prev", cfgMqttPort);
+  prefs.putString("mqtt_user_prev", cfgMqttUser);
+  prefs.putString("mqtt_pass_prev", cfgMqttPass);
+
+  cfgMqttHost = newHost;
+  cfgMqttPort = newPort;
+  cfgMqttUser = newUser;
+  cfgMqttPass = newPass;
+  prefs.putString("mqtt_host", cfgMqttHost);
+  prefs.putInt("mqtt_port", cfgMqttPort);
+  prefs.putString("mqtt_user", cfgMqttUser);
+  prefs.putString("mqtt_pass", cfgMqttPass);
+
+  addLog("MQTT-Fernkonfiguration empfangen, wechsle zu " + cfgMqttHost + ":" + String(cfgMqttPort));
+  pendingReconfigActive = true;
+  pendingReconfigSince = millis();
+  applyMqttClientMode();  // trennt die aktuelle Verbindung und waehlt ggf. TLS/Plain neu
 }
 
 // ── Passwortschutz fuer jede Weboberflaeche ───────────────────
@@ -1017,6 +1117,8 @@ void setup() {
     Serial.println("Webserver gestartet");
 
     applyMqttClientMode();
+    mqttClient.setCallback(onMqttMessage);  // fuer die MQTT-Fernkonfiguration, siehe onMqttMessage()
+    mqttClient.setBufferSize(384);          // Standard (256 Byte) ist knapp fuer laengere Domains im JSON-Kommando
 
     P1Serial.begin(115200, SERIAL_8N1, 16, 17, true);  // invert=true, siehe Kommentar bei P1Serial oben
 
@@ -1036,6 +1138,39 @@ void loop() {
   }
 
   mqttClient.loop();
+
+  // Rollback-Watchdog fuer eine per MQTT-Fernkonfiguration angestossene Aenderung (siehe
+  // onMqttMessage()): wird innerhalb von MQTT_RECONFIG_ROLLBACK_MS keine erfolgreiche
+  // Verbindung mit den NEUEN Werten hergestellt (z.B. Tippfehler in der neuen Domain), automatisch
+  // auf die vorherigen, bekannt funktionierenden Werte zurueckfallen -- reines Warten reicht
+  // hier, der naechste mqttReconnect()-Versuch passiert wie gewohnt ueber den Live-Daten-Pfad
+  // weiter unten in dieser Funktion.
+  if (pendingReconfigActive) {
+    if (mqttClient.connected()) {
+      pendingReconfigActive = false;
+      prefs.remove("mqtt_host_prev");
+      prefs.remove("mqtt_port_prev");
+      prefs.remove("mqtt_user_prev");
+      prefs.remove("mqtt_pass_prev");
+      addLog("MQTT-Fernkonfiguration erfolgreich uebernommen (" + cfgMqttHost + ":" + String(cfgMqttPort) + ")");
+    } else if (millis() - pendingReconfigSince > MQTT_RECONFIG_ROLLBACK_MS) {
+      cfgMqttHost = prefs.getString("mqtt_host_prev", cfgMqttHost);
+      cfgMqttPort = prefs.getInt("mqtt_port_prev", cfgMqttPort);
+      cfgMqttUser = prefs.getString("mqtt_user_prev", cfgMqttUser);
+      cfgMqttPass = prefs.getString("mqtt_pass_prev", cfgMqttPass);
+      prefs.putString("mqtt_host", cfgMqttHost);
+      prefs.putInt("mqtt_port", cfgMqttPort);
+      prefs.putString("mqtt_user", cfgMqttUser);
+      prefs.putString("mqtt_pass", cfgMqttPass);
+      prefs.remove("mqtt_host_prev");
+      prefs.remove("mqtt_port_prev");
+      prefs.remove("mqtt_user_prev");
+      prefs.remove("mqtt_pass_prev");
+      applyMqttClientMode();
+      pendingReconfigActive = false;
+      addLog("MQTT-Fernkonfiguration fehlgeschlagen -- alte Zugangsdaten wiederhergestellt");
+    }
+  }
 
   // Periodischer Heartbeat auf Status-Topic (retain=true)
   static unsigned long lastHeartbeat = 0;
