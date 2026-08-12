@@ -56,10 +56,16 @@ const char* httpUser = "admin";
 const char* httpPass = "GreenData2026!";
 
 // -- MQTT (Ziel im Setup aenderbar) --
-String cfgMqttHost = "10.0.0.250";  // Broker-Domain oder IP
-int    cfgMqttPort = 1883;          // Broker-Port
-String cfgMqttUser  = "";           // MQTT Benutzername (optional)
-String cfgMqttPass  = "";           // MQTT Passwort (optional)
+// Seit dem funktionierenden externen MQTT-Zugriff (Fritzbox/pfSense-Portweiterleitung 8883,
+// siehe CLAUDE.md "MQTT-Fernzugriff") ist die oeffentliche Domain samt TLS-Port der sinnvolle
+// Standard, statt der bisherigen internen LAN-IP -- funktioniert damit auch fuer Geraete, die
+// NICHT im selben lokalen Netz wie der Raspberry Pi haengen (Mitglieder zuhause). Passwort
+// bleibt bewusst leer: muss bei der Einrichtung individuell eingetragen werden (siehe
+// scripts/mqtt_secure_setup.sh / Platform-Admin -> MQTT-Zugangsdaten).
+String cfgMqttHost = "stromfueralle.at";  // Broker-Domain oder IP
+int    cfgMqttPort = 8883;                // Broker-Port (8883 = TLS, siehe applyMqttClientMode())
+String cfgMqttUser  = "eeg-device";       // MQTT Benutzername (optional)
+String cfgMqttPass  = "";                 // MQTT Passwort (optional, bei Einrichtung einzutragen)
 String cfgMqttTopic = "";           // Topic-Template (leer = Standard-Schema)
 int    cfgStatusSec  = 30;          // Heartbeat-Intervall in Sekunden (Status-Topic, ESP-Online-Check)
 int    cfgLiveSec    = 5;           // Live-Daten-Intervall in Sekunden -- BEWUSST getrennt von
@@ -573,9 +579,9 @@ void loadConfig() {
   cfgPass     = prefs.getString("pass",     "");
   cfgRC       = prefs.getString("rc",       "");
   cfgZaehler  = prefs.getString("zaehler",  "");
-  cfgMqttHost = prefs.getString("mqtt_host", "10.0.0.250");
-  cfgMqttPort = prefs.getInt("mqtt_port", 1883);
-  cfgMqttUser  = prefs.getString("mqtt_user",  "");
+  cfgMqttHost = prefs.getString("mqtt_host", "stromfueralle.at");
+  cfgMqttPort = prefs.getInt("mqtt_port", 8883);
+  cfgMqttUser  = prefs.getString("mqtt_user",  "eeg-device");
   cfgMqttPass  = prefs.getString("mqtt_pass",  "");
   cfgMqttTopic = prefs.getString("mqtt_topic", "");
   cfgStatusSec = prefs.getInt("status_sec", 30);
@@ -906,9 +912,9 @@ void handleSaveConfig() {
   }
   // MQTT-Ziel (Domain/IP + Port) speichern und live anwenden
   cfgMqttHost = server.arg("mqtt_host");
-  if (cfgMqttHost.length() == 0) cfgMqttHost = "10.0.0.250";
+  if (cfgMqttHost.length() == 0) cfgMqttHost = "stromfueralle.at";
   cfgMqttPort = server.arg("mqtt_port").toInt();
-  if (cfgMqttPort <= 0) cfgMqttPort = 1883;
+  if (cfgMqttPort <= 0) cfgMqttPort = 8883;
   prefs.putString("mqtt_host", cfgMqttHost);
   prefs.putInt("mqtt_port", cfgMqttPort);
   cfgMqttTopic = server.arg("mqtt_topic");
@@ -925,6 +931,7 @@ void handleSaveConfig() {
   if (cfgUpdateSec < 60) cfgUpdateSec = 3600;
   prefs.putInt("update_sec", cfgUpdateSec);
   cfgMqttUser = server.arg("mqtt_user");
+  if (cfgMqttUser.length() == 0) cfgMqttUser = "eeg-device";
   prefs.putString("mqtt_user", cfgMqttUser);
   String newPass = server.arg("mqtt_pass");
   if (newPass.length() > 0) {

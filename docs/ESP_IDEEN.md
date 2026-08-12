@@ -28,6 +28,18 @@ Schutzbeschaltung (Spannungsteiler o. Ä.) betreiben.
 
 ---
 
+### 6. Auto-Update-Test (ältere Version → aktuelle) noch ausständig
+**Stand (Patrick, 12.08.2026):** "bitte testen von einer älteren Version auf diese auf später
+verlegen" -- der im README dokumentierte Testschritt (ein Testgerät per Kabel/ArduinoOTA auf
+eine ältere Version bringen, dann die neue `p1-smartmeter-v1.0.0`-Release-Firmware per
+Auto-Update ziehen lassen, siehe "Wichtige Einschränkungen" im Firmware-README) ist bewusst
+verschoben, nicht vergessen. Bis dieser Test gelaufen ist, gilt der Auto-Update-Codepfad
+weiterhin als ungetestet auf echter Hardware.
+
+**Status:** verschoben, noch offen.
+
+---
+
 ## Umgesetzt
 
 - **Firmwareversion pro Zählpunkt auf der Plattform sichtbar (Patrick, 12.08.2026):** "wäre
