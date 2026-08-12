@@ -98,10 +98,56 @@
     <code style="font-size:.8rem;word-break:break-all">cd /opt/eeg-platform &amp;&amp; ./scripts/mqtt_secure_setup.sh --apply</code>
   </div>
   <p style="font-size:.8rem;color:var(--gray-600);margin-top:.75rem">
-    Nach dem Anwenden müssen ALLE bereits im Feld laufenden ESP32-Geräte im eigenen
-    <code>/config</code>-Formular auf das neue Passwort umgestellt werden, sonst verlieren sie
-    die Verbindung.
+    Nach dem Anwenden verlieren ALLE bereits im Feld laufenden ESP32-Geräte die Verbindung, bis
+    sie das neue Passwort kennen -- entweder von Hand im eigenen <code>/config</code>-Formular,
+    oder automatisch per Knopfdruck über die MQTT-Fernkonfiguration direkt darunter (nur Geräte
+    mit einer neueren Firmware-Version).
   </p>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('broadcast') ?> MQTT-Fernkonfiguration (Geräte)</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Schickt Host, Port, Benutzername und Passwort an ALLE bereits im Feld laufenden Geräte --
+    über deren eigene, bestehende MQTT-Verbindung, ganz ohne dass am Router eines Mitglieds
+    irgendein Port offen sein muss (das Gerät baut die Verbindung selbst ausgehend auf, der
+    Befehl kommt über genau diese Verbindung zurück). Praktisch z.B. bei einem Umzug auf eine
+    andere Domain oder nach einer Passwortänderung oben, statt jedes Gerät einzeln vor Ort oder
+    über sein <code>/config</code>-Formular umzustellen. Nur Geräte mit einer Firmware-Version
+    ab dieser Funktion reagieren darauf -- ältere Geräte ignorieren die Nachricht einfach und
+    müssen weiterhin von Hand umgestellt werden. Ein Gerät, das die neuen Werte nicht erreicht
+    (z.B. Tippfehler), fällt nach 5 Minuten automatisch auf die vorherigen zurück.
+  </p>
+  <?php if (isset($_GET['mqtt_device_success'])): ?>
+    <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert -- wird von <code>mqtt-subscriber</code> binnen kurzer Zeit an alle Geräte gesendet.</div>
+  <?php endif; ?>
+  <?php if (!empty($mqttConfig['device_reconfig_requested_at']) && (empty($mqttConfig['device_reconfig_sent_at']) || strtotime($mqttConfig['device_reconfig_sent_at']) < strtotime($mqttConfig['device_reconfig_requested_at']))): ?>
+    <div class="alert alert-warning" style="margin-bottom:1rem"><?= icon('hourglass') ?> Änderung gespeichert, wird in Kürze an alle Geräte gesendet.</div>
+  <?php elseif (!empty($mqttConfig['device_reconfig_sent_at'])): ?>
+    <div class="alert alert-success" style="margin-bottom:1rem"><?= icon('check-circle') ?> Zuletzt gesendet: <?= date('d.m.Y H:i', strtotime($mqttConfig['device_reconfig_sent_at'])) ?> (<?= (int)($mqttConfig['device_reconfig_sent_count'] ?? 0) ?> Topic(s)).</div>
+  <?php endif; ?>
+  <form method="post" action="/admin/mqtt-device-reconfig" onsubmit="return confirm('Wirklich an ALLE im Feld laufenden Geräte senden? Geräte mit einer aelteren Firmware ignorieren die Nachricht, alle anderen wechseln sofort zu diesen Werten.');">
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Broker-Domain / IP</label>
+        <input type="text" name="device_mqtt_host" value="<?= htmlspecialchars($mqttConfig['device_reconfig_payload']['mqtt_host'] ?? 'stromfueralle.at') ?>">
+      </div>
+      <div class="form-group">
+        <label>Port</label>
+        <input type="number" name="device_mqtt_port" value="<?= htmlspecialchars((string)($mqttConfig['device_reconfig_payload']['mqtt_port'] ?? 8883)) ?>">
+      </div>
+      <div class="form-group">
+        <label>Benutzername</label>
+        <input type="text" name="device_mqtt_user" value="<?= htmlspecialchars($mqttConfig['device_reconfig_payload']['mqtt_user'] ?? $mqttConfig['mqtt_user'] ?? 'eeg-device') ?>">
+      </div>
+      <div class="form-group">
+        <label>Passwort</label>
+        <input type="text" name="device_mqtt_pass" value="<?= htmlspecialchars($mqttConfig['device_reconfig_payload']['mqtt_pass'] ?? $mqttConfig['mqtt_password'] ?? '') ?>">
+        <small style="color:var(--gray-600)">Standardmäßig dasselbe Passwort wie oben unter „MQTT-Zugangsdaten" -- nur ändern, wenn Geräte und Broker unterschiedliche Werte bekommen sollen.</small>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">An alle Geräte senden</button>
+  </form>
 </div>
 
 <script>

@@ -443,6 +443,103 @@ def on_disconnect(client, userdata, disconnect_flags, rc, properties=None) -> No
         log.warning("MQTT-Verbindung unterbrochen (rc=%s), reconnect in 5s...", rc)
 
 
+def get_all_device_targets() -> list[tuple[str, str, str]]:
+    """Alle (Slug, Marktpartner-ID, Zählernummer)-Kombinationen mit bekanntem Zähler, für die
+    MQTT-Fernkonfiguration-Broadcast (siehe process_pending_reconfig()). Ein Gerät kann laut
+    get_community_id() ENTWEDER mit dem Community-Slug ODER der (kleingeschriebenen)
+    Marktpartner-ID als "rc" im Topic konfiguriert sein -- welches davon ein bestimmtes Gerät
+    tatsächlich nutzt, weiß die Plattform nicht, deshalb werden beim Publish gleich beide
+    Topic-Varianten bedient (siehe process_pending_reconfig()). DISTINCT auf Zählernummer, da
+    ein physischer Zähler zu zwei Zählpunkten gehören kann (Bezug+Einspeisung), aber nur EIN
+    Kommando-Topic hat."""
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT c.slug, LOWER(c.marktpartner_id), mp.meter_code
+                FROM metering_points mp
+                JOIN communities c ON c.id = mp.community_id
+                WHERE mp.active = true AND mp.meter_code IS NOT NULL AND c.active = true
+                """
+            )
+            return [(row[0], row[1], row[2]) for row in cur.fetchall()]
+    finally:
+        pool.putconn(conn)
+
+
+def process_pending_reconfig(client: mqtt.Client) -> None:
+    """Holt eine über die Plattform (Platform-Admin -> E-Mail-Einstellungen -> "MQTT-
+    Fernkonfiguration (Geräte)") angestoßene Änderung ab und published sie retained an das
+    Kommando-Topic jedes bekannten Zählpunkts, siehe migrate_20260829.sql und onMqttMessage()
+    im ESP32-Sketch. Wird periodisch aus reconfig_broadcast_loop() aufgerufen -- kein Trigger
+    über MQTT selbst nötig, die Webapp hat keinen eigenen MQTT-Client."""
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT device_reconfig_payload, device_reconfig_requested_at, device_reconfig_sent_at
+                FROM platform_mqtt_config WHERE id = 1
+                """
+            )
+            row = cur.fetchone()
+    finally:
+        pool.putconn(conn)
+
+    if not row:
+        return
+    payload, requested_at, sent_at = row
+    if not payload or not requested_at:
+        return
+    if sent_at and sent_at >= requested_at:
+        return  # schon erledigt, nichts Neues seit dem letzten Broadcast
+
+    targets = get_all_device_targets()
+    payload_json = json.dumps(payload)
+    sent_topics: set[str] = set()
+    for slug, mqtt_rc, meter_code in targets:
+        for rc in {slug, mqtt_rc}:
+            if not rc:
+                continue
+            topic = f"eeg/{rc}/meter/{meter_code}/cmd"
+            if topic in sent_topics:
+                continue
+            sent_topics.add(topic)
+            client.publish(topic, payload_json, qos=1, retain=True)
+
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE platform_mqtt_config SET device_reconfig_sent_at = now(), device_reconfig_sent_count = %s WHERE id = 1",
+                (len(sent_topics),)
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool.putconn(conn)
+    log.info("MQTT-Fernkonfiguration an %d Topic(s) gesendet", len(sent_topics))
+
+
+def reconfig_broadcast_loop(client: mqtt.Client) -> None:
+    """Pollt alle 15s, ob eine neue Geräte-Fernkonfiguration ansteht (siehe
+    process_pending_reconfig()). Eigener Daemon-Thread, weil client.loop_forever() im
+    Hauptthread blockiert -- publish() auf demselben Client-Objekt ist laut paho-mqtt-Doku
+    thread-safe."""
+    while True:
+        try:
+            if _connected:
+                process_pending_reconfig(client)
+        except Exception as e:
+            log.error("Fehler bei MQTT-Fernkonfiguration-Broadcast: %s", e)
+        time.sleep(15)
+
+
 def main() -> None:
     # Warten bis DB bereit ist
     for attempt in range(30):
@@ -471,6 +568,8 @@ def main() -> None:
 
     # Heartbeat-Thread starten (Daemon -> endet mit dem Prozess).
     threading.Thread(target=heartbeat_loop, daemon=True).start()
+    # MQTT-Fernkonfiguration-Broadcast-Thread starten (siehe reconfig_broadcast_loop()).
+    threading.Thread(target=reconfig_broadcast_loop, args=(client,), daemon=True).start()
 
     while True:
         try:

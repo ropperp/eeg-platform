@@ -5365,6 +5365,12 @@ $router->get('/admin/mail-settings', function () {
     $mailTemplates = DB::fetchAll('SELECT * FROM platform_mail_templates ORDER BY key');
     try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
     try { $mqttConfig = DB::fetchOne('SELECT * FROM platform_mqtt_config WHERE id = 1'); } catch (\Throwable $e) { $mqttConfig = null; }
+    // JSONB-Spalte kommt über PDO als Rohtext zurück, nicht automatisch dekodiert (anders als
+    // z.B. psycopg2 in mqtt-subscriber) -- für die Formular-Vorbelegung in der View als Array
+    // gebraucht, siehe admin_mail_settings.php ("MQTT-Fernkonfiguration (Geräte)").
+    if ($mqttConfig && !empty($mqttConfig['device_reconfig_payload'])) {
+        $mqttConfig['device_reconfig_payload'] = json_decode($mqttConfig['device_reconfig_payload'], true) ?: [];
+    }
     require ROOT . '/src/views/pages/admin_mail_settings.php';
 });
 
@@ -5386,6 +5392,39 @@ $router->post('/admin/mqtt-settings', function () {
     );
     logAudit(null, 'mqtt_config.update', 'platform_mqtt_config', '1', 'MQTT-Zugangsdaten geändert (Benutzer: ' . $mqttUser . '), Anwendung auf den Broker angestoßen.');
     header('Location: /admin/mail-settings?mqtt_success=1');
+    exit;
+});
+
+/**
+ * MQTT-Fernkonfiguration der ESP-Geräte: schickt Host/Port/Benutzer/Passwort an ALLE bereits
+ * im Feld laufenden Geräte, statt jedes einzeln über sein eigenes /config-Formular umstellen zu
+ * müssen (Patrick, 12.08.2026, nachdem geklärt war, dass dafür keine offenen Ports beim
+ * Mitglied nötig sind -- jedes Gerät baut die MQTT-Verbindung selbst ausgehend auf, der Befehl
+ * kommt über genau diese Verbindung zurück). Die Webapp selbst hat keinen MQTT-Client -- speichert
+ * hier nur die Anfrage (migrate_20260829.sql), mqtt-subscriber holt sie über die bestehende
+ * DB-Verbindung ab und published sie (siehe reconfig_broadcast_loop() in main.py). Nur Geräte
+ * mit einer Firmware ab dieser Funktion (onMqttMessage() im Sketch) reagieren darauf -- ältere
+ * Geräte ignorieren die für sie unbekannte Nachricht einfach.
+ */
+$router->post('/admin/mqtt-device-reconfig', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $host = trim($_POST['device_mqtt_host'] ?? '');
+    $port = (int)($_POST['device_mqtt_port'] ?? 0);
+    $user = trim($_POST['device_mqtt_user'] ?? '');
+    $pass = (string)($_POST['device_mqtt_pass'] ?? '');
+    if ($host === '' || $port <= 0 || $user === '' || $pass === '') {
+        header('Location: /admin/mail-settings?error=' . urlencode('Für die Geräte-Fernkonfiguration bitte Host, Port, Benutzername und Passwort ausfüllen.'));
+        exit;
+    }
+    $payload = json_encode(['mqtt_host' => $host, 'mqtt_port' => $port, 'mqtt_user' => $user, 'mqtt_pass' => $pass]);
+    DB::execute(
+        "UPDATE platform_mqtt_config SET device_reconfig_payload = ?, device_reconfig_requested_at = now() WHERE id = 1",
+        [$payload]
+    );
+    logAudit(null, 'mqtt_config.device_reconfig', 'platform_mqtt_config', '1',
+        "MQTT-Fernkonfiguration an alle Geräte angestoßen (Host: $host:$port, Benutzer: $user).");
+    header('Location: /admin/mail-settings?mqtt_device_success=1');
     exit;
 });
 
