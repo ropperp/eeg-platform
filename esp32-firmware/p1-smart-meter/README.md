@@ -9,6 +9,11 @@ Bezug/Einspeisung live per MQTT an die Plattform.
 > Diese Datei dokumentiert den Code-Stand zum Zeitpunkt der Aufnahme ins Repo — nicht
 > zwangsläufig, was aktuell auf einem Gerät im Feld läuft.
 
+> **Hinweis (12.08.2026):** Der Ordner heißt bewusst genauso wie die `.ino`-Datei
+> (`p1-smart-meter/p1-smart-meter.ino`) -- Arduino verlangt das für jeden Sketch und erstellt
+> beim Öffnen sonst automatisch einen neuen, passend benannten Ordner. Beim Umbenennen der
+> `.ino`-Datei künftig immer den Ordner mit umbenennen (und umgekehrt), sonst bricht das wieder.
+
 ## Hardware
 
 - SBC-NODEMCU-ESP32
@@ -21,7 +26,7 @@ Bezug/Einspeisung live per MQTT an die Plattform.
   ausgibt** (der ESP32-GPIO ist nicht 5V-tolerant). Falls doch 5V: nicht direkt verbinden,
   sondern einen einfachen Spannungsteiler oder wieder einen Pegelwandler dazwischenschalten.
 
-Pinout siehe Kopfkommentar in `sketch_ESP32_P1_Smart_Meter.ino`.
+Pinout siehe Kopfkommentar in `p1-smart-meter.ino`.
 
 ## Funktionsumfang (Stand dieses Commits)
 
