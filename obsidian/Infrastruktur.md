@@ -211,8 +211,12 @@ docker compose up -d --build
 > Absender `no-reply@eda.at`, Marktpartner-ID auch im Betreff, signierter Download-Link (7 Tage
 > gültig, kein Anhang) auf `prod-api.eda-portal.at/exports/download/...` -- `EdaAutoImporter.php`
 > entsprechend angepasst (Absender-Filter, gezielte Link-Suche, Marktpartner-ID-Gegenprobe).
-> **Weiterhin nicht verifiziert:** ob der Link ohne aktive Portal-Session abrufbar ist -- falls
-> nicht, bräuchte `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
+> **Live-Download bestätigt (13.08.2026):** erster echter Auto-Import-Lauf hat komplett
+> funktioniert (Absender, Link, Download OHNE Portal-Session, Zuordnung) -- kein Login-Schritt
+> nötig. Zusätzlich: ein erneuter Import für einen Zeitraum mit bereits vorhandenen Daten wird
+> jetzt automatisch überschrieben, solange dafür noch keine Rechnungen verschickt wurden (siehe
+> `_billing_period_finalized()` in `eda-parser/parser.py`) -- praktisch bei anfangs nur
+> L3-Datenqualität.
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
 > änderbar, per Knopfdruck automatisch angewendet): Platform-Admin → Einstellungen →
