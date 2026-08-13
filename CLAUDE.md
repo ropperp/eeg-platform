@@ -585,10 +585,18 @@ docker compose up -d --build
 > einem Link auf diese Export-Domain statt dem ersten beliebigen `href` in der Mail, gleicht die
 > Marktpartner-ID aus Dateiname UND Betreff gegeneinander ab, und erzwingt eine `.xlsx`-Endung
 > beim Speichern (der Link selbst enthält nur eine UUID, keine erkennbare Dateiendung).
-> **Weiterhin nicht verifiziert:** ob der Link tatsächlich ohne aktive Portal-Session abrufbar
-> ist (der eigentliche automatische Download wurde noch nicht live getestet) -- verlangt er doch
-> eine Session, schlägt der Download fehl (Alarm-Mail) und `EdaAutoImporter.php` müsste um einen
-> Login-Schritt (z. B. Headless-Browser) erweitert werden.
+> **Live-Download bestätigt (13.08.2026):** beim ersten echten Auto-Import-Lauf hat die
+> komplette Kette funktioniert -- Absendererkennung, Download-Link-Suche, Herunterladen OHNE
+> Portal-Session, Dateibenennung, Community-Zuordnung, Parser-Start. Der Lauf endete zwar mit
+> einem Fehler, aber einem inhaltlichen (siehe "Erneuter Import" unten), nicht am Download
+> selbst -- die zuvor offene Frage ist damit positiv beantwortet, kein Login-Schritt nötig.
+>
+> **Erneuter Import für einen Zeitraum mit bereits vorhandenen Daten** ("Duplikat"): wird seit
+> demselben Tag automatisch überschrieben, SOLANGE noch keine Rechnungen für den Zeitraum
+> verschickt wurden (kein Abrechnungslauf mit status 'released'/'done') -- z. B. wenn zunächst
+> nur L3-Datenqualität vorlag und ein späterer Export bessere Werte liefert. Ist der Zeitraum
+> schon abgerechnet, bleibt es beim harten Fehler. Siehe `_billing_period_finalized()` in
+> `eda-parser/parser.py`.
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
 > änderbar, seit dem gleichen Tag auch per Knopfdruck automatisch angewendet): bisher lagen

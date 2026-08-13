@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-13 (50) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich wäre dafür, es wird geschaut, welcher Zeitraum. Ist schon eine
+Abrechnungsperiode erstellt worden, prüfen, ob es schon einen Monatsexport gibt. Wenn ja
+überschreiben, wenn nein importieren. Aber nur dann, wenn er noch nicht abgeschloosen ist der
+Rechnungszeitraum. Weil hab noch viele L3 Werte und deswegem muss es auch überschrieben
+werden." (Antwort auf einen realen EDA-Auto-Import-Fehlschlag: "Duplikat: Zählpunkt ... hat
+bereits ... Datensatz/Datensätze für den Zeitraum 2026-07-31 ...")
+**Auftrag:** Der EDA-Import (manuell und automatisch) soll einen erneuten Import für einen
+Zeitraum mit bereits vorhandenen Daten nicht mehr immer hart ablehnen, sondern überschreiben
+dürfen -- aber nur, solange für diesen Zeitraum noch keine Rechnungen verschickt wurden.
+**Ergebnis:** `eda-parser/parser.py`: neue Funktion `_billing_period_finalized()` prüft, ob ein
+Abrechnungslauf mit status 'released'/'done' den Import-Zeitraum abdeckt. Wenn nicht: alte
+Messwerte + alter `eda_imports`-Eintrag für den Zeitraum werden gelöscht und der neue Import
+läuft durch (als Warnung "X Zählpunkt(e) überschrieben" sichtbar). Wenn doch: weiterhin harter
+Fehler wie bisher. Gilt einheitlich für `/portal/eda/upload` und `EdaAutoImporter.php` (beide
+nutzen `import_to_db()`). Mit einem Mock-Test isoliert verifiziert, kein Zugriff auf eine echte
+DB in dieser Umgebung (PR #78). Nebenbei festgestellt: die komplette Auto-Import-Kette (Absender-
+Erkennung, Download-Link ohne Portal-Login, Dateibenennung, Community-Zuordnung) hat beim
+echten Testlauf zum ersten Mal vollständig funktioniert -- die zuvor offene Frage, ob der
+EDA-Downloadlink ohne aktive Portal-Session funktioniert, ist damit positiv beantwortet.
+
 ## 2026-08-13 (49) — Claude Code — Claude Sonnet 5
 **Prompt:** "hab ein anderes Problem. Er haut mir immer die azure App daten raus. und die
 signatur ist auch wieder weg."
