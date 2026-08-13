@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-13 (51) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich habe jetzt noch mal einen Screenshot von dem Live-Bild gegeben. Das Problem,
+das ich habe, ist: Wenn ich den Verbraucher ansehe, geht die Animation vom Verbraucher zur
+Energiegemeinschaft. Das ist aber genau falsch, weil ein Verbraucher nie in der
+Energiegemeinschaft einspeisen kann. Von den PV-Anlagen geht auch der Energiefluss zu den
+Einspeisern, aber wie es eigentlich klar ist, ist, dass die Energie ja von den Einspeisern/
+PV-Anlagen zur Energiegemeinschaft geht. Wenn eingespeist wird, geht die Animation von der
+Energiegemeinschaft zum Netz. Wenn er vom Netz bezogen wird, geht eine Animation von dem Netz
+zur Energiegemeinschaft und weiter zu den Verbrauchern. Bitte die Richtungen ändern. Sie gehen
+alle drei Richtungen genau verkehrt herum."
+**Auftrag:** Die Fließrichtung der Animation in der Energiefluss-Grafik korrigieren -- alle
+drei Verbindungen liefen laut Live-Test verkehrt herum.
+**Ergebnis:** Root Cause: `ef-line-pv`/`ef-line-verbrauch` hatten nie eine "reverse"-Klasse
+(liefen immer in der CSS-Standardrichtung, die zufällig für beide falsch war), und beim
+Netz-Connector war die "reverse"-Bedingung genau umgekehrt gesetzt. Behoben: PV- und
+Verbrauch-Connector bekommen permanent "reverse" (Richtung bei diesen beiden ändert sich nie:
+PV -> EEG, EEG -> Verbrauch), Netz-Connector jetzt "reverse" bei Bezug statt bei Einspeisung.
+Zusätzlich fehlte eine CSS-Regel `.eflow-connector-v.reverse` komplett (gab es bisher nur für
+horizontale Connectoren). Mit Playwright/Chromium empirisch verifiziert
+(`getComputedStyle(...).animationDirection` für alle drei Connectoren in beiden
+Netz-Szenarien), nicht nur rechnerisch hergeleitet (PR #80).
+
 ## 2026-08-13 (50) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich wäre dafür, es wird geschaut, welcher Zeitraum. Ist schon eine
 Abrechnungsperiode erstellt worden, prüfen, ob es schon einen Monatsexport gibt. Wenn ja
