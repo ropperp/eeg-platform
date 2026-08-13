@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-13 (49) — Claude Code — Claude Sonnet 5
+**Prompt:** "hab ein anderes Problem. Er haut mir immer die azure App daten raus. und die
+signatur ist auch wieder weg."
+**Auftrag:** Ursache dafür finden, warum die Azure-App-Zugangsdaten (Tenant-ID/Client-ID/
+Client-Secret) und die Mail-Signatur in Platform-Admin → Einstellungen wiederholt verschwinden.
+**Ergebnis:** Root Cause gefunden und behoben (PR #76): das kleine "EDA-Automatik"-Postfach-
+Formular postet zur selben Route (`/admin/mail-settings`) wie das große Microsoft-Graph-
+Formular, enthält aber nur ein einziges Feld (`eda_import_mailbox_address`). Die UPDATE-Query
+baute bisher jedes Feld unbedingt aus `$_POST` auf -- ein im gerade abgeschickten Formular gar
+nicht vorhandenes Feld wurde damit auf NULL zurückgesetzt statt unverändert zu bleiben. Jedes
+Speichern der EDA-Postfachadresse löschte dadurch Tenant-ID, Client-ID, Signatur, beide
+Alarm-E-Mail-Adressen und die Logo-Größe. Fix: `isset($_POST[...])` unterscheidet jetzt "Feld
+war in diesem Request gar nicht dabei" von "Feld war dabei, aber bewusst leer abgeschickt"
+(gleiches Prinzip, das für `client_secret` schon vorher korrekt war). Mit einem
+Simulationsskript für beide Szenarien verifiziert, `php tests/run.php` weiterhin 77/77 grün.
+**Wichtig für Patrick:** die bisher schon gelöschten Werte sind dadurch nicht automatisch
+wieder da -- Tenant-ID/Client-ID/Client-Secret und die Signatur müssen nach dem Deploy einmal
+neu eingetragen werden, bleiben danach aber stehen.
+
 ## 2026-08-13 (48) — Claude Code — Claude Sonnet 5
 **Prompt:** "ja bitte im Kundenportal auch hinzufügen. Als Ergänzung bitte in der Mitte noch
 einen Kreis mit EEG. Zum EDA Import, so sieht eine Email aus. [echte EDA-Exportmail: Absender
