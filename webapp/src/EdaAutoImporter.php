@@ -14,14 +14,24 @@ declare(strict_types=1);
  * genauer Ablauf (Formularfelder, evtl. 2FA) uns nicht vorliegt. Sobald EDA den Exportlink
  * per Mail an das hier hinterlegte Postfach schickt, übernimmt diese Klasse den Rest.
  *
- * Annahme, die sich nur an einer echten EDA-Mail verifizieren lässt: die Exportmail enthält
- * entweder die XLSX direkt als Anhang, oder einen Download-Link im Mailtext, der OHNE weiteren
- * Portal-Login abrufbar ist (übliches Muster für zeitlich befristete, signierte Download-Links).
- * Verlangt der Link stattdessen eine aktive Portal-Session, schlägt der Download fehl und es
- * gibt eine Alarm-Mail -- die betroffene Mail bleibt dann ungelesen für die manuelle Prüfung.
+ * Verifiziert an einer echten EDA-Mail (Patrick, 13.08.2026, Betreff "EDA Portal –
+ * Energiedatenreport RC108175", Absender no-reply@eda.at): die Exportmail enthält KEINEN
+ * Anhang, sondern einen signierten Download-Link im HTML-Mailtext
+ * (https://prod-api.eda-portal.at/exports/download/<uuid>?expires=...&signature=...,
+ * 7 Tage gültig), der OHNE weiteren Portal-Login abrufbar ist -- der XLSX-Anhang-Pfad in
+ * extractFile() unten bleibt trotzdem als Fallback bestehen, falls EDA das Format irgendwann
+ * ändert. Verlangt der Link doch einmal eine aktive Portal-Session, schlägt der Download fehl
+ * und es gibt eine Alarm-Mail -- die betroffene Mail bleibt dann ungelesen für die manuelle
+ * Prüfung.
  */
 class EdaAutoImporter
 {
+    /** Einziger bekannter Absender echter EDA-Exportmails -- alles andere im dedizierten
+     * Postfach (z.B. Zustellfehler, Antworten, Spam) wird ignoriert statt fälschlich als
+     * fehlgeschlagener Import behandelt zu werden (kein Alarm, bleibt ungelesen zur manuellen
+     * Durchsicht). */
+    private const EDA_SENDER_ADDRESS = 'no-reply@eda.at';
+
     /** Verarbeitet alle ungelesenen Mails im konfigurierten Postfach. Gibt eine Liste von Log-Zeilen zurück. */
     public static function run(): array
     {
@@ -48,6 +58,15 @@ class EdaAutoImporter
         $subject = $msg['subject'] ?? '(ohne Betreff)';
         $id      = $msg['id'] ?? '';
 
+        $senderAddress = strtolower(trim((string)($msg['from']['emailAddress']['address'] ?? '')));
+        if ($senderAddress !== self::EDA_SENDER_ADDRESS) {
+            // Bewusst KEIN fail()/Alarm-Mail -- eine Mail von irgendwem anderen im dedizierten
+            // EDA-Postfach ist kein fehlgeschlagener Import, sondern schlicht nicht unsere
+            // Zuständigkeit (Zustellfehler, Antwort, Spam). Bleibt ungelesen zur manuellen
+            // Durchsicht, aber ohne jeden Lauf erneut eine Alarm-Mail zu verschicken.
+            return "IGNORIERT [{$subject}]: Absender '{$senderAddress}' ist nicht " . self::EDA_SENDER_ADDRESS;
+        }
+
         try {
             [$filename, $content] = self::extractFile($mailbox, $msg);
         } catch (\Throwable $e) {
@@ -56,8 +75,19 @@ class EdaAutoImporter
         }
 
         $marktpartnerId = self::extractMarktpartnerId($filename);
+        // Fallback/Gegenprobe: der Betreff enthält laut echter EDA-Mail ebenfalls die
+        // Marktpartner-ID ("EDA Portal – Energiedatenreport RC108175") -- nützlich, falls der
+        // heruntergeladene Dateiname mal nicht dem erwarteten Schema folgt, UND als Sicherheitsnetz
+        // gegen einen falsch zugeordneten Export (mehrere EEGs teilen sich dasselbe Postfach).
+        $subjectMarktpartnerId = preg_match('/\b([A-Z]{2}\d{4,})\b/', $subject, $sm) ? $sm[1] : null;
         if ($marktpartnerId === null) {
-            self::fail($mailbox, $id, $subject, "Marktpartner-ID nicht aus Dateiname '{$filename}' ablesbar.");
+            $marktpartnerId = $subjectMarktpartnerId;
+        } elseif ($subjectMarktpartnerId !== null && strcasecmp($marktpartnerId, $subjectMarktpartnerId) !== 0) {
+            self::fail($mailbox, $id, $subject, "Marktpartner-ID aus Dateiname ('{$marktpartnerId}') und Betreff ('{$subjectMarktpartnerId}') stimmen nicht überein -- Datei: {$filename}.");
+            return "FEHLER [{$subject}]: Marktpartner-ID-Widerspruch (Datei: {$marktpartnerId}, Betreff: {$subjectMarktpartnerId})";
+        }
+        if ($marktpartnerId === null) {
+            self::fail($mailbox, $id, $subject, "Marktpartner-ID weder aus Dateiname '{$filename}' noch aus dem Betreff ablesbar.");
             return "FEHLER [{$subject}]: Marktpartner-ID nicht ablesbar (Datei: {$filename})";
         }
 
@@ -100,8 +130,14 @@ class EdaAutoImporter
     }
 
     /**
-     * Liefert [Dateiname, Rohinhalt]. Bevorzugt einen direkten XLSX-Anhang; sonst wird der erste
-     * http(s)-Link im HTML-Mailtext heruntergeladen (Annahme siehe Klassen-Kommentar oben).
+     * Liefert [Dateiname, Rohinhalt]. Bevorzugt einen direkten XLSX-Anhang (Fallback-Pfad, falls
+     * EDA das Format irgendwann ändert); der reguläre Fall laut echter EDA-Mail ist der
+     * signierte Download-Link im HTML-Mailtext (siehe Klassen-Kommentar oben). Sucht dabei
+     * gezielt nach einem Link auf die bekannte EDA-Export-Domain -- NICHT einfach den ersten
+     * href im HTML nehmen, sonst könnte z.B. der Support-Link ("support.eda.at") in der
+     * Mail-Signatur fälschlich erwischt werden, falls er vor dem eigentlichen Download-Link im
+     * HTML-Quelltext steht. Fällt nur auf "irgendein href" zurück, wenn EDA die Export-Domain
+     * mal ändert.
      */
     private static function extractFile(string $mailbox, array $msg): array
     {
@@ -114,10 +150,13 @@ class EdaAutoImporter
         }
 
         $html = $msg['body']['content'] ?? '';
-        if (!preg_match('/href="(https?:\/\/[^"]+)"/i', $html, $m)) {
+        if (preg_match('/href="(https?:\/\/[^"]*eda-portal\.at\/exports\/download\/[^"]+)"/i', $html, $m)) {
+            $url = html_entity_decode($m[1]);
+        } elseif (preg_match('/href="(https?:\/\/[^"]+)"/i', $html, $m)) {
+            $url = html_entity_decode($m[1]);
+        } else {
             throw new \RuntimeException('Weder XLSX-Anhang noch Download-Link im Mailtext gefunden.');
         }
-        $url = html_entity_decode($m[1]);
 
         $ctx = stream_context_create(['http' => [
             'method'        => 'GET',
@@ -138,6 +177,15 @@ class EdaAutoImporter
         }
         if ($filename === null) {
             $filename = basename(parse_url($url, PHP_URL_PATH) ?: 'export.xlsx');
+        }
+        // Der echte EDA-Download-Link selbst enthält keine erkennbare Dateiendung (nur eine
+        // UUID im Pfad, siehe Klassen-Kommentar) -- fehlt auch der Content-Disposition-Header
+        // mal, würde die gespeicherte Datei ohne ".xlsx" enden. pandas.ExcelFile() in
+        // eda-parser/parser.py bestimmt das Dateiformat aber anhand der Endung und würde dann
+        // fehlschlagen, obwohl der Inhalt eine gültige XLSX-Datei ist -- deshalb hier zur
+        // Sicherheit erzwingen, unabhängig davon, was der Header sagt.
+        if (!str_ends_with(strtolower($filename), '.xlsx')) {
+            $filename .= '.xlsx';
         }
         return [$filename, $content];
     }

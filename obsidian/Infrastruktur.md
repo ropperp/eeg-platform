@@ -207,9 +207,12 @@ docker compose up -d --build
 >    ```
 > Testen ohne Cron abzuwarten: Platform-Admin → Einstellungen → "Jetzt prüfen". Nicht
 > automatisch verarbeitbare Mails bleiben ungelesen + Alarm-Mail; Fallback bleibt der manuelle
-> Upload über `/portal/eda/upload`. **Noch nicht an einer echten EDA-Mail verifiziert:** dass der
-> Download-Link ohne weiteren Portal-Login abrufbar ist -- falls nicht, bräuchte
-> `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
+> Upload über `/portal/eda/upload`. **Format an einer echten EDA-Mail verifiziert (13.08.2026):**
+> Absender `no-reply@eda.at`, Marktpartner-ID auch im Betreff, signierter Download-Link (7 Tage
+> gültig, kein Anhang) auf `prod-api.eda-portal.at/exports/download/...` -- `EdaAutoImporter.php`
+> entsprechend angepasst (Absender-Filter, gezielte Link-Suche, Marktpartner-ID-Gegenprobe).
+> **Weiterhin nicht verifiziert:** ob der Link ohne aktive Portal-Session abrufbar ist -- falls
+> nicht, bräuchte `EdaAutoImporter.php` zusätzlich einen Login-Schritt (z. B. Headless-Browser).
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
 > änderbar, per Knopfdruck automatisch angewendet): Platform-Admin → Einstellungen →
