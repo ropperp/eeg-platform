@@ -24,6 +24,14 @@ Aufbau der echten Datei (siehe docs/EDA_DATENQUALITAET.md, docs/AUFTEILUNGSSCHLU
 
 Datenquellen-Interface ist abstrakt gehalten → späterer Wechsel auf KEP-API ohne Umbau.
 
+Erneuter Import für einen Zeitraum, der schon Daten hat ("Duplikat"): wird seit 13.08.2026
+automatisch ÜBERSCHRIEBEN, SOLANGE dafür noch keine Rechnungen verschickt wurden (kein
+Abrechnungslauf mit status 'released'/'done' für den Zeitraum, siehe
+_billing_period_finalized()) -- Patrick: bei zunächst nur L3-Datenqualität soll ein späterer,
+besserer EDA-Export den alten Import ersetzen können, statt manuell aufräumen zu müssen. Ist
+der Zeitraum bereits abgerechnet, bleibt es beim harten Fehler wie zuvor (schützt bereits
+verschickte Rechnungen).
+
 Aufruf:
   python parser.py --file RC108175_2026070120260731_20260805T200419.xlsx \
                    --community strompool-feldkirchen \
@@ -268,6 +276,30 @@ class XlsxDataSource:
         return result
 
 
+def _billing_period_finalized(conn, community_id, period_from, period_to) -> bool:
+    """Prüft, ob für den übergebenen Zeitraum (ein Kalendermonat, siehe file_period_from/
+    file_period_to) bereits ein ABGESCHLOSSENER Abrechnungslauf existiert (status 'released'
+    oder 'done', siehe billing_runs-CHECK-Constraint in init.sql) -- egal ob Monats- oder
+    Quartalslauf, deshalb ein Bereichs- statt Exaktvergleich: period_from/period_to des
+    Abrechnungslaufs müssen den Import-Zeitraum vollständig einschließen. Grundlage für die
+    Überschreiben-Entscheidung in import_to_db() unten (Patrick, 13.08.2026: solange noch keine
+    Rechnungen für den Zeitraum verschickt wurden, darf ein erneuter Import mit besserer
+    Datenqualität -- z.B. wenn zunächst nur L3-Werte verfügbar waren -- den alten überschreiben;
+    danach nicht mehr, um bereits verschickte Rechnungen nicht rückwirkend falsch aussehen zu
+    lassen)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1 FROM billing_runs
+            WHERE community_id = %s AND status IN ('released', 'done')
+              AND period_from <= %s AND period_to >= %s
+            LIMIT 1
+            """,
+            (community_id, period_from, period_to)
+        )
+        return cur.fetchone() is not None
+
+
 def import_to_db(
     conn,
     community_id: str,
@@ -357,6 +389,15 @@ def import_to_db(
             "(siehe Abschnitt „Neu angelegt\" oben)."
         )
 
+    # Erneuter Import für einen Zeitraum, der schon Daten hat: erlaubt, SOLANGE dafür noch kein
+    # abgeschlossener Abrechnungslauf existiert (siehe _billing_period_finalized() oben) -- z.B.
+    # weil zunächst nur eine L3-Datenqualität verfügbar war und ein späterer EDA-Export bessere
+    # Werte liefert. Einmal pro Aufruf geprüft (gilt für die ganze Datei/den ganzen Zeitraum,
+    # nicht pro Zählpunkt einzeln).
+    overwrite_allowed = not _billing_period_finalized(conn, community_id, file_period_from, file_period_to)
+    overwritten: list[str] = []
+    old_imports_cleaned = False
+
     with conn.cursor() as cur:
         for mp_data in data:
             zp = mp_data.zaehlpunkt_nr
@@ -387,12 +428,37 @@ def import_to_db(
                 (community_id, mp_id, ts_min, ts_max)
             )
             existing = cur.fetchone()[0]
-            if existing > 0:
+            if existing > 0 and not overwrite_allowed:
                 raise ValueError(
                     f"Duplikat: Zählpunkt {zp} hat bereits {existing} Datensatz/Datensätze "
-                    f"für den Zeitraum {ts_min} – {ts_max}. Import abgebrochen (evtl. wurde "
-                    "dieser Monat schon einmal importiert?)."
+                    f"für den Zeitraum {ts_min} – {ts_max}. Import abgebrochen -- für diesen "
+                    "Zeitraum wurden bereits Rechnungen verschickt (Abrechnungslauf "
+                    "'released'/'done'), ein Überschreiben würde bereits verschickte "
+                    "Rechnungen rückwirkend falsch aussehen lassen. Nur über einen neuen "
+                    "Abrechnungslauf/manuell korrigierbar."
                 )
+            if existing > 0 and overwrite_allowed:
+                # Erlaubtes Überschreiben (siehe overwrite_allowed oben): alte Messwerte dieses
+                # Zählpunkts für exakt diesen Zeitraum löschen, danach unten normal neu einfügen.
+                cur.execute(
+                    """
+                    DELETE FROM eda_measurements
+                    WHERE community_id = %s AND metering_point_id = %s
+                      AND time >= %s AND time <= %s
+                    """,
+                    (community_id, mp_id, ts_min, ts_max)
+                )
+                overwritten.append(zp)
+                if not old_imports_cleaned:
+                    # Der/die alte(n) eda_imports-Protokolleintrag/-einträge für exakt diesen
+                    # Zeitraum werden ersetzt (nicht als zweiter Eintrag daneben stehen gelassen,
+                    # siehe "Bisherige Importe" auf /portal/eda/upload) -- einmal pro Lauf, nicht
+                    # pro Zählpunkt.
+                    cur.execute(
+                        "DELETE FROM eda_imports WHERE community_id = %s AND period_from = %s AND period_to = %s",
+                        (community_id, file_period_from, file_period_to)
+                    )
+                    old_imports_cleaned = True
 
             # Einfügen
             rows = [
@@ -427,6 +493,14 @@ def import_to_db(
             total_records += len(rows)
             log.info("Zählpunkt %s: %d Datensatz/Datensätze importiert (%s, %s)", zp, len(rows), mp_data.quality, mp_data.completeness)
 
+        if overwritten:
+            warnings.append(
+                f"{len(overwritten)} Zählpunkt(e) für diesen Zeitraum bereits vorhanden gewesen "
+                "und mit diesem Import überschrieben (noch kein abgeschlossener Abrechnungslauf "
+                "für den Zeitraum)."
+            )
+            log.warning("%d Zählpunkt(e) überschrieben: %s", len(overwritten), ", ".join(overwritten))
+
         # Import-Protokoll
         cur.execute(
             """
@@ -452,8 +526,8 @@ def import_to_db(
 
     conn.commit()
     log.info(
-        "Import abgeschlossen: %d Datensätze, %d Warnungen, %d neu angelegt (Import-ID: %s)",
-        total_records, len(warnings), len(neu_angelegt), import_id
+        "Import abgeschlossen: %d Datensätze, %d Warnungen, %d neu angelegt, %d überschrieben (Import-ID: %s)",
+        total_records, len(warnings), len(neu_angelegt), len(overwritten), import_id
     )
 
     return {
@@ -461,6 +535,7 @@ def import_to_db(
         "records": total_records,
         "warnings": warnings,
         "neu_angelegt": neu_angelegt,
+        "overwritten": overwritten,
         "period_from": str(file_period_from),
         "period_to": str(file_period_to),
     }
