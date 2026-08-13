@@ -45,6 +45,14 @@ $backupAgeHours = $backupStatus && !empty($backupStatus['unix'])
 // Community-Gesamtleistung live -- siehe communityLivePower() in index.php (gemeinsam mit
 // /portal/api/live-power genutzt, das die Kachel unten alle 5s per Fetch aktualisiert).
 $live = communityLivePower($communityId);
+// Dritte Komponente fürs Energiefluss-Diagramm unten: bezug_w/einsp_w sind jeweils die Summe
+// über die eigenen Zähler jedes Mitglieds (physischer Netzanschluss, kein interner Austausch
+// zwischen Mitgliedern) -- die Differenz ist deshalb genau das, was die Community gerade
+// GEMEINSAM entweder zusätzlich aus dem öffentlichen Netz zieht (Erzeugung < Verbrauch) oder
+// als Überschuss ins öffentliche Netz einspeist (Erzeugung > Verbrauch). Patrick, 13.08.2026,
+// nach einem Screenshot einer Fronius/Home-Assistant-Energiefluss-Ansicht: "wieviel wird
+// eingespeist, wieviel wird bezogen, und als dritte Komponente noch das Netz".
+$netzW = $live['einsp_w'] - $live['bezug_w'];
 
 ob_start();
 ?>
@@ -122,34 +130,109 @@ ob_start();
 
 <!-- Live-Daten -->
 <div class="grid-2" style="margin-bottom:2rem">
+  <?php
+    $netzDirClass = $netzW > 0 ? 'eflow-out' : ($netzW < 0 ? 'eflow-in' : '');
+    $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)' : 'Netz');
+    $pvActive     = ($live['einsp_w'] ?? 0) > 0;
+    $verbActive   = ($live['bezug_w'] ?? 0) > 0;
+    $netzActive   = $netzW != 0;
+  ?>
   <div class="card">
-    <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Live-Leistung</h3>
-    <div style="display:flex;gap:2rem">
-      <div>
-        <div id="live-bezug-w" style="font-size:1.75rem;font-weight:700;color:#dc2626"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '') ?> W</div>
-        <div style="font-size:.8rem;color:var(--gray-600)">Bezug</div>
+    <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Energiefluss (Live)</h3>
+    <div class="eflow" id="eflow">
+      <div class="eflow-node">
+        <div class="eflow-circle eflow-circle-pv"><?= icon('sun') ?></div>
+        <div class="eflow-value" id="ef-pv"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
+        <div class="eflow-label">PV-Erzeugung</div>
       </div>
-      <div>
-        <div id="live-einsp-w" style="font-size:1.75rem;font-weight:700;color:#16a34a"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '') ?> W</div>
-        <div style="font-size:.8rem;color:var(--gray-600)">Einspeisung</div>
+      <div class="eflow-connector eflow-connector-v<?= $pvActive ? ' active' : '' ?>" id="ef-line-pv"><span></span></div>
+      <div class="eflow-middle">
+        <div class="eflow-node">
+          <div class="eflow-circle eflow-circle-netz <?= $netzDirClass ?>" id="ef-netz-circle"><?= icon('plug') ?></div>
+          <div class="eflow-value" id="ef-netz"><?= number_format(abs($netzW), 0, ',', '.') ?> W</div>
+          <div class="eflow-label" id="ef-netz-label"><?= $netzLabel ?></div>
+        </div>
+        <div class="eflow-connector eflow-connector-h<?= $netzActive ? ' active' : '' ?><?= $netzW > 0 ? ' reverse' : '' ?>" id="ef-line-netz"><span></span></div>
+        <div class="eflow-hub"></div>
+        <div class="eflow-connector eflow-connector-h<?= $verbActive ? ' active' : '' ?>" id="ef-line-verbrauch"><span></span></div>
+        <div class="eflow-node">
+          <div class="eflow-circle eflow-circle-verbrauch"><?= icon('buildings') ?></div>
+          <div class="eflow-value" id="ef-verbrauch"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
+          <div class="eflow-label">Verbrauch</div>
+        </div>
       </div>
     </div>
-    <p style="margin-top:.75rem;font-size:.8rem;color:var(--gray-600)"><span id="live-active-meters"><?= $live['active_meters'] ?></span> Zählpunkte aktiv in den letzten 2 Min.</p>
+    <p style="margin-top:1rem;font-size:.8rem;color:var(--gray-600)"><span id="live-active-meters"><?= $live['active_meters'] ?></span> Zählpunkte aktiv in den letzten 2 Min.</p>
     <p id="live-disclaimer" style="margin-top:.5rem;font-size:.75rem;color:#b45309;display:<?= ($live['active_meters'] ?? 0) < ($live['total_meters'] ?? 0) ? 'block' : 'none' ?>">
       <?= icon('warning-circle') ?> Hinweis: Nicht alle Zählpunkte sind gerade online. Die angezeigten
       Gesamtwerte können daher geringfügig von der tatsächlichen Situation abweichen.
     </p>
+    <p style="margin-top:.5rem;font-size:.72rem;color:var(--gray-600)">
+      "Netz" zeigt die Differenz zwischen Erzeugung und Verbrauch der ganzen Community -- kein
+      physischer Austausch zwischen Mitgliedern, sondern was gerade in Summe zusätzlich aus dem
+      öffentlichen Netz kommt bzw. dorthin überschüssig eingespeist wird. Für die Abrechnung
+      zählt weiterhin ausschließlich der offizielle EDA-Import, siehe Abrechnung.
+    </p>
   </div>
+  <style>
+  .eflow { display:flex; flex-direction:column; align-items:center; padding:.5rem 0 0; }
+  .eflow-node { display:flex; flex-direction:column; align-items:center; gap:.3rem; width:100px; }
+  .eflow-circle {
+    width:64px; height:64px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    border:3px solid var(--gray-200); background:var(--white);
+    transition: border-color .3s ease, color .3s ease;
+  }
+  .eflow-circle .icon { width:28px; height:28px; }
+  .eflow-circle-pv { border-color:#eab308; color:#eab308; }
+  .eflow-circle-verbrauch { border-color:#3b82f6; color:#3b82f6; }
+  .eflow-circle-netz { border-color:var(--gray-200); color:var(--gray-600); }
+  .eflow-circle-netz.eflow-in  { border-color:#dc2626; color:#dc2626; }
+  .eflow-circle-netz.eflow-out { border-color:#16a34a; color:#16a34a; }
+  .eflow-value { font-weight:700; font-size:.95rem; color:var(--gray-800); }
+  .eflow-label { font-size:.72rem; color:var(--gray-600); text-align:center; }
+  .eflow-middle { display:flex; align-items:center; }
+  .eflow-connector { position:relative; background:var(--gray-200); overflow:hidden; flex-shrink:0; color:var(--gray-600); }
+  .eflow-connector-v { width:2px; height:26px; }
+  .eflow-connector-h { width:52px; height:2px; }
+  .eflow-connector span { position:absolute; inset:0; opacity:0; }
+  .eflow-connector-v span { background: repeating-linear-gradient(to bottom, currentColor 0 6px, transparent 6px 12px); }
+  .eflow-connector-h span { background: repeating-linear-gradient(to right, currentColor 0 6px, transparent 6px 12px); }
+  .eflow-connector.active span { opacity:1; }
+  .eflow-connector-v.active span { animation: eflow-dash-v .6s linear infinite; }
+  .eflow-connector-h.active span { animation: eflow-dash-h .6s linear infinite; }
+  .eflow-connector-h.reverse.active span { animation-direction: reverse; }
+  @keyframes eflow-dash-h { from { background-position: 0 0; } to { background-position: -12px 0; } }
+  @keyframes eflow-dash-v { from { background-position: 0 0; } to { background-position: 0 -12px; } }
+  .eflow-hub { width:10px; height:10px; border-radius:50%; background:var(--gray-600); flex-shrink:0; }
+  </style>
   <script>
-  // Live-Leistung alle 5s per Fetch aktualisieren -- kein Seiten-Reload für Werte, die sich
-  // laufend ändern (Patrick, 30.07.2026).
+  // Energiefluss-Grafik alle 5s per Fetch aktualisieren -- kein Seiten-Reload für Werte, die
+  // sich laufend ändern (Patrick, 30.07.2026, erweitert 13.08.2026 um die Netz-Komponente nach
+  // Vorbild einer Fronius/Home-Assistant-Energiefluss-Ansicht).
   setInterval(async () => {
     try {
       const res = await fetch('/portal/api/live-power');
       if (!res.ok) return;
       const d = await res.json();
-      document.getElementById('live-bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
-      document.getElementById('live-einsp-w').textContent = d.einsp_w.toLocaleString('de-AT') + ' W';
+      const netzW = d.einsp_w - d.bezug_w;
+
+      document.getElementById('ef-pv').textContent = d.einsp_w.toLocaleString('de-AT') + ' W';
+      document.getElementById('ef-verbrauch').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
+      document.getElementById('ef-netz').textContent = Math.abs(netzW).toLocaleString('de-AT') + ' W';
+      document.getElementById('ef-netz-label').textContent = netzW > 0 ? 'Netz (Einspeisung)' : (netzW < 0 ? 'Netz (Bezug)' : 'Netz');
+
+      const netzCircle = document.getElementById('ef-netz-circle');
+      netzCircle.classList.remove('eflow-in', 'eflow-out');
+      if (netzW > 0) netzCircle.classList.add('eflow-out');
+      else if (netzW < 0) netzCircle.classList.add('eflow-in');
+
+      document.getElementById('ef-line-pv').classList.toggle('active', d.einsp_w > 0);
+      document.getElementById('ef-line-verbrauch').classList.toggle('active', d.bezug_w > 0);
+      const netzLine = document.getElementById('ef-line-netz');
+      netzLine.classList.toggle('active', netzW !== 0);
+      netzLine.classList.toggle('reverse', netzW > 0);
+
       document.getElementById('live-active-meters').textContent = d.active_meters;
       document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
     } catch (e) { /* naechster Versuch in 5s */ }
