@@ -30,16 +30,27 @@ $netzActive   = $netzW != 0;
       <div class="eflow-value" id="ef-pv"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
       <div class="eflow-label">PV-Erzeugung</div>
     </div>
-    <div class="eflow-connector eflow-connector-v<?= $pvActive ? ' active' : '' ?>" id="ef-line-pv"><span></span></div>
+    <?php
+      // Fluss-Richtung der Animation (Patrick, 13.08.2026, nach Live-Test: erste Fassung hatte
+      // alle drei Richtungen genau verkehrt herum -- physikalisch korrekt sind NUR diese drei:
+      //   PV -> EEG        (ein Verbraucher speist nie in die Gemeinschaft ein)
+      //   EEG -> Verbrauch (ein Verbraucher bezieht nur, speist nie zurück)
+      //   Netz <-> EEG     (Richtung je nach Vorzeichen: Bezug = Netz -> EEG, Einspeisung = EEG -> Netz)
+      // OHNE ".reverse" laeuft die CSS-Animation (siehe <style> unten) bei ef-line-pv optisch
+      // von unten (EEG) nach oben (PV) und bei ef-line-verbrauch von rechts (Verbrauch) nach
+      // links (EEG) -- beides das GEGENTEIL der physikalisch richtigen Richtung, deshalb bei
+      // diesen beiden IMMER ".reverse" (nie datenabhängig, anders als bei Netz).
+    ?>
+    <div class="eflow-connector eflow-connector-v reverse<?= $pvActive ? ' active' : '' ?>" id="ef-line-pv"><span></span></div>
     <div class="eflow-middle">
       <div class="eflow-node">
         <div class="eflow-circle eflow-circle-netz <?= $netzDirClass ?>" id="ef-netz-circle"><?= icon('plug') ?></div>
         <div class="eflow-value" id="ef-netz"><?= number_format(abs($netzW), 0, ',', '.') ?> W</div>
         <div class="eflow-label" id="ef-netz-label"><?= $netzLabel ?></div>
       </div>
-      <div class="eflow-connector eflow-connector-h<?= $netzActive ? ' active' : '' ?><?= $netzW > 0 ? ' reverse' : '' ?>" id="ef-line-netz"><span></span></div>
+      <div class="eflow-connector eflow-connector-h<?= $netzActive ? ' active' : '' ?><?= $netzW < 0 ? ' reverse' : '' ?>" id="ef-line-netz"><span></span></div>
       <div class="eflow-hub"><span>EEG</span></div>
-      <div class="eflow-connector eflow-connector-h<?= $verbActive ? ' active' : '' ?>" id="ef-line-verbrauch"><span></span></div>
+      <div class="eflow-connector eflow-connector-h reverse<?= $verbActive ? ' active' : '' ?>" id="ef-line-verbrauch"><span></span></div>
       <div class="eflow-node">
         <div class="eflow-circle eflow-circle-verbrauch"><?= icon('buildings') ?></div>
         <div class="eflow-value" id="ef-verbrauch"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
@@ -86,6 +97,7 @@ $netzActive   = $netzW != 0;
 .eflow-connector.active span { opacity:1; }
 .eflow-connector-v.active span { animation: eflow-dash-v .6s linear infinite; }
 .eflow-connector-h.active span { animation: eflow-dash-h .6s linear infinite; }
+.eflow-connector-v.reverse.active span,
 .eflow-connector-h.reverse.active span { animation-direction: reverse; }
 @keyframes eflow-dash-h { from { background-position: 0 0; } to { background-position: -12px 0; } }
 @keyframes eflow-dash-v { from { background-position: 0 0; } to { background-position: 0 -12px; } }
@@ -121,7 +133,9 @@ setInterval(async () => {
     document.getElementById('ef-line-verbrauch').classList.toggle('active', d.bezug_w > 0);
     const netzLine = document.getElementById('ef-line-netz');
     netzLine.classList.toggle('active', netzW !== 0);
-    netzLine.classList.toggle('reverse', netzW > 0);
+    // Bezug (netzW < 0): Netz -> EEG -> Verbrauch. Einspeisung (netzW > 0): EEG -> Netz.
+    // Siehe Richtungs-Erklaerung oben bei den <div class="eflow-connector ...">-Elementen.
+    netzLine.classList.toggle('reverse', netzW < 0);
 
     document.getElementById('live-active-meters').textContent = d.active_meters;
     document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
