@@ -575,12 +575,20 @@ docker compose up -d --build
 > Alarm-Mail an die Backup-Alarm-Adressen -- Fallback bleibt in jedem Fall der manuelle Upload
 > über `/portal/eda/upload`.
 >
-> **Nicht verifizierte Annahme** (an einer echten EDA-Exportmail noch zu prüfen): dass der von
-> EDA verschickte Download-Link ohne weiteren Portal-Login abrufbar ist (üblich bei zeitlich
-> befristeten, signierten Links). Verlangt der Link stattdessen eine aktive Portal-Session,
-> schlägt der automatische Download fehl (Alarm-Mail) und `EdaAutoImporter.php` müsste um einen
-> Login-Schritt (z. B. Headless-Browser) erweitert werden -- dafür fehlen aktuell die
-> DOM-Details des Portals.
+> **EDA-Exportmail-Format verifiziert (Patrick, 13.08.2026, anhand einer echten Mail):**
+> Absender `no-reply@eda.at`, Betreff `EDA Portal – Energiedatenreport RC108175` (Marktpartner-ID
+> steht auch im Betreff, nicht nur im Dateinamen), kein Anhang -- stattdessen ein signierter,
+> 7 Tage gültiger Download-Link im HTML-Mailtext auf
+> `https://prod-api.eda-portal.at/exports/download/<uuid>?expires=...&signature=...`.
+> `EdaAutoImporter.php` entsprechend angepasst: prüft den Absender (alles andere im Postfach wird
+> ignoriert statt fälschlich als fehlgeschlagener Import behandelt zu werden), sucht gezielt nach
+> einem Link auf diese Export-Domain statt dem ersten beliebigen `href` in der Mail, gleicht die
+> Marktpartner-ID aus Dateiname UND Betreff gegeneinander ab, und erzwingt eine `.xlsx`-Endung
+> beim Speichern (der Link selbst enthält nur eine UUID, keine erkennbare Dateiendung).
+> **Weiterhin nicht verifiziert:** ob der Link tatsächlich ohne aktive Portal-Session abrufbar
+> ist (der eigentliche automatische Download wurde noch nicht live getestet) -- verlangt er doch
+> eine Session, schlägt der Download fehl (Alarm-Mail) und `EdaAutoImporter.php` müsste um einen
+> Login-Schritt (z. B. Headless-Browser) erweitert werden.
 
 > **Einmalig nach dem Update vom 10.08.2026** (MQTT-Zugangsdaten in der Plattform sichtbar/
 > änderbar, seit dem gleichen Tag auch per Knopfdruck automatisch angewendet): bisher lagen
