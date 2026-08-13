@@ -18,6 +18,13 @@ $producerMpIds = array_column(array_filter($meteringPoints, fn($mp) => in_array(
 // Zeitraum unten, gilt immer "jetzt". null = kein Live-Wert vorhanden (kein ESP/gerade offline).
 $currentNetPowerW = $mpIds ? memberCurrentNetPowerW($communityId, $mpIds) : null;
 
+// Community-weite Energiefluss-Grafik (PV/EEG/Verbrauch/Netz) -- seit 13.08.2026 auch im
+// Kundenportal, nicht nur im Obmann-Dashboard (Patrick: "ja bitte im Kundenportal auch
+// hinzufügen"), siehe partials/energy_flow.php. Bewusst unabhängig von $mpIds/eigenen
+// Zählpunkten -- zeigt den Stand der GANZEN Community, interessiert auch ein Mitglied ohne
+// eigene Ausleseeinheit.
+$live = communityLivePower($communityId);
+
 // Zeitraum-Auswahl für die Live-Kennzahl "Einspeisung in die Gemeinschaft" unten (Patrick,
 // 30.07.2026) -- Whitelist gegen beliebige $_GET-Werte, ungültige Datumswerte fallen auf
 // "heute" zurück statt einen Fehler zu werfen.
@@ -116,6 +123,8 @@ ob_start();
 ?>
 
 <h2 style="margin-bottom:1.5rem">Guten Tag, <?= htmlspecialchars($member['first_name'] ?? Auth::userName()) ?>!</h2>
+
+<div style="margin-bottom:1.5rem"><?php require __DIR__ . '/../partials/energy_flow.php'; ?></div>
 
 <?php if (!$mpIds): ?>
 <div class="card" style="margin-bottom:1.5rem;text-align:center;padding:2.5rem 1.5rem">

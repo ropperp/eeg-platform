@@ -1412,12 +1412,15 @@ $router->get('/portal/api/current-power', function () {
 });
 
 /**
- * Analog für das Obmann-Dashboard: liefert dieselbe Zahl wie die "Live-Leistung"-Kachel dort
- * (communityLivePower()), per Fetch alle 5s abgefragt statt bei jedem Update die ganze Seite
- * neu zu laden.
+ * Liefert dieselbe Zahl wie die "Energiefluss (Live)"-Grafik (communityLivePower(), siehe
+ * partials/energy_flow.php), per Fetch alle 5s abgefragt statt bei jedem Update die ganze
+ * Seite neu zu laden. Bewusst für JEDEN eingeloggten Portal-Nutzer offen (keine
+ * Auth::requireRole()-Einschränkung mehr) -- seit 13.08.2026 auch im Kundenportal eingebunden,
+ * und die zurückgegebenen Werte sind ohnehin nur ein Community-weiter Summenwert ohne
+ * Rückschluss auf einzelne Mitglieder.
  */
 $router->get('/portal/api/live-power', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
+    Auth::requireLogin();
     header('Content-Type: application/json');
     $communityId = Auth::activeCommunityId();
     if (!$communityId) { echo json_encode(['bezug_w' => 0, 'einsp_w' => 0, 'active_meters' => 0, 'total_meters' => 0]); return; }
