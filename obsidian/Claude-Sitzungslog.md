@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-13 (48) — Claude Code — Claude Sonnet 5
+**Prompt:** "ja bitte im Kundenportal auch hinzufügen. Als Ergänzung bitte in der Mitte noch
+einen Kreis mit EEG. Zum EDA Import, so sieht eine Email aus. [echte EDA-Exportmail: Absender
+no-reply@eda.at, Betreff 'EDA Portal – Energiedatenreport RC108175', Download-Link auf
+prod-api.eda-portal.at/exports/download/..., 7 Tage gültig]"
+**Auftrag:** Zwei Dinge: (1) die neue Energiefluss-Grafik auch im Kundenportal zeigen, mit
+einem zusätzlichen "EEG"-Kreis in der Mitte. (2) Anhand einer echten EDA-Exportmail prüfen/
+korrigieren, ob der automatische EDA-Postfach-Import (`EdaAutoImporter.php`) das tatsächliche
+Mailformat richtig erkennt.
+**Ergebnis:** (1) Energiefluss-Widget nach `webapp/src/views/partials/energy_flow.php`
+ausgelagert, in `member_dashboard.php` zusätzlich eingebunden (community-weit, unabhängig von
+eigenen Zählpunkten), `/portal/api/live-power` für alle eingeloggten Portal-Nutzer geöffnet
+(vorher nur Manager). Neuer beschrifteter "EEG"-Kreis als Pooling-Stelle in der Mitte, ersetzt
+den bisherigen Punkt (PR #73). (2) `EdaAutoImporter.php` an das echte Format angepasst:
+Absender-Filter auf no-reply@eda.at (alles andere im Postfach wird ignoriert statt
+fälschlich als fehlgeschlagener Import zu gelten), gezielte Download-Link-Suche auf die
+eda-portal.at-Domain statt dem ersten beliebigen href, Marktpartner-ID-Gegenprobe aus
+Dateiname UND Betreff, erzwungene .xlsx-Endung beim Speichern (Link selbst enthält nur eine
+UUID). CLAUDE.md/Infrastruktur.md aktualisiert: Mailformat jetzt verifiziert, nur der
+eigentliche Live-Download (Portal-Session nötig?) bleibt offen (PR #74). Beides visuell bzw.
+mit `php tests/run.php` (77/77 grün) geprüft.
+
 ## 2026-08-13 (47) — Claude Code — Claude Sonnet 5
 **Prompt:** "[Screenshots einer Fronius/Home-Assistant-Energiefluss-Ansicht] cool wäre für
 meine Plattform so eine Live-Grafik, in der man auch sieht, Wieviel wird eingespeist, Wieviel
