@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-13 (47) — Claude Code — Claude Sonnet 5
+**Prompt:** "[Screenshots einer Fronius/Home-Assistant-Energiefluss-Ansicht] cool wäre für
+meine Plattform so eine Live-Grafik, in der man auch sieht, Wieviel wird eingespeist, Wieviel
+wird bezogen und als dritte Komponente noch das Netz (wenn ausßerhalb bezogen oder ins Netz
+eingespeist wird und nicht in der EEG verwendet wird)."
+**Auftrag:** Die bisherige reine Zahlenanzeige (Bezug/Einspeisung) im Obmann-Dashboard durch
+eine animierte Energiefluss-Grafik ersetzen, mit PV-Erzeugung, Verbrauch und dem öffentlichen
+Netz als drittem, richtungsabhängigem Knoten.
+**Ergebnis:** Neue Karte "Energiefluss (Live)" in `manager_dashboard.php`: drei Knoten (PV,
+Netz, Verbrauch) um einen zentralen Hub, verbunden mit animierten, richtungsabhängigen
+Linien (reines CSS, `repeating-linear-gradient` + `background-position`-Keyframes, kein
+externes Chart-Framework). "Netz" = Differenz aus Erzeugung und Verbrauch der ganzen
+Community (kein physischer Austausch zwischen Mitgliedern, siehe Erklärtext auf der Karte) --
+grün/Pfeil-raus bei Überschuss-Einspeisung, rot/Pfeil-rein bei Zusatzbezug. Keine Backend-
+Änderung nötig, nutzt weiterhin `communityLivePower()`/`/portal/api/live-power` mit demselben
+5s-Polling. Vor dem Commit visuell verifiziert: temporäre PHP-Testseite mit der echten
+`icon()`-Funktion und dem echten `app.css` über `php -S` lokal serviert, mit Playwright/
+Chromium (Light- und Dark-Mode, drei Szenarien) gerendert und als Screenshot geprüft, Animation
+per `getComputedStyle`-Diff bestätigt aktiv -- Testdateien danach wieder gelöscht. `php
+tests/run.php` weiterhin 77/77 grün (PR #71).
+
 ## 2026-08-12 (46) — Claude Code — Claude Sonnet 5
 **Prompt:** "Release bitte auf später verschieben. meine email einstellungen hat er gelöscht.
 bitte bau mir folgende Signatur in HTML nach für meine Website. [...] möchte nach Mit
