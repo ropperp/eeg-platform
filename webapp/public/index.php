@@ -5554,12 +5554,31 @@ $router->post('/admin/mail-settings', function () {
         $logoType   = $info['mime'];
     }
     // Logo-Größe (px). Leer/0/ungültig -> NULL (Standardgröße). Max. 1000 px als Sanity-Grenze.
+    // isset()-Prüfung aus demselben Grund wie bei $keep() unten: nur die große Form hat diese
+    // Felder überhaupt, ein Request vom kleinen EDA-Postfach-Formular darf sie nicht auf NULL
+    // zurücksetzen.
     $clampPx = function ($v): ?int {
         $n = (int)$v;
         return ($n > 0 && $n <= 1000) ? $n : null;
     };
-    $logoWidth  = $clampPx($_POST['signature_logo_width']  ?? '');
-    $logoHeight = $clampPx($_POST['signature_logo_height'] ?? '');
+    $logoWidth  = isset($_POST['signature_logo_width'])  ? $clampPx($_POST['signature_logo_width'])  : ($current['signature_logo_width']  ?? null);
+    $logoHeight = isset($_POST['signature_logo_height']) ? $clampPx($_POST['signature_logo_height']) : ($current['signature_logo_height'] ?? null);
+
+    // Mehrere <form>-Elemente auf dieser Seite posten hierher (das große Formular mit ALLEN
+    // Feldern, aber z.B. auch das kleine "EDA-Automatik"-Postfach-Formular weiter unten, das
+    // NUR eda_import_mailbox_address enthält). Ohne diese isset()-Prüfung würde jedes Feld, das
+    // im gerade abgeschickten Formular schlicht nicht vorkommt, mit trim(null ?? '') ?: null zu
+    // NULL -- die kleine Postfach-Form hätte damit bei JEDEM Speichern Tenant-ID/Client-ID/
+    // Signatur/Alarm-Adressen gelöscht (Patrick, 13.08.2026: "Er haut mir immer die azure App
+    // daten raus. und die signatur ist auch wieder weg."). $keep() unterscheidet "Feld war in
+    // DIESEM Request gar nicht dabei -> alten Wert behalten" von "Feld war dabei, aber leer
+    // abgeschickt -> wirklich löschen" (isset() ist true auch bei einem leer übermittelten Feld).
+    $keep = function (string $key) use ($current) {
+        return isset($_POST[$key]) ? (trim($_POST[$key]) ?: null) : ($current[$key] ?? null);
+    };
+    $supportEmail = isset($_POST['support_notification_email'])
+        ? (trim($_POST['support_notification_email']) ?: 'office@stromfueralle.at')
+        : ($current['support_notification_email'] ?? 'office@stromfueralle.at');
 
     DB::execute(
         'UPDATE platform_mail_config
@@ -5570,20 +5589,20 @@ $router->post('/admin/mail-settings', function () {
              eda_import_mailbox_address = ?, updated_at = now()
          WHERE id = 1',
         [
-            trim($_POST['tenant_id'] ?? '') ?: null,
-            trim($_POST['client_id'] ?? '') ?: null,
+            $keep('tenant_id'),
+            $keep('client_id'),
             $clientSecret,
-            trim($_POST['sender_address'] ?? '') ?: null,
-            trim($_POST['reply_to'] ?? '') ?: null,
-            trim($_POST['signature_html'] ?? '') ?: null,
+            $keep('sender_address'),
+            $keep('reply_to'),
+            $keep('signature_html'),
             $logoBase64,
             $logoType,
             $logoWidth,
             $logoHeight,
-            trim($_POST['backup_alert_email_1'] ?? '') ?: null,
-            trim($_POST['backup_alert_email_2'] ?? '') ?: null,
-            trim($_POST['support_notification_email'] ?? '') ?: 'office@stromfueralle.at',
-            trim($_POST['eda_import_mailbox_address'] ?? '') ?: null,
+            $keep('backup_alert_email_1'),
+            $keep('backup_alert_email_2'),
+            $supportEmail,
+            $keep('eda_import_mailbox_address'),
         ]
     );
     $mailAfter = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
