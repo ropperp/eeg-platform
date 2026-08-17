@@ -75,6 +75,27 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   erreichbar, gilt das Passwort als unbedenklich -- ein Passwort-Wechsel darf nie an einer
   externen API scheitern.
 
+### Behoben
+- **Mitgliederdetails/-Dateien/-Verträge/-Avatar nach dem RLS-Fix nicht mehr auffindbar
+  (Vorfall 17.08.2026).** Direkte Nebenwirkung des RLS-Fixes oben: `requireMemberAccess()` und
+  mehrere Routen (`/portal/members/:id`, `/portal/members/:id/avatar`,
+  `/portal/members/:id/contract/bezug`+`einspeisung`, `/portal/members/:id/contract-status`)
+  fragten `members` per ID ab, BEVOR die RLS-Community gesetzt wurde -- unter der alten
+  Tabellenbesitzer-Rolle folgenlos (RLS griff nie), mit der neuen eingeschränkten Rolle lieferte
+  das für JEDES Mitglied "nicht gefunden", weil die Zeile ohne gesetzte Community für RLS
+  unsichtbar ist. Fix: Manager setzen zuerst die eigene aktive Community (bereits aus der
+  Session bekannt), Platform-Admins (dürfen jede EEG verwalten) versuchen jede Community
+  einzeln, bis das Mitglied gefunden ist. Live gegen eine native PostgreSQL-16-Instanz
+  verifiziert (Bug reproduziert, Fix für beide Zweige bestätigt, auch über zwei Communities
+  hinweg für Platform-Admin).
+- **Header-Logo verschwunden.** `webapp/public/logo-light.png`/`logo-dark.png` waren nie in Git
+  eingecheckt (vermutlich früher manuell auf den Server kopiert) -- ein voller Image-Rebuild
+  verliert sie deshalb. Jetzt aus dem bereits vorhandenen `assets/images/logo.png` befüllt und
+  eingecheckt, damit das nicht wieder passiert.
+- **Deploy-Reihenfolge `redis_secure_setup.sh` vs. `docker compose up -d --build`
+  vertauscht** -- siehe eigener Eintrag oben unter „Redis-Passwort", Ursache eines kompletten
+  Login-Ausfalls direkt nach diesem Update.
+
 ### Neu / Funktionen
 - **App-Programmierschnittstelle für eine künftige Mitglieder-App (`/api/v1/login` + Daten-
   Endpunkte).** Grundlage für eine native iOS/Android-Begleit-App: eigener Login-Flow

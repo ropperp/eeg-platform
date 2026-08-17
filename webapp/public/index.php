@@ -435,12 +435,36 @@ function ownEinspeisungInGemeinschaftKwh(string $communityId, array $meteringPoi
  */
 function requireMemberAccess(string $memberId): ?array
 {
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$memberId]);
+    // members hat Row-Level Security (community-gebunden, siehe OWASP-Audit 13.08.2026) --
+    // eine Abfrage OHNE vorher gesetztes app.community_id liefert seitdem für die eingeschränkte
+    // Laufzeit-Rolle grundsätzlich GAR KEINE Zeile (auch bei korrekter ID), nicht mehr wie
+    // früher (als die App noch als Tabellenbesitzer verband und RLS nie griff). Henne-Ei-Problem:
+    // die Community ist erst nach dem Laden des Mitglieds bekannt.
+    //
+    // Manager: die eigene aktive Community ist bereits aus der Session bekannt (kein Henne-Ei-
+    // Problem) -- direkt setzen, dann laden. Liefert für ein Mitglied EINER ANDEREN Community
+    // korrekt keine Zeile (RLS blockt es), was denselben IDOR-Schutz ergibt wie die explizite
+    // Prüfung unten, nur jetzt auch auf DB-Ebene abgesichert.
+    //
+    // Platform-Admin: darf JEDE EEG verwalten, die eigene aktive Rolle kennt aber nur EINE
+    // Community -- reicht hier nicht. communities hat keine RLS (siehe migrate_20260731.sql für
+    // dasselbe Muster bei user_roles), deshalb wird jede Community einzeln versucht, bis das
+    // Mitglied gefunden ist (aktuell überschaubar viele EEGs, unproblematisch).
+    if (Auth::isPlatformAdmin()) {
+        $member = null;
+        foreach (DB::fetchAll('SELECT id FROM communities') as $c) {
+            DB::setCommunity($c['id']);
+            $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$memberId]);
+            if ($member) break;
+        }
+    } else {
+        DB::setCommunity(Auth::activeCommunityId());
+        $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$memberId]);
+    }
     if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return null; }
     if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
         http_response_code(403); echo 'Kein Zugriff'; return null;
     }
-    DB::setCommunity($member['community_id']);
     return $member;
 }
 
@@ -3081,16 +3105,13 @@ $router->post('/portal/members/:id/resend-invite', function ($params) {
 
 $router->get('/portal/members/:id', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    // Nicht über die aktive Rolle scopen: Platform-Admins müssen ein Mitglied auch dann ansehen
-    // können, wenn ihre aktuell aktive Rolle gerade eine ANDERE EEG ist (z.B. von der
-    // EEG-Übersicht im Admin-Bereich aus) -- IDOR-Schutz erfolgt danach explizit.
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
+    // requireMemberAccess() scoped absichtlich NICHT über die aktive Rolle: Platform-Admins
+    // müssen ein Mitglied auch dann ansehen können, wenn ihre aktuell aktive Rolle gerade eine
+    // ANDERE EEG ist (z.B. von der EEG-Übersicht im Admin-Bereich aus) -- IDOR-Schutz erfolgt
+    // dort explizit, setzt bei Erfolg auch gleich die RLS-Community.
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
     $communityId = $member['community_id'];
-    DB::setCommunity($communityId);
     // "Gelöschte" Zählpunkte sind nur soft-deaktiviert (active=false), damit historische
     // Abrechnungsperioden weiter nachvollziehbar bleiben -- auf der Mitglied-Detailseite
     // sollen sie aber wie erwartet aus der Liste verschwinden.
@@ -3210,12 +3231,26 @@ $router->get('/portal/members/:id/files/:fileid/download', function ($params) {
 // gleichen Community (keine Community-Prüfung nötig, wenn es das eigene Konto ist).
 $router->get('/portal/members/:id/avatar', function ($params) {
     Auth::requireLogin();
-    $member = DB::fetchOne('SELECT id, community_id, user_id, photo_path FROM members WHERE id = ?', [$params['id']]);
+    // members hat Row-Level Security -- die Community ist hier wie in requireMemberAccess()
+    // erst NACH dem Laden bekannt (Henne-Ei-Problem), deshalb dasselbe Muster: Platform-Admin
+    // versucht jede Community einzeln, alle anderen nutzen direkt ihre aktive Rolle (reicht
+    // auch für "eigenes Avatar ansehen", da die eigene Mitgliedschaft immer zur eigenen
+    // aktiven Rolle gehört).
+    if (Auth::isPlatformAdmin()) {
+        $member = null;
+        foreach (DB::fetchAll('SELECT id FROM communities') as $c) {
+            DB::setCommunity($c['id']);
+            $member = DB::fetchOne('SELECT id, community_id, user_id, photo_path FROM members WHERE id = ?', [$params['id']]);
+            if ($member) break;
+        }
+    } else {
+        DB::setCommunity(Auth::activeCommunityId());
+        $member = DB::fetchOne('SELECT id, community_id, user_id, photo_path FROM members WHERE id = ?', [$params['id']]);
+    }
     if (!$member || !$member['photo_path']) { http_response_code(404); return; }
 
     $allowed = $member['user_id'] !== null && $member['user_id'] === Auth::userId();
     if (!$allowed) {
-        DB::setCommunity($member['community_id']);
         $allowed = Auth::isManager() && (Auth::isPlatformAdmin() || Auth::activeCommunityId() === $member['community_id']);
     }
     if (!$allowed) { http_response_code(403); return; }
@@ -3382,16 +3417,10 @@ function bezugsvereinbarungVars(array $member, array $community, ?array $tariff,
 $router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     if (!contractsEnabled(Auth::activeCommunityId())) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-
-    // IDOR-Schutz: Manager darf nur die eigene EEG verwalten
-    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
 
     $communityId = $member['community_id'];
-    DB::setCommunity($communityId);
 
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'consumer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Bezugs-Zählpunkt registriert. Bitte zuerst einen Bezugs-Zählpunkt (Typ: Bezug) anlegen.'; return; }
@@ -3575,16 +3604,10 @@ function einspeisevereinbarungVars(array $member, array $community, ?array $tari
 $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     if (!contractsEnabled(Auth::activeCommunityId())) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-
-    // IDOR-Schutz
-    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
 
     $communityId = $member['community_id'];
-    DB::setCommunity($communityId);
 
     $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$params['id'], 'producer']);
     if (empty($mps)) { http_response_code(400); echo 'Kein Einspeise-Zählpunkt registriert. Bitte zuerst einen Zählpunkt (Typ: Einspeisung) anlegen.'; return; }
@@ -3731,13 +3754,9 @@ $router->post('/portal/members/:id/contract/send-both', function ($params) {
 
 $router->post('/portal/members/:id/contract-status', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
-    if (!$member) { http_response_code(404); echo 'Nicht gefunden'; return; }
-    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $member['community_id']) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
     $communityId = $member['community_id'];
-    DB::setCommunity($communityId);
     $type   = $_POST['type'] ?? '';
     $status = $_POST['status'] ?? '';
     if (!in_array($type, ['bezug', 'einspeisung']) || !in_array($status, ['none', 'created', 'signed'])) {
