@@ -631,11 +631,34 @@ docker compose up -d --build
 > cd /opt/eeg-platform
 > git pull origin main
 > docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260822.sql
-> docker compose up -d --build
-> ./scripts/db_runtime_role_setup.sh
 > ./scripts/redis_secure_setup.sh
+> ./scripts/db_runtime_role_setup.sh
+> docker compose up -d --build
 > docker compose exec -T webapp php < scripts/migrate_encrypt_totp_secrets.php
 > ```
+> **Reihenfolge wichtig, nicht vertauschen** (Vorfall 17.08.2026, Patrick komplett ausgesperrt):
+> `redis_secure_setup.sh`/`db_runtime_role_setup.sh` MÜSSEN vor `docker compose up -d --build`
+> laufen, nicht danach. Grund: das neue `docker-compose.yml` bindet
+> `/opt/eeg/redis-config/redis.conf` als Datei in den redis-Container -- existiert diese Datei
+> auf dem Host noch nicht, wenn `docker compose up` den redis-Container zum ersten Mal mit der
+> neuen Compose-Datei startet, legt Docker für den Bind-Mount automatisch ein leeres
+> **Verzeichnis** an diesem Pfad an (Standard-Docker-Verhalten, gleiches Muster wie beim
+> Storage-Verzeichnis oben). Redis kann seine Konfiguration dann nicht mehr lesen ("Redis
+> connection not available" im webapp-Log), jede Sitzung schlägt fehl, JEDER Login -- auch nach
+> erneutem Anmeldeversuch/Browser-Daten-löschen, weil das Problem rein serverseitig ist -- landet
+> auf der "Sitzung abgelaufen"-Seite. `redis_secure_setup.sh` legt die Datei selbst an, BEVOR es
+> intern `docker compose up -d --force-recreate redis webapp` aufruft -- läuft es dagegen NACH
+> einem bereits erfolgten `docker compose up -d --build`, ist der Pfad auf dem Host schon als
+> Verzeichnis "verseucht" und das Skript kann dort keine Datei mehr schreiben.
+>
+> **Fix, falls das schon passiert ist:**
+> ```bash
+> docker compose stop redis
+> sudo rm -rf /opt/eeg/redis-config/redis.conf   # der fälschlich angelegte Ordner
+> ./scripts/redis_secure_setup.sh                # schreibt die Datei jetzt korrekt + startet neu
+> ```
+> Kein Datenverlust dabei -- nur alle gerade aktiven Sitzungen müssen sich einmal neu anmelden.
+>
 > Jeder einzelne Schritt läuft bis zu seiner Ausführung im bisherigen (unsicheren) Fallback
 > weiter -- keine Downtime, keine Reihenfolge-Falle, siehe Tabelle in der verlinkten Doku. Bei
 > einer **Neuinstallation** ruft `scripts/setup.sh` `redis_secure_setup.sh` und
