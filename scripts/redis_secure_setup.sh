@@ -63,10 +63,18 @@ fi
 CONFIG_DIR="/opt/eeg/redis-config"
 echo "Schreibe redis.conf mit requirepass nach ${CONFIG_DIR}..."
 sudo mkdir -p "$CONFIG_DIR"
-# Datei MUSS existieren, bevor docker-compose.yml sie read-only in den Container mountet --
-# sonst legt Docker automatisch ein leeres VERZEICHNIS mit diesem Namen an (Docker-typisches
-# Verhalten bei einem Bind-Mount auf einen noch nicht existierenden Pfad), und der Container
-# startet nicht mehr, weil "redis.conf" dann ein Ordner statt einer Datei ist.
+# Selbstheilung (Vorfall 17.08.2026): läuft dieses Skript NACH einem "docker compose up", das
+# den redis-Container schon mit dem neuen docker-compose.yml gestartet hat, BEVOR diese Datei
+# existierte, hat Docker für den Bind-Mount automatisch ein leeres VERZEICHNIS an dieser Stelle
+# angelegt (Standard-Docker-Verhalten bei einer fehlenden Bind-Mount-Quelle) -- "tee" könnte dort
+# keine Datei mehr hinschreiben. Eigentlich MUSS dieses Skript vor "docker compose up -d --build"
+# laufen (siehe docs/DEPLOY_OWASP_AUDIT.md), aber falls doch nicht: hier automatisch aufräumen,
+# statt mit einem kryptischen "tee: .../redis.conf: Is a directory" abzubrechen.
+if [ -d "$CONFIG_DIR/redis.conf" ]; then
+  echo "⚠ ${CONFIG_DIR}/redis.conf ist fälschlich ein Verzeichnis (Docker hat es so angelegt, weil"
+  echo "  dieses Skript nach \"docker compose up\" statt davor lief) -- wird jetzt entfernt."
+  sudo rm -rf "$CONFIG_DIR/redis.conf"
+fi
 printf 'requirepass %s\n' "$REDIS_PASSWORD" | sudo tee "$CONFIG_DIR/redis.conf" > /dev/null
 sudo chmod 644 "$CONFIG_DIR/redis.conf"
 echo "✓ redis.conf geschrieben."
