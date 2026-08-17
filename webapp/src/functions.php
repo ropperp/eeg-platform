@@ -68,6 +68,26 @@ function decryptSecret(?string $encoded): string
 }
 
 /**
+ * Liest ein TOTP-Secret aus der DB, egal ob es (alt, vor dem OWASP-Audit 13.08.2026 gespeichert)
+ * noch im Klartext oder (neu bzw. nach scripts/migrate_encrypt_totp_secrets.php) verschlüsselt
+ * vorliegt -- macht den Rollout unabhängig von der Reihenfolge "Code deployen" vs. "einmalige
+ * Migration ausführen". Ein direktes decryptSecret() auf ein noch unverschlüsseltes Secret
+ * würde es fälschlich als Base64-Ciphertext interpretieren (ein reines Base32-Secret ist rein
+ * zufällig auch gültiges Base64) und mit hoher Wahrscheinlichkeit '' zurückliefern -- das hätte
+ * jeden bestehenden 2FA-Nutzer sofort nach dem Deploy ausgesperrt, bis die Migration läuft.
+ * Reines Base32 (nur A-Z2-7, siehe totpGenerateSecret()) => noch Klartext, unverändert
+ * zurückgeben; alles andere => verschlüsselt, entschlüsseln.
+ */
+function totpSecretFromStorage(?string $stored): string
+{
+    if (!$stored) return '';
+    if (preg_match('/^[A-Z2-7]+$/', $stored)) {
+        return $stored;
+    }
+    return decryptSecret($stored);
+}
+
+/**
  * Formatiert ein Datum (bzw. einen von PostgreSQL gelieferten Zeitstempel-String, z.B. aus
  * date_trunc('month', ...)) als deutschen Monatsnamen + Jahr, z.B. "Juni 2026". Bewusst eine
  * eigene, feste Monatsnamen-Liste statt strftime() (seit PHP 8.1 deprecated) oder setlocale()
@@ -369,6 +389,74 @@ function totpProvisioningUri(string $secretBase32, string $account, string $issu
     $label = rawurlencode($issuer . ':' . $account);
     return 'otpauth://totp/' . $label . '?secret=' . $secretBase32
         . '&issuer=' . rawurlencode($issuer) . '&algorithm=SHA1&digits=6&period=30';
+}
+
+// ─── CSRF-Schutz (OWASP-Audit 13.08.2026) ──────────────────────────────────────────
+// Bisher schützte nur SameSite=Lax auf dem Session-Cookie vor CSRF -- das verhindert zwar
+// Cross-Site-POSTs von komplett fremden Domains im Normalfall, aber nicht z.B. Top-Level-
+// Navigation per <form> von einer verlinkten Seite oder ältere/exotische Browser ohne
+// SameSite-Unterstützung. Ein Token pro Session (nicht pro Request -- sonst brechen mehrere
+// offene Tabs/der Zurück-Button) wird zentral in Router::dispatch() für JEDEN POST geprüft;
+// eingefügt wird er nicht in jede der ~70 Formular-Views einzeln, sondern per kleinem Skript
+// am Ende von layouts/base.php + layouts/portal.php (jede Seite läuft durch genau eines der
+// beiden), das automatisch ein verstecktes Feld in jedes <form method="post"> einfügt.
+
+/** Liefert das Session-CSRF-Token, erzeugt bei Bedarf ein neues (einmal pro Session). */
+function csrfToken(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+/** Prüft ein eingesandtes Token zeitkonstant gegen das Session-Token. */
+function csrfValid(?string $submitted): bool
+{
+    if (empty($_SESSION['csrf_token']) || empty($submitted)) {
+        return false;
+    }
+    return hash_equals($_SESSION['csrf_token'], $submitted);
+}
+
+/**
+ * Prüft ein Passwort per k-Anonymität gegen die HaveIBeenPwned-Datenbank bereits geleakter
+ * Passwörter (OWASP-Audit 13.08.2026 -- bisher nur eine starre Mindestlänge von 8 Zeichen,
+ * kein Schutz vor häufig wiederverwendeten/bereits kompromittierten Passwörtern). Nur die
+ * ersten 5 Zeichen des SHA-1-Hashes werden übertragen ("Range"-API) -- das Passwort selbst
+ * bzw. sein voller Hash verlassen den Server nie, siehe
+ * https://haveibeenpwned.com/API/v3#PwnedPasswords.
+ *
+ * FAIL-OPEN (bewusst "weich"): Ist die API nicht erreichbar (Timeout, DNS, Netzwerk-Ausfall),
+ * gilt das Passwort als NICHT geleakt -- ein Passwort-Wechsel/-Reset darf niemals an einer
+ * nicht erreichbaren externen API scheitern (Patrick: "durchgehend funktionierende
+ * Plattform"). Gleiches file_get_contents()+stream_context_create()-Muster wie
+ * Mailer::getAccessToken() für ausgehende HTTP-Aufrufe, kein zusätzliches curl nötig.
+ */
+function isPasswordBreached(string $password): bool
+{
+    $sha1 = strtoupper(sha1($password));
+    $prefix = substr($sha1, 0, 5);
+    $suffix = substr($sha1, 5);
+
+    $ctx = stream_context_create(['http' => [
+        'method'        => 'GET',
+        'header'        => "User-Agent: eeg-platform-password-check\r\n",
+        'timeout'       => 3,
+        'ignore_errors' => true,
+    ]]);
+    $body = @file_get_contents('https://api.pwnedpasswords.com/range/' . $prefix, false, $ctx);
+    $status = (int)explode(' ', $http_response_header[0] ?? 'HTTP/1.1 0')[1];
+    if ($body === false || $status !== 200) {
+        return false; // fail open
+    }
+    foreach (explode("\r\n", trim($body)) as $line) {
+        [$lineSuffix] = explode(':', $line, 2);
+        if (hash_equals($lineSuffix, $suffix)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

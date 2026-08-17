@@ -78,6 +78,58 @@ test('decryptSecret() liefert leeren String bei leerem/kaputtem Wert', function 
     assertSame('', decryptSecret('kein-gueltiges-base64!!!'));
 });
 
+// csrfToken()/csrfValid() -- zentraler CSRF-Schutz für alle POST-Routen (siehe Router.php).
+test('csrfToken() liefert ein 64-stelliges Hex-Token', function () {
+    unset($_SESSION['csrf_token']);
+    $token = csrfToken();
+    assertSame(64, strlen($token));
+    assertTrue((bool)preg_match('/^[0-9a-f]{64}$/', $token), 'Token muss reines Hex sein');
+});
+test('csrfToken() liefert innerhalb derselben Session immer dasselbe Token', function () {
+    unset($_SESSION['csrf_token']);
+    $a = csrfToken();
+    $b = csrfToken();
+    assertSame($a, $b);
+});
+test('csrfValid() akzeptiert das korrekte Token', function () {
+    unset($_SESSION['csrf_token']);
+    $token = csrfToken();
+    assertTrue(csrfValid($token));
+});
+test('csrfValid() lehnt ein falsches Token ab', function () {
+    unset($_SESSION['csrf_token']);
+    csrfToken();
+    assertFalse(csrfValid('0000000000000000000000000000000000000000000000000000000000000000'));
+});
+test('csrfValid() lehnt fehlendes/leeres Token ab', function () {
+    unset($_SESSION['csrf_token']);
+    csrfToken();
+    assertFalse(csrfValid(null));
+    assertFalse(csrfValid(''));
+});
+
+// totpSecretFromStorage() -- muss sowohl alte Klartext- als auch neue verschlüsselte
+// TOTP-Secrets lesen können (Rollout-Sicherheit, siehe scripts/migrate_encrypt_totp_secrets.php).
+test('totpSecretFromStorage() gibt ein noch unverschlüsseltes Base32-Secret unverändert zurück', function () {
+    $plain = totpGenerateSecret();
+    assertSame($plain, totpSecretFromStorage($plain));
+});
+test('totpSecretFromStorage() entschlüsselt ein bereits verschlüsseltes Secret korrekt', function () {
+    $plain = totpGenerateSecret();
+    $stored = encryptSecret($plain);
+    assertSame($plain, totpSecretFromStorage($stored));
+});
+test('totpSecretFromStorage() liefert leeren String bei leerem Wert', function () {
+    assertSame('', totpSecretFromStorage(null));
+    assertSame('', totpSecretFromStorage(''));
+});
+test('totpVerify funktioniert nach totpSecretFromStorage() für Klartext UND verschlüsselt gleichermaßen', function () {
+    $plain = totpGenerateSecret();
+    $code = totpCodeAt($plain, time());
+    assertTrue(totpVerify(totpSecretFromStorage($plain), $code), 'Klartext-Pfad (vor Migration)');
+    assertTrue(totpVerify(totpSecretFromStorage(encryptSecret($plain)), $code), 'verschlüsselter Pfad (nach Migration)');
+});
+
 // monatsLabel() -- deutscher Monatsname + Jahr fürs Mitglieder-Dashboard (Verbrauchsverlauf).
 test('monatsLabel() formatiert Monat und Jahr auf Deutsch', function () {
     assertSame('Juni 2026', monatsLabel('2026-06-01 00:00:00+00'));

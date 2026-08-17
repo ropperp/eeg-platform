@@ -8,6 +8,32 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-17 (52) — Claude Code — Claude Sonnet 5
+**Prompt:** "kannst du mir bitte alle Probleme, Fehler und Sicherheitslücken fixen. Mlchte eine
+durchgehend sicher und funktionierende Plattform haben. Was mir wichtig wäre, dass keine Daten
+wegkommen und sich meine Mitglieder nicht erneut registrieren müssen."
+**Auftrag:** Alle Befunde eines vorangegangenen OWASP-Audits der Login-/Session-/
+Berechtigungs-Architektur beheben, unter der Vorgabe, dass die Plattform durchgehend
+funktionsfähig bleibt, keine Daten verloren gehen und kein Mitglied sich neu registrieren muss.
+**Ergebnis:** Alle sechs Befunde umgesetzt und live/empirisch verifiziert (native
+PostgreSQL-16- bzw. Redis-Instanz im Sandbox, da Docker nicht verfügbar war): (1) Row-Level
+Security greift jetzt tatsächlich -- neue eingeschränkte DB-Rolle statt der bisherigen
+Tabellenbesitzer-Rolle (`scripts/db_runtime_role_setup.sh`, `database/migrate_20260822.sql`,
+dabei auch eine fehlende `invoice_items`-Policy und einen psql-Interpolationsfehler in
+dollar-quotierten DO-Blöcken gefunden und behoben); (2) TOTP-Secrets werden verschlüsselt
+gespeichert (`encryptSecret()`), mit rückwärtskompatiblem Lesepfad
+(`totpSecretFromStorage()`), der Klartext- und verschlüsselte Secrets gleichermaßen erkennt --
+verhindert, dass bestehende 2FA-Nutzer direkt nach dem Deploy ausgesperrt werden, bis das
+optionale Nachverschlüsselungs-Skript läuft; (3) Redis-Passwort + `session.use_strict_mode`;
+(4) neue `RateLimiter`-Klasse (Redis-Zähler) sperrt Login/2FA nach wiederholten Fehlversuchen,
+fail-open bei Redis-Ausfall; (5) zentraler CSRF-Schutz für alle ~70 POST-Formulare in
+`Router::dispatch()`, Token-Injection automatisch per Skript in `layouts/base.php`/
+`layouts/portal.php`; (6) Security-Header in `nginx.conf`; zusätzlich optional ein
+HaveIBeenPwned-Leak-Check bei Passwort-Änderung/-Reset (fail-open). Testsuite von 77 auf 86
+Tests erweitert, alle grün. Ausführliche Deploy-Reihenfolge (kein Datenverlust, keine
+Downtime, keine Neu-Registrierung) in `docs/DEPLOY_OWASP_AUDIT.md`, verlinkt aus `CLAUDE.md`;
+`scripts/setup.sh` für Neuinstallationen entsprechend erweitert.
+
 ## 2026-08-13 (51) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich habe jetzt noch mal einen Screenshot von dem Live-Bild gegeben. Das Problem,
 das ich habe, ist: Wenn ich den Verbraucher ansehe, geht die Animation vom Verbraucher zur

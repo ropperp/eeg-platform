@@ -372,6 +372,23 @@ function toggleDark() {
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('darkMode', next === 'dark' ? '1' : '0');
 }
+
+// ─── CSRF-Schutz (OWASP-Audit 13.08.2026) ─────────────────────────
+// Fügt automatisch ein verstecktes Token-Feld in jedes method="post"-Formular der Seite ein,
+// statt jede der ~70 Formular-Views einzeln anzufassen. Geprüft wird zentral in
+// Router::dispatch() (siehe functions.php: csrfToken()/csrfValid()). Gleiches Muster wie in
+// layouts/base.php.
+(function () {
+  var token = <?= json_encode(csrfToken()) ?>;
+  document.querySelectorAll('form[method="post" i]').forEach(function (form) {
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'csrf_token';
+    input.value = token;
+    form.appendChild(input);
+  });
+})();
 </script>
 
 </body>

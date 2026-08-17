@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter'] as $class) {
+foreach (['DB', 'Auth', 'RateLimiter', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -1253,12 +1253,22 @@ $router->get('/portal/login', function () {
 $router->post('/portal/login', function () {
     $email    = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
+    // Vor dem eigentlichen Passwort-Check gegen Brute-Force sperren (OWASP-Audit 13.08.2026) --
+    // dieselbe generische Fehlermeldung wie bei falschem Passwort, damit die Sperre selbst
+    // keine Rückschlüsse zulässt (z.B. ob die E-Mail überhaupt existiert).
+    if (RateLimiter::isLoginBlocked($email)) {
+        $error = 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.';
+        require ROOT . '/src/views/pages/login.php';
+        exit;
+    }
     $user = Auth::checkPassword($email, $password);
     if (!$user) {
+        RateLimiter::registerLoginFailure($email);
         $error = 'E-Mail oder Passwort falsch.';
         require ROOT . '/src/views/pages/login.php';
         exit;
     }
+    RateLimiter::resetLoginAttempts($email);
     // Zweiter Faktor aktiv? Dann Session NOCH NICHT aufbauen, sondern Code abfragen.
     if (!empty($user['totp_enabled']) && !empty($user['totp_secret'])) {
         $_SESSION['2fa_pending_user'] = $user['id'];
@@ -1278,13 +1288,23 @@ $router->get('/portal/login/2fa', function () {
 $router->post('/portal/login/2fa', function () {
     $uid = $_SESSION['2fa_pending_user'] ?? null;
     if (!$uid) { header('Location: /portal/login'); exit; }
+    // Brute-Force-Schutz für den 6-stelligen Code (OWASP-Audit 13.08.2026) -- ohne Sperre wären
+    // die 1 Mio. Kombinationen bei automatisierten Anfragen realistisch durchprobierbar, sobald
+    // ein Passwort einmal geleakt ist.
+    if (RateLimiter::isTotpBlocked($uid)) {
+        $error = 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.';
+        require ROOT . '/src/views/pages/login_2fa.php';
+        exit;
+    }
     $u = DB::fetchOne('SELECT totp_secret FROM users WHERE id = ? AND active = true', [$uid]);
-    if ($u && !empty($u['totp_secret']) && totpVerify($u['totp_secret'], $_POST['code'] ?? '')) {
+    if ($u && !empty($u['totp_secret']) && totpVerify(totpSecretFromStorage($u['totp_secret']), $_POST['code'] ?? '')) {
+        RateLimiter::resetTotpAttempts($uid);
         unset($_SESSION['2fa_pending_user']);
         Auth::establishSession($uid);
         header('Location: /portal/dashboard');
         exit;
     }
+    RateLimiter::registerTotpFailure($uid);
     $error = 'Code ungültig oder abgelaufen. Bitte den aktuellen 6-stelligen Code eingeben.';
     require ROOT . '/src/views/pages/login_2fa.php';
     exit;
@@ -1373,6 +1393,11 @@ $router->post('/portal/reset-password', function () {
     }
     if ($password !== $password2) {
         $error = 'Die beiden Passwörter stimmen nicht überein.';
+        require ROOT . '/src/views/pages/reset_password.php';
+        return;
+    }
+    if (isPasswordBreached($password)) {
+        $error = 'Dieses Passwort ist in bekannten Datenlecks aufgetaucht und ist deshalb unsicher. Bitte ein anderes Passwort wählen.';
         require ROOT . '/src/views/pages/reset_password.php';
         return;
     }
@@ -3596,8 +3621,11 @@ $router->post('/portal/profile/2fa/enable', function () {
         require ROOT . '/src/views/pages/profile_2fa.php';
         exit;
     }
+    // Verschlüsselt speichern (AES-256-CBC, gleiche encryptSecret()-Funktion wie für das
+    // ESP-WLAN-Passwort) statt im Klartext -- OWASP-Audit 13.08.2026: ein DB-Dump/-Leak hätte
+    // sonst direkt alle 2FA-Codes kompromittiert, ganz ohne das jeweilige Passwort zu brauchen.
     DB::execute('UPDATE users SET totp_secret = ?, totp_enabled = ? WHERE id = ?',
-        [$secret, 'true', Auth::userId()]);
+        [encryptSecret($secret), 'true', Auth::userId()]);
     unset($_SESSION['2fa_setup_secret']);
     logAudit(null, 'user.2fa.enable', 'user', Auth::userId(), 'Zwei-Faktor-Authentifizierung (TOTP) aktiviert');
     header('Location: /portal/profile?success=' . urlencode('Zwei-Faktor-Authentifizierung ist jetzt aktiv.'));
@@ -3634,6 +3662,8 @@ $router->post('/portal/password', function () {
         $error = 'Das neue Passwort muss mindestens 8 Zeichen lang sein.';
     } elseif ($new !== $confirm) {
         $error = 'Die Passwörter stimmen nicht überein.';
+    } elseif (isPasswordBreached($new)) {
+        $error = 'Dieses Passwort ist in bekannten Datenlecks aufgetaucht und ist deshalb unsicher. Bitte ein anderes Passwort wählen.';
     } else {
         $hash = password_hash($new, PASSWORD_BCRYPT, ['cost' => 12]);
         DB::execute('UPDATE users SET password_hash=? WHERE id=?', [$hash, $userId]);

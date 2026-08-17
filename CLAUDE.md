@@ -621,6 +621,26 @@ docker compose up -d --build
 > laufende ESP32-Gerät die Verbindung, bis im eigenen `/config`-Formular das neue Passwort
 > nachgetragen wird.
 
+> **Einmalig nach dem Update vom 17.08.2026** (OWASP-Audit-Fixes -- RLS greift jetzt tatsächlich,
+> TOTP-Secrets verschlüsselt, Brute-Force-Schutz, CSRF-Schutz, Security-Header,
+> Passwort-Leak-Check): mehrere Punkte brauchen je ein einmaliges Setup-Skript, das nicht
+> automatisch beim `git pull && docker compose up -d --build` mitläuft. **Genaue Reihenfolge,
+> Begründung und Garantie "kein Datenverlust, keine Neu-Registrierung" ausführlich in
+> `docs/DEPLOY_OWASP_AUDIT.md`** -- hier nur die Kurzfassung:
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260822.sql
+> docker compose up -d --build
+> ./scripts/db_runtime_role_setup.sh
+> ./scripts/redis_secure_setup.sh
+> docker compose exec -T webapp php < scripts/migrate_encrypt_totp_secrets.php
+> ```
+> Jeder einzelne Schritt läuft bis zu seiner Ausführung im bisherigen (unsicheren) Fallback
+> weiter -- keine Downtime, keine Reihenfolge-Falle, siehe Tabelle in der verlinkten Doku. Bei
+> einer **Neuinstallation** ruft `scripts/setup.sh` `redis_secure_setup.sh` und
+> `db_runtime_role_setup.sh` automatisch mit auf (gleiches Muster wie `mqtt_secure_setup.sh`).
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
