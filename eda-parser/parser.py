@@ -52,11 +52,16 @@ import psycopg2.extras
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-# Bevorzugt APP_DB_USER/APP_DB_PASSWORD (eingeschränkte Rolle, siehe
-# scripts/db_runtime_role_setup.sh), Fallback auf DB_USER/DB_PASSWORD solange das Skript noch
-# nicht gelaufen ist.
-_DB_USER = os.environ.get("APP_DB_USER") or os.environ.get("DB_USER", "eeg")
-_DB_PASSWORD = os.environ.get("APP_DB_PASSWORD") if os.environ.get("APP_DB_USER") else os.environ.get("DB_PASSWORD", "")
+# BEWUSST weiterhin DB_USER (Schema-Besitzer), NICHT die eingeschränkte APP_DB_USER-Rolle aus
+# scripts/db_runtime_role_setup.sh (gleicher Grund wie mqtt-subscriber/main.py, Vorfall
+# 17.08.2026: Row-Level Security blockierte dort jede Abfrage, weil app.community_id nie
+# gesetzt wurde). Dieser Import läuft als vertrauenswürdiger Batch-Prozess (von PHP via
+# EdaParserRunner.php gestartet, kein direkter HTTP-Zugriff von außen) und schreibt u.a. neue
+# metering_points-Zeilen für noch unbekannte Zählpunkte -- RLS böte hier keinen zusätzlichen
+# Schutz gegen eine realistische Bedrohung, würde aber ohne ein SET app.community_id vor jeder
+# einzelnen Abfrage denselben Ausfall verursachen wie beim MQTT-Dienst.
+_DB_USER = os.environ.get("DB_USER", "eeg")
+_DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
 
 DB_DSN = (
     f"host={os.environ.get('DB_HOST', 'localhost')} "

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Richtet eine eigene, eingeschränkte Postgres-Rolle für den Laufzeitzugriff der Webapp/
-# mqtt-subscriber/eda-parser ein (OWASP-Audit, 13.08.2026, Befund "Row-Level Security wird nie
-# ausgewertet").
+# Richtet eine eigene, eingeschränkte Postgres-Rolle für den Laufzeitzugriff der WEBAPP ein
+# (OWASP-Audit, 13.08.2026, Befund "Row-Level Security wird nie ausgewertet").
 #
 # Hintergrund: Die Webapp verbindet bisher mit DERSELBEN Rolle, die per POSTGRES_USER in
 # docker-compose.yml auch database/init.sql ausführt und damit jede Tabelle BESITZT. Postgres
@@ -10,13 +9,19 @@
 # deshalb bislang nie. Diese neue, eingeschränkte Rolle besitzt keine einzige Tabelle, erhält
 # nur gezielte GRANTs -- für sie gelten die Policies ganz normal.
 #
+# NUR für webapp/src/DB.php gedacht (Vorfall 17.08.2026): mqtt-subscriber und eda-parser
+# verbinden bewusst weiterhin als DB_USER (Schema-Besitzer) -- beides vertrauenswürdige interne
+# Hintergrunddienste ohne einzelne, community-gebundene Nutzer-Session (sie verarbeiten
+# Nachrichten/Importe für ALLE Communities), RLS würde dort ohne ein SET app.community_id vor
+# jeder Abfrage nur jeden Zugriff blockieren, siehe main.py bzw. parser.py.
+#
 # WICHTIG -- Reihenfolge beim Deploy: dieses Skript MUSS vor "docker compose up -d --build"
-# laufen (bzw. Teil desselben Deploy-Schritts sein). webapp/src/DB.php, mqtt-subscriber/main.py
-# und eda-parser/parser.py bevorzugen APP_DB_USER/APP_DB_PASSWORD, fallen aber automatisch auf
-# die bisherige DB_USER/DB_PASSWORD-Rolle zurück, solange APP_DB_USER leer ist -- die Plattform
-# bleibt also in ihrem bisherigen Zustand nutzbar, bis dieses Skript einmal gelaufen UND die
-# Container neu gestartet worden sind. Kein Datenverlust: die bestehende DB_USER-Rolle bleibt
-# unverändert Besitzer aller Tabellen, dieses Skript legt nur eine ZUSÄTZLICHE Rolle an.
+# laufen (bzw. Teil desselben Deploy-Schritts sein). webapp/src/DB.php bevorzugt
+# APP_DB_USER/APP_DB_PASSWORD, fällt aber automatisch auf die bisherige DB_USER/DB_PASSWORD-
+# Rolle zurück, solange APP_DB_USER leer ist -- die Plattform bleibt also in ihrem bisherigen
+# Zustand nutzbar, bis dieses Skript einmal gelaufen UND die Container neu gestartet worden
+# sind. Kein Datenverlust: die bestehende DB_USER-Rolle bleibt unverändert Besitzer aller
+# Tabellen, dieses Skript legt nur eine ZUSÄTZLICHE Rolle an.
 #
 # Aufruf (im Repo-Root, auf dem Server):
 #   ./scripts/db_runtime_role_setup.sh
@@ -100,12 +105,13 @@ SQL
 echo "✓ Rolle und Grants eingerichtet."
 
 echo ""
-echo "Starte webapp + mqtt-subscriber neu, damit sie mit der neuen Rolle verbinden..."
-$COMPOSE up -d --force-recreate webapp mqtt-subscriber
+echo "Starte webapp neu, damit sie mit der neuen Rolle verbindet..."
+$COMPOSE up -d --force-recreate webapp
 
 echo ""
 echo "─────────────────────────────────────────────────────────────"
-echo "Fertig. Webapp/mqtt-subscriber/eda-parser verbinden ab sofort als '${APP_DB_USER}' --"
-echo "diese Rolle besitzt keine Tabellen, die Row-Level-Security-Policies greifen jetzt"
-echo "tatsächlich. DB_USER (${DB_USER}) bleibt unverändert Schema-Besitzer für Migrationen."
+echo "Fertig. Die Webapp verbindet ab sofort als '${APP_DB_USER}' -- diese Rolle besitzt keine"
+echo "Tabellen, die Row-Level-Security-Policies greifen jetzt tatsächlich. DB_USER (${DB_USER})"
+echo "bleibt unverändert Schema-Besitzer für Migrationen. mqtt-subscriber/eda-parser verbinden"
+echo "bewusst weiterhin als DB_USER (siehe Kommentar oben im Skript)."
 echo "─────────────────────────────────────────────────────────────"

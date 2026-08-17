@@ -92,6 +92,19 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   eingecheckt (vermutlich früher manuell auf den Server kopiert) -- ein voller Image-Rebuild
   verliert sie deshalb. Jetzt aus dem bereits vorhandenen `assets/images/logo.png` befüllt und
   eingecheckt, damit das nicht wieder passiert.
+- **Beide ESPs gleichzeitig "offline" (Vorfall 17.08.2026, Fortsetzung des RLS-Fixes).** Kein
+  Hardware-/Netzwerkproblem: `mqtt-subscriber` lief seit dem Vortag ebenfalls mit der neuen
+  eingeschränkten DB-Rolle, setzte aber vor keiner einzigen Abfrage/Schreibaktion die
+  RLS-Community -- jede Live-Nachricht wurde dadurch als "unbekannte Zählernummer" behandelt
+  und weder Status noch Messwerte gespeichert. Anders als bei der Webapp ist das hier kein
+  Henne-Ei-Problem, das sich pro Route lösen lässt: der Dienst verarbeitet Nachrichten für ALLE
+  Communities gleichzeitig und braucht dafür ohnehin einen community-übergreifenden Blick (z.B.
+  `get_all_device_targets()` für die MQTT-Fernkonfiguration). `mqtt-subscriber` und (aus
+  demselben Grund vorsorglich, bevor der nächste Monatsimport es getroffen hätte) `eda-parser`
+  verbinden deshalb bewusst weiterhin als Schema-Besitzer (`DB_USER`) statt der eingeschränkten
+  Rolle -- beide sind vertrauenswürdige interne Batch-/Hintergrundprozesse ohne direkten
+  HTTP-Zugriff von außen, RLS bietet dort keinen zusätzlichen Schutz gegen eine realistische
+  Bedrohung. Die Webapp selbst bleibt auf der eingeschränkten Rolle.
 - **Deploy-Reihenfolge `redis_secure_setup.sh` vs. `docker compose up -d --build`
   vertauscht** -- siehe eigener Eintrag oben unter „Redis-Passwort", Ursache eines kompletten
   Login-Ausfalls direkt nach diesem Update.

@@ -157,14 +157,15 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       DB_HOST: timescaledb
       DB_PORT: 5432
+      # BEWUSST nur DB_USER/DB_PASSWORD (Schema-Besitzer), NICHT APP_DB_USER -- dieser Dienst
+      # verarbeitet MQTT-Nachrichten community-übergreifend und löst die Community erst pro
+      # Nachricht auf (siehe main.py), Row-Level Security würde ohne ein SET app.community_id
+      # vor jeder Abfrage jeden Schreibzugriff blockieren (Vorfall 17.08.2026: beide ESPs
+      # gleichzeitig "offline"). Anders als bei der Webapp (siehe unten) bringt die
+      # eingeschränkte Rolle hier keinen zusätzlichen Schutz -- MQTT ist bereits über
+      # TLS+Zugangsdaten abgesichert, kein direkter HTTP-Zugriff von außen.
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      # Eingeschränkte Laufzeit-Rolle (siehe scripts/db_runtime_role_setup.sh) -- main.py
-      # bevorzugt diese, fällt aber auf DB_USER/DB_PASSWORD zurück, solange leer/nicht gesetzt.
-      # Nur für diese Rolle greifen die Row-Level-Security-Policies überhaupt (DB_USER ist
-      # Tabellenbesitzer und von RLS immer ausgenommen).
-      APP_DB_USER: ${APP_DB_USER:-}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
       DB_NAME: ${DB_NAME}
       # Für die Verschlüsselung des ESP-WLAN-Passworts (eeg/+/meter/+/status), gleicher
       # Schlüssel wie encryptSecret()/decryptSecret() in webapp/src/functions.php.
@@ -203,8 +204,11 @@ services:
       # Eingeschränkte Laufzeit-Rolle (siehe scripts/db_runtime_role_setup.sh) -- DB.php
       # bevorzugt diese, fällt aber auf DB_USER/DB_PASSWORD zurück, solange leer/nicht gesetzt.
       # Nur für diese Rolle greifen die Row-Level-Security-Policies überhaupt (DB_USER ist
-      # Tabellenbesitzer und von RLS immer ausgenommen). Wird per proc_open() (ohne eigenes
-      # env-Array) auch an den eda-parser-Subprozess vererbt, siehe EdaParserRunner.php.
+      # Tabellenbesitzer und von RLS immer ausgenommen). NUR für die Webapp gedacht -- wird zwar
+      # per proc_open() (ohne eigenes env-Array) auch an den eda-parser-Subprozess vererbt, der
+      # ignoriert es aber bewusst und verbindet immer als DB_USER (gleicher Grund wie
+      # mqtt-subscriber unten: community-übergreifender Batch-Prozess ohne einzelne
+      # Nutzer-Session, siehe eda-parser/parser.py).
       APP_DB_USER: ${APP_DB_USER:-}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
       DB_NAME: ${DB_NAME}

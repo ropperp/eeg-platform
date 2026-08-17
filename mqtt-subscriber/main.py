@@ -50,11 +50,20 @@ MQTT_USER = os.environ.get("MQTT_USER", "")
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
 DB_HOST = os.environ["DB_HOST"]
 DB_PORT = os.environ.get("DB_PORT", "5432")
-# Bevorzugt APP_DB_USER/APP_DB_PASSWORD (eingeschränkte Rolle, siehe
-# scripts/db_runtime_role_setup.sh), Fallback auf DB_USER/DB_PASSWORD solange das Skript noch
-# nicht gelaufen ist.
-DB_USER = os.environ.get("APP_DB_USER") or os.environ["DB_USER"]
-DB_PASSWORD = os.environ.get("APP_DB_PASSWORD") if os.environ.get("APP_DB_USER") else os.environ["DB_PASSWORD"]
+# BEWUSST weiterhin DB_USER (Schema-Besitzer), NICHT die eingeschränkte APP_DB_USER-Rolle aus
+# scripts/db_runtime_role_setup.sh (Vorfall 17.08.2026: beide ESPs gleichzeitig "offline",
+# Ursache war RLS, das jede Abfrage/jeden Schreibzugriff dieses Dienstes blockierte). Anders als
+# die Webapp bedient dieser Dienst KEINE einzelne, angemeldete Nutzer-Session mit bekannter
+# Community -- er verarbeitet MQTT-Nachrichten für ALLE Communities gleichzeitig und muss die
+# Community erst aus dem Topic/der Zählernummer auflösen (get_community_id(),
+# get_metering_points()), bevor überhaupt bekannt ist, wofür RLS "app.community_id" setzen
+# müsste. Zusätzlich braucht get_all_device_targets() (MQTT-Fernkonfiguration) ohnehin einen
+# echten community-übergreifenden Blick auf alle Zählpunkte gleichzeitig. Row-Level Security
+# schützt hier vor keiner realistischen Bedrohung (kein direkter HTTP-Zugriff von außen, MQTT
+# selbst ist bereits durch TLS+Zugangsdaten abgesichert) -- der Schema-Besitzer bleibt daher für
+# diesen internen Hintergrunddienst die richtige Wahl.
+DB_USER = os.environ["DB_USER"]
+DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 APP_SECRET = os.environ.get("APP_SECRET", "")
 
