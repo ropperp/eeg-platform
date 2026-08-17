@@ -52,12 +52,18 @@ import psycopg2.extras
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
+# Bevorzugt APP_DB_USER/APP_DB_PASSWORD (eingeschränkte Rolle, siehe
+# scripts/db_runtime_role_setup.sh), Fallback auf DB_USER/DB_PASSWORD solange das Skript noch
+# nicht gelaufen ist.
+_DB_USER = os.environ.get("APP_DB_USER") or os.environ.get("DB_USER", "eeg")
+_DB_PASSWORD = os.environ.get("APP_DB_PASSWORD") if os.environ.get("APP_DB_USER") else os.environ.get("DB_PASSWORD", "")
+
 DB_DSN = (
     f"host={os.environ.get('DB_HOST', 'localhost')} "
     f"port={os.environ.get('DB_PORT', '5432')} "
     f"dbname={os.environ.get('DB_NAME', 'eeg_platform')} "
-    f"user={os.environ.get('DB_USER', 'eeg')} "
-    f"password={os.environ.get('DB_PASSWORD', '')}"
+    f"user={_DB_USER} "
+    f"password={_DB_PASSWORD}"
 )
 
 

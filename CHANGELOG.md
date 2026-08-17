@@ -19,6 +19,62 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Sicherheit
+Alle Punkte aus einem OWASP-Audit der Login-/Session-/Berechtigungs-Architektur (13.08.2026),
+umgesetzt mit dem Ziel "durchgehend sicher und funktionierend, keine Daten weg, kein Mitglied
+muss sich neu registrieren" (Patrick). Jeder Punkt ist bewusst so gebaut, dass er ohne Zutun im
+alten (unsicheren) Zustand weiterläuft, bis das jeweilige einmalige Setup-Skript ausgeführt
+wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
+
+- **Row-Level Security greift jetzt tatsächlich (kritischster Befund).** Die Webapp verband
+  bisher mit derselben Rolle, die auch Schema-Besitzer ist -- Postgres wertet
+  Row-Level-Security-Policies für den Tabellenbesitzer grundsätzlich NIE aus, unabhängig von
+  `FORCE ROW LEVEL SECURITY`. Die längst vorhandenen `community_isolation`-Policies griffen
+  dadurch nie: ein kompromittierter Webapp-Prozess hätte Daten JEDER EEG lesen können, nicht
+  nur der eigenen. Neue, eingeschränkte Laufzeit-Rolle (`scripts/db_runtime_role_setup.sh`,
+  `APP_DB_USER`/`APP_DB_PASSWORD`) besitzt keine einzige Tabelle -- für sie gelten die Policies
+  normal. `webapp/src/DB.php`, `eda-parser/parser.py`, `mqtt-subscriber/main.py` bevorzugen die
+  neue Rolle, fallen aber automatisch auf die bisherige zurück, solange das Skript nicht
+  gelaufen ist. Live an einer nativen PostgreSQL-16-Instanz verifiziert: als Tabellenbesitzer
+  waren trotz gesetztem `app.community_id` Zeilen fremder Communities sichtbar (Bug bestätigt),
+  als neue Rolle korrekt nur die eigenen (Fix bestätigt). Nebenbefund: `invoice_items` hatte
+  `ENABLE ROW LEVEL SECURITY`, aber nie eine Policy (in `init.sql` übersehen) -- nachgetragen
+  in `database/migrate_20260822.sql`, sonst wären Rechnungspositionen mit der neuen Rolle für
+  jede Rechnung leer geblieben.
+- **TOTP-Secrets (2FA) werden jetzt verschlüsselt gespeichert.** Lagen bisher im Klartext in
+  `users.totp_secret` -- ein DB-Dump/-Leak hätte die 2FA-Codes aller Nutzer direkt kompromittiert,
+  ganz ohne deren Passwort zu brauchen. Neue/geänderte Secrets werden ab sofort mit derselben
+  AES-256-CBC-Funktion verschlüsselt, die schon fürs ESP-WLAN-Passwort verwendet wird
+  (`encryptSecret()`). Damit bestehende 2FA-Nutzer sich nicht neu einrichten müssen: die
+  Login-Prüfung (`totpSecretFromStorage()`) erkennt automatisch, ob ein gespeichertes Secret
+  noch Klartext oder schon verschlüsselt ist, und funktioniert für beide -- unabhängig davon,
+  ob/wann das einmalige Nachverschlüsselungs-Skript (`scripts/migrate_encrypt_totp_secrets.php`)
+  bereits gelaufen ist.
+- **Brute-Force-Schutz für Login und 2FA-Codeeingabe.** Bisher unbegrenzt viele Versuche möglich.
+  Neue `RateLimiter`-Klasse (Redis-Zähler, 15-Minuten-Fenster) sperrt nach 5 Fehlversuchen pro
+  E-Mail bzw. 20 pro IP beim Login, 5 pro Konto bei der 2FA-Codeeingabe. Fail-open bei
+  Redis-Ausfall (Redis ist ohnehin schon fürs Session-Backend nötig, kein neuer Single Point of
+  Failure) -- ein Ausfall sperrt niemanden versehentlich aus.
+- **CSRF-Schutz für alle ~70 POST-Formulare.** Bisher nur `SameSite=Lax` auf dem Session-Cookie.
+  Zentrale Prüfung in `Router::dispatch()` (ein Ort statt jedes einzelnen Handlers); das Token
+  wird automatisch per kleinem Skript am Ende von `layouts/base.php`/`layouts/portal.php` in
+  jedes Formular eingefügt, ohne dass ~70 View-Dateien einzeln angefasst werden mussten.
+- **Redis-Passwort + `session.use_strict_mode`.** Redis (Session-Speicher) lief bisher komplett
+  unauthentifiziert -- jeder mit Zugriff aufs interne Docker-Netz hätte Sessions lesen/fälschen
+  können. `scripts/redis_secure_setup.sh` richtet ein Passwort ein (`REDIS_PASSWORD`), bestehende
+  Sessions bleiben dabei erhalten. `session.use_strict_mode = 1` (OWASP-Härtung gegen
+  Session-Fixation) ergänzt.
+- **Security-Header (nginx).** `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy`, `Content-Security-Policy` (mit bewusstem `'unsafe-inline'` für
+  Style/Script, da die App durchgehend auf Inline-Styles/-Scripts setzt -- ein strengeres CSP
+  hätte einen großen Refactor gebraucht).
+- **Optionaler Passwort-Leak-Check (HaveIBeenPwned, k-Anonymität).** Bei Passwort-Änderung
+  (`/portal/password`) und -Reset (`/portal/reset-password`) wird geprüft, ob das gewählte
+  Passwort in bekannten Datenlecks auftaucht (nur die ersten 5 Zeichen des SHA-1-Hashes werden
+  übertragen, das Passwort selbst verlässt den Server nie). Fail-open: ist die API nicht
+  erreichbar, gilt das Passwort als unbedenklich -- ein Passwort-Wechsel darf nie an einer
+  externen API scheitern.
+
 ### Neu / Funktionen
 - **Monats-Abrechnungsläufe + automatische Prüfung auf fehlende Monate.** Ein Abrechnungslauf
   kann jetzt neben einem Quartal (`2026-Q1`) auch für einen einzelnen Monat (`2026-07`) angelegt

@@ -50,8 +50,11 @@ MQTT_USER = os.environ.get("MQTT_USER", "")
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
 DB_HOST = os.environ["DB_HOST"]
 DB_PORT = os.environ.get("DB_PORT", "5432")
-DB_USER = os.environ["DB_USER"]
-DB_PASSWORD = os.environ["DB_PASSWORD"]
+# Bevorzugt APP_DB_USER/APP_DB_PASSWORD (eingeschränkte Rolle, siehe
+# scripts/db_runtime_role_setup.sh), Fallback auf DB_USER/DB_PASSWORD solange das Skript noch
+# nicht gelaufen ist.
+DB_USER = os.environ.get("APP_DB_USER") or os.environ["DB_USER"]
+DB_PASSWORD = os.environ.get("APP_DB_PASSWORD") if os.environ.get("APP_DB_USER") else os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 APP_SECRET = os.environ.get("APP_SECRET", "")
 

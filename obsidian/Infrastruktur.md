@@ -232,6 +232,22 @@ docker compose up -d --build
 > Fallback: `./scripts/mqtt_secure_setup.sh --apply` direkt auf dem Server. Danach jedes
 > ESP32-Gerät im `/config`-Formular auf das neue Passwort umstellen.
 
+> **Einmalig nach dem Update vom 17.08.2026** (OWASP-Audit-Fixes -- RLS greift jetzt tatsächlich,
+> TOTP-Secrets verschlüsselt, Brute-Force-Schutz, CSRF-Schutz, Security-Header,
+> Passwort-Leak-Check): genaue Reihenfolge/Begründung in `docs/DEPLOY_OWASP_AUDIT.md`, Kurzfassung:
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260822.sql
+> docker compose up -d --build
+> ./scripts/db_runtime_role_setup.sh
+> ./scripts/redis_secure_setup.sh
+> docker compose exec -T webapp php < scripts/migrate_encrypt_totp_secrets.php
+> ```
+> Jeder Schritt läuft bis zu seiner Ausführung im bisherigen (unsicheren) Fallback weiter -- keine
+> Downtime, keine Reihenfolge-Falle. Bei einer Neuinstallation ruft `scripts/setup.sh`
+> `redis_secure_setup.sh` und `db_runtime_role_setup.sh` automatisch mit auf.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

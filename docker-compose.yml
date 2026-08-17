@@ -87,12 +87,24 @@ services:
     logging: *default-logging
     volumes:
       - /opt/eeg/redis:/data
-    command: redis-server --save 60 1 --loglevel warning
+      # Optionale redis.conf mit "requirepass" (siehe scripts/redis_secure_setup.sh) --
+      # :ro, damit der Container sie nie selbst verändert. Existiert die Datei noch nicht
+      # (frische Installation vor dem einmaligen Setup-Skript), lässt --loglevel warning davor
+      # nichts fehlschlagen -- "include" einer fehlenden Datei ist bei Redis ein harter Fehler,
+      # deshalb wird die Datei von setup.sh/redis_secure_setup.sh IMMER angelegt (notfalls leer).
+      - /opt/eeg/redis-config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf --save 60 1 --loglevel warning
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # -a aus $$REDIS_PASSWORD (doppeltes $$, damit Compose es nicht selbst interpoliert,
+      # sondern die Shell IM Container zur Laufzeit) -- funktioniert unverändert, egal ob ein
+      # Passwort gesetzt ist oder nicht (redis-cli ignoriert -a mit leerem Wert nicht ganz
+      # sauber, deshalb sh -c mit bedingtem Aufbau).
+      test: ["CMD-SHELL", "redis-cli $$( [ -n \"$$REDIS_PASSWORD\" ] && echo -a $$REDIS_PASSWORD ) ping | grep -q PONG"]
       interval: 30s
       timeout: 5s
       retries: 3
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     networks:
       - eeg-net
 
@@ -147,6 +159,12 @@ services:
       DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      # Eingeschränkte Laufzeit-Rolle (siehe scripts/db_runtime_role_setup.sh) -- main.py
+      # bevorzugt diese, fällt aber auf DB_USER/DB_PASSWORD zurück, solange leer/nicht gesetzt.
+      # Nur für diese Rolle greifen die Row-Level-Security-Policies überhaupt (DB_USER ist
+      # Tabellenbesitzer und von RLS immer ausgenommen).
+      APP_DB_USER: ${APP_DB_USER:-}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
       DB_NAME: ${DB_NAME}
       # Für die Verschlüsselung des ESP-WLAN-Passworts (eeg/+/meter/+/status), gleicher
       # Schlüssel wie encryptSecret()/decryptSecret() in webapp/src/functions.php.
@@ -182,9 +200,20 @@ services:
       DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      # Eingeschränkte Laufzeit-Rolle (siehe scripts/db_runtime_role_setup.sh) -- DB.php
+      # bevorzugt diese, fällt aber auf DB_USER/DB_PASSWORD zurück, solange leer/nicht gesetzt.
+      # Nur für diese Rolle greifen die Row-Level-Security-Policies überhaupt (DB_USER ist
+      # Tabellenbesitzer und von RLS immer ausgenommen). Wird per proc_open() (ohne eigenes
+      # env-Array) auch an den eda-parser-Subprozess vererbt, siehe EdaParserRunner.php.
+      APP_DB_USER: ${APP_DB_USER:-}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
       DB_NAME: ${DB_NAME}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # Leer = wie bisher unauthentifiziert (Rückwärtskompatibilität vor dem einmaligen
+      # scripts/redis_secure_setup.sh, siehe Auth::start()). Auch für das Rate-Limiting
+      # (login-Fehlversuche, siehe RateLimiter.php) genutzt.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       LATEX_SERVICE_URL: http://latex-service:3210
       LATEX_API_KEY: ${LATEX_API_KEY}
       APP_SECRET: ${APP_SECRET}

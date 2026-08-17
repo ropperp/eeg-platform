@@ -21,6 +21,16 @@ class Router
         $method = $_SERVER['REQUEST_METHOD'];
         $uri    = strtok($_SERVER['REQUEST_URI'], '?');
 
+        // Zentraler CSRF-Schutz für ALLE POST-Routen (OWASP-Audit 13.08.2026) -- ein Ort statt
+        // ~70 einzelne Handler, siehe csrfValid()/csrfToken() in functions.php. Läuft bewusst
+        // VOR dem Pattern-Matching der einzelnen Route, damit kein POST-Handler versehentlich
+        // vergessen werden kann.
+        if ($method === 'POST' && !csrfValid($_POST['csrf_token'] ?? null)) {
+            http_response_code(403);
+            require __DIR__ . '/views/pages/csrf_error.php';
+            return;
+        }
+
         foreach ($this->routes as [$routeMethod, $path, $handler]) {
             if ($routeMethod !== $method) continue;
 

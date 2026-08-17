@@ -14,6 +14,21 @@ class Auth
         if (session_status() === PHP_SESSION_NONE) {
             session_name('eeg_session');
 
+            // Redis-Verbindung der Session mit optionalem Passwort (siehe
+            // scripts/redis_secure_setup.sh) -- muss per ini_set() VOR session_start() gesetzt
+            // werden, deshalb hier statt statisch in php.ini (das könnte kein Passwort aus der
+            // Umgebung einbauen, ohne bei jeder Passwortänderung ein Image-Rebuild zu brauchen).
+            // Ohne REDIS_PASSWORD in der Umgebung (z.B. vor dem einmaligen Setup-Skript) bleibt
+            // es exakt beim bisherigen, unauthentifizierten Verbindungsstring.
+            $redisHost = getenv('REDIS_HOST') ?: 'redis';
+            $redisPort = getenv('REDIS_PORT') ?: '6379';
+            $redisPassword = getenv('REDIS_PASSWORD') ?: '';
+            $redisPath = "tcp://{$redisHost}:{$redisPort}";
+            if ($redisPassword !== '') {
+                $redisPath .= '?auth=' . rawurlencode($redisPassword);
+            }
+            ini_set('session.save_path', $redisPath);
+
             // Cookie-Domain explizit auf .stromfueralle.at setzen, damit sich Hauptdomain und
             // portal.stromfueralle.at (beide dieselbe App/DB) dieselbe Session teilen -- ohne
             // das bleibt eine auf einer Domain begonnene Session der jeweils anderen Domain

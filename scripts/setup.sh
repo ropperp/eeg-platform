@@ -77,6 +77,12 @@ echo "Richte MQTT-TLS-Zertifikat und Zugangsdaten ein ..."
 ./scripts/mqtt_secure_setup.sh --no-restart
 echo "✓ MQTT-Zertifikat/Zugangsdaten bereit."
 
+# ─── Redis-Passwort (OWASP-Audit 13.08.2026 -- Session-Speicher lief bisher unauthentifiziert) ──
+echo ""
+echo "Richte Redis-Passwort ein ..."
+./scripts/redis_secure_setup.sh --no-restart
+echo "✓ Redis-Passwort bereit."
+
 # ─── Container bauen & starten ───────────────────────────────────
 echo ""
 echo "Baue und starte Container (das kann beim ersten Mal einige Minuten dauern) ..."
@@ -102,6 +108,16 @@ for f in database/migrate_*.sql; do
   $COMPOSE exec -T timescaledb psql -U "$DB_USER" -d "$DB_NAME" < "$f" > /dev/null
 done
 echo "✓ Migrationen eingespielt."
+
+# ─── Eingeschränkte DB-Laufzeit-Rolle (OWASP-Audit 13.08.2026 -- ohne sie greift Row-Level
+# Security nie, weil die Webapp sonst als Tabellenbesitzer verbindet). Braucht eine bereits
+# laufende Datenbank MIT eingespielten Migrationen (GRANT auf bestehende Tabellen) -- deshalb
+# erst hier statt vor dem ersten "up -d --build" wie MQTT/Redis oben. Restartet webapp/
+# mqtt-subscriber selbst.
+echo ""
+echo "Richte eingeschränkte Datenbank-Rolle für den Laufzeitzugriff ein ..."
+./scripts/db_runtime_role_setup.sh
+echo "✓ Datenbank-Rolle bereit."
 
 # ─── Platform-Admin-Zugang anlegen ───────────────────────────────
 echo ""

@@ -21,7 +21,14 @@ class DB
                 getenv('DB_PORT') ?: '5432',
                 getenv('DB_NAME') ?: 'eeg_platform'
             );
-            self::$pdo = new PDO($dsn, getenv('DB_USER'), getenv('DB_PASSWORD'), [
+            // Bevorzugt APP_DB_USER/APP_DB_PASSWORD (eingeschränkte Rolle ohne Tabellenbesitz,
+            // siehe scripts/db_runtime_role_setup.sh -- nur für sie greifen die RLS-Policies
+            // unten überhaupt, DB_USER als Tabellenbesitzer ist von RLS immer ausgenommen).
+            // Fallback auf DB_USER/DB_PASSWORD, solange das Skript noch nicht gelaufen ist, damit
+            // die Plattform ohne Zutun in ihrem bisherigen Zustand funktionsfähig bleibt.
+            $dbUser = getenv('APP_DB_USER') ?: getenv('DB_USER');
+            $dbPassword = getenv('APP_DB_USER') ? getenv('APP_DB_PASSWORD') : getenv('DB_PASSWORD');
+            self::$pdo = new PDO($dsn, $dbUser, $dbPassword, [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
