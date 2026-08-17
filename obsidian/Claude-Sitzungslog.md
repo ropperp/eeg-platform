@@ -8,6 +8,34 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-17 (53) — Claude Code — Claude Sonnet 5
+**Prompt:** "wie sieht es aus, wenn wir noch eine App zu unserer Plattform machen wollen. Wie
+macht man das am besten mit der Kommunikation? über eine eigene API-Schnittstelle oder direkt
+mit der DB kommunizieren?" / "Ja, skizziere mir den Auth-Flow. Und dann auch wie die Daten
+sichtbar sind in einer App sowie die Rechnungen als PDF." / "Ja, arbeite bitte das alles als
+Implementierungsplan aus. Zusätzlich wenn alles umgesetzt wurde, brauch ich einmal eine
+meschliche Beschreibung für mich und meinen Mitschüler und einmal eine datei.md für seine
+claude KI. eigentlich soll er die App programmieren. Wird er auch, aber wir werden es mit
+Xcode auch parallel programmieren beginnen."
+**Auftrag:** Architektur-Beratung zur geplanten Mitglieder-App (eigene API vs. direkter
+DB-Zugriff), anschließend Auth-Flow/Datenzugriff/PDF-Handling skizzieren und schließlich als
+vollständige Implementierung umsetzen, inklusive einer für Patrick/Mitschüler verständlichen
+Beschreibung und einer eigenständigen API-Referenz für die Claude-KI, die den iOS-Client baut.
+**Ergebnis:** Neue App-Programmierschnittstelle `/api/v1/*` implementiert: Login-Flow
+(E-Mail/Passwort, optionale 2FA, Mehrfach-Mitgliedschaft-Auswahl) mit selbst-signierten
+15-Minuten-Zugriffstoken + rotierenden 30-Tage-Refresh-Token (`webapp/src/AppApiAuth.php`,
+neue Tabelle `app_sessions` ohne RLS wie `member_api_keys`, `database/migrate_20260830.sql`),
+Daten-Endpunkte (`/dashboard`, `/consumption`, `/invoices`, `/invoices/:id/pdf`,
+`/metering-points`), Rechnungs-PDF-Route dabei verhaltensgleich aus der bestehenden
+Web-Route herausgelöst (`loadInvoiceForPdf()`/`renderInvoicePdf()`) statt dupliziert. Dabei
+einen Konflikt mit dem globalen CSRF-Schutz aus der vorherigen Sitzung gefunden und behoben
+(`/api/*` ausgenommen, da Bearer-Token strukturell kein CSRF-Risiko hat) sowie die
+RLS-sichere Mehrfach-Community-Auflösung über `user_roles` statt eines direkten
+`members`-Cross-Community-Joins gelöst. Alles live gegen eine native PostgreSQL-16-Instanz
+verifiziert (RLS-Verhalten, Refresh-Token-Rotation inkl. Diebstahlschutz, Mehrfach-/
+Einzel-/keine-Mitgliedschaft). Testsuite von 86 auf 94 Tests erweitert. Technische Referenz:
+`docs/APP_API.md`.
+
 ## 2026-08-17 (52) — Claude Code — Claude Sonnet 5
 **Prompt:** "kannst du mir bitte alle Probleme, Fehler und Sicherheitslücken fixen. Mlchte eine
 durchgehend sicher und funktionierende Plattform haben. Was mir wichtig wäre, dass keine Daten

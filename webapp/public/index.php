@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'RateLimiter', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter'] as $class) {
+foreach (['DB', 'Auth', 'RateLimiter', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -300,6 +300,47 @@ function communityLivePower(string $communityId): array
         'active_meters' => (int)($row['active_meters'] ?? 0),
         'total_meters'  => (int)($total['cnt'] ?? 0),
     ];
+}
+
+/**
+ * Löst auf, in welcher/welchen Community(s) ein User-Account eine AKTIVE Mitgliedschaft hat --
+ * Grundlage für den App-Login (/api/v1/login), der im Gegensatz zum Web-Login ohne
+ * Rollen-Umschalter auskommt (die App ist reine Mitglieder-Selbstbedienung, siehe
+ * docs/APP_API.md). Fragt bewusst zuerst user_roles (role='member', KEINE RLS -- siehe
+ * Auth::establishSession() für dasselbe Muster) statt direkt members, weil members Row-Level
+ * Security hat und app.community_id an dieser Stelle noch unbekannt ist -- für jeden
+ * gefundenen Kandidaten wird die Community deshalb einzeln aktiviert (DB::setCommunity()) und
+ * DANACH der zugehörige members-Datensatz nachgeschlagen, damit RLS korrekt greift statt eine
+ * Zeile über alle Communities hinweg zu joinen.
+ *
+ * @return array<int, array{member_id:string, community_id:string, community_name:string, name:string}>
+ */
+function resolveAppMemberships(string $userId): array
+{
+    $roles = DB::fetchAll(
+        "SELECT ur.community_id, c.name AS community_name
+         FROM user_roles ur JOIN communities c ON c.id = ur.community_id
+         WHERE ur.user_id = ? AND ur.role = 'member'
+         ORDER BY c.name",
+        [$userId]
+    );
+    $out = [];
+    foreach ($roles as $r) {
+        DB::setCommunity($r['community_id']);
+        $member = DB::fetchOne(
+            "SELECT id, first_name, last_name FROM members WHERE user_id = ? AND community_id = ? AND status = 'active'",
+            [$userId, $r['community_id']]
+        );
+        if ($member) {
+            $out[] = [
+                'member_id'      => $member['id'],
+                'community_id'   => $r['community_id'],
+                'community_name' => $r['community_name'],
+                'name'           => trim($member['first_name'] . ' ' . $member['last_name']),
+            ];
+        }
+    }
+    return $out;
 }
 
 /**
@@ -1478,12 +1519,16 @@ $router->get('/portal/invoices', function () {
     require ROOT . '/src/views/pages/invoices.php';
 });
 
-$router->get('/portal/invoices/:id/pdf', function ($params) {
-    Auth::requireLogin();
-    $communityId = Auth::activeCommunityId();
-    if ($communityId) DB::setCommunity($communityId);
-
-    $invoice = DB::fetchOne(
+/**
+ * Lädt eine Rechnung mit allen Feldern, die sowohl für den Autorisierungs-Check als auch für
+ * den PDF-Aufbau gebraucht werden. Gibt null zurück, wenn die Rechnung nicht existiert.
+ * Geteilt zwischen /portal/invoices/:id/pdf (Browser-Session) und /api/v1/invoices/:id/pdf
+ * (App-Bearer-Token, seit 30.08.2026) -- beide Routen prüfen die Berechtigung SELBST (je nach
+ * Identitätsquelle unterschiedlich), diese Funktion liefert nur die Rohdaten.
+ */
+function loadInvoiceForPdf(string $invoiceId): ?array
+{
+    return DB::fetchOne(
         'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
                 m.salutation, m.titel, m.company_name, m.invoice_name,
                 m.kundennummer, m.mandatsreferenz, m.member_iban,
@@ -1508,21 +1553,14 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
          ) tx ON true
          WHERE i.id = ?
          ORDER BY tc.valid_from DESC',
-        [$params['id']]
+        [$invoiceId]
     );
-    if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+}
 
-    // IDOR-Schutz: nur das Mitglied selbst (Rechnung gehört zu seinem User-Login) oder ein
-    // Manager/Platform-Admin der jeweiligen Community darf die PDF abrufen -- ohne diese
-    // Prüfung konnte jeder eingeloggte Nutzer mit bekannter/erratener Invoice-UUID fremde
-    // Rechnungen abrufen.
-    $isOwnInvoice = $invoice['member_user_id'] !== null && $invoice['member_user_id'] === Auth::userId();
-    $isManagerOfCommunity = Auth::isManager() && Auth::activeCommunityId() === $invoice['member_community_id'];
-    if (!Auth::isPlatformAdmin() && !$isOwnInvoice && !$isManagerOfCommunity) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
-
-    $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
+/** Rendert eine per loadInvoiceForPdf() geladene Rechnung als PDF-Response (LaTeX). */
+function renderInvoicePdf(array $invoice): void
+{
+    $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$invoice['id']]);
     // Bezug/Einspeisung können mehrere Positionen haben (eine pro Zählpunkt) -- als Listen
     // sammeln, damit die Rechnung pro Zählpunkt eine eigene Zeile zeigen kann.
     $bezugItems = []; $einspeisungItems = []; $beitragItem = null; $extraItems = [];
@@ -1643,6 +1681,56 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => $faellig,
     ], $invoice['rechnungsnummer'] . '.pdf', communityLogoAsset($invoice['member_community_id']));
+}
+
+$router->get('/portal/invoices/:id/pdf', function ($params) {
+    Auth::requireLogin();
+    $communityId = Auth::activeCommunityId();
+    if ($communityId) DB::setCommunity($communityId);
+
+    $invoice = loadInvoiceForPdf($params['id']);
+    if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+
+    // IDOR-Schutz: nur das Mitglied selbst (Rechnung gehört zu seinem User-Login) oder ein
+    // Manager/Platform-Admin der jeweiligen Community darf die PDF abrufen -- ohne diese
+    // Prüfung konnte jeder eingeloggte Nutzer mit bekannter/erratener Invoice-UUID fremde
+    // Rechnungen abrufen.
+    $isOwnInvoice = $invoice['member_user_id'] !== null && $invoice['member_user_id'] === Auth::userId();
+    $isManagerOfCommunity = Auth::isManager() && Auth::activeCommunityId() === $invoice['member_community_id'];
+    if (!Auth::isPlatformAdmin() && !$isOwnInvoice && !$isManagerOfCommunity) {
+        http_response_code(403); echo 'Kein Zugriff'; return;
+    }
+
+    renderInvoicePdf($invoice);
+});
+
+/**
+ * App-Pendant zu /portal/invoices/:id/pdf, nur mit Bearer-Token statt Browser-Session als
+ * Identitätsquelle -- der IDOR-Schutz ist hier sogar einfacher: das Token trägt bereits genau
+ * EINE member_id (siehe AppApiAuth), es muss also nur noch mit der Rechnung abgeglichen werden,
+ * kein zusätzlicher Manager/Platform-Admin-Sonderfall wie im Web (die App ist reine
+ * Mitglieder-Selbstbedienung).
+ */
+$router->get('/api/v1/invoices/:id/pdf', function ($params) {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    DB::setCommunity($ctx['community_id']);
+
+    $invoice = loadInvoiceForPdf($params['id']);
+    if (!$invoice) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Rechnung nicht gefunden.']);
+        return;
+    }
+    if ($invoice['member_id'] !== $ctx['member_id']) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(403);
+        echo json_encode(['error' => 'Kein Zugriff.']);
+        return;
+    }
+
+    renderInvoicePdf($invoice);
 });
 
 // ─── Portal: Mitglied-Selbstbedienung (eigene Verträge/Dateien) ─────────
@@ -2051,6 +2139,190 @@ $router->post('/portal/my/support/:id/reply', function ($params) {
     exit;
 });
 
+// ─── Mitglieder-App: Login-Flow (seit 30.08.2026, siehe docs/APP_API.md) ─────
+// Getrennt von der Smart-Home-API unten (member_api_keys, langlebig/selbst erzeugt): hier
+// meldet sich ein MENSCH mit E-Mail/Passwort in der App an, bekommt ein kurzlebiges
+// Zugriffstoken + ein erneuerbares Refresh-Token (siehe AppApiAuth.php). Alle Antworten JSON.
+
+/**
+ * Baut nach erfolgreichem Login (Passwort, ggf. 2FA) die endgültige Antwort: bei genau einer
+ * aktiven Mitgliedschaft direkt die Zugriffstoken, bei mehreren (Mitglied in >1 EEG) eine
+ * Auswahlliste + Ticket für /api/v1/login/select-community, bei keiner ein Fehler (die App ist
+ * reine Mitglieder-Selbstbedienung -- ein reiner Manager-/Platform-Admin-Account ohne eigene
+ * Mitgliedschaft kann sich hier bewusst nicht anmelden).
+ */
+function appLoginSuccessResponse(string $userId, ?string $deviceLabel): array
+{
+    $memberships = resolveAppMemberships($userId);
+    if (!$memberships) {
+        http_response_code(403);
+        return ['error' => 'Dieser Account hat keine aktive Mitgliedschaft. Die App ist nur für Mitglieder gedacht.'];
+    }
+    if (count($memberships) === 1) {
+        return appIssueSessionResponse($memberships[0], $deviceLabel);
+    }
+    return [
+        'community_selection_required' => true,
+        'selection_ticket' => AppApiAuth::issueTicket('community_pending', ['uid' => $userId]),
+        'memberships' => array_map(fn($m) => [
+            'community_id'   => $m['community_id'],
+            'community_name' => $m['community_name'],
+        ], $memberships),
+    ];
+}
+
+/** Stellt Zugriffs- + Refresh-Token für eine gewählte Mitgliedschaft aus. */
+function appIssueSessionResponse(array $membership, ?string $deviceLabel): array
+{
+    return [
+        'access_token'  => AppApiAuth::issueAccessToken($membership['member_id'], $membership['community_id']),
+        'refresh_token' => AppApiAuth::issueRefreshToken($membership['member_id'], $membership['community_id'], $deviceLabel),
+        'expires_in'    => AppApiAuth::accessTokenTtl(),
+        'member' => [
+            'id'             => $membership['member_id'],
+            'name'           => $membership['name'],
+            'community_id'   => $membership['community_id'],
+            'community_name' => $membership['community_name'],
+        ],
+    ];
+}
+
+/**
+ * Schritt 1: E-Mail + Passwort. Nutzt dieselbe Auth::checkPassword()/RateLimiter-Logik wie der
+ * Web-Login (gemeinsamer Fehlversuch-Zähler pro E-Mail/IP -- ein Angreifer kann die Sperre nicht
+ * einfach umgehen, indem er zwischen Web- und App-Endpunkt wechselt). Bei aktiver 2FA folgt
+ * Schritt 2 (/api/v1/login/2fa) statt sofort Token auszugeben.
+ */
+$router->post('/api/v1/login', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    $email = (string)($body['email'] ?? '');
+    $password = (string)($body['password'] ?? '');
+    $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
+
+    if (RateLimiter::isLoginBlocked($email)) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.']);
+        return;
+    }
+    $user = Auth::checkPassword($email, $password);
+    if (!$user) {
+        RateLimiter::registerLoginFailure($email);
+        http_response_code(401);
+        echo json_encode(['error' => 'E-Mail oder Passwort falsch.']);
+        return;
+    }
+    RateLimiter::resetLoginAttempts($email);
+
+    if (!empty($user['totp_enabled']) && !empty($user['totp_secret'])) {
+        echo json_encode([
+            'totp_required' => true,
+            'login_ticket'  => AppApiAuth::issueTicket('totp_pending', ['uid' => $user['id'], 'dl' => $deviceLabel]),
+        ]);
+        return;
+    }
+
+    echo json_encode(appLoginSuccessResponse($user['id'], $deviceLabel));
+});
+
+/**
+ * Schritt 2 (nur falls 2FA aktiv): Ticket aus Schritt 1 + 6-stelliger Code. Eigener
+ * Rate-Limiter-Zähler pro User-ID (RateLimiter::isTotpBlocked), unabhängig vom E-Mail/IP-Zähler
+ * aus Schritt 1 -- exakt dieselbe Logik wie /portal/login/2fa im Web.
+ */
+$router->post('/api/v1/login/2fa', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    $ticket = AppApiAuth::verifyTicket('totp_pending', (string)($body['login_ticket'] ?? ''));
+    if (!$ticket || empty($ticket['uid'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Login-Ticket ungültig oder abgelaufen. Bitte erneut mit E-Mail/Passwort anmelden.']);
+        return;
+    }
+    $uid = (string)$ticket['uid'];
+    $deviceLabel = $ticket['dl'] ?? null;
+
+    if (RateLimiter::isTotpBlocked($uid)) {
+        http_response_code(429);
+        echo json_encode(['error' => 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.']);
+        return;
+    }
+    $u = DB::fetchOne('SELECT totp_secret FROM users WHERE id = ? AND active = true', [$uid]);
+    if (!$u || empty($u['totp_secret']) || !totpVerify(totpSecretFromStorage($u['totp_secret']), (string)($body['code'] ?? ''))) {
+        RateLimiter::registerTotpFailure($uid);
+        http_response_code(401);
+        echo json_encode(['error' => 'Code ungültig oder abgelaufen.']);
+        return;
+    }
+    RateLimiter::resetTotpAttempts($uid);
+
+    echo json_encode(appLoginSuccessResponse($uid, $deviceLabel));
+});
+
+/**
+ * Nur nötig, wenn Schritt 1/2 eine Auswahlliste zurückgegeben haben (Account ist in mehreren
+ * EEGs Mitglied). Löst die Mitgliedschaften bewusst FRISCH neu auf (statt der Liste aus dem
+ * Ticket zu vertrauen) -- verhindert, dass eine manipulierte community_id akzeptiert wird, die
+ * zwischenzeitlich (z.B. Mitgliedschaft beendet) nicht mehr gültig ist.
+ */
+$router->post('/api/v1/login/select-community', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    $ticket = AppApiAuth::verifyTicket('community_pending', (string)($body['selection_ticket'] ?? ''));
+    if (!$ticket || empty($ticket['uid'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Auswahl-Ticket ungültig oder abgelaufen. Bitte erneut anmelden.']);
+        return;
+    }
+    $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
+    $communityId = (string)($body['community_id'] ?? '');
+
+    $chosen = null;
+    foreach (resolveAppMemberships((string)$ticket['uid']) as $m) {
+        if ($m['community_id'] === $communityId) { $chosen = $m; break; }
+    }
+    if (!$chosen) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültige Community-Auswahl.']);
+        return;
+    }
+    echo json_encode(appIssueSessionResponse($chosen, $deviceLabel));
+});
+
+/**
+ * Tauscht ein Refresh-Token gegen ein frisches Zugriffstoken -- soll die App still im
+ * Hintergrund aufrufen, sobald das Zugriffstoken (15 Min gültig) abläuft, statt den Nutzer
+ * erneut Passwort/2FA eingeben zu lassen. Das Refresh-Token wird dabei ROTIERT (siehe
+ * AppApiAuth::verifyAndRotateRefreshToken()) -- die App MUSS das neu zurückgegebene
+ * refresh_token speichern, das alte ist ab sofort ungültig.
+ */
+$router->post('/api/v1/token/refresh', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    $result = AppApiAuth::verifyAndRotateRefreshToken((string)($body['refresh_token'] ?? ''));
+    if (!$result) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Refresh-Token ungültig oder abgelaufen. Bitte erneut anmelden.']);
+        return;
+    }
+    echo json_encode([
+        'access_token'  => AppApiAuth::issueAccessToken($result['member_id'], $result['community_id']),
+        'refresh_token' => $result['refresh_token'],
+        'expires_in'    => AppApiAuth::accessTokenTtl(),
+    ]);
+});
+
+/** Meldet das aktuelle Gerät ab (widerruft dessen Refresh-Token). Immer "ok", auch wenn das
+ *  Token schon ungültig war -- Logout soll nie mit einem Fehler abbrechen können. */
+$router->post('/api/v1/logout', function () {
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    if (!empty($body['refresh_token'])) {
+        AppApiAuth::revokeRefreshToken((string)$body['refresh_token']);
+    }
+    echo json_encode(['status' => 'ok']);
+});
+
 /**
  * Test-Endpoint der Smart-Home-API: prüft nur, ob ein API-Key gültig ist, und gibt Basisinfos
  * zurück -- keine Energiedaten (die liefert /api/v1/live, siehe unten). Dient zum Testen der
@@ -2152,6 +2424,169 @@ $router->get('/api/v1/live', function () {
         'einspeisung_w'         => (int)($own['einspeisung_w'] ?? 0),
         'community_autarkie_pct' => $autarkie,
     ]);
+});
+
+// ─── Mitglieder-App: Daten-Endpunkte (Bearer-Zugriffstoken, siehe AppApiAuth) ────
+// Zeigen jeweils nur Daten des Mitglieds/der Community aus dem Token -- DB::setCommunity()
+// aktiviert dieselben RLS-Policies wie im Web-Portal, sodass ein Token niemals fremde
+// Community-Daten sehen kann, selbst bei einem Bug im Handler.
+
+/**
+ * Übersicht für den App-Startbildschirm: aktuelle Leistung des Mitglieds, Live-Zahlen der
+ * ganzen Community, aktueller Verbrauchsmonat, letzte versendete Rechnung -- inhaltlich das
+ * JSON-Äquivalent der Kopfzeile von member_dashboard.php, reicht für einen ersten
+ * Übersichtsbildschirm der App ohne einen zweiten Request.
+ */
+$router->get('/api/v1/dashboard', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $member = DB::fetchOne('SELECT first_name, last_name FROM members WHERE id = ?', [$ctx['member_id']]);
+    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
+
+    $mpIds = array_column(
+        DB::fetchAll("SELECT id FROM metering_points WHERE member_id = ? AND active = true", [$ctx['member_id']]),
+        'id'
+    );
+    $currentPowerW = $mpIds ? memberCurrentNetPowerW($ctx['community_id'], $mpIds) : null;
+    $community = communityLivePower($ctx['community_id']);
+
+    $currentMonth = null;
+    if ($mpIds) {
+        $placeholders = implode(',', array_fill(0, count($mpIds), '?'));
+        $row = DB::fetchOne(
+            "SELECT date_trunc('month', time) AS monat,
+                    COALESCE(SUM(kwh_teilnahme), 0) AS teilnahme_kwh,
+                    COALESCE(SUM(kwh_erzeugung), 0) AS erzeugung_kwh
+             FROM eda_measurements
+             WHERE community_id = ? AND metering_point_id IN ($placeholders) AND quality IN ('L1','L2')
+             GROUP BY monat ORDER BY monat DESC LIMIT 1",
+            array_merge([$ctx['community_id']], $mpIds)
+        );
+        if ($row) {
+            $currentMonth = [
+                'label'          => monatsLabel((string)$row['monat']),
+                'teilnahme_kwh'  => (float)$row['teilnahme_kwh'],
+                'erzeugung_kwh'  => (float)$row['erzeugung_kwh'],
+            ];
+        }
+    }
+
+    $lastInvoice = DB::fetchOne(
+        'SELECT id, rechnungsnummer, saldo_eur, created_at, sent_at FROM invoices
+         WHERE member_id = ? AND sent_at IS NOT NULL ORDER BY created_at DESC LIMIT 1',
+        [$ctx['member_id']]
+    );
+
+    echo json_encode([
+        'member' => [
+            'id'   => $ctx['member_id'],
+            'name' => trim($member['first_name'] . ' ' . $member['last_name']),
+        ],
+        'current_power_w' => $currentPowerW,
+        'community' => [
+            'bezug_w'       => $community['bezug_w'],
+            'einspeisung_w' => $community['einsp_w'],
+            'active_meters' => $community['active_meters'],
+            'total_meters'  => $community['total_meters'],
+        ],
+        'current_month' => $currentMonth,
+        'last_invoice'  => $lastInvoice ? [
+            'id'              => $lastInvoice['id'],
+            'rechnungsnummer' => $lastInvoice['rechnungsnummer'],
+            'saldo_eur'       => (float)$lastInvoice['saldo_eur'],
+            'created_at'      => $lastInvoice['created_at'],
+        ] : null,
+    ]);
+});
+
+/**
+ * Monatlicher Verbrauchs-/Erzeugungsverlauf (für ein Balkendiagramm in der App) -- dieselbe
+ * Datengrundlage (eda_measurements, nur L1/L2-Qualität) wie der Verlauf im Kundenportal.
+ * ?months=N (Default 6, maximal 24) steuert, wie viele Monate zurück geliefert werden.
+ */
+$router->get('/api/v1/consumption', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $months = max(1, min(24, (int)($_GET['months'] ?? 6)));
+    $mpIds = array_column(
+        DB::fetchAll("SELECT id FROM metering_points WHERE member_id = ?", [$ctx['member_id']]),
+        'id'
+    );
+    $rows = [];
+    if ($mpIds) {
+        $placeholders = implode(',', array_fill(0, count($mpIds), '?'));
+        $rows = DB::fetchAll(
+            "SELECT date_trunc('month', time) AS monat,
+                    COALESCE(SUM(kwh_teilnahme), 0) AS teilnahme_kwh,
+                    COALESCE(SUM(kwh_erzeugung), 0) AS erzeugung_kwh
+             FROM eda_measurements
+             WHERE community_id = ? AND metering_point_id IN ($placeholders) AND quality IN ('L1','L2')
+             GROUP BY monat ORDER BY monat DESC LIMIT ?",
+            array_merge([$ctx['community_id']], $mpIds, [$months])
+        );
+    }
+
+    echo json_encode(['months' => array_map(fn($r) => [
+        'month'         => date('Y-m', strtotime((string)$r['monat'])),
+        'label'         => monatsLabel((string)$r['monat']),
+        'teilnahme_kwh' => (float)$r['teilnahme_kwh'],
+        'erzeugung_kwh' => (float)$r['erzeugung_kwh'],
+    ], $rows)]);
+});
+
+/** Rechnungsliste des Mitglieds (Metadaten -- die PDF selbst kommt über
+ *  /api/v1/invoices/:id/pdf). */
+$router->get('/api/v1/invoices', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $invoices = DB::fetchAll(
+        'SELECT i.id, i.rechnungsnummer, i.saldo_eur, i.sent_at, i.created_at, br.quartal, br.period_from, br.period_to
+         FROM invoices i JOIN billing_runs br ON br.id = i.billing_run_id
+         WHERE i.member_id = ? ORDER BY i.created_at DESC',
+        [$ctx['member_id']]
+    );
+
+    echo json_encode(['invoices' => array_map(fn($i) => [
+        'id'              => $i['id'],
+        'rechnungsnummer' => $i['rechnungsnummer'],
+        'saldo_eur'       => (float)$i['saldo_eur'],
+        'quartal'         => $i['quartal'],
+        'period_from'     => $i['period_from'],
+        'period_to'       => $i['period_to'],
+        'sent_at'         => $i['sent_at'],
+        'created_at'      => $i['created_at'],
+    ], $invoices)]);
+});
+
+/** Eigene Zählpunkte (Zählpunktnummer, Typ, aktiv/inaktiv) -- kein WLAN-Passwort/keine
+ *  Diagnosedaten hier (die bleiben absichtlich Web-Portal-only, siehe member_detail.php). */
+$router->get('/api/v1/metering-points', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $points = DB::fetchAll(
+        'SELECT id, zaehlpunkt_nr, type, active, registered_at FROM metering_points WHERE member_id = ? ORDER BY registered_at',
+        [$ctx['member_id']]
+    );
+
+    echo json_encode(['metering_points' => array_map(fn($p) => [
+        'id'             => $p['id'],
+        'zaehlpunkt_nr'  => $p['zaehlpunkt_nr'],
+        'type'           => $p['type'],
+        'active'         => (bool)$p['active'],
+        'registered_at'  => $p['registered_at'],
+    ], $points)]);
 });
 
 // ─── Portal: Mitgliederverwaltung ───────────────────────
