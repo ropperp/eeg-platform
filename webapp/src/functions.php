@@ -10,6 +10,21 @@ declare(strict_types=1);
  */
 
 /**
+ * Liest einen JSON-Request-Body (App-API, /api/v1/*) als assoziatives Array. PHP füllt $_POST
+ * NUR bei application/x-www-form-urlencoded bzw. multipart/form-data automatisch -- bei
+ * application/json (das die App verwendet) bleibt $_POST leer, der Body muss selbst aus
+ * php://input gelesen werden. Liefert [] statt eines Fehlers bei leerem/kaputtem JSON, damit
+ * ein Endpunkt einfach per ($body['feld'] ?? '') weiterarbeiten kann.
+ */
+function jsonBody(): array
+{
+    $raw = file_get_contents('php://input');
+    if ($raw === false || $raw === '') return [];
+    $data = json_decode($raw, true);
+    return is_array($data) ? $data : [];
+}
+
+/**
  * Rendert ein Phosphor-Icon aus dem selbst gehosteten Sprite
  * (webapp/public/assets/icons/phosphor-sprite.svg) als <svg>-Snippet. Ersetzt die früher
  * verwendeten Emojis durch ein einheitliches, professionelles Icon-Set (siehe CHANGELOG).

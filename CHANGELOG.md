@@ -76,6 +76,19 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   externen API scheitern.
 
 ### Neu / Funktionen
+- **App-Programmierschnittstelle für eine künftige Mitglieder-App (`/api/v1/login` + Daten-
+  Endpunkte).** Grundlage für eine native iOS/Android-Begleit-App: eigener Login-Flow
+  (E-Mail/Passwort, optional 2FA, Mehrfach-Mitgliedschaft-Auswahl) mit kurzlebigen,
+  selbst-signierten Zugriffstoken (15 Min, `webapp/src/AppApiAuth.php` -- bewusst kein
+  externes JWT-Paket, nur HMAC+JSON wie schon bei TOTP) und rotierenden Refresh-Token (30
+  Tage, `app_sessions`-Tabelle, `database/migrate_20260830.sql`). Datenendpunkte
+  (`/api/v1/dashboard`, `/consumption`, `/invoices`, `/invoices/:id/pdf`, `/metering-points`)
+  liefern JSON bzw. die Rechnung als PDF, jeweils per RLS auf die eigenen Daten beschränkt.
+  Wiederverwendet den bestehenden Brute-Force-Schutz (`RateLimiter`, gleicher Zähler wie der
+  Web-Login) und die TOTP-Logik 1:1. Der zentrale CSRF-Schutz (siehe oben) gilt bewusst NICHT
+  für `/api/*` -- CSRF ist ein Cookie-Angriff, `/api/*` nutzt ausschließlich
+  Bearer-Token-Auth ohne Cookie, ein Blanket-Check hätte die neuen Endpunkte sonst immer
+  ausgesperrt. Technische Referenz: `docs/APP_API.md`.
 - **Monats-Abrechnungsläufe + automatische Prüfung auf fehlende Monate.** Ein Abrechnungslauf
   kann jetzt neben einem Quartal (`2026-Q1`) auch für einen einzelnen Monat (`2026-07`) angelegt
   werden -- praktisch für Testläufe oder EEGs, die monatlich statt quartalsweise abrechnen.
