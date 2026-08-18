@@ -255,7 +255,20 @@ def insert_measurement(community_id: str, metering_point_id: str, mp_type: str, 
     pm/em, jeweils mit der anderen Richtung auf 0 -- sonst würde beim Aufsummieren über die
     Zählpunkte eines Mitglieds/der Community jede Seite doppelt gezählt (Patrick, 30.07.2026).
     Ein "prosumer"-Zählpunkt (ein einzelner, offiziell kombinierter Zählpunkt) bekommt weiterhin
-    beide Richtungen in einer Zeile."""
+    beide Richtungen in einer Zeile.
+
+    Zieht dabei esp_online/esp_last_seen_at auf metering_points MIT (Patrick, 18.08.2026: Status
+    blinkte zwischen online/offline, obwohl die Live-Anzeige durchgehend alle 5s neue Werte
+    zeigte) -- bisher wurden diese beiden Felder AUSSCHLIESSLICH vom separaten, viel selteneren
+    Status-Heartbeat (.../status, alle status_sec Sekunden, siehe update_status()) gepflegt.
+    Dessen Last-Will-Testament publiziert bei jedem noch so kurzen WLAN-/MQTT-Wackler ein
+    retained "offline", das erst mit dem nächsten Heartbeat wieder überschrieben wird -- landet
+    ein Seitenaufruf genau in diesem Fenster, zeigt die Plattform trotz durchgehend
+    ankommender Live-Messwerte fälschlich "Fehler"/offline an. Eine erfolgreich verarbeitete
+    Live-Messung ist mindestens so ein starker Online-Nachweis wie der Heartbeat (kommt alle 5s
+    statt alle status_sec Sekunden) und heilt einen solchen Ausrutscher dadurch faktisch sofort
+    wieder aus. meter_reachable bleibt bewusst unberührt -- das ist die P1-Zähler-Erreichbarkeit
+    (meter_ok), die nur der Status-Heartbeat kennt, siehe update_status()."""
     pp = payload.get("pp", 0)
     pm = payload.get("pm", 0)
     ep = payload.get("ep", 0)
@@ -285,6 +298,10 @@ def insert_measurement(community_id: str, metering_point_id: str, mp_type: str, 
                     em,
                     payload.get("znr"),
                 )
+            )
+            cur.execute(
+                "UPDATE metering_points SET esp_online = true, esp_last_seen_at = now() WHERE id = %s",
+                (metering_point_id,)
             )
         conn.commit()
     except Exception:
