@@ -312,3 +312,20 @@ weiterhin als ungetestet auf echter Hardware.
   / `esp_last_seen_at`, gespeist über den bereits vom ESP32-Sketch gesendeten
   Status-Heartbeat (`eeg/{rc}/meter/{znr}/status`). 2026-07-29 (Spalten am 30.07.2026 von
   `esb_*` auf `esp_*` umbenannt, siehe Hinweis oben).
+- **Online-Status flackerte trotz durchgehender Live-Daten (Patrick 18.08.2026):** Erste beiden
+  Testgeräte im Feld (Prototyp-Firmware) zeigten bei jedem Neuladen der Mitgliederliste/
+  -detailseite mal "OK"/online, mal "Fehler"/offline -- obwohl die Live-Anzeige durchgehend
+  alle 5 Sekunden frische Werte lieferte. Ursache: `esp_online`/`esp_last_seen_at` wurden bisher
+  AUSSCHLIESSLICH vom separaten, viel selteneren Status-Heartbeat gepflegt (`update_status()` in
+  `mqtt-subscriber/main.py`, alle `status_sec` Sekunden, Firmware-Default 30s). Dessen
+  Last-Will-Testament publiziert bei jedem noch so kurzen WLAN-/MQTT-Wackler ein retained
+  `{"status":"offline"}`, das erst mit dem nächsten Heartbeat wieder überschrieben wird -- ganz
+  ohne dass die (viel häufigeren) Live-Messungen je unterbrochen wurden. Landet ein Seitenaufruf
+  genau in diesem schmalen Fenster, zeigt die Plattform trotz eingehender Live-Daten fälschlich
+  offline an. **Fix:** `insert_measurement()` (Live-Topic-Handler) zieht `esp_online = true` /
+  `esp_last_seen_at = now()` jetzt in derselben Transaktion mit -- eine erfolgreich verarbeitete
+  Live-Messung (alle 5s) ist ein mindestens so starker Online-Nachweis wie der seltene Heartbeat
+  und heilt einen LWT-Ausrutscher dadurch praktisch sofort wieder aus. `meter_reachable` bleibt
+  unberührt (weiterhin nur vom Status-Heartbeat/`meter_ok` gepflegt, siehe Punkt 4 oben) -- ein
+  echter, andauernder Verbindungsverlust (keine Live-Daten mehr) wird weiterhin zuverlässig über
+  die Offline-Schwelle (`esp_offline_after_minutes`, siehe Eintrag oben) erkannt.
