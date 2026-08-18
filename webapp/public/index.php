@@ -4107,11 +4107,31 @@ $router->get('/portal/members/:id', function ($params) {
 $router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
     header('Content-Type: application/json; charset=UTF-8');
-    $mp = DB::fetchOne(
-        'SELECT mp.wifi_ssid, mp.wifi_ip, mp.wifi_password_enc, mp.esp_firmware_version, mp.community_id
-         FROM metering_points mp WHERE mp.id = ? AND mp.member_id = ?',
-        [$params['mpid'], $params['id']]
-    );
+    // metering_points hat Row-Level Security (migrate_20260822.sql) -- ohne vorheriges
+    // DB::setCommunity() liefert die eingeschränkte Laufzeit-Rolle grundsätzlich GAR KEINE
+    // Zeile, auch bei korrekter ID (siehe requireMemberAccess()-Kommentar oben). Dieser
+    // Endpunkt hat das ursprünglich übersehen ("Zählpunkt nicht gefunden" trotz existierendem
+    // Zählpunkt) -- Fix analog zu requireMemberAccess()/dem Avatar-Endpunkt: Platform-Admin
+    // probiert jede Community durch, alle anderen nutzen direkt ihre aktive Rolle.
+    if (Auth::isPlatformAdmin()) {
+        $mp = null;
+        foreach (DB::fetchAll('SELECT id FROM communities') as $c) {
+            DB::setCommunity($c['id']);
+            $mp = DB::fetchOne(
+                'SELECT wifi_ssid, wifi_ip, wifi_password_enc, esp_firmware_version, community_id
+                 FROM metering_points WHERE id = ? AND member_id = ?',
+                [$params['mpid'], $params['id']]
+            );
+            if ($mp) break;
+        }
+    } else {
+        DB::setCommunity(Auth::activeCommunityId());
+        $mp = DB::fetchOne(
+            'SELECT wifi_ssid, wifi_ip, wifi_password_enc, esp_firmware_version, community_id
+             FROM metering_points WHERE id = ? AND member_id = ?',
+            [$params['mpid'], $params['id']]
+        );
+    }
     if (!$mp) { http_response_code(404); echo json_encode(['error' => 'Zählpunkt nicht gefunden']); return; }
     if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
         http_response_code(403); echo json_encode(['error' => 'Kein Zugriff']); return;
@@ -4750,13 +4770,16 @@ $router->post('/portal/members/:id/contract-status', function ($params) {
 
 $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $mp = DB::fetchOne('SELECT community_id FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $params['id']]);
+    // requireMemberAccess() setzt (anders als der frühere direkte metering_points-Query hier)
+    // korrekt DB::setCommunity() -- metering_points hat seit migrate_20260822.sql Row-Level
+    // Security, ein Query ohne vorher gesetzte Community liefert für die eingeschränkte
+    // Laufzeit-Rolle grundsätzlich GAR KEINE Zeile ("Zählpunkt nicht gefunden" trotz
+    // existierendem Zählpunkt).
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $mp = DB::fetchOne('SELECT id FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $params['id']]);
     if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden'; return; }
-    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
-    $communityId = $mp['community_id'];
-    DB::setCommunity($communityId);
+    $communityId = $member['community_id'];
 
     $znr = strtoupper(trim($_POST['zaehlpunkt_nr'] ?? ''));
     $existing = DB::fetchOne(
@@ -4808,13 +4831,13 @@ $router->post('/portal/members/:id/metering-points/:mpid/edit', function ($param
 
 $router->post('/portal/members/:id/metering-points/:mpid/delete', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $mp = DB::fetchOne('SELECT community_id FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $params['id']]);
+    // Siehe Kommentar bei .../edit oben -- gleicher RLS-Fix (requireMemberAccess() statt
+    // direktem metering_points-Query ohne gesetzte Community).
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $mp = DB::fetchOne('SELECT id FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $params['id']]);
     if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden'; return; }
-    if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
-        http_response_code(403); echo 'Kein Zugriff'; return;
-    }
-    $communityId = $mp['community_id'];
-    DB::setCommunity($communityId);
+    $communityId = $member['community_id'];
     DB::execute('UPDATE metering_points SET active=false WHERE id=? AND community_id=?', [$params['mpid'], $communityId]);
     header('Location: /portal/members/' . $params['id'] . '?success=1');
     exit;
