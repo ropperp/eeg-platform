@@ -257,18 +257,31 @@ def insert_measurement(community_id: str, metering_point_id: str, mp_type: str, 
     Ein "prosumer"-Zählpunkt (ein einzelner, offiziell kombinierter Zählpunkt) bekommt weiterhin
     beide Richtungen in einer Zeile.
 
-    Zieht dabei esp_online/esp_last_seen_at auf metering_points MIT (Patrick, 18.08.2026: Status
-    blinkte zwischen online/offline, obwohl die Live-Anzeige durchgehend alle 5s neue Werte
-    zeigte) -- bisher wurden diese beiden Felder AUSSCHLIESSLICH vom separaten, viel selteneren
-    Status-Heartbeat (.../status, alle status_sec Sekunden, siehe update_status()) gepflegt.
-    Dessen Last-Will-Testament publiziert bei jedem noch so kurzen WLAN-/MQTT-Wackler ein
-    retained "offline", das erst mit dem nächsten Heartbeat wieder überschrieben wird -- landet
-    ein Seitenaufruf genau in diesem Fenster, zeigt die Plattform trotz durchgehend
-    ankommender Live-Messwerte fälschlich "Fehler"/offline an. Eine erfolgreich verarbeitete
-    Live-Messung ist mindestens so ein starker Online-Nachweis wie der Heartbeat (kommt alle 5s
-    statt alle status_sec Sekunden) und heilt einen solchen Ausrutscher dadurch faktisch sofort
-    wieder aus. meter_reachable bleibt bewusst unberührt -- das ist die P1-Zähler-Erreichbarkeit
-    (meter_ok), die nur der Status-Heartbeat kennt, siehe update_status()."""
+    Zieht dabei esp_online/esp_last_seen_at UND meter_reachable/meter_last_seen_at auf
+    metering_points mit (Patrick, 18.08.2026: Status blinkte zwischen online/offline bzw.
+    erreichbar/Fehler, obwohl die Live-Anzeige durchgehend alle 5s neue Werte zeigte) -- bisher
+    wurden alle vier Felder AUSSCHLIESSLICH vom separaten, viel selteneren Status-Heartbeat
+    (.../status, alle status_sec Sekunden, siehe update_status()) gepflegt. Dessen
+    Last-Will-Testament publiziert bei jedem noch so kurzen WLAN-/MQTT-Wackler ein retained
+    "offline", das erst mit dem nächsten Heartbeat wieder überschrieben wird -- landet ein
+    Seitenaufruf genau in diesem Fenster, zeigt die Plattform trotz durchgehend ankommender
+    Live-Messwerte fälschlich "Fehler"/offline an. Eine erfolgreich verarbeitete Live-Messung
+    ist mindestens so ein starker Online-Nachweis wie der Heartbeat (kommt alle 5s statt alle
+    status_sec Sekunden) und heilt einen solchen Ausrutscher dadurch faktisch sofort wieder aus.
+
+    meter_reachable (P1-Zähler-Erreichbarkeit) zunächst bewusst unberührt gelassen, in der
+    ersten Version dieses Fixes (siehe Kommentar-Historie) -- aber derselbe Fehler betrifft
+    genauso das Zähler-"Fehler"-Badge in der Mitgliederliste (bool_or(...NOT meter_reachable...)
+    in webapp/public/index.php), weil auch meter_reachable bisher NUR vom selben flatterhaften
+    Heartbeat gepflegt wurde. Firmware-seitig ist das aber unproblematisch mitzuziehen: die
+    Live-Publish-Funktion sendet laut p1-smart-meter.ino NUR als direkte Folge eines gerade
+    erfolgreich decodierten P1-Telegramms (lastValidFrameMillis wird unmittelbar davor gesetzt)
+    -- eine ankommende Live-Nachricht ist also gleichzeitig der Beweis, dass der Zähler in genau
+    diesem Moment erreichbar war. Ein echter, andauernder Zähler-Ausfall (Inselbetrieb/
+    Stromausfall beim Mitglied) sendet ohnehin KEINE Live-Nachrichten mehr (die sind ja an einen
+    erfolgreichen P1-Read gekoppelt), wird also weiterhin zuverlässig über den nächsten
+    Status-Heartbeat mit meter_ok=false erkannt -- der läuft unabhängig vom P1-Read auf eigenem
+    Timer weiter, solange der ESP selbst online bleibt."""
     pp = payload.get("pp", 0)
     pm = payload.get("pm", 0)
     ep = payload.get("ep", 0)
@@ -300,7 +313,12 @@ def insert_measurement(community_id: str, metering_point_id: str, mp_type: str, 
                 )
             )
             cur.execute(
-                "UPDATE metering_points SET esp_online = true, esp_last_seen_at = now() WHERE id = %s",
+                """
+                UPDATE metering_points
+                SET esp_online = true, esp_last_seen_at = now(),
+                    meter_reachable = true, meter_last_seen_at = now()
+                WHERE id = %s
+                """,
                 (metering_point_id,)
             )
         conn.commit()

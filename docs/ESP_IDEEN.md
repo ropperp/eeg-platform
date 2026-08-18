@@ -325,7 +325,22 @@ weiterhin als ungetestet auf echter Hardware.
   offline an. **Fix:** `insert_measurement()` (Live-Topic-Handler) zieht `esp_online = true` /
   `esp_last_seen_at = now()` jetzt in derselben Transaktion mit -- eine erfolgreich verarbeitete
   Live-Messung (alle 5s) ist ein mindestens so starker Online-Nachweis wie der seltene Heartbeat
-  und heilt einen LWT-Ausrutscher dadurch praktisch sofort wieder aus. `meter_reachable` bleibt
-  unberührt (weiterhin nur vom Status-Heartbeat/`meter_ok` gepflegt, siehe Punkt 4 oben) -- ein
-  echter, andauernder Verbindungsverlust (keine Live-Daten mehr) wird weiterhin zuverlässig über
-  die Offline-Schwelle (`esp_offline_after_minutes`, siehe Eintrag oben) erkannt.
+  und heilt einen LWT-Ausrutscher dadurch praktisch sofort wieder aus.
+  **Nachbesserung (Patrick 18.08.2026, zweite Meldung):** Erster Fix reichte nicht -- die
+  Mitgliederliste zeigte weiterhin vereinzelt "Fehler", obwohl die Detailseite desselben
+  Mitglieds im selben Moment "Online"/"Erreichbar" zeigte. Grund: `meter_reachable` (P1-Zähler-
+  Erreichbarkeit) wurde bewusst NICHT mitgezogen, blieb also weiterhin ausschließlich vom
+  selben flatterhaften Status-Heartbeat abhängig -- das "Fehler"-Badge der Mitgliederliste
+  (`bool_or(...NOT meter_reachable...)`) blinkte dadurch unabhängig vom (jetzt stabilen)
+  `esp_online` munter weiter. Zweiter Blick auf die Firmware zeigt: das ist unproblematisch
+  nachzuziehen -- die Live-Publish-Funktion in `p1-smart-meter.ino` sendet AUSSCHLIESSLICH als
+  direkte Folge eines gerade erfolgreich decodierten P1-Telegramms (`lastValidFrameMillis` wird
+  unmittelbar davor gesetzt), eine ankommende Live-Nachricht beweist also zwangsläufig auch
+  "Zähler gerade erreichbar". `insert_measurement()` zieht deshalb jetzt zusätzlich
+  `meter_reachable = true` / `meter_last_seen_at = now()` mit. Ein echter, andauernder
+  Zähler-Ausfall (Inselbetrieb/Stromausfall beim Mitglied) sendet dagegen von vornherein KEINE
+  Live-Nachrichten mehr (an einen erfolgreichen P1-Read gekoppelt) und wird weiterhin
+  zuverlässig über den nächsten Status-Heartbeat mit `meter_ok=false` erkannt -- der läuft
+  unabhängig vom P1-Read auf eigenem Timer weiter, solange der ESP selbst online bleibt. Ein
+  echter, andauernder ESP-Verbindungsverlust wird weiterhin zuverlässig über die
+  Offline-Schwelle (`esp_offline_after_minutes`, siehe Eintrag oben) erkannt.
