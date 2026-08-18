@@ -2428,10 +2428,14 @@ $router->get('/api/v1/me', function () {
         return;
     }
     $hash = hash('sha256', trim($m[1]));
+    // LEFT JOIN members statt JOIN: seit migrate_20260901.sql gibt es neben persönlichen
+    // Mitglied-Keys (member_id gesetzt) auch Community-weite Obmann-/Platform-Admin-Keys
+    // (member_id NULL, angelegt unter /portal/settings) -- ein JOIN hätte deren Zeile komplett
+    // ausgefiltert.
     $key = DB::fetchOne(
         'SELECT k.*, m.first_name, m.last_name, c.name AS community_name
          FROM member_api_keys k
-         JOIN members m ON m.id = k.member_id
+         LEFT JOIN members m ON m.id = k.member_id
          JOIN communities c ON c.id = k.community_id
          WHERE k.key_hash = ?',
         [$hash]
@@ -2444,18 +2448,27 @@ $router->get('/api/v1/me', function () {
     DB::execute('UPDATE member_api_keys SET last_used_at = now() WHERE id = ?', [$key['id']]);
     echo json_encode([
         'status'    => 'ok',
-        'member'    => $key['first_name'] . ' ' . $key['last_name'],
+        'scope'     => $key['member_id'] ? 'member' : 'community',
+        'member'    => $key['member_id'] ? ($key['first_name'] . ' ' . $key['last_name']) : null,
         'community' => $key['community_name'],
         'note'      => 'Authentifizierung erfolgreich. Live-Energiedaten: GET /api/v1/live.',
     ]);
 });
 
 /**
- * Live-Energiedaten fürs Smart-Home des Mitglieds (Node-RED etc., siehe docs/ESP_IDEEN.md
- * Punkt 2): eigener Bezug/Einspeisung in Watt (letzte 2 Minuten, gleiches Fenster wie
- * /api/live/:slug) + Autarkiequote der gesamten Community. Gibt 0/null-Werte zurück statt
- * eines Fehlers, wenn das Mitglied noch keine Ausleseeinheit hat -- ein Smart-Home-Skript
- * soll bei "noch keine Daten" nicht mit einem HTTP-Fehler abbrechen müssen.
+ * Live-Energiedaten fürs Smart-Home (Node-RED etc., siehe docs/ESP_IDEEN.md Punkt 2). Zwei
+ * Key-Arten seit migrate_20260901.sql:
+ * - Mitglied-Key (member_id gesetzt, über /portal/my/api-keys angelegt): bezug_w/einspeisung_w
+ *   sind wie bisher die EIGENE Leistung des Mitglieds.
+ * - Community-Key (member_id NULL, über /portal/settings angelegt -- Obmann/Platform-Admin,
+ *   Patrick 18.08.2026: "auch für den ganzen Verein, nicht nur ein einzelnes Mitglied"):
+ *   bezug_w/einspeisung_w sind stattdessen die GESAMTE Community-Leistung (identisch zu
+ *   community.bezug_w unten) -- ein Skript, das nur die Top-Level-Felder liest (bisheriges
+ *   Verhalten), bekommt dann sinnvoll "die Zahl, die zu diesem Key gehört" statt 0.
+ * community_autarkie_pct und das neue "community"-Objekt (inkl. aktiver/gesamter Zählpunkte)
+ * sind bei BEIDEN Key-Arten identisch befüllt. Gibt 0/null-Werte zurück statt eines Fehlers,
+ * wenn noch keine Ausleseeinheit(en) Daten liefern -- ein Smart-Home-Skript soll bei "noch
+ * keine Daten" nicht mit einem HTTP-Fehler abbrechen müssen.
  */
 $router->get('/api/v1/live', function () {
     header('Content-Type: application/json; charset=UTF-8');
@@ -2466,10 +2479,7 @@ $router->get('/api/v1/live', function () {
         return;
     }
     $hash = hash('sha256', trim($m[1]));
-    $key = DB::fetchOne(
-        'SELECT k.*, m.id AS member_id FROM member_api_keys k JOIN members m ON m.id = k.member_id WHERE k.key_hash = ?',
-        [$hash]
-    );
+    $key = DB::fetchOne('SELECT * FROM member_api_keys WHERE key_hash = ?', [$hash]);
     if (!$key || $key['revoked_at'] || ($key['expires_at'] && strtotime($key['expires_at']) < time())) {
         http_response_code(401);
         echo json_encode(['error' => 'API-Key ungültig, widerrufen oder abgelaufen.']);
@@ -2477,39 +2487,38 @@ $router->get('/api/v1/live', function () {
     }
     DB::execute('UPDATE member_api_keys SET last_used_at = now() WHERE id = ?', [$key['id']]);
 
-    // Pro Zählpunkt nur den jeweils neuesten Messwert im Fenster nehmen, nicht alle Zeilen
-    // aufsummieren (bei 5s-Sende-Intervall sonst Werte um ein Vielfaches zu hoch).
-    $own = DB::fetchOne(
-        "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
-         FROM (
-            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
-            FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
-              AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)
-            ORDER BY metering_point_id, time DESC
-         ) latest",
-        [$key['community_id'], $key['member_id']]
-    );
+    $own = null;
+    if ($key['member_id']) {
+        // Pro Zählpunkt nur den jeweils neuesten Messwert im Fenster nehmen, nicht alle Zeilen
+        // aufsummieren (bei 5s-Sende-Intervall sonst Werte um ein Vielfaches zu hoch).
+        $own = DB::fetchOne(
+            "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
+             FROM (
+                SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
+                FROM esp_measurements
+                WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+                  AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)
+                ORDER BY metering_point_id, time DESC
+             ) latest",
+            [$key['community_id'], $key['member_id']]
+        );
+    }
 
-    $community = DB::fetchOne(
-        "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
-         FROM (
-            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
-            FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
-            ORDER BY metering_point_id, time DESC
-         ) latest",
-        [$key['community_id']]
-    );
-    $communityBezug = (int)($community['bezug_w'] ?? 0);
-    $communityEinsp = (int)($community['einspeisung_w'] ?? 0);
-    $autarkie = $communityBezug > 0 ? min(100, round($communityEinsp / $communityBezug * 100)) : 0;
+    $community = communityLivePower($key['community_id']);
+    $autarkie = $community['bezug_w'] > 0 ? min(100, round($community['einsp_w'] / $community['bezug_w'] * 100)) : 0;
 
     echo json_encode([
-        'status'                => 'ok',
-        'bezug_w'               => (int)($own['bezug_w'] ?? 0),
-        'einspeisung_w'         => (int)($own['einspeisung_w'] ?? 0),
+        'status'                 => 'ok',
+        'scope'                  => $key['member_id'] ? 'member' : 'community',
+        'bezug_w'                => $own !== null ? (int)$own['bezug_w'] : $community['bezug_w'],
+        'einspeisung_w'          => $own !== null ? (int)$own['einspeisung_w'] : $community['einsp_w'],
         'community_autarkie_pct' => $autarkie,
+        'community' => [
+            'bezug_w'       => $community['bezug_w'],
+            'einspeisung_w' => $community['einsp_w'],
+            'active_meters' => $community['active_meters'],
+            'total_meters'  => $community['total_meters'],
+        ],
     ]);
 });
 
@@ -6420,7 +6429,57 @@ $router->get('/portal/settings', function () {
     $tax       = DB::fetchOne('SELECT * FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
     $myUser    = DB::fetchOne('SELECT first_name, last_name, signature_image FROM users WHERE id = ?', [Auth::userId()]);
     $hasCustomLogo = communityLogoPath($communityId) !== null;
+    // Community-weite Smart-Home-API-Keys (member_id NULL, seit migrate_20260901.sql) -- nicht
+    // personengebunden wie ein Mitglied-Key unter /portal/my/api-keys, sondern eine
+    // EEG-Ressource, die jeder Obmann/Platform-Admin dieser Community sehen/anlegen/widerrufen
+    // kann (gleiches Prinzip wie die MQTT-Zugangsdaten weiter unten).
+    $liveApiKeys = DB::fetchAll(
+        'SELECT * FROM member_api_keys WHERE community_id = ? AND member_id IS NULL ORDER BY created_at DESC',
+        [$communityId]
+    );
+    $newLiveApiKey = $_SESSION['flash_new_live_api_key'] ?? null;
+    unset($_SESSION['flash_new_live_api_key']);
     require ROOT . '/src/views/pages/settings.php';
+});
+
+/** Neuen Community-weiten Live-Daten-API-Key anlegen (Obmann/Platform-Admin) -- Gegenstück zu
+ *  POST /portal/my/api-keys, nur ohne member_id. */
+$router->post('/portal/settings/live-api-keys', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $name = trim($_POST['name'] ?? '');
+    if ($name === '') {
+        header('Location: /portal/settings?error=' . urlencode('Bitte einen Namen für den API-Key vergeben.'));
+        exit;
+    }
+    $validityDays = ['30' => 30, '90' => 90, '365' => 365][$_POST['validity'] ?? ''] ?? null;
+    $expiresAt = $validityDays ? date('Y-m-d H:i:s', strtotime("+{$validityDays} days")) : null;
+
+    $token = bin2hex(random_bytes(32));
+    $newKey = DB::fetchOne(
+        'INSERT INTO member_api_keys (community_id, member_id, name, key_prefix, key_hash, expires_at)
+         VALUES (?, NULL, ?, ?, ?, ?) RETURNING id',
+        [$communityId, $name, substr($token, 0, 8), hash('sha256', $token), $expiresAt]
+    );
+    logAudit($communityId, 'live_api_key.create', 'member_api_key', $newKey['id'], 'Community-weiter Live-Daten-API-Key „' . $name . '" angelegt.');
+    $_SESSION['flash_new_live_api_key'] = $token;
+    header('Location: /portal/settings?success=1');
+    exit;
+});
+
+$router->post('/portal/settings/live-api-keys/:id/revoke', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    DB::execute(
+        'UPDATE member_api_keys SET revoked_at = now() WHERE id = ? AND community_id = ? AND member_id IS NULL AND revoked_at IS NULL',
+        [$params['id'], $communityId]
+    );
+    logAudit($communityId, 'live_api_key.revoke', 'member_api_key', $params['id'], 'Community-weiter Live-Daten-API-Key widerrufen.');
+    header('Location: /portal/settings?success=' . urlencode('API-Key wurde widerrufen.'));
+    exit;
 });
 
 /**

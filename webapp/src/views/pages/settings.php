@@ -256,6 +256,100 @@
   </form>
 </div>
 
+<!-- Live-Daten-API (Community-weit) -->
+<div class="card" style="margin-top:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('plug') ?> Live-Daten-API (ganze Community)</h3>
+  <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">
+    API-Keys für ein eigenes Node-RED-/Home-Assistant-Dashboard mit den Live-Werten der
+    <strong>gesamten EEG</strong> (nicht nur eines einzelnen Mitglieds) -- für Obmann/
+    Platform-Admin, unabhängig davon, ob dieser Account selbst eine eigene Mitgliedschaft in
+    dieser EEG hat. Sichtbar/verwaltbar von jedem Obmann/Platform-Admin dieser EEG, nicht nur
+    von der Person, die den Key angelegt hat. Persönliche Keys für die eigenen Zählpunkte gibt
+    es weiterhin getrennt über den Menüpunkt „API-Zugänge" in der Seitenleiste.
+  </p>
+
+  <?php
+    $codeStyleLive = 'background:#dbeafe;color:#1d4ed8;padding:.1rem .3rem;border-radius:4px';
+  ?>
+  <div class="alert" style="margin-bottom:1rem;background:#eff6ff;color:#1d4ed8">
+    <?= icon('info') ?> <code style="<?= $codeStyleLive ?>">GET /api/v1/live</code> liefert bei diesen Keys die
+    Bezugs-/Einspeiseleistung der GESAMTEN Community (nicht eines einzelnen Mitglieds) sowie die
+    Autarkiequote -- Bearer-Authentifizierung, siehe <code style="<?= $codeStyleLive ?>">docs/APP_API.md</code>.
+  </div>
+
+  <?php if (!empty($newLiveApiKey)): ?>
+  <div style="margin-bottom:1.5rem;border:2px solid #16a34a;border-radius:8px;padding:1rem">
+    <h4 style="color:#15803d;margin-bottom:.5rem"><?= icon('check-circle') ?> API-Key erstellt</h4>
+    <p style="margin-bottom:.5rem;font-size:.85rem">
+      Bitte jetzt kopieren -- aus Sicherheitsgründen wird dieser Key nur dieses eine Mal angezeigt:
+    </p>
+    <code style="display:block;padding:.6rem .75rem;background:var(--gray-100);border-radius:6px;font-size:.95rem;word-break:break-all"><?= htmlspecialchars($newLiveApiKey) ?></code>
+  </div>
+  <?php endif; ?>
+
+  <form method="post" action="/portal/settings/live-api-keys" style="display:flex;gap:.75rem;align-items:end;flex-wrap:wrap;margin-bottom:1.25rem">
+    <div class="form-group" style="margin-bottom:0">
+      <label>Name</label>
+      <input type="text" name="name" required placeholder="z. B. Node-RED Obmann">
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label>Gültigkeitsdauer</label>
+      <select name="validity">
+        <option value="">Läuft nie ab</option>
+        <option value="30">30 Tage</option>
+        <option value="90">90 Tage</option>
+        <option value="365">1 Jahr</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">API-Key erstellen</button>
+  </form>
+
+  <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Key</th><th>Erstellt</th><th>Läuft ab</th><th>Zuletzt genutzt</th><th>Status</th><th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($liveApiKeys as $k): ?>
+        <?php
+          $isRevoked = !empty($k['revoked_at']);
+          $isExpired = !$isRevoked && !empty($k['expires_at']) && strtotime($k['expires_at']) < time();
+        ?>
+        <tr>
+          <td><?= htmlspecialchars($k['name']) ?></td>
+          <td><code style="font-size:.8rem"><?= htmlspecialchars($k['key_prefix']) ?>…</code></td>
+          <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y', strtotime($k['created_at'])) ?></td>
+          <td style="font-size:.85rem;white-space:nowrap"><?= $k['expires_at'] ? date('d.m.Y', strtotime($k['expires_at'])) : 'nie' ?></td>
+          <td style="font-size:.85rem;white-space:nowrap"><?= $k['last_used_at'] ? date('d.m.Y H:i', strtotime($k['last_used_at'])) : '–' ?></td>
+          <td>
+            <?php if ($isRevoked): ?>
+              <span class="badge badge-gray">Widerrufen</span>
+            <?php elseif ($isExpired): ?>
+              <span class="badge badge-gray">Abgelaufen</span>
+            <?php else: ?>
+              <span class="badge badge-green">Aktiv</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if (!$isRevoked): ?>
+            <form method="post" action="/portal/settings/live-api-keys/<?= $k['id'] ?>/revoke"
+                  onsubmit="return confirm('API-Key „<?= htmlspecialchars(addslashes($k['name'])) ?>&#8220; wirklich widerrufen?')">
+              <button type="submit" class="btn btn-tint-red" style="font-size:.78rem;padding:.3rem .6rem">Widerrufen</button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      <?php if (empty($liveApiKeys)): ?>
+        <tr><td colspan="7" style="text-align:center;color:var(--gray-600);padding:2rem">Noch keine Community-weiten API-Keys angelegt.</td></tr>
+      <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <script>
 (function() {
   const canvas = document.getElementById('sig-pad-settings');
