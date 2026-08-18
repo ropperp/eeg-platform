@@ -1,0 +1,12 @@
+-- Migration 2026-09-01: API-Keys auch für Obmann/Platform-Admin (Community-weite Live-Daten).
+--
+-- Bisher konnte AUSSCHLIESSLICH ein Mitglied (mit eigenem Mitgliedsdatensatz) einen Smart-Home-
+-- API-Key erzeugen (/portal/my/api-keys) -- member_id war deshalb NOT NULL. Ein reiner Obmann-/
+-- Platform-Admin-Account hat aber nicht zwingend eine eigene Mitgliedschaft in der EEG, will
+-- aber trotzdem einen Key für die GESAMTE Community-Live-Leistung (Bezug/Einspeisung/Autarkie
+-- der ganzen EEG statt nur eines einzelnen Zählpunkts) -- z.B. für ein eigenes Node-RED-
+-- Dashboard (Patrick, 18.08.2026). member_id wird deshalb NULLABLE: NULL bedeutet "Community-
+-- weiter Key", angelegt/einsehbar/widerrufbar von jedem Obmann/Platform-Admin der jeweiligen
+-- EEG unter /portal/settings (nicht personengebunden wie ein Mitglied-Key, sondern wie ein
+-- MQTT-Zugang eine Community-Ressource) -- siehe GET/POST /api/v1/live in webapp/public/index.php.
+ALTER TABLE member_api_keys ALTER COLUMN member_id DROP NOT NULL;
