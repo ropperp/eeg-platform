@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-18 (56) — Claude Code — Claude Sonnet 5
+**Prompt:** "Wenn ich 'WLAN-Info anzeigen' klicke, kommt 'Zählpunkt nicht gefunden' [...] Was
+auf jeden Fall noch ist: [...] meine ersten zwei Testkunden mit dem Prototypen der
+ESP-Firmware. Das Problem ist, dass er die ganze Zeit zwischen Offline und Online wechselt,
+obwohl beide angesteckt sind. [...] die Live-Anzeige [...] Daten [...] die sich auch alle fünf
+Sekunden ändern, aber das mit dem Heartbeat, ob der ESP noch online ist und am Leben ist,
+funktioniert nicht so ganz. [...] Wenn ich die Seite neu lade, dann switcht der eine auf grün
+und der andere auf rot oder andersrum."
+**Auftrag:** Gemeldeten Online-/Offline-Flacker-Bug bei den ersten beiden Testgeräten
+untersuchen und beheben, obwohl die Live-Anzeige durchgehend aktuelle Werte zeigt.
+**Ergebnis:** Ursache gefunden: `esp_online`/`esp_last_seen_at` wurden bisher ausschließlich
+vom seltenen Status-Heartbeat gepflegt, dessen MQTT-Last-Will-Testament bei jedem kurzen WLAN-/
+MQTT-Wackler ein retained "offline" publiziert -- unabhängig von den durchgehend ankommenden
+Live-Messungen. `insert_measurement()` in `mqtt-subscriber/main.py` zieht diese beiden Felder
+jetzt in derselben Transaktion mit, sodass ein Heartbeat-Ausrutscher durch die nächste
+Live-Messung (alle 5s) praktisch sofort ausgeheilt wird. `docs/ESP_IDEEN.md` ergänzt, PR #91
+gemergt. Noch offen: Patrick nach dem nächsten Deploy bitten, die beiden Testgeräte über
+mehrere Reloads zu beobachten.
+
+---
+
 ## 2026-08-18 (55) — Claude Code — Claude Sonnet 5
 **Prompt:** "also was muss ich jetzt machen? hab noch nichts gemacht von dieser Nachricht. Wenn
 ich "WLAN-Info anzeigen" klicke, kommt "Zählpunkt nicht gefunden""
