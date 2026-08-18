@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-18 (57) — Claude Code — Claude Sonnet 5
+**Prompt:** "Was mir bitte noch wichtig wäre, ist, dass auch der Obmann und der
+Plattform-Admin API-Keys in den Einstellungen erstellen können. [...] Oder wird da nur ein
+anderer Key erstellt?" / Rückfrage beantwortet: "Live-Daten der GANZEN Community" (nicht nur
+falls der Obmann selbst auch Mitglied ist).
+**Auftrag:** Klären, wie sich der neue App-Login (E-Mail/Passwort) zu den bestehenden
+Smart-Home-API-Keys verhält, und anschließend Obmann/Platform-Admin die Möglichkeit geben,
+eigene API-Keys für die Live-Daten der GESAMTEN Community anzulegen (nicht nur eines
+einzelnen Mitglieds).
+**Ergebnis:** `member_api_keys.member_id` nullable gemacht (`migrate_20260901.sql`,
+live gegen PostgreSQL getestet). Neue Sektion "Live-Daten-API (ganze Community)" unter
+`/portal/settings` (Erstellen/Anzeigen/Widerrufen, sichtbar für jeden Obmann/Platform-Admin
+der EEG). `GET /api/v1/live`/`GET /api/v1/me` liefern bei einem solchen Key jetzt die
+Gesamt-Community-Leistung statt Daten eines einzelnen Mitglieds (neues `scope`-Feld,
+`community`-Objekt), bestehende Mitglied-Keys bleiben unverändert kompatibel. PR #93
+gemergt, alle 95 Tests grün.
+
+---
+
 ## 2026-08-18 (56) — Claude Code — Claude Sonnet 5
 **Prompt:** "Wenn ich 'WLAN-Info anzeigen' klicke, kommt 'Zählpunkt nicht gefunden' [...] Was
 auf jeden Fall noch ist: [...] meine ersten zwei Testkunden mit dem Prototypen der
