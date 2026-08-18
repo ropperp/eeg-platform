@@ -304,14 +304,12 @@ function communityLivePower(string $communityId): array
 
 /**
  * Löst auf, in welcher/welchen Community(s) ein User-Account eine AKTIVE Mitgliedschaft hat --
- * Grundlage für den App-Login (/api/v1/login), der im Gegensatz zum Web-Login ohne
- * Rollen-Umschalter auskommt (die App ist reine Mitglieder-Selbstbedienung, siehe
- * docs/APP_API.md). Fragt bewusst zuerst user_roles (role='member', KEINE RLS -- siehe
- * Auth::establishSession() für dasselbe Muster) statt direkt members, weil members Row-Level
- * Security hat und app.community_id an dieser Stelle noch unbekannt ist -- für jeden
- * gefundenen Kandidaten wird die Community deshalb einzeln aktiviert (DB::setCommunity()) und
- * DANACH der zugehörige members-Datensatz nachgeschlagen, damit RLS korrekt greift statt eine
- * Zeile über alle Communities hinweg zu joinen.
+ * ein Baustein von resolveAppRoleOptions() (App-Login). Fragt bewusst zuerst user_roles
+ * (role='member', KEINE RLS -- siehe Auth::establishSession() für dasselbe Muster) statt direkt
+ * members, weil members Row-Level Security hat und app.community_id an dieser Stelle noch
+ * unbekannt ist -- für jeden gefundenen Kandidaten wird die Community deshalb einzeln aktiviert
+ * (DB::setCommunity()) und DANACH der zugehörige members-Datensatz nachgeschlagen, damit RLS
+ * korrekt greift statt eine Zeile über alle Communities hinweg zu joinen.
  *
  * @return array<int, array{member_id:string, community_id:string, community_name:string, name:string}>
  */
@@ -339,6 +337,63 @@ function resolveAppMemberships(string $userId): array
                 'name'           => trim($member['first_name'] . ' ' . $member['last_name']),
             ];
         }
+    }
+    return $out;
+}
+
+/**
+ * Löst auf, für welche Community(s) ein User-Account eine Obmann-/Manager-Berechtigung hat
+ * (role IN 'manager','platform_admin' -- Platform-Admins dürfen wie im Web jede EEG verwalten,
+ * siehe Auth::isManager()). user_roles/communities haben KEINE RLS, ein direkter Join ist hier
+ * also (anders als bei resolveAppMemberships()) unproblematisch -- es wird ja kein
+ * community-gebundener members-Datensatz nachgeladen.
+ *
+ * @return array<int, array{community_id:string, community_name:string}>
+ */
+function resolveAppManagerRoles(string $userId): array
+{
+    $rows = DB::fetchAll(
+        "SELECT DISTINCT ur.community_id, c.name AS community_name
+         FROM user_roles ur JOIN communities c ON c.id = ur.community_id
+         WHERE ur.user_id = ? AND ur.role IN ('manager', 'platform_admin') AND c.active = true
+         ORDER BY c.name",
+        [$userId]
+    );
+    return array_map(fn($r) => [
+        'community_id'   => $r['community_id'],
+        'community_name' => $r['community_name'],
+    ], $rows);
+}
+
+/**
+ * Kombiniert Mitglieds- und Obmann-Optionen für den App-Login zu einer einheitlichen Liste, aus
+ * der der Client (bei mehr als einer Option) auswählen kann -- jeder Eintrag trägt zusätzlich
+ * "role", damit appIssueSessionResponse() weiß, welche Art Token auszustellen ist.
+ *
+ * @return array<int, array{role:string, member_id:?string, community_id:string, community_name:string, name:string}>
+ */
+function resolveAppRoleOptions(string $userId): array
+{
+    $out = [];
+    foreach (resolveAppMemberships($userId) as $m) {
+        $out[] = [
+            'role'           => 'member',
+            'member_id'      => $m['member_id'],
+            'community_id'   => $m['community_id'],
+            'community_name' => $m['community_name'],
+            'name'           => $m['name'],
+            'user_id'        => $userId,
+        ];
+    }
+    foreach (resolveAppManagerRoles($userId) as $m) {
+        $out[] = [
+            'role'           => 'manager',
+            'member_id'      => null,
+            'community_id'   => $m['community_id'],
+            'community_name' => $m['community_name'] . ' (Obmann)',
+            'name'           => $m['community_name'],
+            'user_id'        => $userId,
+        ];
     }
     return $out;
 }
@@ -2169,41 +2224,46 @@ $router->post('/portal/my/support/:id/reply', function ($params) {
 // Zugriffstoken + ein erneuerbares Refresh-Token (siehe AppApiAuth.php). Alle Antworten JSON.
 
 /**
- * Baut nach erfolgreichem Login (Passwort, ggf. 2FA) die endgültige Antwort: bei genau einer
- * aktiven Mitgliedschaft direkt die Zugriffstoken, bei mehreren (Mitglied in >1 EEG) eine
- * Auswahlliste + Ticket für /api/v1/login/select-community, bei keiner ein Fehler (die App ist
- * reine Mitglieder-Selbstbedienung -- ein reiner Manager-/Platform-Admin-Account ohne eigene
- * Mitgliedschaft kann sich hier bewusst nicht anmelden).
+ * Baut nach erfolgreichem Login (Passwort, ggf. 2FA) die endgültige Antwort: bei genau EINER
+ * Rollen-Option (Mitgliedschaft ODER Obmann-Zugang einer EEG) direkt die Zugriffstoken, bei
+ * mehreren (z.B. Mitglied in >1 EEG, oder gleichzeitig Mitglied UND Obmann) eine Auswahlliste +
+ * Ticket für /api/v1/login/select-community, bei keiner ein Fehler.
  */
 function appLoginSuccessResponse(string $userId, ?string $deviceLabel): array
 {
-    $memberships = resolveAppMemberships($userId);
-    if (!$memberships) {
+    $options = resolveAppRoleOptions($userId);
+    if (!$options) {
         http_response_code(403);
-        return ['error' => 'Dieser Account hat keine aktive Mitgliedschaft. Die App ist nur für Mitglieder gedacht.'];
+        return ['error' => 'Dieser Account hat weder eine aktive Mitgliedschaft noch eine Obmann-Berechtigung in einer EEG.'];
     }
-    if (count($memberships) === 1) {
-        return appIssueSessionResponse($memberships[0], $deviceLabel);
+    if (count($options) === 1) {
+        return appIssueSessionResponse($options[0], $deviceLabel);
     }
     return [
         'community_selection_required' => true,
         'selection_ticket' => AppApiAuth::issueTicket('community_pending', ['uid' => $userId]),
         'memberships' => array_map(fn($m) => [
+            'role'           => $m['role'],
             'community_id'   => $m['community_id'],
             'community_name' => $m['community_name'],
-        ], $memberships),
+        ], $options),
     ];
 }
 
-/** Stellt Zugriffs- + Refresh-Token für eine gewählte Mitgliedschaft aus. */
+/**
+ * Stellt Zugriffs- + Refresh-Token für eine gewählte Rollen-Option (Mitglied ODER Obmann) aus.
+ * "account" statt "member" im Antwortfeld -- bei role=manager gibt es keinen member_id/eigenen
+ * Mitgliedsdatensatz, "member" wäre dort irreführend.
+ */
 function appIssueSessionResponse(array $membership, ?string $deviceLabel): array
 {
     return [
-        'access_token'  => AppApiAuth::issueAccessToken($membership['member_id'], $membership['community_id']),
-        'refresh_token' => AppApiAuth::issueRefreshToken($membership['member_id'], $membership['community_id'], $deviceLabel),
+        'access_token'  => AppApiAuth::issueAccessToken($membership['community_id'], $membership['role'], $membership['member_id'], $membership['user_id']),
+        'refresh_token' => AppApiAuth::issueRefreshToken($membership['community_id'], $membership['role'], $membership['member_id'], $membership['user_id'], $deviceLabel),
         'expires_in'    => AppApiAuth::accessTokenTtl(),
-        'member' => [
-            'id'             => $membership['member_id'],
+        'role'          => $membership['role'],
+        'account' => [
+            'member_id'      => $membership['member_id'],
             'name'           => $membership['name'],
             'community_id'   => $membership['community_id'],
             'community_name' => $membership['community_name'],
@@ -2285,9 +2345,11 @@ $router->post('/api/v1/login/2fa', function () {
 
 /**
  * Nur nötig, wenn Schritt 1/2 eine Auswahlliste zurückgegeben haben (Account ist in mehreren
- * EEGs Mitglied). Löst die Mitgliedschaften bewusst FRISCH neu auf (statt der Liste aus dem
- * Ticket zu vertrauen) -- verhindert, dass eine manipulierte community_id akzeptiert wird, die
- * zwischenzeitlich (z.B. Mitgliedschaft beendet) nicht mehr gültig ist.
+ * EEGs Mitglied und/oder gleichzeitig Mitglied UND Obmann). Löst die Optionen bewusst FRISCH
+ * neu auf (statt der Liste aus dem Ticket zu vertrauen) -- verhindert, dass eine manipulierte
+ * community_id/role akzeptiert wird, die zwischenzeitlich (z.B. Mitgliedschaft beendet) nicht
+ * mehr gültig ist. "role" muss mitgeschickt werden, falls für dieselbe community_id sowohl eine
+ * Mitglieds- als auch eine Obmann-Option existiert.
  */
 $router->post('/api/v1/login/select-community', function () {
     header('Content-Type: application/json; charset=UTF-8');
@@ -2300,10 +2362,11 @@ $router->post('/api/v1/login/select-community', function () {
     }
     $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
     $communityId = (string)($body['community_id'] ?? '');
+    $role = (string)($body['role'] ?? 'member');
 
     $chosen = null;
-    foreach (resolveAppMemberships((string)$ticket['uid']) as $m) {
-        if ($m['community_id'] === $communityId) { $chosen = $m; break; }
+    foreach (resolveAppRoleOptions((string)$ticket['uid']) as $m) {
+        if ($m['community_id'] === $communityId && $m['role'] === $role) { $chosen = $m; break; }
     }
     if (!$chosen) {
         http_response_code(400);
@@ -2330,7 +2393,7 @@ $router->post('/api/v1/token/refresh', function () {
         return;
     }
     echo json_encode([
-        'access_token'  => AppApiAuth::issueAccessToken($result['member_id'], $result['community_id']),
+        'access_token'  => AppApiAuth::issueAccessToken($result['community_id'], $result['role'], $result['member_id'], $result['user_id']),
         'refresh_token' => $result['refresh_token'],
         'expires_in'    => AppApiAuth::accessTokenTtl(),
     ]);
@@ -2611,6 +2674,916 @@ $router->get('/api/v1/metering-points', function () {
         'active'         => (bool)$p['active'],
         'registered_at'  => $p['registered_at'],
     ], $points)]);
+});
+
+// ─── Mitglieder-App: Verträge, Dokumente, DSGVO, Support, Profil/2FA ─────────
+// JSON-Äquivalente der /portal/my/*- bzw. /portal/profile|password-Routen, jeweils per
+// Bearer-Zugriffstoken statt Session (siehe AppApiAuth). Die reine Datenlogik (SQL, PDF-
+// Vorlagen, Mail-Versand) wird 1:1 über dieselben Helferfunktionen wie im Web-Portal
+// wiederverwendet -- nur Auth-Quelle (Token statt Session) und Antwortformat (JSON statt
+// Redirect/HTML) unterscheiden sich.
+
+/** Kein Mitgliedskonto in dieser EEG -> einheitliche 403-JSON-Antwort (reiner Obmann-Account
+ *  ohne eigene Mitgliedschaft hat keinen Zugriff auf die eigenen Vertrags-/Dokument-Routen). */
+function requireAppMemberId(array $ctx): ?string
+{
+    if (!$ctx['member_id']) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Kein Mitgliedskonto in dieser EEG.']);
+        return null;
+    }
+    return $ctx['member_id'];
+}
+
+/** Vertragsstatus (Bezug/Einspeisung) für die App-Startseite "Verträge". */
+$router->get('/api/v1/contracts/status', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
+
+    $mps = DB::fetchAll('SELECT type FROM metering_points WHERE member_id = ? AND active = true', [$member['id']]);
+    $hasConsumer = !empty(array_filter($mps, fn($mp) => $mp['type'] === 'consumer'));
+    $hasProducer = !empty(array_filter($mps, fn($mp) => $mp['type'] === 'producer'));
+
+    echo json_encode([
+        'contracts_enabled' => contractsEnabled($member['community_id']),
+        'bezug' => $hasConsumer ? [
+            'status'    => $member['contract_bezug_status'] ?? 'none',
+            'signed_at' => $member['contract_bezug_signed_at'] ?? null,
+        ] : null,
+        'einspeisung' => $hasProducer ? [
+            'status'    => $member['contract_einspeisung_status'] ?? 'none',
+            'signed_at' => $member['contract_einspeisung_signed_at'] ?? null,
+        ] : null,
+    ]);
+});
+
+/** Vertrags-PDF (aktueller Stand, ob nur versendet oder bereits signiert). Gleiche Vorlagen wie
+ *  /portal/my/contract/bezug|einspeisung. */
+$router->get('/api/v1/contracts/:type/pdf', function ($params) {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    $type = $params['type'];
+    if (!in_array($type, ['bezug', 'einspeisung'], true)) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Unbekannter Vertragstyp.']);
+        return;
+    }
+    if (!$ctx['member_id']) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(403);
+        echo json_encode(['error' => 'Kein Mitgliedskonto in dieser EEG.']);
+        return;
+    }
+    DB::setCommunity($ctx['community_id']);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+    if (!$member) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Mitglied nicht gefunden.']);
+        return;
+    }
+    if (!contractsEnabled($member['community_id'])) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Verträge sind in dieser EEG deaktiviert.']);
+        return;
+    }
+
+    $mpType = $type === 'einspeisung' ? 'producer' : 'consumer';
+    $mps = DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true AND type = ? ORDER BY registered_at', [$member['id'], $mpType]);
+    if (empty($mps)) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(400);
+        echo json_encode(['error' => 'Kein ' . ($type === 'einspeisung' ? 'Einspeise' : 'Bezugs') . '-Zählpunkt registriert.']);
+        return;
+    }
+
+    $tariff = contractTariff($member['community_id'], $member['contract_' . $type . '_generated_at'] ?? null);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
+    $signature = communityManagerSignature($member['community_id']);
+    $memberSig = memberSignatureAsset($member['contract_' . $type . '_customer_signature'] ?? null);
+
+    if ($type === 'einspeisung') {
+        $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
+        streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    } else {
+        $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
+        streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    }
+});
+
+/**
+ * Digitale Unterschrift durch das Mitglied in der App -- JSON-Äquivalent von
+ * POST /portal/my/contract/:type/sign. Erwartet im Body {"zustimmung": true,
+ * "signature_image": "data:image/png;base64,..."} (Unterschriftsfeld als PNG, gleiche
+ * Validierung wie im Web-Portal).
+ */
+$router->post('/api/v1/contracts/:type/sign', function ($params) {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $type = $params['type'];
+    if (!in_array($type, ['bezug', 'einspeisung'], true)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Unbekannter Vertragstyp.']);
+        return;
+    }
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
+
+    $status = $member['contract_' . $type . '_status'] ?? 'none';
+    if ($status !== 'created') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Vertrag kann in diesem Status nicht unterschrieben werden.']);
+        return;
+    }
+    $body = jsonBody();
+    if (empty($body['zustimmung'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte die Zustimmung bestätigen.']);
+        return;
+    }
+    $signature = (string)($body['signature_image'] ?? '');
+    if (!str_starts_with($signature, 'data:image/png;base64,')) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültige Unterschrift.']);
+        return;
+    }
+
+    DB::execute(
+        "UPDATE members SET
+            contract_{$type}_status = 'signed',
+            contract_{$type}_customer_signature = ?,
+            contract_{$type}_signed_at = now(),
+            contract_{$type}_signer_ip = ?
+         WHERE id = ?",
+        [$signature, $_SERVER['REMOTE_ADDR'] ?? null, $member['id']]
+    );
+    DB::execute(
+        'INSERT INTO notifications (community_id, typ, titel, text, referenz_typ, referenz_id)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            $ctx['community_id'],
+            'vertrag_unterschrieben',
+            'Vertrag digital unterschrieben: ' . $member['first_name'] . ' ' . $member['last_name'] . ' (' . contractTypeLabel($type) . ')',
+            'Die/der Netzbenutzer:in hat die ' . contractTypeLabel($type) . ' in der App digital unterschrieben. '
+            . 'Der Vertrag ist ab sofort gültig und wird automatisch sicher archiviert.',
+            'member',
+            $member['id'],
+        ]
+    );
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Eigene hochgeladene/vom Obmann hochgeladene Dateien (Ausweis-Scan, Beitrittserklärung, ...). */
+$router->get('/api/v1/documents', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+
+    $files = DB::fetchAll('SELECT id, name, mime, created_at FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$ctx['member_id']]);
+    echo json_encode(['documents' => array_map(fn($f) => [
+        'id'         => $f['id'],
+        'name'       => $f['name'],
+        'mime'       => $f['mime'],
+        'created_at' => $f['created_at'],
+    ], $files)]);
+});
+
+$router->get('/api/v1/documents/:fileid/download', function ($params) {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    if (!$ctx['member_id']) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(403);
+        echo json_encode(['error' => 'Kein Mitgliedskonto in dieser EEG.']);
+        return;
+    }
+    DB::setCommunity($ctx['community_id']);
+    $file = DB::fetchOne('SELECT * FROM member_files WHERE id = ? AND member_id = ?', [$params['fileid'], $ctx['member_id']]);
+    if (!$file || !is_file($file['pfad'])) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Datei nicht gefunden.']);
+        return;
+    }
+    header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Length: ' . filesize($file['pfad']));
+    readfile($file['pfad']);
+});
+
+/** DSGVO-Selbstauskunft (Art. 15/20 DSGVO) als JSON-Download -- identisch zu
+ *  /portal/my/dsgvo-export, nur per Bearer-Token statt Session. */
+$router->get('/api/v1/dsgvo-export', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    if (!$ctx['member_id']) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(403);
+        echo json_encode(['error' => 'Kein Mitgliedskonto in dieser EEG.']);
+        return;
+    }
+    DB::setCommunity($ctx['community_id']);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+    if (!$member) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Mitglied nicht gefunden.']);
+        return;
+    }
+    logAudit($member['community_id'], 'dsgvo.export.self', 'member', $member['id'], 'Mitglied hat DSGVO-Selbstauskunft über die App exportiert');
+    sendDsgvoExport(buildMemberDsgvoExport($member), 'dsgvo-export-' . ($member['kundennummer'] ?? 'mitglied') . '.json');
+});
+
+// ─── Mitglieder-App: Support-Tickets ─────────────────────────────────────────
+$router->get('/api/v1/support', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+
+    $tickets = DB::fetchAll('SELECT * FROM support_tickets WHERE member_id = ? ORDER BY updated_at DESC', [$ctx['member_id']]);
+    echo json_encode(['tickets' => array_map(fn($t) => [
+        'id'         => $t['id'],
+        'subject'    => $t['subject'],
+        'category'   => $t['category'],
+        'status'     => $t['status'],
+        'created_at' => $t['created_at'],
+        'updated_at' => $t['updated_at'],
+    ], $tickets)]);
+});
+
+$router->post('/api/v1/support', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
+
+    $body = jsonBody();
+    $subject  = trim((string)($body['subject'] ?? ''));
+    $message  = trim((string)($body['message'] ?? ''));
+    $category = ($body['category'] ?? '') === 'feature' ? 'feature' : 'problem';
+    if ($subject === '' || $message === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte Betreff und Nachricht ausfüllen.']);
+        return;
+    }
+    $ticket = DB::fetchOne(
+        'INSERT INTO support_tickets (community_id, member_id, subject, category) VALUES (?, ?, ?, ?) RETURNING id',
+        [$member['community_id'], $member['id'], $subject, $category]
+    );
+    DB::execute(
+        'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
+        [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
+    );
+    notifySupportTicketCreated($ticket['id'], $member, $subject, $category, $message);
+    echo json_encode(['id' => $ticket['id'], 'status' => 'ok']);
+});
+
+$router->get('/api/v1/support/:id', function ($params) {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+
+    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $ctx['member_id']]);
+    if (!$ticket) { http_response_code(404); echo json_encode(['error' => 'Ticket nicht gefunden.']); return; }
+    $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
+    echo json_encode([
+        'ticket' => [
+            'id'         => $ticket['id'],
+            'subject'    => $ticket['subject'],
+            'category'   => $ticket['category'],
+            'status'     => $ticket['status'],
+            'created_at' => $ticket['created_at'],
+            'updated_at' => $ticket['updated_at'],
+        ],
+        'messages' => array_map(fn($m) => [
+            'id'           => $m['id'],
+            'author_label' => $m['author_label'],
+            'is_staff'     => (bool)$m['is_staff'],
+            'message'      => $m['message'],
+            'created_at'   => $m['created_at'],
+        ], $messages),
+    ]);
+});
+
+$router->post('/api/v1/support/:id/reply', function ($params) {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!requireAppMemberId($ctx)) return;
+    DB::setCommunity($ctx['community_id']);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
+    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $ctx['member_id']]);
+    if (!$ticket) { http_response_code(404); echo json_encode(['error' => 'Ticket nicht gefunden.']); return; }
+
+    $body = jsonBody();
+    $message = trim((string)($body['message'] ?? ''));
+    if ($message === '') { http_response_code(400); echo json_encode(['error' => 'Nachricht darf nicht leer sein.']); return; }
+    DB::execute(
+        'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
+        [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
+    );
+    DB::execute("UPDATE support_tickets SET status = 'offen', updated_at = now() WHERE id = ?", [$ticket['id']]);
+    echo json_encode(['status' => 'ok']);
+});
+
+// ─── Mitglieder-App: Profil, Passwort, 2FA (Konto-Endpunkte, users-Tabelle) ──────────────────
+// Anders als die obigen Routen (member_id nötig) funktionieren diese für JEDES Token -- Mitglied
+// UND reiner Obmann-Account, siehe Kommentar zu app_sessions.user_id (migrate_20260831.sql).
+$router->get('/api/v1/profile', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $user = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [$ctx['user_id']]);
+    if (!$user) { http_response_code(404); echo json_encode(['error' => 'Konto nicht gefunden.']); return; }
+
+    $hasPhoto = !empty($user['photo_path']);
+    if ($ctx['member_id']) {
+        DB::setCommunity($ctx['community_id']);
+        $member = DB::fetchOne('SELECT photo_path FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
+        $hasPhoto = !empty($member['photo_path'] ?? null);
+    }
+
+    echo json_encode([
+        'user' => [
+            'id'           => $user['id'],
+            'email'        => $user['email'],
+            'first_name'   => $user['first_name'],
+            'last_name'    => $user['last_name'],
+            'totp_enabled' => (bool)$user['totp_enabled'],
+        ],
+        'role'      => $ctx['role'],
+        'has_photo' => $hasPhoto,
+    ]);
+});
+
+$router->post('/api/v1/profile', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $email     = trim((string)($body['email'] ?? ''));
+    $firstName = trim((string)($body['first_name'] ?? ''));
+    $lastName  = trim((string)($body['last_name'] ?? ''));
+    if (!$email || !$firstName || !$lastName) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Alle Felder sind Pflichtfelder.']);
+        return;
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültige E-Mail-Adresse.']);
+        return;
+    }
+    DB::execute('UPDATE users SET email=?, first_name=?, last_name=? WHERE id=?', [$email, $firstName, $lastName, $ctx['user_id']]);
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Profilbild-Upload (multipart/form-data, Feld "photo") -- hängt am Mitgliedsdatensatz, wenn
+ *  vorhanden, sonst direkt am Login-Account (reiner Obmann-/Platform-Admin-Zugang). */
+$router->post('/api/v1/profile/photo', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!isset($_FILES['photo'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Kein Bild übermittelt.']);
+        return;
+    }
+    if ($ctx['member_id']) {
+        DB::setCommunity($ctx['community_id']);
+        $err = saveMemberPhoto($ctx['member_id'], $_FILES['photo']);
+    } else {
+        $err = saveUserPhoto($ctx['user_id'], $_FILES['photo']);
+    }
+    if ($err !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Profilbild konnte nicht gespeichert werden.']);
+        return;
+    }
+    echo json_encode(['status' => 'ok']);
+});
+
+$router->post('/api/v1/password', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $user = DB::fetchOne('SELECT password_hash FROM users WHERE id = ?', [$ctx['user_id']]);
+    if (!$user) { http_response_code(404); echo json_encode(['error' => 'Konto nicht gefunden.']); return; }
+
+    $body    = jsonBody();
+    $current = (string)($body['current_password'] ?? '');
+    $new     = (string)($body['new_password'] ?? '');
+    $confirm = (string)($body['confirm_password'] ?? $new);
+
+    if (!password_verify($current, $user['password_hash'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Aktuelles Passwort ist falsch.']);
+        return;
+    }
+    if (strlen($new) < 8) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Das neue Passwort muss mindestens 8 Zeichen lang sein.']);
+        return;
+    }
+    if ($new !== $confirm) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Die Passwörter stimmen nicht überein.']);
+        return;
+    }
+    if (isPasswordBreached($new)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Dieses Passwort ist in bekannten Datenlecks aufgetaucht und ist deshalb unsicher. Bitte ein anderes Passwort wählen.']);
+        return;
+    }
+    $hash = password_hash($new, PASSWORD_BCRYPT, ['cost' => 12]);
+    DB::execute('UPDATE users SET password_hash=? WHERE id=?', [$hash, $ctx['user_id']]);
+    echo json_encode(['status' => 'ok']);
+});
+
+/**
+ * 2FA-Einrichtung starten: erzeugt ein neues TOTP-Secret. Da die App KEINE Server-Session hält
+ * (bewusst stateless, siehe AppApiAuth), wird das Secret -- anders als im Web-Portal
+ * ($_SESSION['2fa_setup_secret']) -- in einem kurzlebigen, signierten Ticket an den Client
+ * zurückgegeben (gleiches Prinzip wie beim Community-Auswahl-Ticket im Login-Flow) und muss bei
+ * POST /api/v1/2fa/enable wieder mitgeschickt werden.
+ */
+$router->get('/api/v1/2fa/setup', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $user = DB::fetchOne('SELECT email FROM users WHERE id = ?', [$ctx['user_id']]);
+    if (!$user) { http_response_code(404); echo json_encode(['error' => 'Konto nicht gefunden.']); return; }
+
+    $secret = totpGenerateSecret();
+    $setupTicket = AppApiAuth::issueTicket('app_2fa_setup', ['uid' => $ctx['user_id'], 'secret' => $secret]);
+    echo json_encode([
+        'secret'       => $secret,
+        'otpauth_uri'  => totpProvisioningUri($secret, $user['email'], 'Strom für alle'),
+        'setup_ticket' => $setupTicket,
+    ]);
+});
+
+$router->post('/api/v1/2fa/enable', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $ticket = AppApiAuth::verifyTicket('app_2fa_setup', (string)($body['setup_ticket'] ?? ''));
+    if (!$ticket || ($ticket['uid'] ?? null) !== $ctx['user_id']) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Setup-Ticket ungültig oder abgelaufen. Bitte 2FA-Einrichtung erneut starten.']);
+        return;
+    }
+    $secret = (string)($ticket['secret'] ?? '');
+    if ($secret === '' || !totpVerify($secret, (string)($body['code'] ?? ''))) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Der Code stimmt nicht. Bitte den aktuellen 6-stelligen Code eingeben.']);
+        return;
+    }
+    DB::execute('UPDATE users SET totp_secret = ?, totp_enabled = ? WHERE id = ?', [encryptSecret($secret), 'true', $ctx['user_id']]);
+    logAudit(null, 'user.2fa.enable', 'user', $ctx['user_id'], 'Zwei-Faktor-Authentifizierung (TOTP) über die App aktiviert');
+    echo json_encode(['status' => 'ok']);
+});
+
+$router->post('/api/v1/2fa/disable', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::execute("UPDATE users SET totp_enabled = 'false', totp_secret = NULL WHERE id = ?", [$ctx['user_id']]);
+    logAudit(null, 'user.2fa.disable', 'user', $ctx['user_id'], 'Zwei-Faktor-Authentifizierung (TOTP) über die App deaktiviert');
+    echo json_encode(['status' => 'ok']);
+});
+
+// ─── Mitglieder-App: Obmann-Endpunkte (Mitgliederverwaltung von unterwegs) ───────────────────
+// Nur mit role='manager'-Token (AppApiAuth::requireManagerAuth()). Anders als
+// requireMemberAccess() im Web-Portal ist hier KEIN Platform-Admin-"jede Community
+// durchprobieren"-Fall nötig: der Manager-Token trägt die Community bereits fest (bei mehreren
+// EEGs wählt der Login-Flow eine davon aus, siehe /api/v1/login/select-community) -- entspricht
+// exakt dem "sonst"-Zweig von requireMemberAccess().
+function requireAppManagedMember(string $communityId, string $memberId): ?array
+{
+    DB::setCommunity($communityId);
+    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$memberId, $communityId]);
+    if (!$member) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Mitglied nicht gefunden.']);
+        return null;
+    }
+    return $member;
+}
+
+/** Mitgliederliste der eigenen EEG -- leichtere Variante der /portal/members-Tabelle (ohne
+ *  ESP-Fehlerstatus/Sidebar-Badges, die reichen fürs Web-Portal, nicht für eine App-Liste). */
+$router->get('/api/v1/manager/members', function () {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $members = DB::fetchAll(
+        "SELECT m.id, m.kundennummer, m.salutation, m.titel, m.first_name, m.last_name, m.company_name,
+                m.email, m.phone, m.city, m.member_since, m.member_until,
+                COUNT(DISTINCT mp.id) AS metering_point_count,
+                COALESCE(
+                    (SELECT SUM(i.saldo_eur) FROM invoices i
+                     WHERE i.member_id = m.id AND i.saldo_eur > 0 AND i.sent_at IS NULL),
+                    0
+                ) AS open_amount
+         FROM members m
+         LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
+         WHERE m.community_id = ?
+         GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
+        [$ctx['community_id']]
+    );
+
+    echo json_encode(['members' => array_map(fn($m) => [
+        'id'                    => $m['id'],
+        'kundennummer'          => $m['kundennummer'],
+        'name'                  => trim($m['first_name'] . ' ' . $m['last_name']),
+        'company_name'          => $m['company_name'],
+        'email'                 => $m['email'],
+        'phone'                 => $m['phone'],
+        'city'                  => $m['city'],
+        'member_since'          => $m['member_since'],
+        'member_until'          => $m['member_until'],
+        'metering_point_count'  => (int)$m['metering_point_count'],
+        'open_amount_eur'       => (float)$m['open_amount'],
+    ], $members)]);
+});
+
+/** Mitglied-Detail inkl. Zählpunkten und Dateien (Obmann-Ansicht in der App). */
+$router->get('/api/v1/manager/members/:id', function ($params) {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $member = requireAppManagedMember($ctx['community_id'], $params['id']);
+    if (!$member) return;
+
+    $meteringPoints = DB::fetchAll('SELECT id, zaehlpunkt_nr, type, active, registered_at FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at DESC', [$member['id']]);
+    $files = DB::fetchAll('SELECT id, name, mime, created_at FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$member['id']]);
+
+    echo json_encode([
+        'member' => [
+            'id'               => $member['id'],
+            'kundennummer'     => $member['kundennummer'],
+            'salutation'       => $member['salutation'],
+            'titel'            => $member['titel'],
+            'first_name'       => $member['first_name'],
+            'last_name'        => $member['last_name'],
+            'company_name'     => $member['company_name'],
+            'address'          => $member['address'],
+            'zip'              => $member['zip'],
+            'city'             => $member['city'],
+            'email'            => $member['email'],
+            'phone'            => $member['phone'],
+            'invoice_uid'      => $member['invoice_uid'],
+            'member_iban'      => $member['member_iban'],
+            'member_bic'       => $member['member_bic'],
+            'member_since'     => $member['member_since'],
+            'member_until'     => $member['member_until'],
+            'geburtsdatum'     => $member['geburtsdatum'],
+            'stromlieferant'   => $member['stromlieferant'],
+        ],
+        'metering_points' => array_map(fn($p) => [
+            'id'            => $p['id'],
+            'zaehlpunkt_nr' => $p['zaehlpunkt_nr'],
+            'type'          => $p['type'],
+            'active'        => (bool)$p['active'],
+            'registered_at' => $p['registered_at'],
+        ], $meteringPoints),
+        'files' => array_map(fn($f) => [
+            'id'         => $f['id'],
+            'name'       => $f['name'],
+            'mime'       => $f['mime'],
+            'created_at' => $f['created_at'],
+        ], $files),
+    ]);
+});
+
+/**
+ * Legt ein neues Mitglied an -- JSON-Äquivalent von POST /portal/members. Erwartet dieselben
+ * Pflichtfelder (first_name, last_name, email, address, zip, city) sowie die sechs rechtlichen
+ * Zustimmungen (zustimmung_*, siehe $consentFields unten) im JSON-Body; optionale
+ * Zählpunkt-Felder wie im Web-Formular (add_bezug_zp/add_einspeisung_zp + *_zaehlpunkt_nr).
+ * Nutzt dieselbe createMemberRecord()-Logik wie das Web-Portal (KdNr-Vergabe, Erstlogin-Mail).
+ */
+$router->post('/api/v1/manager/members', function () {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+    $communityId = $ctx['community_id'];
+
+    $body = jsonBody();
+
+    $required = ['first_name', 'last_name', 'email', 'address', 'zip', 'city'];
+    foreach ($required as $f) {
+        if (empty(trim((string)($body[$f] ?? '')))) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Bitte alle Pflichtfelder ausfüllen.']);
+            return;
+        }
+    }
+
+    $iban = trim((string)($body['member_iban'] ?? ''));
+    if ($iban !== '' && !validateIban($iban)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).']);
+        return;
+    }
+
+    $znrBezugNew = null;
+    $znrEinspNew = null;
+    if (!empty($body['add_bezug_zp'])) {
+        $znrBezugNew = strtoupper(trim((string)($body['bezug_zaehlpunkt_nr'] ?? '')));
+        if ($znrBezugNew === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Bitte die Zählpunktnummer für den Bezugs-Zählpunkt angeben (oder add_bezug_zp weglassen).']);
+            return;
+        }
+    }
+    if (!empty($body['add_einspeisung_zp'])) {
+        $znrEinspNew = strtoupper(trim((string)($body['einspeisung_zaehlpunkt_nr'] ?? '')));
+        if ($znrEinspNew === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Bitte die Zählpunktnummer für den Einspeise-Zählpunkt angeben (oder add_einspeisung_zp weglassen).']);
+            return;
+        }
+    }
+    if ($znrBezugNew && $znrEinspNew && $znrBezugNew === $znrEinspNew) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bezugs- und Einspeise-Zählpunkt dürfen nicht dieselbe Zählpunktnummer haben.']);
+        return;
+    }
+    foreach (array_filter([$znrBezugNew, $znrEinspNew]) as $znrToCheck) {
+        $znrOwner = DB::fetchOne(
+            "SELECT m.first_name, m.last_name, m.kundennummer FROM metering_points mp
+             JOIN members m ON m.id = mp.member_id
+             WHERE mp.community_id = ? AND mp.zaehlpunkt_nr = ?",
+            [$communityId, $znrToCheck]
+        );
+        if ($znrOwner) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Die Zählpunktnummer ' . $znrToCheck . ' ist bereits vergeben — an '
+                . $znrOwner['first_name'] . ' ' . $znrOwner['last_name'] . ' (KdNr ' . ($znrOwner['kundennummer'] ?? '—') . ').']);
+            return;
+        }
+    }
+
+    $consentFields = [
+        'zustimmung_mitgliedschaft', 'zustimmung_vollmacht', 'zustimmung_widerrufsfrist',
+        'zustimmung_email_kommunikation', 'zustimmung_datenschutz', 'zustimmung_agb',
+    ];
+    foreach ($consentFields as $cf) {
+        if (empty($body[$cf])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Bitte alle sechs rechtlichen Zustimmungen bestätigen, bevor das Mitglied angelegt wird.']);
+            return;
+        }
+    }
+
+    $result = createMemberRecord($communityId, array_merge($body, ['andere_eeg' => !empty($body['andere_eeg'])]));
+    logAudit($communityId, 'member.create', 'member', $result['member_id'],
+        'Mitglied ' . trim((string)$body['first_name']) . ' ' . trim((string)$body['last_name']) . ' über die App angelegt (KdNr ' . $result['kundennummer'] . ')');
+
+    if ($znrBezugNew) {
+        createMeteringPointForMember($communityId, $result['member_id'], $znrBezugNew, 'consumer', [
+            'meter_code'          => trim((string)($body['bezug_meter_code'] ?? '')),
+            'jahresverbrauch_kwh' => $body['bezug_jahresverbrauch_kwh'] ?? '',
+        ]);
+    }
+    if ($znrEinspNew) {
+        createMeteringPointForMember($communityId, $result['member_id'], $znrEinspNew, 'producer', [
+            'meter_code'               => trim((string)($body['einspeisung_meter_code'] ?? '')),
+            'engpassleistung_kw'       => $body['einspeisung_engpassleistung_kw'] ?? '',
+            'geplante_einspeisung_kwh' => $body['einspeisung_geplante_einspeisung_kwh'] ?? '',
+        ]);
+    }
+
+    echo json_encode([
+        'status'        => 'ok',
+        'member_id'     => $result['member_id'],
+        'kundennummer'  => $result['kundennummer'],
+        'invite_sent'   => $result['invite_sent'],
+        'temp_password' => $result['temp_password'],
+    ]);
+});
+
+/** Bearbeitet Stammdaten eines Mitglieds -- JSON-Äquivalent von POST /portal/members/:id/edit. */
+$router->post('/api/v1/manager/members/:id', function ($params) {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $member = requireAppManagedMember($ctx['community_id'], $params['id']);
+    if (!$member) return;
+
+    $body = jsonBody();
+    $required = ['first_name', 'last_name', 'address', 'zip', 'city'];
+    foreach ($required as $f) {
+        if (empty(trim((string)($body[$f] ?? '')))) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Bitte alle Pflichtfelder ausfüllen.']);
+            return;
+        }
+    }
+
+    $iban = trim((string)($body['member_iban'] ?? ''));
+    if ($iban !== '' && !validateIban($iban)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).']);
+        return;
+    }
+
+    $mandatsreferenz = $member['mandatsreferenz'];
+    if ($iban !== '' && empty($mandatsreferenz)) {
+        $mandatsreferenz = 'S00000F' . date('Y') . 'A' . $member['kundennummer'];
+    }
+
+    DB::execute(
+        'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
+         phone=?, invoice_uid=?, member_iban=?, member_bic=?, kontoinhaber=?, konto_adresse=?, mandatsreferenz=?,
+         member_since=?, member_until=?,
+         geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?,
+         email_anrede_mode=?
+         WHERE id=?',
+        [
+            $body['salutation'] ?? null,
+            trim((string)($body['titel'] ?? '')) ?: null,
+            trim((string)$body['first_name']),
+            trim((string)$body['last_name']),
+            trim((string)($body['company_name'] ?? '')) ?: null,
+            trim((string)$body['address']),
+            trim((string)$body['zip']),
+            trim((string)$body['city']),
+            trim((string)($body['phone'] ?? '')) ?: null,
+            trim((string)($body['invoice_uid'] ?? '')) ?: null,
+            $iban ?: null,
+            trim((string)($body['member_bic'] ?? '')) ?: null,
+            trim((string)($body['kontoinhaber'] ?? '')) ?: null,
+            trim((string)($body['konto_adresse'] ?? '')) ?: null,
+            $mandatsreferenz,
+            $body['member_since'] ?: date('Y-m-d'),
+            ($body['member_until'] ?? '') ?: '2099-12-31',
+            ($body['geburtsdatum'] ?? '') ?: null,
+            trim((string)($body['stromlieferant'] ?? '')) ?: null,
+            ($body['speicher_status'] ?? '') ?: null,
+            ($body['speicher_kwh'] ?? '') !== '' ? (float)$body['speicher_kwh'] : null,
+            !empty($body['andere_eeg']) ? 'true' : 'false',
+            trim((string)($body['andere_eeg_name'] ?? '')) ?: null,
+            in_array($body['email_anrede_mode'] ?? 'auto', ['auto', 'herr', 'frau', 'familie'], true) ? ($body['email_anrede_mode'] ?? 'auto') : 'auto',
+            $params['id'],
+        ]
+    );
+    $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
+    $memberChanges = auditDiff($member, $memberAfter ?? [], [
+        'salutation' => 'Anrede', 'titel' => 'Titel', 'first_name' => 'Vorname', 'last_name' => 'Nachname',
+        'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
+        'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
+        'konto_adresse' => 'Konto-Adresse', 'mandatsreferenz' => 'Mandatsreferenz', 'member_since' => 'Mitglied seit',
+        'member_until' => 'Mitglied bis', 'geburtsdatum' => 'Geburtsdatum', 'stromlieferant' => 'Stromlieferant',
+        'speicher_status' => 'Speicher', 'speicher_kwh' => 'Speicher kWh', 'andere_eeg' => 'Andere EEG',
+        'andere_eeg_name' => 'Andere-EEG-Name', 'email_anrede_mode' => 'E-Mail-Anrede-Modus',
+    ]);
+    $memberName = trim(($memberAfter['first_name'] ?? '') . ' ' . ($memberAfter['last_name'] ?? ''));
+    if (!empty($memberChanges)) {
+        logAuditDiff($member['community_id'], 'member.update', 'member', $params['id'], $memberChanges,
+            'Mitglied ' . $memberName . ' (App):');
+    } else {
+        logAudit($member['community_id'], 'member.update', 'member', $params['id'],
+            'Mitglied ' . $memberName . ' über die App gespeichert (keine Änderung)');
+    }
+    echo json_encode(['status' => 'ok']);
+});
+
+/**
+ * Datei-Upload für ein Mitglied (Ausweis-Scan, Beitrittserklärung, ...) -- multipart/form-data
+ * mit Feld "file" (+ optionalem Feld "name" für die Anzeige-Bezeichnung), JSON-Äquivalent von
+ * POST /portal/members/:id/files. Standard-multipart statt Base64-in-JSON, damit sich iOS'
+ * URLSession-Multipart-Upload direkt nutzen lässt (kein 33% Base64-Overhead bei z.B. einem
+ * mehrere MB großen Ausweis-Scan-Foto).
+ */
+$router->post('/api/v1/manager/members/:id/files', function ($params) {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $member = requireAppManagedMember($ctx['community_id'], $params['id']);
+    if (!$member) return;
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Kein Datei-Upload gefunden.']);
+        return;
+    }
+
+    $displayName = trim((string)($_POST['name'] ?? '')) ?: basename($_FILES['file']['name']);
+    $origExt = pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION);
+    $dir = '/var/www/html/storage/uploads/members/' . $params['id'];
+    if (!is_dir($dir)) { mkdir($dir, 0750, true); }
+    $storedName = bin2hex(random_bytes(16)) . ($origExt ? '.' . strtolower($origExt) : '');
+    $destPath = $dir . '/' . $storedName;
+
+    if (!move_uploaded_file($_FILES['file']['tmp_name'], $destPath)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Datei konnte nicht gespeichert werden.']);
+        return;
+    }
+
+    try {
+        $sha256 = hash_file('sha256', $destPath);
+        if ($sha256 === false) {
+            throw new \RuntimeException('Datei konnte nach dem Upload nicht gelesen werden (sha256 fehlgeschlagen).');
+        }
+        $file = DB::fetchOne(
+            'INSERT INTO member_files (community_id, member_id, name, pfad, mime, sha256, hochgeladen_von)
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+            [
+                $member['community_id'],
+                $params['id'],
+                $displayName,
+                $destPath,
+                $_FILES['file']['type'] ?: null,
+                $sha256,
+                $ctx['user_id'],
+            ]
+        );
+    } catch (\Throwable $e) {
+        unlink($destPath);
+        http_response_code(500);
+        echo json_encode(['error' => 'Datei konnte nicht in der Datenbank gespeichert werden.']);
+        return;
+    }
+
+    echo json_encode(['status' => 'ok', 'id' => $file['id']]);
+});
+
+$router->get('/api/v1/manager/members/:id/files/:fileid/download', function ($params) {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    $member = requireAppManagedMember($ctx['community_id'], $params['id']);
+    if (!$member) return;
+
+    $file = DB::fetchOne(
+        'SELECT * FROM member_files WHERE id = ? AND member_id = ? AND community_id = ?',
+        [$params['fileid'], $params['id'], $member['community_id']]
+    );
+    if (!$file || !is_file($file['pfad'])) {
+        header('Content-Type: application/json; charset=UTF-8');
+        http_response_code(404);
+        echo json_encode(['error' => 'Datei nicht gefunden.']);
+        return;
+    }
+    header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Length: ' . filesize($file['pfad']));
+    readfile($file['pfad']);
+});
+
+/** Profilbild eines Mitglieds setzen (Obmann-Aktion, multipart-Feld "photo"). */
+$router->post('/api/v1/manager/members/:id/photo', function ($params) {
+    $ctx = AppApiAuth::requireManagerAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $member = requireAppManagedMember($ctx['community_id'], $params['id']);
+    if (!$member) return;
+
+    if (!isset($_FILES['photo'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Kein Bild übermittelt.']);
+        return;
+    }
+    $err = saveMemberPhoto($params['id'], $_FILES['photo']);
+    if ($err !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Profilbild konnte nicht gespeichert werden.']);
+        return;
+    }
+    echo json_encode(['status' => 'ok']);
 });
 
 // ─── Portal: Mitgliederverwaltung ───────────────────────

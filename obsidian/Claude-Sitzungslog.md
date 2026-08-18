@@ -8,6 +8,38 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-18 (54) — Claude Code — Claude Sonnet 5
+**Prompt:** "bitte gib mir zuvor noch den Befehl, für das lösen des git problems. einfach den
+stand vom server nutzen. lokal hab ich nichts geändert. bitte erstell mir den Pfad
+app/ios-app/. bitte eine genaue auflistung der App. mit allen Funktionen der Website und den
+API Schnittstellen. Bitte auch Bilder und Farben verwenden. Bitte so detailiert wie möglich."
+/ "bitte bau alle API nach, die ich brauch. Eigentlich alles was auf der Website ist. Um vom
+Handy Mitglieder hinzuzufügen, Dateinen hochladen und alles andere für die Kunden wie
+Rechnungen ... Dann bitte ein app.md file mit alle Anweisungen an den Agent in Xcode. den
+Baukasten kann er nicht lesen. Bitte in Text-format."
+**Auftrag:** Lokalen Git-Stand mit dem Server abgleichen, `app/ios-app/`-Pfad anlegen, eine
+detaillierte visuelle App-Spezifikation (Farben/Typografie/Funktionsmatrix/API-Referenz) als
+Artifact liefern, anschließend die App-API um Obmann-Rolle sowie alle für "Mitglieder von
+unterwegs hinzufügen, Dateien hochladen, Rechnungen & Co." nötigen Endpunkte erweitern, und
+zusätzlich eine reine Text-Anleitung (`app.md`) für den KI-Agenten in Xcode schreiben, da dieser
+das zuvor gelieferte HTML-Artifact nicht lesen kann.
+**Ergebnis:** App-API-Token um Rolle (`member`/`manager`) und `user_id` erweitert
+(`database/migrate_20260831.sql`, `webapp/src/AppApiAuth.php`), damit sich auch reine
+Obmann-Accounts anmelden können. Neue Mitglied-Endpunkte (`/api/v1/contracts/*`,
+`/api/v1/documents*`, `/api/v1/dsgvo-export`, `/api/v1/support*`, `/api/v1/profile*`,
+`/api/v1/password`, `/api/v1/2fa/*`) sowie neue Obmann-Endpunkte
+(`/api/v1/manager/members*` -- Liste/Detail/Anlegen/Bearbeiten/Datei- und Foto-Upload) in
+`webapp/public/index.php` ergänzt, jeweils 1:1 an die bestehende Web-Portal-Logik angelehnt.
+Migration live gegen eine native PostgreSQL-Instanz getestet (Nullable `member_id`,
+Role-Check-Constraint, `user_id`-FK), alle 95 Unit-Tests grün. `docs/APP_API.md` um alle neuen
+Endpunkte erweitert, neue Datei `app/ios-app/app.md` als vollständige Text-Referenz für den
+Xcode-Agenten geschrieben (Farben/Typografie aus dem Artifact übernommen, kompletter
+API-Überblick, Bildschirmplan). Bewusst NICHT umgesetzt (im Vorfeld mit Patrick abgestimmt):
+Abrechnung, EDA-Import, Vertrags-Versand als Obmann, EEG-Einstellungen, Beitrittsfreigabe,
+Postfach, Platform-Admin-Funktionen -- bleiben Web-Portal-only.
+
+---
+
 ## 2026-08-17 (53) — Claude Code — Claude Sonnet 5
 **Prompt:** "wie sieht es aus, wenn wir noch eine App zu unserer Plattform machen wollen. Wie
 macht man das am besten mit der Kommunikation? über eine eigene API-Schnittstelle oder direkt

@@ -9,15 +9,26 @@ declare(strict_types=1);
 
 putenv('APP_SECRET=test-secret-fuer-app-api-auth-tests');
 
-test('issueAccessToken()/verifyAccessToken() Round-Trip liefert member_id/community_id zurück', function () {
-    $token = AppApiAuth::issueAccessToken('member-123', 'community-abc');
+test('issueAccessToken()/verifyAccessToken() Round-Trip liefert community_id/role/member_id/user_id zurück (Mitglied)', function () {
+    $token = AppApiAuth::issueAccessToken('community-abc', 'member', 'member-123', 'user-789');
     $ctx = AppApiAuth::verifyAccessToken($token);
     assertSame('member-123', $ctx['member_id'] ?? null);
     assertSame('community-abc', $ctx['community_id'] ?? null);
+    assertSame('member', $ctx['role'] ?? null);
+    assertSame('user-789', $ctx['user_id'] ?? null);
+});
+
+test('issueAccessToken()/verifyAccessToken() Round-Trip funktioniert auch ohne member_id (Obmann)', function () {
+    $token = AppApiAuth::issueAccessToken('community-abc', 'manager', null, 'user-789');
+    $ctx = AppApiAuth::verifyAccessToken($token);
+    assertTrue(array_key_exists('member_id', $ctx) && $ctx['member_id'] === null, 'member_id sollte explizit null sein');
+    assertSame('community-abc', $ctx['community_id'] ?? null);
+    assertSame('manager', $ctx['role'] ?? null);
+    assertSame('user-789', $ctx['user_id'] ?? null);
 });
 
 test('verifyAccessToken() lehnt ein manipuliertes Token ab (Payload verändert, Signatur alt)', function () {
-    $token = AppApiAuth::issueAccessToken('member-123', 'community-abc');
+    $token = AppApiAuth::issueAccessToken('community-abc', 'member', 'member-123');
     [$payload, $sig] = explode('.', $token);
     $tampered = $payload . 'X.' . $sig;
     assertSame(null, AppApiAuth::verifyAccessToken($tampered));
@@ -34,7 +45,7 @@ test('verifyAccessToken() lehnt ein korrekt signiertes, aber abgelaufenes Token 
     // AppApiAuth::key('access'), siehe dortiger Kommentar zur Schlüsseltrennung je Zweck).
     $key = hash('sha256', 'test-secret-fuer-app-api-auth-tests|access', true);
     $b64url = fn($raw) => rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
-    $payload = $b64url(json_encode(['mid' => 'm1', 'cid' => 'c1', 'exp' => time() - 10]));
+    $payload = $b64url(json_encode(['cid' => 'c1', 'role' => 'member', 'mid' => 'm1', 'uid' => 'u1', 'exp' => time() - 10]));
     $sig = $b64url(hash_hmac('sha256', $payload, $key, true));
     assertSame(null, AppApiAuth::verifyAccessToken($payload . '.' . $sig));
 });

@@ -21,5 +21,6 @@ app/ios-app/
     Resources/                 -- Assets, Farben, Icons
 ```
 
-Feature-/Design-Referenz für den Aufbau: siehe die begleitende Spezifikation (an Patrick als
-Artifact übergeben).
+Feature-/Design-Referenz für den Aufbau: siehe `app.md` in diesem Ordner (vollständige
+Textanleitung für einen KI-Agenten in Xcode -- Farben, Typografie, Auth-Flow, alle
+`/api/v1/*`-Endpunkte, Bildschirmplan). Technische API-Detailreferenz: `../../docs/APP_API.md`.
