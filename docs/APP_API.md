@@ -1,30 +1,44 @@
-# App-API (Mitglieder-Programmierschnittstelle)
+# App-API (Mitglieder- & Obmann-Programmierschnittstelle)
 
-Technische Referenz für die JSON-API unter `/api/v1/*`, mit der eine native Mitglieder-App
-(iOS/Android) gegen die EEG-Plattform arbeitet -- eigene Zählpunkte, Verbrauchsverlauf,
-Rechnungen inkl. PDF. Implementiert seit 30.08.2026 (`webapp/src/AppApiAuth.php`,
-`database/migrate_20260830.sql`, Routen in `webapp/public/index.php`).
+Technische Referenz für die JSON-API unter `/api/v1/*`, mit der eine native App (iOS/Android)
+gegen die EEG-Plattform arbeitet -- eigene Zählpunkte, Verbrauchsverlauf, Rechnungen inkl. PDF,
+Verträge digital unterschreiben, Dokumente, DSGVO-Export, Support-Tickets, Profil/Passwort/2FA,
+und (mit Obmann-Zugang) Mitglieder anlegen/bearbeiten/Dateien hochladen. Implementiert seit
+30.08.2026 (`webapp/src/AppApiAuth.php`, `database/migrate_20260830.sql`,
+`database/migrate_20260831.sql`, Routen in `webapp/public/index.php`).
 
 > Falls diese Datei einer KI zum Programmieren der Client-App übergeben wurde: alle hier
 > beschriebenen Endpunkte existieren bereits fertig implementiert und getestet auf dem Server --
-> es muss nur noch der Client (die App) dagegen gebaut werden, nicht das Backend.
+> es muss nur noch der Client (die App) dagegen gebaut werden, nicht das Backend. Für eine
+> vollständige Anleitung ausschließlich in Textform (kein HTML/Artifact) siehe `app.md` im
+> Repo-Wurzelverzeichnis -- dort steht zusätzlich der komplette v1-Bildschirmplan.
 
 ## Übersicht
 
 - **Base-URL:** `https://stromfueralle.at` (Produktivsystem) bzw. `https://portal.stromfueralle.at`
   (gleiche Webapp, andere Subdomain -- beide funktionieren identisch für die API).
-- **Format:** JSON in beide Richtungen. Requests mit Body: `Content-Type: application/json`
-  (kein Formular-Encoding!). Antworten: immer `Content-Type: application/json; charset=UTF-8`,
-  außer beim PDF-Endpunkt (`application/pdf`).
+- **Format:** JSON in beide Richtungen für die meisten Endpunkte. Requests mit JSON-Body:
+  `Content-Type: application/json` (kein Formular-Encoding!). Datei-Uploads (Profilbild,
+  Mitglied-Dateien) sind die Ausnahme: dort `multipart/form-data`, siehe die jeweiligen
+  Endpunkte unten. Antworten: immer `Content-Type: application/json; charset=UTF-8`, außer bei
+  PDF-Endpunkten (`application/pdf`) und Datei-Downloads (`Content-Type` der jeweiligen Datei).
 - **Auth:** `Authorization: Bearer <access_token>` auf allen `/api/v1/*`-Endpunkten außer den
   Login-Endpunkten selbst.
-- **Scope:** Die App ist reine **Mitglieder-Selbstbedienung** -- ein Account ohne eigene
-  Mitgliedschaft (z. B. ein reiner Obmann-/Platform-Admin-Zugang ohne eigenen Mitgliedsdatensatz)
-  kann sich hier nicht anmelden. Für Verwaltungsfunktionen gibt es das Web-Portal.
+- **Zwei Rollen im selben Token-System:** `role: "member"` (Mitglied, mit `member_id`) und
+  `role: "manager"` (Obmann bzw. Platform-Admin, `member_id` meist `null` -- ein reiner
+  Obmann-Account hat nicht zwingend eine eigene Mitgliedschaft in der EEG). Ein Account kann
+  BEIDES gleichzeitig sein (z. B. Obmann, der auch selbst Mitglied ist) -- dann bietet der
+  Login eine Auswahl an (siehe Auth-Flow unten). Jeder Endpunkt unten ist mit der nötigen Rolle
+  markiert. Endpunkte, die eine `role: "manager"`-Berechtigung verlangen, liefern mit einem
+  gültigen Mitglied-Token `403 {"error": "Diese Aktion erfordert einen Obmann-Zugang."}`.
 - **Getrennt von der Smart-Home-API** (`member_api_keys`, `GET /api/v1/me` + `GET /api/v1/live`):
   Das sind langlebige, vom Mitglied selbst im Web-Portal erzeugte Schlüssel für Skripte/Node-RED
   (siehe `/portal/my/api-keys`) -- ein anderer Anwendungsfall als ein Mensch, der sich in der App
   anmeldet. Nicht verwechseln, unterschiedliche Endpunkte, unterschiedliches Token-Format.
+- **Bewusst außerhalb dieser v1-API** (nur im Web-Portal): Abrechnung/Rechnungslauf-Erstellung,
+  EDA-Import, Vertrags-Versand als Obmann (nur Signieren als Mitglied ist enthalten),
+  EEG-Einstellungen, Beitrittsanträge freigeben, Postfach, Platform-Admin-Funktionen. Siehe
+  "Bekannte Einschränkungen" unten.
 
 ---
 
@@ -78,9 +92,9 @@ künftige "Angemeldete Geräte"-Übersicht) -- ohne Angabe bleibt es leer.
 | Falsches Passwort/unbekannte E-Mail | 401 | `{"error": "E-Mail oder Passwort falsch."}` |
 | Zu viele Fehlversuche (5/E-Mail bzw. 20/IP in 15 Min) | 429 | `{"error": "Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen."}` |
 | 2FA aktiv | 200 | `{"totp_required": true, "login_ticket": "..."}` |
-| Keine aktive Mitgliedschaft | 403 | `{"error": "Dieser Account hat keine aktive Mitgliedschaft. Die App ist nur für Mitglieder gedacht."}` |
-| Mitglied in mehreren EEGs | 200 | siehe "Mehrfach-Mitgliedschaft" unten |
-| Erfolg (genau 1 EEG) | 200 | siehe "Erfolgsantwort" unten |
+| Weder Mitgliedschaft noch Obmann-Zugang | 403 | `{"error": "Dieser Account hat weder eine aktive Mitgliedschaft noch eine Obmann-Berechtigung in einer EEG."}` |
+| Genau eine Rolle (Mitglied ODER Obmann in genau einer EEG) | 200 | siehe "Erfolgsantwort" unten |
+| Mehrere Rollen (mehrere EEGs, oder gleichzeitig Mitglied UND Obmann) | 200 | siehe "Mehrfach-Rolle" unten |
 
 ### POST /api/v1/login/2fa
 
@@ -95,42 +109,56 @@ ungültig/abgelaufen -- neu einloggen), 429 (5 Fehlversuche/15 Min, eigener Zäh
 ### POST /api/v1/login/select-community
 
 Nur nötig, wenn `/login` oder `/login/2fa` `community_selection_required: true` zurückgegeben
-haben (Account ist Mitglied in mehreren EEGs gleichzeitig).
+haben (Account hat mehr als eine Rollen-Option -- mehrere EEGs und/oder gleichzeitig Mitglied
+UND Obmann).
 
 ```json
 // Request
-{ "selection_ticket": "...", "community_id": "<eine der zurückgegebenen memberships[].community_id>", "device_label": "..." }
+{ "selection_ticket": "...", "community_id": "<memberships[].community_id>", "role": "<memberships[].role>", "device_label": "..." }
 ```
-Erfolg: wie `/login`. 400 bei ungültiger `community_id`, 401 bei abgelaufenem Ticket.
+`role` ist neu seit der Obmann-Erweiterung (30.08.2026 → 31.08.2026): notwendig, wenn derselbe
+Account in DERSELBEN EEG sowohl Mitglied als auch Obmann ist -- `community_id` allein wäre dann
+nicht mehr eindeutig. Fehlt `role` im Request, wird `"member"` angenommen (Rückwärtskompatibilität
+mit älteren Clients, die das Feld noch nicht kennen). Erfolg: wie `/login`. 400 bei ungültiger
+Kombination aus `community_id`/`role`, 401 bei abgelaufenem Ticket.
 
-### Erfolgsantwort (alle drei Login-Endpunkte, bei genau einer aktiven Mitgliedschaft)
+### Erfolgsantwort (alle drei Login-Endpunkte, bei genau einer Rollen-Option)
 
 ```json
 {
   "access_token": "eyJ...siehe Format unten...",
   "refresh_token": "3f9a2b...(64 Hex-Zeichen)",
   "expires_in": 900,
-  "member": {
-    "id": "uuid",
+  "role": "member",
+  "account": {
+    "member_id": "uuid",
     "name": "Anna Mustermann",
     "community_id": "uuid",
     "community_name": "EEG Feldkirchen Südwest"
   }
 }
 ```
+`role` ist `"member"` oder `"manager"`. Bei `role: "manager"` ist `account.member_id` meist
+`null` (reiner Obmann-Account ohne eigene Mitgliedschaft in dieser EEG) und
+`account.community_name` trägt den Zusatz " (Obmann)". Das gilt auch für Platform-Admins -- sie
+bekommen wie im Web-Portal ein `manager`-Token, kein eigener dritter Rollenwert.
 
-### Mehrfach-Mitgliedschaft (statt der Erfolgsantwort)
+### Mehrfach-Rolle (statt der Erfolgsantwort)
 
 ```json
 {
   "community_selection_required": true,
   "selection_ticket": "...",
   "memberships": [
-    { "community_id": "uuid-a", "community_name": "EEG Feldkirchen Südwest" },
-    { "community_id": "uuid-b", "community_name": "EEG Klagenfurt Ost" }
+    { "role": "member",  "community_id": "uuid-a", "community_name": "EEG Feldkirchen Südwest" },
+    { "role": "manager", "community_id": "uuid-a", "community_name": "EEG Feldkirchen Südwest (Obmann)" },
+    { "role": "member",  "community_id": "uuid-b", "community_name": "EEG Klagenfurt Ost" }
   ]
 }
 ```
+Das erste und zweite Beispiel oben zeigen denselben Account, der in EEG A sowohl Mitglied als
+auch Obmann ist -- der Client muss dem Nutzer dann eine Auswahl anbieten ("Als Mitglied
+anmelden" / "Als Obmann anmelden"), nicht nur eine EEG-Auswahl.
 
 ### POST /api/v1/token/refresh
 
@@ -158,11 +186,12 @@ dem Logout ohnehin verworfen wird.
 
 ---
 
-## Daten-Endpunkte
+## Daten-Endpunkte (role: member)
 
-Alle mit `Authorization: Bearer <access_token>`. Bei fehlendem/ungültigem/abgelaufenem Token:
-`401 {"error": "..."}` (Token ist abgelaufen → `/api/v1/token/refresh` aufrufen und Request
-wiederholen).
+Alle mit `Authorization: Bearer <access_token>` und `role: "member"` (liefern mit einem reinen
+Obmann-Token `403 {"error": "Kein Mitgliedskonto in dieser EEG."}`). Bei fehlendem/ungültigem/
+abgelaufenem Token: `401 {"error": "..."}` (Token ist abgelaufen → `/api/v1/token/refresh`
+aufrufen und Request wiederholen).
 
 ### GET /api/v1/dashboard
 
@@ -225,6 +254,231 @@ nötig). 404, wenn die ID nicht existiert; 403, wenn sie einem anderen Mitglied 
 
 ---
 
+## Verträge, Dokumente, DSGVO, Support (role: member)
+
+Alle wieder mit `Authorization: Bearer <access_token>`, `role: "member"` nötig (403 mit reinem
+Obmann-Token). Implementiert seit 31.08.2026, spiegeln die `/portal/my/*`-Seiten des Web-Portals
+1:1 (gleiche Validierung, gleiche Datenbank-Helferfunktionen).
+
+### GET /api/v1/contracts/status
+
+```json
+{
+  "contracts_enabled": true,
+  "bezug":       { "status": "signed",  "signed_at": "2026-08-01T10:00:00+00:00" },
+  "einspeisung": null
+}
+```
+`bezug`/`einspeisung` sind `null`, wenn kein aktiver Zählpunkt dieses Typs existiert (dann gibt
+es dafür auch keinen Vertrag). `status`: `none` (noch kein Vertrag erzeugt), `created` (versendet,
+wartet auf Unterschrift), `signed` (gültig).
+
+### GET /api/v1/contracts/:type/pdf
+
+`:type` ist `bezug` oder `einspeisung`. Liefert den aktuellen Vertrag als PDF
+(`Content-Type: application/pdf`) -- funktioniert unabhängig vom Status (auch vor der
+Unterschrift, zum Durchlesen). 404 bei unbekanntem Typ/deaktivierten Verträgen/keinem
+Mitgliedskonto, 400 wenn kein passender Zählpunkt registriert ist.
+
+### POST /api/v1/contracts/:type/sign
+
+Digitale Unterschrift, nur möglich solange der Vertrag im Status `created` ist.
+
+```json
+// Request
+{ "zustimmung": true, "signature_image": "data:image/png;base64,iVBORw0KG..." }
+```
+`signature_image` MUSS mit `data:image/png;base64,` beginnen (Unterschriftsfeld als PNG
+exportiert, z. B. `PencilKit`/`UIImage.pngData()` auf iOS). 400 bei fehlender Zustimmung,
+ungültigem Bildformat, oder wenn der Vertrag nicht im Status `created` ist. Erfolg:
+`{"status": "ok"}` -- setzt den Vertrag auf `signed`, benachrichtigt den Obmann.
+
+### GET /api/v1/documents
+
+Eigene hochgeladene bzw. vom Obmann für das Mitglied hochgeladene Dateien (Ausweis-Scan,
+Beitrittserklärung, ...).
+
+```json
+{ "documents": [
+  { "id": "uuid", "name": "Ausweis Vorderseite.jpg", "mime": "image/jpeg", "created_at": "2026-07-01T09:00:00+00:00" }
+] }
+```
+
+### GET /api/v1/documents/:fileid/download
+
+Lädt eine einzelne Datei herunter (`Content-Disposition: attachment`, passender `Content-Type`).
+404, wenn die Datei nicht existiert oder einem anderen Mitglied gehört.
+
+### GET /api/v1/dsgvo-export
+
+DSGVO-Selbstauskunft (Art. 15/20 DSGVO) als JSON-Datei-Download (`Content-Disposition:
+attachment`) -- alle gespeicherten personenbezogenen Daten strukturiert, ohne
+sicherheitskritische Felder (Passwort-Hash, Unterschriftsbilder).
+
+### Support-Tickets
+
+- `GET /api/v1/support` -- eigene Tickets, Liste mit `id`/`subject`/`category`/`status`/
+  `created_at`/`updated_at`.
+- `POST /api/v1/support` -- neues Ticket. Body: `{"subject": "...", "message": "...",
+  "category": "problem"}` (`category`: `"problem"` oder `"feature"`, Default `"problem"`).
+  Antwort: `{"id": "uuid", "status": "ok"}`. Löst eine interne Benachrichtigungsmail aus.
+- `GET /api/v1/support/:id` -- Ticket-Detail inkl. `messages[]`
+  (`author_label`/`is_staff`/`message`/`created_at`, chronologisch aufsteigend).
+- `POST /api/v1/support/:id/reply` -- Antwort im Ticket. Body: `{"message": "..."}`. Setzt den
+  Status automatisch auf `offen` zurück (falls der Obmann bereits geantwortet/geschlossen hatte).
+
+400 bei leerem `subject`/`message`, 404 bei unbekannter/fremder Ticket-`id`.
+
+---
+
+## Profil, Passwort, 2FA (role: member ODER manager)
+
+Diese Endpunkte betreffen den **Login-Account** (`users`-Tabelle), nicht den Mitgliedsdatensatz
+-- funktionieren deshalb mit JEDEM gültigen Token, egal ob `role: "member"` oder
+`role: "manager"` (auch für einen reinen Obmann-Account ohne eigene Mitgliedschaft).
+
+### GET /api/v1/profile
+
+```json
+{
+  "user": { "id": "uuid", "email": "obmann@example.at", "first_name": "Max", "last_name": "Muster", "totp_enabled": false },
+  "role": "manager",
+  "has_photo": true
+}
+```
+
+### POST /api/v1/profile
+
+Body: `{"email": "...", "first_name": "...", "last_name": "..."}` (alle drei Pflichtfelder).
+400 bei leerem Feld oder ungültiger E-Mail-Adresse. Erfolg: `{"status": "ok"}`.
+
+### POST /api/v1/profile/photo
+
+`multipart/form-data`, Feld `photo`. Hängt am Mitgliedsdatensatz, falls vorhanden (erscheint
+dann auch in der Mitgliederliste des Obmanns), sonst direkt am Login-Account. 400 bei fehlendem/
+ungültigem Bild.
+
+### POST /api/v1/password
+
+Body: `{"current_password": "...", "new_password": "...", "confirm_password": "..."}`
+(`confirm_password` optional -- fehlt es, wird `new_password` selbst als Bestätigung genommen).
+400 bei falschem aktuellem Passwort, zu kurzem neuem Passwort (< 8 Zeichen), nicht
+übereinstimmender Bestätigung, oder wenn das neue Passwort in bekannten Datenlecks auftaucht
+(`isPasswordBreached()`, HaveIBeenPwned-Bereich, k-Anonymity). Erfolg: `{"status": "ok"}`.
+
+### 2FA einrichten
+
+Die App hält KEINE Server-Session (bewusst stateless, siehe Auth-Flow oben) -- deshalb läuft die
+2FA-Einrichtung anders als im Web-Portal über ein kurzlebiges, signiertes **Setup-Ticket** statt
+über `$_SESSION`, muss aber sonst genauso in zwei Schritten ablaufen:
+
+1. `GET /api/v1/2fa/setup` →
+   ```json
+   { "secret": "JBSWY3DPEHPK3PXP", "otpauth_uri": "otpauth://totp/...", "setup_ticket": "..." }
+   ```
+   `otpauth_uri` kann direkt als QR-Code gerendert werden (z. B. für einen Wechsel von
+   Google Authenticator zur App, meist aber nicht nötig -- s. u.); `secret` reicht auch als
+   reiner Text zum manuellen Eintragen in eine externe Authenticator-App.
+2. `POST /api/v1/2fa/enable` mit `{"setup_ticket": "...", "code": "123456"}` (Code aus einer
+   TOTP-App auf Basis von `secret`/`otpauth_uri`) → bei richtigem Code `{"status": "ok"}`,
+   2FA ist ab sofort aktiv. `setup_ticket` ist 5 Minuten gültig und an den anfragenden Account
+   gebunden (400, wenn abgelaufen oder von einem anderen Account). 400 bei falschem Code.
+3. `POST /api/v1/2fa/disable` (kein Body) → deaktiviert 2FA sofort, kein Code nötig (Nutzer ist
+   ja bereits authentifiziert). `{"status": "ok"}`.
+
+---
+
+## Obmann-Endpunkte: Mitgliederverwaltung (role: manager)
+
+Alle mit `Authorization: Bearer <access_token>` und `role: "manager"` -- liefern mit einem
+Mitglied-Token `403 {"error": "Diese Aktion erfordert einen Obmann-Zugang."}`. Implementiert
+seit 31.08.2026, spiegeln die `/portal/members*`-Seiten des Web-Portals (gleiche Validierung,
+gleiche `createMemberRecord()`-Logik inkl. KdNr-Vergabe und Erstlogin-Einladungsmail). Wie im
+Web-Portal ist der Manager-Token an genau EINE EEG gebunden (bei mehreren EEGs wählt der
+Login-Flow eine aus) -- alle folgenden Endpunkte wirken nur innerhalb dieser einen EEG.
+
+### GET /api/v1/manager/members
+
+Mitgliederliste der eigenen EEG.
+
+```json
+{ "members": [
+  {
+    "id": "uuid", "kundennummer": 10042, "name": "Anna Mustermann", "company_name": null,
+    "email": "anna@example.at", "phone": "+43 664 1234567", "city": "Klagenfurt",
+    "member_since": "2026-01-15", "member_until": "2099-12-31",
+    "metering_point_count": 1, "open_amount_eur": 0.0
+  }
+] }
+```
+
+### GET /api/v1/manager/members/:id
+
+Mitglied-Detail inkl. Zählpunkten und Dateien (Stammdatenfelder, `metering_points[]`,
+`files[]` -- gleiche Struktur wie `GET /api/v1/metering-points` bzw.
+`GET /api/v1/documents` oben). 404, wenn die `id` nicht zur eigenen EEG gehört.
+
+### POST /api/v1/manager/members
+
+Legt ein neues Mitglied an ("von unterwegs ein Mitglied hinzufügen"). Pflichtfelder im
+JSON-Body: `first_name`, `last_name`, `email`, `address`, `zip`, `city`. Zusätzlich MÜSSEN alle
+sechs rechtlichen Zustimmungen mitgeschickt werden (jeweils `true`):
+`zustimmung_mitgliedschaft`, `zustimmung_vollmacht`, `zustimmung_widerrufsfrist`,
+`zustimmung_email_kommunikation`, `zustimmung_datenschutz`, `zustimmung_agb` (z. B. eine
+gemeinsame "Ich bestätige, dass die unterschriebene Beitrittserklärung vorliegt"-Checkbox in der
+App, die alle sechs auf `true` setzt).
+
+Optionale Felder: `salutation`, `titel`, `company_name`, `phone`, `invoice_uid`, `member_iban`
+(wird validiert, 400 bei ungültiger Prüfsumme), `member_bic`, `kontoinhaber`, `konto_adresse`,
+`member_since` (Default heute), `member_until` (Default `2099-12-31`), `geburtsdatum`,
+`stromlieferant`, `speicher_status`, `speicher_kwh`, `andere_eeg` (bool), `andere_eeg_name`,
+`email_anrede_mode` (`auto`/`herr`/`frau`/`familie`).
+
+Optional gleich einen Zählpunkt anlegen: `add_bezug_zp: true` + `bezug_zaehlpunkt_nr` (und
+optional `bezug_meter_code`, `bezug_jahresverbrauch_kwh`) bzw. `add_einspeisung_zp: true` +
+`einspeisung_zaehlpunkt_nr` (und optional `einspeisung_meter_code`,
+`einspeisung_engpassleistung_kw`, `einspeisung_geplante_einspeisung_kwh`). 400, wenn eine
+Zählpunktnummer schon einem anderen Mitglied gehört oder beide Zählpunkte dieselbe Nummer hätten.
+
+```json
+// Erfolgsantwort
+{
+  "status": "ok", "member_id": "uuid", "kundennummer": 10042,
+  "invite_sent": true, "temp_password": null
+}
+```
+`invite_sent: true` heißt: der neue Login-Account hat eine Erstlogin-E-Mail bekommen (Link zur
+eigenen Passwortvergabe, 24h gültig) -- kein Temp-Passwort nötig. `temp_password` ist nur gesetzt,
+wenn der Mailversand fehlgeschlagen ist ODER der Account schon existierte (dann `null`) -- als
+Fallback, den der Obmann notfalls selbst weitergeben kann.
+
+### POST /api/v1/manager/members/:id
+
+Bearbeitet die Stammdaten eines bestehenden Mitglieds. Gleiche Felder wie beim Anlegen, außer
+`email` (Login-E-Mail wird hier nicht geändert) und den Zustimmungsfeldern/Zählpunkt-Feldern
+(Zählpunkte laufen über eigene Endpunkte, aktuell nur im Web-Portal). Pflichtfelder:
+`first_name`, `last_name`, `address`, `zip`, `city`. Erfolg: `{"status": "ok"}`.
+
+### POST /api/v1/manager/members/:id/files
+
+Datei-Upload für ein Mitglied (Ausweis-Scan, unterschriebene Beitrittserklärung, ...).
+**`multipart/form-data`** (nicht JSON!) mit Feld `file` (die Datei) und optional `name`
+(Anzeige-Bezeichnung, Default = Dateiname). Bewusst Standard-Multipart statt Base64-in-JSON --
+funktioniert direkt mit `URLSession`-Multipart-Uploads unter iOS, ohne 33 % Base64-Overhead bei
+z. B. einem mehrere MB großen Foto. Erfolg: `{"status": "ok", "id": "uuid"}`.
+
+### GET /api/v1/manager/members/:id/files/:fileid/download
+
+Lädt eine Mitglied-Datei herunter (gleiche Antwort wie der Mitglied-Endpunkt oben, nur mit
+Obmann-Berechtigung für JEDES Mitglied der eigenen EEG statt nur die eigenen Dateien).
+
+### POST /api/v1/manager/members/:id/photo
+
+Setzt das Profilbild eines Mitglieds. `multipart/form-data`, Feld `photo`. Erfolg:
+`{"status": "ok"}`.
+
+---
+
 ## Fehlerformat
 
 Alle Fehlerantworten: `{"error": "<lesbarer deutscher Text>"}`, passender HTTP-Status
@@ -259,5 +513,16 @@ Alle Fehlerantworten: `{"error": "<lesbarer deutscher Text>"}`, passender HTTP-S
   `/logout`) -- könnte später ergänzt werden (`app_sessions`-Tabelle trägt bereits
   `device_label`/`last_used_at`, die Grundlage ist also schon da).
 - Kein Push-Notification-Mechanismus (z. B. "neue Rechnung verfügbar").
-- Kein Wechsel der aktiven Community nach dem Login, ohne sich neu anzumelden (bei
-  Mehrfach-Mitgliedschaft ist der Access-Token an genau eine Community gebunden).
+- Kein Wechsel der aktiven Rolle/Community nach dem Login, ohne sich neu anzumelden (der
+  Access-Token ist an genau eine Kombination aus Community UND Rolle gebunden).
+- Zählpunkte können in der App bisher nur ANGESEHEN werden (`GET /api/v1/metering-points` bzw.
+  als Teil von `GET /api/v1/manager/members/:id`) bzw. optional bei der Mitglied-Neuanlage
+  gleich mit angelegt werden -- nachträgliches Hinzufügen/Bearbeiten/Löschen eines Zählpunkts
+  bleibt vorerst Web-Portal-only (`/portal/members/:id/metering-points`).
+- Bewusst NICHT in dieser App-API (bleibt Web-Portal-only, siehe Übersicht oben):
+  Abrechnung/Rechnungslauf-Erstellung, EDA-Import, Vertrags-**Versand** als Obmann (Signieren
+  als Mitglied ist enthalten, siehe `POST /api/v1/contracts/:type/sign`), EEG-Einstellungen,
+  Beitrittsanträge freigeben/ablehnen, Postfach, Platform-Admin-Funktionen (EEG anlegen,
+  Mailvorlagen, LaTeX-Vorlagen, ...). Grund: höheres Risiko bei knapper Testzeit (siehe
+  RLS-Vorfälle im CLAUDE.md-Änderungsverlauf) und geringerer Nutzen unterwegs vom Handy aus
+  gegenüber den oben implementierten Funktionen.

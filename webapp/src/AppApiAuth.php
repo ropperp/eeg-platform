@@ -72,12 +72,21 @@ class AppApiAuth
     }
 
     // ─── Zugriffstoken ──────────────────────────────────────────────────────
-    public static function issueAccessToken(string $memberId, string $communityId): string
+    /**
+     * $role ist 'member' oder 'manager' (Platform-Admins bekommen beim Login ebenfalls ein
+     * 'manager'-Token -- sie dürfen wie im Web jede EEG verwalten, ein eigener dritter Rollenwert
+     * würde in requireManagerAuth() nur unnötig dupliziert geprüft werden müssen).
+     * $memberId ist bei role='manager' meist leer (ein reiner Obmann-Account hat nicht
+     * zwingend einen eigenen Mitgliedsdatensatz in dieser EEG).
+     */
+    public static function issueAccessToken(string $communityId, string $role, ?string $memberId = null, ?string $userId = null): string
     {
         return self::signToken('access', [
-            'mid' => $memberId,
-            'cid' => $communityId,
-            'exp' => time() + self::ACCESS_TOKEN_TTL,
+            'cid'  => $communityId,
+            'role' => $role,
+            'mid'  => $memberId,
+            'uid'  => $userId,
+            'exp'  => time() + self::ACCESS_TOKEN_TTL,
         ]);
     }
 
@@ -86,20 +95,25 @@ class AppApiAuth
         return self::ACCESS_TOKEN_TTL;
     }
 
-    /** Gibt ['member_id'=>.., 'community_id'=>..] zurück, oder null bei ungültig/abgelaufen. */
+    /** Gibt ['member_id'=>.., 'community_id'=>.., 'role'=>.., 'user_id'=>..] zurück, oder null bei ungültig/abgelaufen. */
     public static function verifyAccessToken(string $token): ?array
     {
         $claims = self::verifySignedToken('access', $token);
-        if (!$claims || empty($claims['mid']) || empty($claims['cid'])) return null;
-        return ['member_id' => (string)$claims['mid'], 'community_id' => (string)$claims['cid']];
+        if (!$claims || empty($claims['cid']) || empty($claims['role'])) return null;
+        return [
+            'member_id'    => $claims['mid'] ?? null,
+            'community_id' => (string)$claims['cid'],
+            'role'         => (string)$claims['role'],
+            'user_id'      => $claims['uid'] ?? null,
+        ];
     }
 
     /**
      * Liest den Access-Token aus dem Authorization-Header, prüft ihn und liefert
-     * ['member_id'=>.., 'community_id'=>..] zurück. Bei Fehler wird direkt eine 401-JSON-Antwort
-     * gesendet und null zurückgegeben -- Aufrufer macht dann nur `if (!$ctx) return;` (DRY: ohne
-     * diese zentrale Funktion hätte jeder der Daten-Endpunkte dieselbe Prüfung dupliziert, siehe
-     * ursprünglich /api/v1/me und /api/v1/live).
+     * ['member_id'=>.., 'community_id'=>.., 'role'=>..] zurück. Bei Fehler wird direkt eine
+     * 401-JSON-Antwort gesendet und null zurückgegeben -- Aufrufer macht dann nur
+     * `if (!$ctx) return;` (DRY: ohne diese zentrale Funktion hätte jeder der Daten-Endpunkte
+     * dieselbe Prüfung dupliziert, siehe ursprünglich /api/v1/me und /api/v1/live).
      */
     public static function requireAppAuth(): ?array
     {
@@ -115,6 +129,24 @@ class AppApiAuth
             header('Content-Type: application/json; charset=UTF-8');
             http_response_code(401);
             echo json_encode(['error' => 'Zugriffstoken ungültig oder abgelaufen. Bitte mit dem Refresh-Token erneuern (/api/v1/token/refresh).']);
+            return null;
+        }
+        return $ctx;
+    }
+
+    /**
+     * Wie requireAppAuth(), verlangt zusätzlich role='manager' -- für die Obmann-Endpunkte
+     * (Mitglieder anlegen/bearbeiten, Dateien hochladen). Ein Mitglied-Token wird hier mit 403
+     * abgelehnt, nicht 401 (Token an sich ist gültig, reicht nur nicht für diese Aktion).
+     */
+    public static function requireManagerAuth(): ?array
+    {
+        $ctx = self::requireAppAuth();
+        if (!$ctx) return null;
+        if ($ctx['role'] !== 'manager') {
+            header('Content-Type: application/json; charset=UTF-8');
+            http_response_code(403);
+            echo json_encode(['error' => 'Diese Aktion erfordert einen Obmann-Zugang.']);
             return null;
         }
         return $ctx;
@@ -137,13 +169,13 @@ class AppApiAuth
     }
 
     // ─── Refresh-Token (DB-gestützt, widerrufbar, rotierend) ─────────────────
-    public static function issueRefreshToken(string $memberId, string $communityId, ?string $deviceLabel = null): string
+    public static function issueRefreshToken(string $communityId, string $role, ?string $memberId, ?string $userId, ?string $deviceLabel = null): string
     {
         $raw = bin2hex(random_bytes(32));
         DB::execute(
-            "INSERT INTO app_sessions (member_id, community_id, refresh_token_hash, device_label, expires_at)
-             VALUES (?, ?, ?, ?, now() + make_interval(days => ?))",
-            [$memberId, $communityId, hash('sha256', $raw), $deviceLabel, self::REFRESH_TOKEN_TTL_DAYS]
+            "INSERT INTO app_sessions (member_id, community_id, role, user_id, refresh_token_hash, device_label, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, now() + make_interval(days => ?))",
+            [$memberId, $communityId, $role, $userId, hash('sha256', $raw), $deviceLabel, self::REFRESH_TOKEN_TTL_DAYS]
         );
         return $raw;
     }
@@ -173,6 +205,8 @@ class AppApiAuth
         return [
             'member_id'     => $session['member_id'],
             'community_id'  => $session['community_id'],
+            'role'          => $session['role'],
+            'user_id'       => $session['user_id'],
             'refresh_token' => $newRaw,
         ];
     }
