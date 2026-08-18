@@ -8,6 +8,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-18 (58) — Claude Code — Claude Sonnet 5
+**Prompt:** "[4 Screenshots: Mitglied-Detailseiten von Daniel/Stefanie zeigen 'Online'/
+'Erreichbar', Mitgliederliste zeigt für Stefanie 'Fehler'] alles nach einem reload. In der
+Mitgliederliste wechselt es sich immer ab und in den einzelnen Mitgliedern ist es online."
+**Auftrag:** Nachbessern -- der ESP-Online-Fix von eben (Log-Eintrag #56) reichte nicht, die
+Mitgliederliste zeigte weiterhin "Fehler" für ein Mitglied, dessen eigene Detailseite im
+selben Moment durchgehend "Online"/"Erreichbar" zeigte.
+**Ergebnis:** Ursache: `meter_reachable` (P1-Zähler-Erreichbarkeit, separates Feld von
+`esp_online`) wurde bewusst NICHT vom vorigen Fix mitgezogen und blieb weiterhin
+ausschließlich vom selben flatterhaften Status-Heartbeat abhängig -- das "Fehler"-Badge der
+Mitgliederliste hängt an BEIDEN Feldern. Firmware-Analyse (`p1-smart-meter.ino`) bestätigt:
+die Live-Publish-Funktion sendet ausschließlich als Folge eines gerade erfolgreich
+decodierten P1-Telegramms, eine Live-Nachricht beweist also zwangsläufig auch "Zähler gerade
+erreichbar". `insert_measurement()` in `mqtt-subscriber/main.py` zieht jetzt zusätzlich
+`meter_reachable`/`meter_last_seen_at` mit. `docs/ESP_IDEEN.md` ergänzt, PR #95 gemergt, alle
+95 Tests grün.
+
+---
+
 ## 2026-08-18 (57) — Claude Code — Claude Sonnet 5
 **Prompt:** "Was mir bitte noch wichtig wäre, ist, dass auch der Obmann und der
 Plattform-Admin API-Keys in den Einstellungen erstellen können. [...] Oder wird da nur ein
