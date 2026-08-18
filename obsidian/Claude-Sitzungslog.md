@@ -8,6 +8,22 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-18 (55) — Claude Code — Claude Sonnet 5
+**Prompt:** "also was muss ich jetzt machen? hab noch nichts gemacht von dieser Nachricht. Wenn
+ich "WLAN-Info anzeigen" klicke, kommt "Zählpunkt nicht gefunden""
+**Auftrag:** Deploy-Frage zur zuvor gemergten App-API-Erweiterung beantworten, außerdem einen
+gemeldeten Bug im Web-Portal untersuchen und beheben (WLAN-Diagnose-Button auf der
+Mitglied-Detailseite liefert fälschlich "Zählpunkt nicht gefunden").
+**Ergebnis:** Ursache gefunden: `metering_points` hat seit `migrate_20260822.sql` Row-Level
+Security, aber `GET /portal/members/:id/metering-points/:mpid/wifi-info` sowie die
+Geschwister-Routen `.../metering-points/:mpid/edit` und `.../delete` querten die Tabelle
+weiterhin direkt ohne vorher `DB::setCommunity()` zu setzen -- klassischer Fall derselben
+RLS-Regressionsklasse wie in Commit 6588243, hier aber offenbar übersehen. Alle drei Routen auf
+das etablierte Muster umgestellt (`requireMemberAccess()` bzw. Platform-Admin-Community-Schleife
+wie beim Avatar-Endpunkt), PR #89 committet, gepusht und gemerged. Alle 95 Tests weiterhin grün.
+
+---
+
 ## 2026-08-18 (54) — Claude Code — Claude Sonnet 5
 **Prompt:** "bitte gib mir zuvor noch den Befehl, für das lösen des git problems. einfach den
 stand vom server nutzen. lokal hab ich nichts geändert. bitte erstell mir den Pfad
