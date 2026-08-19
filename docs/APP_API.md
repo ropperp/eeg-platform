@@ -35,10 +35,13 @@ und (mit Obmann-Zugang) Mitglieder anlegen/bearbeiten/Dateien hochladen. Impleme
   Das sind langlebige, vom Mitglied selbst im Web-Portal erzeugte Schlüssel für Skripte/Node-RED
   (siehe `/portal/my/api-keys`) -- ein anderer Anwendungsfall als ein Mensch, der sich in der App
   anmeldet. Nicht verwechseln, unterschiedliche Endpunkte, unterschiedliches Token-Format.
-- **Bewusst außerhalb dieser v1-API** (nur im Web-Portal): Abrechnung/Rechnungslauf-Erstellung,
-  EDA-Import, Vertrags-Versand als Obmann (nur Signieren als Mitglied ist enthalten),
-  EEG-Einstellungen, Beitrittsanträge freigeben, Postfach, Platform-Admin-Funktionen. Siehe
-  "Bekannte Einschränkungen" unten.
+- **Noch nicht in dieser API** (nur im Web-Portal, Ziel ist aber volle Parität -- siehe
+  `app/ios-app/APP_PARITY_BACKLOG.md` für den aktuellen Stand): Abrechnung/
+  Rechnungslauf-Erstellung, EDA-Import, Vertrags-Versand als Obmann (nur Signieren als Mitglied
+  ist enthalten), EEG-Einstellungen (Tarif/Steuer/Logo/Signatur -- Platform-Admin-Verwaltung
+  einer EEG unter `role: "admin"` ist dagegen bereits enthalten), Beitrittsanträge freigeben,
+  Postfach. Die Platform-Admin-Funktionen (`role: "admin"`) sind seit 19.08.2026 größtenteils
+  enthalten, siehe Abschnitt "Admin-Endpunkte" unten.
 
 ---
 
@@ -533,6 +536,151 @@ Setzt das Profilbild eines Mitglieds. `multipart/form-data`, Feld `photo`. Erfol
 
 ---
 
+## Admin-Endpunkte (role: admin)
+
+Alle mit `Authorization: Bearer <access_token>` und `role: "admin"` (403 mit jedem anderen
+Token). Implementiert seit 19.08.2026 (`migrate_20260902.sql`). Anders als `role: "manager"` ist
+ein Admin-Token an KEINE einzelne EEG gebunden -- alle Endpunkte wirken plattformweit über alle
+EEGs hinweg. Ein Account bekommt die `admin`-Rollen-Option in `GET /api/v1/roles`/beim Login nur,
+wenn er in `user_roles` eine `platform_admin`-Zeile hat (unabhängig von deren `community_id`).
+
+Secrets (`client_secret`, `mqtt_password`, EDA-Portal-Passwort) werden NIE im Klartext
+zurückgegeben, nur als `..._set: true/false` -- exakt wie das Web-Formular sie nie vorbefüllt.
+Update-Endpunkte folgen demselben "Feld nicht mitschicken = unverändert lassen, Feld leer
+mitschicken = wirklich löschen"-Prinzip wie im Web (`array_key_exists()`-Prüfung serverseitig).
+
+### GET /api/v1/admin/overview
+
+```json
+{ "communities": [
+  { "id": "uuid", "name": "EEG Feldkirchen Südwest", "active": true, "marktpartner_id": "RC108175" }
+], "user_count": 42 }
+```
+
+### GET /api/v1/admin/users
+
+Alle Login-Accounts + ihre Rollen (plattformweit).
+```json
+{ "users": [
+  { "id": "uuid", "email": "obmann@example.at", "name": "Max Muster", "active": true,
+    "roles": [ { "role": "manager", "community_id": "uuid", "community_name": "EEG A" } ] }
+] }
+```
+
+### GET /api/v1/admin/users/:id
+
+Detail eines Nutzers inkl. `role_id` je Rolle (für `.../roles/delete`).
+
+### POST /api/v1/admin/users/:id/roles
+
+Body: `{"role": "platform_admin"|"manager"|"member", "community_id": "uuid oder weglassen"}`.
+`community_id` nur für `manager`/`member` nötig, bei `platform_admin` üblicherweise weglassen
+(globale Rolle). 400 bei ungültiger Rolle.
+
+### POST /api/v1/admin/users/:id/roles/delete
+
+Body: `{"role_id": "uuid"}` (aus `GET /api/v1/admin/users/:id`). 400, wenn das die letzte
+verbleibende `platform_admin`-Rolle plattformweit wäre (sonst könnte sich niemand mehr als Admin
+anmelden, weder Web noch App).
+
+### POST /api/v1/admin/users/:id/delete
+
+Löscht den Login-Account. 400 beim eigenen Account oder beim letzten verbleibenden
+Platform-Admin. Verknüpfte Mitglieder bleiben erhalten, verlieren nur die Login-Verknüpfung.
+
+### GET /api/v1/admin/communities/:id
+
+```json
+{
+  "community": {
+    "id": "uuid", "name": "EEG Feldkirchen Südwest", "slug": "eeg-feldkirchen-sudwest",
+    "marktpartner_id": "RC108175", "zvr_number": "...", "address": "...", "iban": "...",
+    "bic": "...", "active": true, "eda_login_email": "...", "eda_login_password_set": true
+  },
+  "members": [ { "id": "uuid", "kundennummer": 10001, "name": "Anna Mustermann", "company_name": null, "email": "...", "status": "active" } ]
+}
+```
+
+### POST /api/v1/admin/communities
+
+Legt eine neue EEG an. Body: `{"name": "...", "marktpartner_id": "...", "address": "..."}`
+(`name` Pflicht). Erfolg: `{"status": "ok", "id": "uuid"}`.
+
+### POST /api/v1/admin/communities/:id
+
+Bearbeitet Stammdaten. Body: `name`, `marktpartner_id`, `zvr_number`, `address`, `iban`, `bic`,
+`active` (bool), `eda_login_email`, `eda_login_password` (nur bei tatsächlicher Änderung
+mitschicken).
+
+### POST /api/v1/admin/communities/:id/delete
+
+**UNWIDERRUFLICH** -- löscht die EEG inkl. ALLER Mitglieder, Verträge, Zählpunkte, Rechnungen
+(Kaskade). Die App MUSS vorher eine eigene, deutliche Bestätigung einholen (z. B. Namen der EEG
+erneut eintippen lassen).
+
+### GET /api/v1/admin/log?community_id=uuid
+
+Aktivitätslog, `community_id` optional zum Filtern. Neueste 500 Einträge, absteigend.
+```json
+{ "entries": [
+  { "id": "uuid", "created_at": "...", "user_name": "Max Muster", "community_name": "EEG A",
+    "aktion": "member.create", "entity_typ": "member", "entity_id": "uuid",
+    "beschreibung": "Mitglied ... angelegt", "ist_fehler": false }
+] }
+```
+
+### GET /api/v1/admin/settings
+
+Gesammelte Plattform-Einstellungen in einer Antwort (Mail/Graph, Mail-Vorlagen, MQTT,
+Plattform-Technik) -- Aufteilung siehe `mail`/`mail_templates`/`platform`/`mqtt` im JSON.
+
+### POST /api/v1/admin/settings/mail
+
+Body (alle optional, nur mitschicken was geändert werden soll): `tenant_id`, `client_id`,
+`client_secret`, `sender_address`, `reply_to`, `signature_html`, `backup_alert_email_1`,
+`backup_alert_email_2`, `support_notification_email`, `eda_import_mailbox_address`.
+
+### POST /api/v1/admin/settings/mail/test
+
+Body: `{"to": "test@example.at"}`. Sendet eine Test-Mail mit der aktuellen Konfiguration.
+
+### POST /api/v1/admin/settings/mail-templates
+
+Body: `{"key": "invite", "subject": "...", "body_html": "..."}`. `key` einer von
+`password_reset`, `invite`, `member_deactivated`, `contract_bezug`, `contract_einspeisung`,
+`contract_both`, `sepa_prenotification`, `mahnung`.
+
+### POST /api/v1/admin/settings/mqtt
+
+Body: `{"mqtt_user": "...", "mqtt_password": "..."}`. Setzt `pending_apply=true` -- die
+tatsächliche Anwendung auf den Broker läuft asynchron über den Host-Cron
+(`scripts/mqtt_apply_pending.sh`), typischerweise binnen einer Minute.
+
+### POST /api/v1/admin/settings/mqtt-device-reconfig
+
+Body: `{"device_mqtt_host": "...", "device_mqtt_port": 8883, "device_mqtt_user": "...", "device_mqtt_pass": "..."}`.
+Broadcastet neue MQTT-Zugangsdaten an ALLE bereits im Feld laufenden Geräte.
+
+### POST /api/v1/admin/settings/test-mode
+
+Body: `{"test_mode": true|false}`.
+
+### POST /api/v1/admin/settings/esp
+
+Body: `{"esp_offline_after_minutes": 5}`.
+
+### GET /api/v1/admin/backups
+
+Rein lesende Backup-Übersicht (Alter/Größe der letzten Sicherungen je Art).
+
+### Noch nicht in der App-API (siehe `app/ios-app/APP_PARITY_BACKLOG.md`)
+
+LaTeX-Vorlagen-Verwaltung (Upload/Download/Variablen-Referenz), Audit-Log-Export als Markdown,
+manueller EDA-Postfach-Import-Testlauf, Mail-Signatur-Logo-Upload -- bewusst zurückgestellt
+(Datei-lastige/Desktop-orientierte Funktionen, geringerer Nutzen unterwegs vom Handy aus).
+
+---
+
 ## Fehlerformat
 
 Alle Fehlerantworten: `{"error": "<lesbarer deutscher Text>"}`, passender HTTP-Status
@@ -566,17 +714,16 @@ Alle Fehlerantworten: `{"error": "<lesbarer deutscher Text>"}`, passender HTTP-S
 - Kein Endpunkt zum Auflisten/Abmelden anderer angemeldeter Geräte (nur das eigene per
   `/logout`) -- könnte später ergänzt werden (`app_sessions`-Tabelle trägt bereits
   `device_label`/`last_used_at`, die Grundlage ist also schon da).
-- Kein Push-Notification-Mechanismus (z. B. "neue Rechnung verfügbar").
-- Kein Wechsel der aktiven Rolle/Community nach dem Login, ohne sich neu anzumelden (der
-  Access-Token ist an genau eine Kombination aus Community UND Rolle gebunden).
+- Kein Push-Notification-Mechanismus (z. B. "neue Rechnung verfügbar") -- angefragt (Patrick,
+  19.08.2026), noch nicht umgesetzt, siehe `app/ios-app/APP_PARITY_BACKLOG.md`.
 - Zählpunkte können in der App bisher nur ANGESEHEN werden (`GET /api/v1/metering-points` bzw.
   als Teil von `GET /api/v1/manager/members/:id`) bzw. optional bei der Mitglied-Neuanlage
   gleich mit angelegt werden -- nachträgliches Hinzufügen/Bearbeiten/Löschen eines Zählpunkts
   bleibt vorerst Web-Portal-only (`/portal/members/:id/metering-points`).
-- Bewusst NICHT in dieser App-API (bleibt Web-Portal-only, siehe Übersicht oben):
-  Abrechnung/Rechnungslauf-Erstellung, EDA-Import, Vertrags-**Versand** als Obmann (Signieren
-  als Mitglied ist enthalten, siehe `POST /api/v1/contracts/:type/sign`), EEG-Einstellungen,
-  Beitrittsanträge freigeben/ablehnen, Postfach, Platform-Admin-Funktionen (EEG anlegen,
-  Mailvorlagen, LaTeX-Vorlagen, ...). Grund: höheres Risiko bei knapper Testzeit (siehe
-  RLS-Vorfälle im CLAUDE.md-Änderungsverlauf) und geringerer Nutzen unterwegs vom Handy aus
-  gegenüber den oben implementierten Funktionen.
+- Noch NICHT in dieser App-API (Ziel ist volle Parität, siehe
+  `app/ios-app/APP_PARITY_BACKLOG.md` für den laufend aktuellen Stand): Abrechnung/
+  Rechnungslauf-Erstellung, EDA-Import, Vertrags-**Versand** als Obmann (Signieren als Mitglied
+  ist enthalten, siehe `POST /api/v1/contracts/:type/sign`), EEG-Einstellungen
+  (Tarif/Steuer/Logo/Signatur), Beitrittsanträge freigeben/ablehnen, Postfach, sowie innerhalb
+  der Admin-Endpunkte: LaTeX-Vorlagen-Verwaltung, Audit-Log-Export, manueller
+  EDA-Import-Testlauf, Mail-Signatur-Logo-Upload.
