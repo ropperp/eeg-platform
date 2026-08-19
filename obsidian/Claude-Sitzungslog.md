@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-19 (61) — Claude Code — Claude Sonnet 5
+**Prompt:** "Bitte mach das mit dem Plattform-Admin, oder ab jetzt bitte nur Admin. Alle
+Einstellungen auch in die App übertragen. Bei Fehlern, sag XCode bitte auch, wo er in dem
+File genau schauen soll. Was noch intressant wäre ist, dass die App Benachrichtigugnen
+sendet [...] für Obmann und Admin eine Benachrichtigung, dass im Postfach was neues gekommen
+ist und für die Mitglieder, z.B. neue Rechnung verfügbar oder für jeden selbst einstellbar
+[...] wenn zuviel Eingespeist wird [...] Jeder soll seine eigene Schwelle festlegen dürfen.
+Bitte auch auf Hysterese Zeit achten [...] ja leg bitte los."
+**Auftrag:** Die Platform-Admin-Funktionen als dritte App-Rolle ("Admin") implementieren,
+mit voller Feature-Parität zu den Web-Einstellungen; Anforderungen für eine künftige
+Push-Benachrichtigungs-Runde (Postfach/Rechnung/Einspeisung-Schwelle mit Hysterese) im
+Backlog festhalten statt sofort mitzubauen.
+**Ergebnis:** Neuer, community-unabhängiger App-Rollenwert `admin` (`migrate_20260902.sql`,
+live gegen PostgreSQL getestet). Admin-Endpunkte: EEG-Verwaltung plattformweit
+(Liste/Detail/Anlegen/Bearbeiten/Löschen), Nutzer & Rollen, Aktivitätslog, gesammelte
+Plattform-Einstellungen (Mail/Graph, Mail-Vorlagen, MQTT, Testmodus/ESP-Schwelle),
+Backup-Übersicht. Dabei einen echten RLS-Bug in `/admin/communities/:id` (Web-Portal)
+gefunden und behoben (Mitgliederliste zeigte seit dem RLS-Fix leer). `app.md`/
+`docs/APP_API.md`/`APP_PARITY_BACKLOG.md` aktualisiert, inkl. detaillierter
+Anforderungsliste für Push-Benachrichtigungen (eigene künftige Runde) und der Anweisung an
+den Xcode-Agenten, bei Fehlern künftig immer Datei+Zeile zu nennen. PR #101 gemergt, alle 96
+Tests grün.
+
+---
+
 ## 2026-08-19 (60) — Claude Code — Claude Sonnet 5
 **Prompt:** "[Xcode-Fehlerausgabe:] DecodingError.keyNotFound: Key 'id' not found [...] bei
 ManagerMemberDetail [...] Ich möchte bitte den Adminaccount auch alle Einstellungen von Admin
