@@ -360,11 +360,16 @@ Beitrittserklärung, ...).
   { "id": "uuid", "name": "Ausweis Vorderseite.jpg", "mime": "image/jpeg", "created_at": "2026-07-01T09:00:00+00:00" }
 ] }
 ```
+`name` trägt seit 19.08.2026 IMMER eine Dateiendung (`filenameWithExtension()`,
+`webapp/src/functions.php`) -- die frei getippte Anzeige-Bezeichnung wird serverseitig um die
+tatsächliche Endung des gespeicherten Pfads ergänzt, falls sie noch fehlt. Vorher konnte `name`
+endungslos sein (z.B. `"Beitrittserklärung"`), wodurch iOS eine über `/download` heruntergeladene
+Datei nicht öffnen konnte, obwohl `Content-Type`/`Content-Disposition` korrekt gesetzt waren.
 
 ### GET /api/v1/documents/:fileid/download
 
-Lädt eine einzelne Datei herunter (`Content-Disposition: attachment`, passender `Content-Type`).
-404, wenn die Datei nicht existiert oder einem anderen Mitglied gehört.
+Lädt eine einzelne Datei herunter (`Content-Disposition: attachment` MIT Dateiendung, passender
+`Content-Type`). 404, wenn die Datei nicht existiert oder einem anderen Mitglied gehört.
 
 ### GET /api/v1/dsgvo-export
 
@@ -536,6 +541,49 @@ Setzt das Profilbild eines Mitglieds. `multipart/form-data`, Feld `photo`. Erfol
 
 ---
 
+## Push-Benachrichtigungen (alle Rollen)
+
+Implementiert seit 03.09.2026 (`migrate_20260903.sql`, `webapp/src/Push.php`). Drei Auslöser,
+serverseitig über Datenbank-Trigger erkannt (siehe Migration): neues Postfach-Element → Push an
+alle Obmänner/Admins der EEG; neue Rechnung verfügbar (Abrechnungslauf freigegeben) → Push ans
+betroffene Mitglied; eigene Einspeisung übersteigt die selbst gesetzte Schwelle → Push ans
+Mitglied, MIT Hysterese (keine erneute Push, solange der Wert oben bleibt -- erst nach
+zwischenzeitlichem Abfallen unter die Schwelle löst der nächste Anstieg wieder aus). Zustellung
+läuft asynchron über einen Host-Cron (jede Minute, siehe `CLAUDE.md`) -- zwischen dem
+auslösenden Ereignis und der tatsächlichen Push-Zustellung liegt normalerweise weniger als eine
+Minute, keine Garantie auf Echtzeit.
+
+### POST /api/v1/push/register
+
+Registriert/aktualisiert das aktuelle Gerät für Push-Benachrichtigungen -- direkt nach dem
+Login aufrufen (bzw. sobald der Nutzer Push in den iOS-Systemeinstellungen erlaubt hat). Body:
+`{"device_token": "...", "device_label": "iPhone von Max"}` (`device_token` = der von APNs
+gelieferte Token aus `didRegisterForRemoteNotificationsWithDeviceToken`, `device_label`
+optional). Ein Gerät gehört immer nur einem Account gleichzeitig -- meldet sich ein anderer
+Account auf demselben Gerät an, übernimmt dieser Account den Token automatisch. Erfolg:
+`{"status": "ok"}`.
+
+### POST /api/v1/push/unregister
+
+Meldet das Gerät wieder ab (z.B. beim Logout). Body: `{"device_token": "..."}`. Erfolg:
+`{"status": "ok"}`.
+
+### GET /api/v1/notifications/settings
+
+Nur mit Mitglied-Token (404 bei Obmann-/Admin-Token). Eigene Benachrichtigungs-Einstellungen:
+```json
+{ "notify_new_invoice": true, "einspeisung_threshold_w": 2000 }
+```
+`einspeisung_threshold_w: null` = Einspeisung-Push deaktiviert.
+
+### POST /api/v1/notifications/settings
+
+Nur mit Mitglied-Token. Body: `{"notify_new_invoice": true, "einspeisung_threshold_w": 2000}`
+(`einspeisung_threshold_w`: `null` oder `0` deaktiviert die Einspeisung-Push). Erfolg:
+`{"status": "ok"}`.
+
+---
+
 ## Admin-Endpunkte (role: admin)
 
 Alle mit `Authorization: Bearer <access_token>` und `role: "admin"` (403 mit jedem anderen
@@ -632,7 +680,11 @@ Aktivitätslog, `community_id` optional zum Filtern. Neueste 500 Einträge, abst
 ### GET /api/v1/admin/settings
 
 Gesammelte Plattform-Einstellungen in einer Antwort (Mail/Graph, Mail-Vorlagen, MQTT,
-Plattform-Technik) -- Aufteilung siehe `mail`/`mail_templates`/`platform`/`mqtt` im JSON.
+Plattform-Technik, APNs/Push) -- Aufteilung siehe `mail`/`mail_templates`/`platform`/`mqtt`/`apns`
+im JSON. `apns`: `{"team_id", "key_id", "bundle_id", "private_key_set": true|false, "sandbox",
+"configured": true|false}` -- `configured` fasst zusammen, ob ALLE Pflichtfelder gesetzt sind
+(genau das, was `Push::sendPending()` selbst prüft, bevor es überhaupt einen Zustellversuch
+macht).
 
 ### POST /api/v1/admin/settings/mail
 
@@ -668,6 +720,21 @@ Body: `{"test_mode": true|false}`.
 ### POST /api/v1/admin/settings/esp
 
 Body: `{"esp_offline_after_minutes": 5}`.
+
+### POST /api/v1/admin/settings/apns
+
+Setzt die APNs-Zugangsdaten für Push-Benachrichtigungen (siehe `webapp/src/Push.php`, echte
+Werte aus Patricks Apple-Developer-Account, siehe `CLAUDE.md`). Body (alle optional, nur
+mitschicken was geändert werden soll): `team_id`, `key_id`, `bundle_id`, `private_key` (voller
+`.p8`-Dateiinhalt inkl. `BEGIN/END PRIVATE KEY`-Zeilen, wird verschlüsselt gespeichert und nie
+wieder im Klartext zurückgegeben -- wie `client_secret` bei `/api/v1/admin/settings/mail`),
+`sandbox` (bool, Entwicklungs- statt Produktiv-APNs-Server). Erfolg: `{"status": "ok"}`.
+
+### POST /api/v1/admin/settings/apns/test
+
+Schickt eine Test-Push an alle eigenen registrierten Geräte des aufrufenden Admin-Accounts
+(vorher per `POST /api/v1/push/register` registrieren). Erfolg: `{"status": "ok"}`, sonst 400
+(APNs nicht konfiguriert) oder 500 mit Fehlerdetails.
 
 ### GET /api/v1/admin/backups
 

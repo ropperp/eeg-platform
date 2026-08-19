@@ -278,6 +278,17 @@ class Billing
             "UPDATE billing_runs SET status = 'done', released_by = ?, released_at = now() WHERE id = ?",
             [$releasedByUserId, $billingRunId]
         );
+
+        // invoices.sent_at markiert den Moment, ab dem eine Rechnung für das Mitglied offiziell
+        // verfügbar ist -- genau die Freigabe hier, nicht die Entwurfserstellung (generateDrafts()
+        // legt die Zeile schon vorher an, Status 'ready', aber ein Entwurf ist noch nicht final).
+        // Wird bereits von member_dashboard.php/index.php ("letzte Rechnung"-Widget, sent_at IS
+        // NOT NULL) sowie der Push-Benachrichtigung "Neue Rechnung verfügbar" (Trigger
+        // trg_push_on_invoice_sent, migrate_20260903.sql) vorausgesetzt.
+        DB::execute(
+            'UPDATE invoices SET sent_at = now() WHERE billing_run_id = ? AND sent_at IS NULL',
+            [$billingRunId]
+        );
     }
 
     /**

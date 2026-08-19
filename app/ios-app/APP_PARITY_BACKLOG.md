@@ -62,48 +62,26 @@ vor dem Umsetzen abgestimmt.
       `/portal/members/:id/{deactivate,reactivate,delete-login,reset-password,resend-invite}`
 - [ ] Jahresübersicht eines Mitglieds -- `/portal/members/:id/jahresuebersicht[/:jahr]`
 
-### Push-Benachrichtigungen (Patrick, 19.08.2026 -- eigene, größere Runde, noch nicht begonnen)
-
-Ziel: die App soll sich wie eine "normale" App anfühlen und selbstständig benachrichtigen, ohne
-dass jemand aktiv nachschauen muss. Drei Auslöser, alle unabhängig voneinander einstellbar:
-
-1. **Obmann/Admin -- neues Postfach-Element:** sobald eine neue Systembenachrichtigung
-   entsteht (unbekannter Zähler, SSID-Wechsel, neues Support-Ticket, ...), Push an alle
-   Obmänner/Admins der betroffenen EEG.
-2. **Mitglied -- neue Rechnung verfügbar:** sobald eine Rechnung versendet wird (`sent_at`
-   gesetzt), Push an das betroffene Mitglied.
-3. **Mitglied -- Einspeisung-Schwelle überschritten ("jetzt verbrauchen"):** JEDES Mitglied
-   stellt in den Einstellungen eine EIGENE Schwelle ein (z. B. "benachrichtige mich, wenn ich
-   mehr als X W einspeise"), ab der eine Push-Benachrichtigung kommt. **Mit Hysterese/Cooldown**
-   -- nicht bei jeder 5s-Messung erneut auslösen, solange der Wert über der Schwelle bleibt,
-   sondern erst wieder, nachdem der Wert zwischenzeitlich UNTER die Schwelle gefallen und DANACH
-   erneut überschritten wurde (klassische Zwei-Schwellen-/Hysterese-Logik, z. B. Schwelle minus
-   ein kleiner Puffer als Rückfall-Grenze) -- verhindert Spam bei einem Wert, der genau um die
-   Schwelle herum schwankt. Ggf. zusätzlich eine reine zeitbasierte Mindestpause zwischen zwei
-   Benachrichtigungen (z. B. nicht öfter als alle 15-30 Minuten), unabhängig von der
-   Hysterese, als zweite Sicherheitsschicht.
-
-**Braucht (grob, noch nicht im Detail geplant):**
-- APNs-Anbindung (Apple Push Notification service) -- neues Zertifikat/Key in Apple Developer
-  Account, Server-seitiger Push-Versand (z. B. über einen PHP-APNs-Client oder einen kleinen
-  separaten Worker-Prozess).
-- Neue Tabelle für Geräte-Push-Token (Device Token pro `app_sessions`-Zeile oder eigene Tabelle),
-  Endpunkt zum Registrieren/Abmelden eines Geräts für Push.
-- Neue Tabelle/Spalten für die Mitglied-Einstellung (Schwelle in W, an/aus) + Hysterese-Zustand
-  je Mitglied (aktuell "über"/"unter" Schwelle, Zeitpunkt der letzten Benachrichtigung).
-- Trigger-Logik: Postfach-Insert → Push an Obmänner/Admins; Rechnung versendet → Push ans
-  Mitglied; laufender Vergleich der Live-Messwerte (mqtt-subscriber oder ein periodischer Check)
-  gegen die je Mitglied konfigurierte Schwelle inkl. Hysterese.
-- Neue `/api/v1/*`-Endpunkte: Push-Token registrieren/abmelden, eigene Schwelle lesen/setzen.
-
-Absichtlich noch nicht begonnen, um es nicht oberflächlich neben dem Admin-Bereich
-mitzuerledigen -- eigene, sorgfältig getestete Runde (u. a. weil ein falsch ausgelöster
-Massen-Push an alle Mitglieder schwerer rückgängig zu machen ist als ein API-Bug).
-
 ---
 
 ## Bereits umgesetzt (zur Referenz, chronologisch)
 
+- **03.09.2026 (PR folgt):** Push-Benachrichtigungen (APNs) -- Postfach-Element an Obmann/Admin,
+  neue Rechnung an Mitglied, Einspeisung-Schwelle mit Hysterese an Mitglied. DB-Trigger
+  (`migrate_20260903.sql`) + `Push.php` (ES256-JWT, HTTP/2) + `POST /api/v1/push/register`,
+  `POST /api/v1/push/unregister`, `GET`+`POST /api/v1/notifications/settings`,
+  `POST /api/v1/admin/settings/apns[/test]`. Zustellung über Host-Cron
+  (`scripts/send_pending_push.php`, jede Minute). Braucht noch Patricks echte
+  Apple-Developer-Zugangsdaten (Team-ID/Key-ID/Bundle-ID/.p8-Key) -- ohne die bleibt die
+  Warteschlange liegen, alles andere ist fertig. Dabei nebenbei einen echten Bug gefunden und
+  behoben: `invoices.sent_at` wurde in der gesamten bisherigen Plattform NIE gesetzt (auch das
+  "letzte Rechnung"-Dashboard-Widget war dadurch schon vorher immer leer) -- `Billing::finalize()`
+  setzt es jetzt beim Freigeben eines Abrechnungslaufs.
+- **19.08.2026:** Dateidownloads über die App (`/api/v1/documents`,
+  `/api/v1/manager/members/:id/files/:fileid/download`) hatten teils keine Dateiendung
+  (`member_files.name` ist nur eine freie Anzeige-Bezeichnung) -- iOS konnte sie dadurch nicht
+  öffnen. `filenameWithExtension()` (`webapp/src/functions.php`) ergänzt die echte Endung jetzt
+  serverseitig, sowohl im Dateinamen der Liste als auch im `Content-Disposition`-Header.
 - **19.08.2026 (PR folgt):** Rolle `admin` im App-Token (`role: "admin"`, community-unabhängig),
   Admin-Endpunkte: EEG-Übersicht/-Detail/Anlegen/Bearbeiten/Löschen, Nutzer & Rollen
   plattformweit, Aktivitätslog (Liste), Plattform-Einstellungen gesammelt (Mail/Graph,

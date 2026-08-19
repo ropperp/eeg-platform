@@ -595,3 +595,20 @@ function taxBreakdown(float $netto, ?string $model, $rate): array
         'brutto' => round($netto + $ust, 2),
     ];
 }
+
+/**
+ * Liefert einen Dateinamen MIT Endung für Content-Disposition-Downloads über die App --
+ * member_files.name ist eine frei getippte ANZEIGE-Bezeichnung (z.B. "Beitrittserklärung",
+ * ohne Endung), während member_files.pfad der tatsächlich gespeicherte Pfad MIT der echten
+ * Endung ist. Im Browser stört eine fehlende Endung kaum (der Browser/das Betriebssystem rät
+ * anhand des Content-Type), aber die iOS-App kann eine ohne Endung heruntergeladene Datei nicht
+ * öffnen (Patrick, 19.08.2026: "kann sie nicht öffnen"). Hängt die echte Endung an, falls die
+ * Anzeige-Bezeichnung nicht schon zufällig selbst mit ihr endet.
+ */
+function filenameWithExtension(string $displayName, string $storedPath): string
+{
+    $ext = pathinfo($storedPath, PATHINFO_EXTENSION);
+    if ($ext === '') return $displayName;
+    if (strtolower(pathinfo($displayName, PATHINFO_EXTENSION)) === strtolower($ext)) return $displayName;
+    return $displayName . '.' . $ext;
+}

@@ -136,3 +136,19 @@ test('monatsLabel() formatiert Monat und Jahr auf Deutsch', function () {
     assertSame('Jänner 2027', monatsLabel('2027-01-15'));
     assertSame('Dezember 2025', monatsLabel('2025-12-01'));
 });
+
+// filenameWithExtension() -- App-Downloads brauchen eine echte Dateiendung (member_files.name
+// ist nur eine frei getippte Anzeige-Bezeichnung ohne Endung), siehe /api/v1/documents* und
+// /api/v1/manager/members/:id/files/:fileid/download.
+test('filenameWithExtension() hängt die echte Endung an, wenn sie fehlt', function () {
+    assertSame('Beitrittserklärung.pdf', filenameWithExtension('Beitrittserklärung', '/storage/uploads/abc123.pdf'));
+});
+test('filenameWithExtension() lässt einen bereits passenden Namen unverändert', function () {
+    assertSame('Vertrag.pdf', filenameWithExtension('Vertrag.pdf', '/storage/uploads/abc123.pdf'));
+});
+test('filenameWithExtension() erkennt die Endung unabhängig von Groß-/Kleinschreibung', function () {
+    assertSame('Foto.JPG', filenameWithExtension('Foto.JPG', '/storage/uploads/abc123.jpg'));
+});
+test('filenameWithExtension() lässt den Namen unverändert, wenn der gespeicherte Pfad selbst keine Endung hat', function () {
+    assertSame('Unbenannt', filenameWithExtension('Unbenannt', '/storage/uploads/abc123'));
+});
