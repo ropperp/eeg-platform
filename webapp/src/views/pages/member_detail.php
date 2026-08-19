@@ -195,10 +195,19 @@
         <?php $espOfflineMinutes = espOfflineAfterMinutes(); ?>
         <?php foreach ($metering_points as $mp): ?>
           <?php
-            // "online" nur, wenn die letzte Statusmeldung online war UND das nicht länger als
-            // die konfigurierte Schwelle her ist (Platform-Admin -> ESP32 / Ausleseeinheiten) --
-            // sonst könnte ein hängengebliebenes Gerät für immer als online angezeigt werden.
-            $espEffectivelyOnline = !empty($mp['esp_online']) && !empty($mp['esp_last_seen_at'])
+            // "online" = esp_last_seen_at liegt nicht länger als die konfigurierte Schwelle
+            // zurück (Platform-Admin -> ESP32 / Ausleseeinheiten) -- sonst könnte ein
+            // hängengebliebenes Gerät für immer als online angezeigt werden. NICHT mehr
+            // zusätzlich auf esp_online geprüft (Patrick, 19.08.2026: Status blinkte trotz
+            // durchgehender Live-Daten alle 5s) -- esp_last_seen_at wird seit dem Fix in
+            // insert_measurement() (mqtt-subscriber) bei JEDER Live-Messung mitgezogen, ist
+            // also das zuverlässigere Signal. esp_online selbst ist nur eine Momentaufnahme des
+            // zuletzt empfangenen Status-Heartbeats und kann durch dessen MQTT-Last-Will-
+            // Testament bei einem kurzen Verbindungsaussetzer bis zum NÄCHSTEN Heartbeat (nicht:
+            // bis zur nächsten Live-Nachricht) auf false hängen bleiben -- ein zusätzliches
+            // esp_online-Erfordernis hätte also weiterhin genau die Fehlanzeige verursacht, die
+            // eigentlich behoben werden sollte.
+            $espEffectivelyOnline = !empty($mp['esp_last_seen_at'])
                 && (time() - strtotime($mp['esp_last_seen_at'])) < $espOfflineMinutes * 60;
             // ESP-/Zähler-Spalten unten zeigen nur etwas an, wenn eine Zählernummer hinterlegt
             // ist: esp_last_seen_at/meter_reachable bleiben auf dem Zählpunkt stehen, auch wenn

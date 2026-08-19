@@ -344,3 +344,35 @@ weiterhin als ungetestet auf echter Hardware.
   unabhängig vom P1-Read auf eigenem Timer weiter, solange der ESP selbst online bleibt. Ein
   echter, andauernder ESP-Verbindungsverlust wird weiterhin zuverlässig über die
   Offline-Schwelle (`esp_offline_after_minutes`, siehe Eintrag oben) erkannt.
+  **Dritte Nachbesserung (Patrick 19.08.2026, dritte Meldung -- Architekturfix statt weiterer
+  Datenpflege-Ergänzung):** Beide bisherigen Fixes reichten noch immer nicht -- die
+  Mitgliederliste UND jetzt auch die Mitglied-Detailseite zeigten weiterhin sporadisch "Offline
+  seit ..." bzw. "Fehler", abwechselnd bei den beiden Testgeräten, obwohl beide laut Live-
+  Anzeige durchgehend alle 5s Daten UND Heartbeats senden. Grund für das Fortbestehen: beide
+  vorherigen Fixes ergänzten nur, WANN `esp_online`/`meter_reachable` auf `true` gesetzt werden
+  (bei jeder Live-Messung zusätzlich zum Heartbeat) -- sie änderten aber nichts daran, dass
+  `esp_online` weiterhin unabhängig davon auch auf `false` gesetzt werden kann, sobald
+  ausgerechnet NACH der letzten Live-Nachricht noch ein LWT-"offline" durchkommt (z. B. beim
+  regulären periodischen Reconnect des MQTT-Clients, nicht zwingend ein echter Fehler) -- bis
+  zur nächsten Live-Nachricht (max. 5s später) stand die Anzeige dann kurz auf "offline", und
+  ein Seitenaufruf/eine Anzeige-Abfrage GENAU in diesem Sekundenbruchteil-Fenster zeigte das
+  auch an. Bei zwei Testgeräten, die etwa zeitgleich in ähnlichen Reconnect-Zyklen laufen,
+  reichte das für ein auffällig häufiges, abwechselndes Blinken.
+  **Fix (diesmal strukturell, nicht nur weitere Datenpflege):** Die Online/Fehler-Anzeige
+  verlässt sich jetzt an BEIDEN Stellen (Mitgliederliste `hat_esp_fehler` in
+  `webapp/public/index.php` UND `$espEffectivelyOnline` in `member_detail.php`) NUR NOCH auf die
+  Aktualität von `esp_last_seen_at` (< `esp_offline_after_minutes`) -- die zusätzliche
+  Bedingung `esp_online = true` wurde komplett entfernt, statt sie (wie in den ersten beiden
+  Versuchen) nur zuverlässiger zu befüllen. Da `esp_last_seen_at` seit dem ersten Fix bei JEDER
+  Live-Messung (alle 5s) aktualisiert wird, ist reine Aktualität dieses Zeitstempels ein
+  strengerer und zuverlässigerer Nachweis für "online" als die zusätzliche, für einzelne
+  Sekunden falsch stehende `esp_online`-Momentaufnahme -- ein einzelner stehen gebliebener LWT-
+  Wert kann die Anzeige dadurch nicht mehr verfälschen, sie korrigiert sich spätestens mit der
+  nächsten Live-Nachricht ohnehin von selbst, und jetzt eben AUCH ohne die zusätzliche
+  Fehlbedingung dazwischen. `esp_online` bleibt als Spalte/Rohwert weiterhin bestehen (u. a.
+  Grundlage für die WLAN-Info-Anzeige), fließt in die Online/Fehler-Bewertung aber nicht mehr
+  ein. Merksatz für künftige ähnliche Fälle: bei einem Signal, das aus zwei unterschiedlich
+  häufigen/zuverlässigen Quellen gespeist wird (hier: seltener, LWT-anfälliger Heartbeat vs.
+  häufige, robuste Live-Messung), lieber ganz auf die zuverlässigere Quelle umsteigen statt
+  beide UND-verknüpft zu verlangen -- die schwächere Quelle zieht dann immer wieder das Ergebnis
+  nach unten, auch wenn sie nur gelegentlich befüllt/aktualisiert wird.
