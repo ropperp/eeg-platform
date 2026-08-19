@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-19 (60) — Claude Code — Claude Sonnet 5
+**Prompt:** "[Xcode-Fehlerausgabe:] DecodingError.keyNotFound: Key 'id' not found [...] bei
+ManagerMemberDetail [...] Ich möchte bitte den Adminaccount auch alle Einstellungen von Admin
+[...] Alles soll eins zu eins sein [...] Bitte baue mir alle Funktionen von der Plattform in
+die App ein. Wenn ich [...] Ideen habe [...] speichere dies bitte in einem eigenen Dokument
+[...] außerdem funktioniert auf Website das noch immer nicht verlässlich. Das mit dem Online-
+und offline [...] es wechselt sich echt zwischen Mama und Papa ab. es muss funktionieren."
+**Auftrag:** Eine von Xcode gemeldete Decoding-Fehlermeldung einordnen, die Entscheidung zur
+vollständigen Feature-Parität (inkl. Platform-Admin) aufnehmen und dafür ein Backlog-Dokument
+anlegen, sowie den weiterhin bestehenden ESP-Online/Offline-Flacker auf der Website endgültig
+beheben.
+**Ergebnis:** `DecodingError` als Swift-seitiges Model-Problem identifiziert (kein
+Backend-Bug, `id` liegt korrekt unter `member.id`) und in `app.md` erklärt. ESP-Online-Bug
+dieses Mal strukturell statt nur durch weitere Datenpflege behoben: `hat_esp_fehler`
+(Mitgliederliste) und `$espEffectivelyOnline` (`member_detail.php`) verlassen sich nur noch
+auf die Aktualität von `esp_last_seen_at`, die `esp_online`-Bedingung wurde ganz entfernt, da
+sie durch stehen gebliebene LWT-Werte weiterhin sporadisch falsch lag. Zusätzlich `appDate()`
+auf durchgehend UTC normalisiert (vorher je nach Kalenderdatum/Sommerzeit wechselnder Offset).
+Neue Datei `app/ios-app/APP_PARITY_BACKLOG.md` als laufende Aufgabenliste für die
+schrittweise volle Web-zu-App-Parität (Platform-Admin, Abrechnung, EDA-Import,
+EEG-Einstellungen, Beitrittsanträge, Postfach, u. a.) -- `app.md` entsprechend um die neue
+Zielsetzung ergänzt. PR #99 gemergt, alle 95 Tests grün.
+
+---
+
 ## 2026-08-19 (59) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich schicke dir die Anweisungen, die ich jetzt noch in Xcode geben werde [...]
 Bitte sag es genauer [...] Gib mir dein Prompt nochmal raus für Xcode [...] Bitte die aktuelle
