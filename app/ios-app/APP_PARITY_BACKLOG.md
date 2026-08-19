@@ -20,20 +20,13 @@ nachvollziehbar.
 Sortiert nach Bereich, nicht nach Priorität -- Priorität/Reihenfolge wird mit Patrick jeweils
 vor dem Umsetzen abgestimmt.
 
-### Platform-Admin (bisher komplett ohne App-Zugang)
-- [ ] E-Mail-/Microsoft-Graph-Einstellungen (`/admin/mail-settings/*`) -- Absenderadresse,
-      Zugangsdaten, Test-Mail versenden
-- [ ] Mail-Vorlagen (`/admin/mail-templates`) -- Einladung, Erinnerung, etc. bearbeiten
-- [ ] LaTeX-Vorlagen (`/admin/templates/*`) -- Vertrags-/Rechnungs-Vorlagen hoch-/runterladen
-- [ ] EEG-Verwaltung (`/admin/communities[/:id][/delete]`) -- Energiegemeinschaften anlegen,
-      konfigurieren, löschen (plattformweit, nicht nur die eigene)
-- [ ] Nutzer & Rollen plattformweit (`/admin/users/:id[/{roles,delete}]`)
-- [ ] Aktivitätslog (`/admin/log[/export]`) -- Audit-Trail einsehen/exportieren
-- [ ] Backup-Status (`/admin/backups`)
-- [ ] MQTT-Einstellungen (`/admin/mqtt-settings`) + Geräte-Fernkonfiguration
-      (`/admin/mqtt-device-reconfig`)
-- [ ] Plattform-Technik-Einstellungen (`/admin/settings/{esp,test-mode}`) -- ESP-Offline-
-      Schwelle, Testmodus-Umschalter
+### Admin (Rest, seit 19.08.2026 größtenteils erledigt -- siehe "Bereits umgesetzt")
+- [ ] LaTeX-Vorlagen (`/admin/templates/*`) -- Vertrags-/Rechnungs-Vorlagen hoch-/runterladen,
+      Variablen-Referenz -- bewusst zurückgestellt (Datei-/Desktop-lastig)
+- [ ] Aktivitätslog-Export als Markdown (`/admin/log/export`) -- Liste selbst ist in der App
+- [ ] Manueller EDA-Postfach-Import-Testlauf (`/admin/mail-settings/eda-import-run`)
+- [ ] Mail-Signatur-Logo-Upload (Rest von `/admin/mail-settings` ist in der App, nur der
+      Bild-Upload-Teil fehlt noch -- multipart, ähnlich Foto-Upload bei Mitgliedern)
 
 ### Obmann -- EEG-Einstellungen (aktuell nur Community-weite API-Keys in der App vorhanden)
 - [ ] Stammdaten der eigenen EEG (Name, Adresse, IBAN, ZVR-Nummer, Kontakt) --
@@ -69,10 +62,54 @@ vor dem Umsetzen abgestimmt.
       `/portal/members/:id/{deactivate,reactivate,delete-login,reset-password,resend-invite}`
 - [ ] Jahresübersicht eines Mitglieds -- `/portal/members/:id/jahresuebersicht[/:jahr]`
 
+### Push-Benachrichtigungen (Patrick, 19.08.2026 -- eigene, größere Runde, noch nicht begonnen)
+
+Ziel: die App soll sich wie eine "normale" App anfühlen und selbstständig benachrichtigen, ohne
+dass jemand aktiv nachschauen muss. Drei Auslöser, alle unabhängig voneinander einstellbar:
+
+1. **Obmann/Admin -- neues Postfach-Element:** sobald eine neue Systembenachrichtigung
+   entsteht (unbekannter Zähler, SSID-Wechsel, neues Support-Ticket, ...), Push an alle
+   Obmänner/Admins der betroffenen EEG.
+2. **Mitglied -- neue Rechnung verfügbar:** sobald eine Rechnung versendet wird (`sent_at`
+   gesetzt), Push an das betroffene Mitglied.
+3. **Mitglied -- Einspeisung-Schwelle überschritten ("jetzt verbrauchen"):** JEDES Mitglied
+   stellt in den Einstellungen eine EIGENE Schwelle ein (z. B. "benachrichtige mich, wenn ich
+   mehr als X W einspeise"), ab der eine Push-Benachrichtigung kommt. **Mit Hysterese/Cooldown**
+   -- nicht bei jeder 5s-Messung erneut auslösen, solange der Wert über der Schwelle bleibt,
+   sondern erst wieder, nachdem der Wert zwischenzeitlich UNTER die Schwelle gefallen und DANACH
+   erneut überschritten wurde (klassische Zwei-Schwellen-/Hysterese-Logik, z. B. Schwelle minus
+   ein kleiner Puffer als Rückfall-Grenze) -- verhindert Spam bei einem Wert, der genau um die
+   Schwelle herum schwankt. Ggf. zusätzlich eine reine zeitbasierte Mindestpause zwischen zwei
+   Benachrichtigungen (z. B. nicht öfter als alle 15-30 Minuten), unabhängig von der
+   Hysterese, als zweite Sicherheitsschicht.
+
+**Braucht (grob, noch nicht im Detail geplant):**
+- APNs-Anbindung (Apple Push Notification service) -- neues Zertifikat/Key in Apple Developer
+  Account, Server-seitiger Push-Versand (z. B. über einen PHP-APNs-Client oder einen kleinen
+  separaten Worker-Prozess).
+- Neue Tabelle für Geräte-Push-Token (Device Token pro `app_sessions`-Zeile oder eigene Tabelle),
+  Endpunkt zum Registrieren/Abmelden eines Geräts für Push.
+- Neue Tabelle/Spalten für die Mitglied-Einstellung (Schwelle in W, an/aus) + Hysterese-Zustand
+  je Mitglied (aktuell "über"/"unter" Schwelle, Zeitpunkt der letzten Benachrichtigung).
+- Trigger-Logik: Postfach-Insert → Push an Obmänner/Admins; Rechnung versendet → Push ans
+  Mitglied; laufender Vergleich der Live-Messwerte (mqtt-subscriber oder ein periodischer Check)
+  gegen die je Mitglied konfigurierte Schwelle inkl. Hysterese.
+- Neue `/api/v1/*`-Endpunkte: Push-Token registrieren/abmelden, eigene Schwelle lesen/setzen.
+
+Absichtlich noch nicht begonnen, um es nicht oberflächlich neben dem Admin-Bereich
+mitzuerledigen -- eigene, sorgfältig getestete Runde (u. a. weil ein falsch ausgelöster
+Massen-Push an alle Mitglieder schwerer rückgängig zu machen ist als ein API-Bug).
+
 ---
 
 ## Bereits umgesetzt (zur Referenz, chronologisch)
 
+- **19.08.2026 (PR folgt):** Rolle `admin` im App-Token (`role: "admin"`, community-unabhängig),
+  Admin-Endpunkte: EEG-Übersicht/-Detail/Anlegen/Bearbeiten/Löschen, Nutzer & Rollen
+  plattformweit, Aktivitätslog (Liste), Plattform-Einstellungen gesammelt (Mail/Graph,
+  Mail-Vorlagen, MQTT, Plattform-Technik), Backup-Übersicht. Dabei nebenbei einen echten
+  RLS-Bug in `/admin/communities/:id` (Web-Portal) gefunden und behoben (Mitgliederliste dort
+  zeigte seit dem RLS-Fix vom 22.08. leer).
 - **19.08.2026 (PR #97):** `GET /api/v1/current-power` (Live-Poll), `GET /api/v1/roles` +
   `POST /api/v1/switch-role` (Rollenwechsel ohne Neuanmeldung), ISO-8601-Zeitstempel-Fix.
 - **31.08.2026 (PR #88):** Rolle `manager` im App-Token, Mitglied-Endpunkte (Verträge,

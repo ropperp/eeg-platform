@@ -365,12 +365,23 @@ function resolveAppManagerRoles(string $userId): array
     ], $rows);
 }
 
+/** Ob der Account eine plattformweite Admin-Rolle hat (unabhängig von der Community-Spalte
+ *  der jeweiligen user_roles-Zeile -- user_roles hat KEINE RLS, siehe migrate_20260731.sql für
+ *  dasselbe Muster). Grundlage für die vierte Option in resolveAppRoleOptions() (role='admin'). */
+function resolveAppIsAdmin(string $userId): bool
+{
+    return (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM user_roles WHERE user_id = ? AND role = 'platform_admin' LIMIT 1",
+        [$userId]
+    );
+}
+
 /**
- * Kombiniert Mitglieds- und Obmann-Optionen für den App-Login zu einer einheitlichen Liste, aus
- * der der Client (bei mehr als einer Option) auswählen kann -- jeder Eintrag trägt zusätzlich
- * "role", damit appIssueSessionResponse() weiß, welche Art Token auszustellen ist.
+ * Kombiniert Mitglieds-, Obmann- und Admin-Optionen für den App-Login zu einer einheitlichen
+ * Liste, aus der der Client (bei mehr als einer Option) auswählen kann -- jeder Eintrag trägt
+ * zusätzlich "role", damit appIssueSessionResponse() weiß, welche Art Token auszustellen ist.
  *
- * @return array<int, array{role:string, member_id:?string, community_id:string, community_name:string, name:string}>
+ * @return array<int, array{role:string, member_id:?string, community_id:?string, community_name:string, name:string}>
  */
 function resolveAppRoleOptions(string $userId): array
 {
@@ -392,6 +403,18 @@ function resolveAppRoleOptions(string $userId): array
             'community_id'   => $m['community_id'],
             'community_name' => $m['community_name'] . ' (Obmann)',
             'name'           => $m['community_name'],
+            'user_id'        => $userId,
+        ];
+    }
+    // Admin ist bewusst NICHT an eine EEG gebunden (community_id NULL) -- deshalb eine einzelne
+    // Option statt einer je Community wie bei Obmann oben, siehe requireAdminAuth().
+    if (resolveAppIsAdmin($userId)) {
+        $out[] = [
+            'role'           => 'admin',
+            'member_id'      => null,
+            'community_id'   => null,
+            'community_name' => 'Plattform-Admin',
+            'name'           => 'Admin',
             'user_id'        => $userId,
         ];
     }
@@ -2403,7 +2426,9 @@ $router->post('/api/v1/login/select-community', function () {
         return;
     }
     $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
-    $communityId = (string)($body['community_id'] ?? '');
+    // Leerstring wie NULL behandeln (Admin-Option hat community_id=NULL, ein Client schickt für
+    // "keine Auswahl nötig" typischerweise "" statt das Feld ganz wegzulassen).
+    $communityId = !empty($body['community_id']) ? (string)$body['community_id'] : null;
     $role = (string)($body['role'] ?? 'member');
 
     $chosen = null;
@@ -2454,7 +2479,8 @@ $router->post('/api/v1/switch-role', function () {
     header('Content-Type: application/json; charset=UTF-8');
 
     $body = jsonBody();
-    $communityId = (string)($body['community_id'] ?? '');
+    // Leerstring wie NULL behandeln (Admin-Option hat community_id=NULL).
+    $communityId = !empty($body['community_id']) ? (string)$body['community_id'] : null;
     $role = (string)($body['role'] ?? '');
     $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
 
@@ -3725,6 +3751,551 @@ $router->post('/api/v1/manager/members/:id/photo', function ($params) {
         return;
     }
     echo json_encode(['status' => 'ok']);
+});
+
+// ─── Mitglieder-App: Plattform-Admin-Endpunkte (role: admin, seit migrate_20260902.sql) ──────
+// JSON-Äquivalente der /admin/*-Web-Routen -- wirken plattformweit über ALLE EEGs hinweg, nicht
+// auf eine einzelne Community beschränkt (der Token trägt deshalb kein community_id). Sensible
+// Werte (Client-Secret, MQTT-Passwort, EDA-Portal-Passwort) werden wie im Web NIE im Klartext
+// zurückgegeben (nur ob gesetzt), Update-Felder folgen demselben "leer lassen = unverändert"-
+// Prinzip wie /admin/mail-settings im Web (siehe $keep() dort).
+
+/** Übersicht: alle EEGs + Nutzerzahl -- JSON-Äquivalent von GET /admin. */
+$router->get('/api/v1/admin/overview', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $communities = DB::fetchAll('SELECT id, name, active, marktpartner_id FROM communities ORDER BY name');
+    $userCount = (int)DB::fetchOne('SELECT COUNT(*) AS cnt FROM users')['cnt'];
+
+    echo json_encode([
+        'communities' => array_map(fn($c) => [
+            'id'              => $c['id'],
+            'name'            => $c['name'],
+            'active'          => (bool)$c['active'],
+            'marktpartner_id' => $c['marktpartner_id'],
+        ], $communities),
+        'user_count' => $userCount,
+    ]);
+});
+
+/** Alle Nutzer + ihre Rollen -- JSON-Äquivalent des Nutzer-Teils von GET /admin. */
+$router->get('/api/v1/admin/users', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $users = DB::fetchAll('SELECT id, email, first_name, last_name, active FROM users ORDER BY last_name, first_name');
+    $allRoles = DB::fetchAll('SELECT ur.user_id, ur.role, ur.community_id, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id');
+    $roleMap = [];
+    foreach ($allRoles as $r) { $roleMap[$r['user_id']][] = $r; }
+
+    echo json_encode(['users' => array_map(fn($u) => [
+        'id'         => $u['id'],
+        'email'      => $u['email'],
+        'name'       => trim($u['first_name'] . ' ' . $u['last_name']),
+        'active'     => (bool)$u['active'],
+        'roles'      => array_map(fn($r) => [
+            'role'           => $r['role'],
+            'community_id'   => $r['community_id'],
+            'community_name' => $r['community_name'],
+        ], $roleMap[$u['id']] ?? []),
+    ], $users)]);
+});
+
+/** Detail eines Nutzers inkl. Rollen -- JSON-Äquivalent von GET /admin/users/:id. */
+$router->get('/api/v1/admin/users/:id', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $user = DB::fetchOne('SELECT id, email, first_name, last_name, active FROM users WHERE id = ?', [$params['id']]);
+    if (!$user) { http_response_code(404); echo json_encode(['error' => 'Nutzer nicht gefunden.']); return; }
+    $roles = DB::fetchAll('SELECT ur.id, ur.role, ur.community_id, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id WHERE ur.user_id = ?', [$params['id']]);
+
+    echo json_encode([
+        'user' => [
+            'id'         => $user['id'],
+            'email'      => $user['email'],
+            'name'       => trim($user['first_name'] . ' ' . $user['last_name']),
+            'active'     => (bool)$user['active'],
+        ],
+        'roles' => array_map(fn($r) => [
+            'role_id'        => $r['id'],
+            'role'           => $r['role'],
+            'community_id'   => $r['community_id'],
+            'community_name' => $r['community_name'],
+        ], $roles),
+    ]);
+});
+
+/** Fügt einem Nutzer eine Rolle hinzu -- JSON-Äquivalent von POST /admin/users/:id/roles. */
+$router->post('/api/v1/admin/users/:id/roles', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $role = (string)($body['role'] ?? '');
+    if (!in_array($role, ['platform_admin', 'manager', 'member'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültige Rolle.']);
+        return;
+    }
+    $communityId = !empty($body['community_id']) ? (string)$body['community_id'] : null;
+    DB::execute(
+        'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+        [$communityId, $params['id'], $role]
+    );
+    logAudit($communityId, 'user_role.add', 'user', $params['id'], "Rolle \"$role\" hinzugefügt.");
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Entfernt eine Rollenzuweisung -- JSON-Äquivalent von POST /admin/users/:id/roles/delete. */
+$router->post('/api/v1/admin/users/:id/roles/delete', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $roleId = (string)($body['role_id'] ?? '');
+    // Es muss immer mindestens eine platform_admin-Rolle übrig bleiben, sonst kann sich niemand
+    // mehr als Admin einloggen (weder web noch app) -- exakt dieselbe Schutzregel wie im Web.
+    $isLastPlatformAdminRole = (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM user_roles WHERE id = ? AND role = 'platform_admin'
+         AND (SELECT COUNT(*) FROM user_roles WHERE role = 'platform_admin') = 1",
+        [$roleId]
+    );
+    if ($isLastPlatformAdminRole) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Dies ist die letzte verbleibende Plattform-Admin-Rolle und kann nicht entfernt werden.']);
+        return;
+    }
+    DB::execute('DELETE FROM user_roles WHERE id = ?', [$roleId]);
+    logAudit(null, 'user_role.remove', 'user', $params['id'], 'Rollenzuweisung entfernt.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Löscht einen Login-Account -- JSON-Äquivalent von POST /admin/users/:id/delete. */
+$router->post('/api/v1/admin/users/:id/delete', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    if ($params['id'] === $ctx['user_id']) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Der eigene Account kann nicht gelöscht werden.']);
+        return;
+    }
+    $user = DB::fetchOne('SELECT id FROM users WHERE id = ?', [$params['id']]);
+    if (!$user) { http_response_code(404); echo json_encode(['error' => 'Nutzer nicht gefunden.']); return; }
+
+    $isLastPlatformAdmin = (bool)DB::fetchOne(
+        "SELECT 1 AS x FROM user_roles WHERE user_id = ? AND role = 'platform_admin'
+         AND (SELECT COUNT(*) FROM user_roles WHERE role = 'platform_admin') = 1",
+        [$params['id']]
+    );
+    if ($isLastPlatformAdmin) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Dieser Account ist der letzte verbleibende Plattform-Admin und kann nicht gelöscht werden.']);
+        return;
+    }
+    DB::execute('DELETE FROM users WHERE id = ?', [$params['id']]);
+    logAudit(null, 'user.delete', 'user', $params['id'], 'Login-Account gelöscht.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Detail einer EEG inkl. Mitgliederliste -- JSON-Äquivalent von GET /admin/communities/:id. */
+$router->get('/api/v1/admin/communities/:id', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$params['id']]);
+    if (!$community) { http_response_code(404); echo json_encode(['error' => 'EEG nicht gefunden.']); return; }
+    // members hat Row-Level Security -- Ziel-Community ist hier schon aus der URL bekannt, kein
+    // Henne-Ei-Problem wie z.B. bei requireMemberAccess(), einfach direkt setzen.
+    DB::setCommunity($params['id']);
+    $members = DB::fetchAll(
+        'SELECT m.id, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email, m.status
+         FROM members m WHERE m.community_id = ?
+         ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name',
+        [$params['id']]
+    );
+
+    echo json_encode([
+        'community' => [
+            'id'                 => $community['id'],
+            'name'               => $community['name'],
+            'slug'               => $community['slug'],
+            'marktpartner_id'    => $community['marktpartner_id'],
+            'zvr_number'         => $community['zvr_number'],
+            'address'            => $community['address'],
+            'iban'               => $community['iban'],
+            'bic'                => $community['bic'],
+            'active'             => (bool)$community['active'],
+            'eda_login_email'    => $community['eda_login_email'],
+            'eda_login_password_set' => !empty($community['eda_login_password_enc']),
+        ],
+        'members' => array_map(fn($m) => [
+            'id'            => $m['id'],
+            'kundennummer'  => $m['kundennummer'],
+            'name'          => trim($m['first_name'] . ' ' . $m['last_name']),
+            'company_name'  => $m['company_name'],
+            'email'         => $m['email'],
+            'status'        => $m['status'],
+        ], $members),
+    ]);
+});
+
+/** Legt eine neue EEG an -- JSON-Äquivalent von POST /admin/communities. */
+$router->post('/api/v1/admin/communities', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $name = trim((string)($body['name'] ?? ''));
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte einen Namen angeben.']);
+        return;
+    }
+    $slug = preg_replace('/[^a-z0-9-]/', '-', strtolower($name));
+    $community = DB::fetchOne(
+        'INSERT INTO communities (name, slug, marktpartner_id, address) VALUES (?, ?, ?, ?) RETURNING id',
+        [$name, $slug, $body['marktpartner_id'] ?? null, $body['address'] ?? null]
+    );
+    logAudit(null, 'community.create', 'community', $community['id'], 'EEG "' . $name . '" angelegt.');
+    echo json_encode(['status' => 'ok', 'id' => $community['id']]);
+});
+
+/** Bearbeitet eine EEG -- JSON-Äquivalent von POST /admin/communities/:id. */
+$router->post('/api/v1/admin/communities/:id', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $current = DB::fetchOne('SELECT eda_login_password_enc FROM communities WHERE id = ?', [$params['id']]);
+    if (!$current) { http_response_code(404); echo json_encode(['error' => 'EEG nicht gefunden.']); return; }
+    // EDA-Portal-Passwort nur überschreiben, wenn tatsächlich ein neues mitgeschickt wurde --
+    // gleiches "leer = unverändert"-Prinzip wie im Web (siehe /admin/communities/:id).
+    $newEdaPassword = trim((string)($body['eda_login_password'] ?? ''));
+    $edaPasswordEnc = $newEdaPassword !== '' ? encryptSecret($newEdaPassword) : ($current['eda_login_password_enc'] ?? null);
+
+    DB::execute(
+        'UPDATE communities SET name=?, marktpartner_id=?, zvr_number=?, address=?, iban=?, bic=?, active=?,
+             eda_login_email=?, eda_login_password_enc=? WHERE id=?',
+        [
+            trim((string)($body['name'] ?? '')),
+            trim((string)($body['marktpartner_id'] ?? '')) ?: null,
+            trim((string)($body['zvr_number'] ?? '')) ?: null,
+            trim((string)($body['address'] ?? '')) ?: null,
+            trim((string)($body['iban'] ?? '')) ?: null,
+            trim((string)($body['bic'] ?? '')) ?: null,
+            !empty($body['active']) ? 'true' : 'false',
+            trim((string)($body['eda_login_email'] ?? '')) ?: null,
+            $edaPasswordEnc,
+            $params['id'],
+        ]
+    );
+    logAudit($params['id'], 'community.update', 'community', $params['id'], 'EEG "' . trim((string)($body['name'] ?? '')) . '" bearbeitet.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/**
+ * Löscht eine EEG UNWIDERRUFLICH inkl. aller Mitglieder/Verträge/Zählpunkte/Rechnungen
+ * (ON DELETE CASCADE) -- JSON-Äquivalent von POST /admin/communities/:id/delete. Die App MUSS
+ * vor diesem Aufruf eine eigene, deutliche Bestätigung einholen (z. B. Name der EEG erneut
+ * eintippen lassen), genau wie destruktive Aktionen im Web-Portal ein JS-confirm() haben.
+ */
+$router->post('/api/v1/admin/communities/:id/delete', function ($params) {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $community = DB::fetchOne('SELECT id, name FROM communities WHERE id = ?', [$params['id']]);
+    if (!$community) { http_response_code(404); echo json_encode(['error' => 'EEG nicht gefunden.']); return; }
+    DB::execute('DELETE FROM communities WHERE id = ?', [$params['id']]);
+    logAudit(null, 'community.delete', 'community', $params['id'],
+        'EEG "' . $community['name'] . '" (ID ' . $community['id'] . ') endgültig gelöscht inkl. aller Mitglieder, Verträge, Zählpunkte und Rechnungen.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Aktivitätslog, optional gefiltert nach einer EEG -- JSON-Äquivalent von GET /admin/log
+ *  (ohne das Markdown-Export-Pendant -- siehe APP_PARITY_BACKLOG.md). */
+$router->get('/api/v1/admin/log', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $filterCommunity = $_GET['community_id'] ?? '';
+    $params = []; $where = '1=1';
+    if ($filterCommunity !== '') { $where .= ' AND al.community_id = ?'; $params[] = $filterCommunity; }
+    $entries = DB::fetchAll(
+        "SELECT al.*, u.first_name, u.last_name, u.email, c.name AS community_name
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+         LEFT JOIN communities c ON c.id = al.community_id
+         WHERE $where ORDER BY al.created_at DESC LIMIT 500",
+        $params
+    );
+    echo json_encode(['entries' => array_map(fn($e) => [
+        'id'             => $e['id'],
+        'created_at'     => appDate($e['created_at']),
+        'user_name'      => trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['email'] ?? 'System'),
+        'community_name' => $e['community_name'],
+        'aktion'         => $e['aktion'],
+        'entity_typ'     => $e['entity_typ'],
+        'entity_id'      => $e['entity_id'],
+        'beschreibung'   => $e['beschreibung'],
+        'ist_fehler'     => (bool)$e['ist_fehler'],
+    ], $entries)]);
+});
+
+/**
+ * Gesammelte Plattform-Einstellungen (Mail/Microsoft Graph, Mail-Vorlagen, MQTT, Plattform-
+ * Technik) in EINER Antwort -- JSON-Äquivalent der kombinierten Seite GET /admin/mail-settings.
+ * Secrets (client_secret, mqtt_password, eda-Passwort) werden NIE im Klartext zurückgegeben,
+ * nur als "..._set": true/false, exakt wie das Web-Formular sie nie vorbefüllt.
+ */
+$router->get('/api/v1/admin/settings', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $mail = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    $templates = DB::fetchAll('SELECT key, subject, body_html, updated_at FROM platform_mail_templates ORDER BY key');
+    try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
+    try { $mqtt = DB::fetchOne('SELECT * FROM platform_mqtt_config WHERE id = 1'); } catch (\Throwable $e) { $mqtt = null; }
+
+    echo json_encode([
+        'mail' => $mail ? [
+            'tenant_id'                   => $mail['tenant_id'],
+            'client_id'                   => $mail['client_id'],
+            'client_secret_set'           => !empty($mail['client_secret']),
+            'sender_address'              => $mail['sender_address'],
+            'reply_to'                    => $mail['reply_to'],
+            'signature_html'              => $mail['signature_html'],
+            'signature_logo_set'          => !empty($mail['signature_logo_base64']),
+            'backup_alert_email_1'        => $mail['backup_alert_email_1'],
+            'backup_alert_email_2'        => $mail['backup_alert_email_2'],
+            'support_notification_email'  => $mail['support_notification_email'],
+            'eda_import_mailbox_address'  => $mail['eda_import_mailbox_address'],
+        ] : null,
+        'mail_templates' => array_map(fn($t) => [
+            'key'        => $t['key'],
+            'subject'    => $t['subject'],
+            'body_html'  => $t['body_html'],
+            'updated_at' => appDate($t['updated_at']),
+        ], $templates),
+        'platform' => $platformSettings ? [
+            'test_mode'                  => !empty($platformSettings['test_mode']),
+            'esp_offline_after_minutes'  => (int)($platformSettings['esp_offline_after_minutes'] ?? 5),
+        ] : null,
+        'mqtt' => $mqtt ? [
+            'mqtt_user'          => $mqtt['mqtt_user'],
+            'mqtt_password_set'  => !empty($mqtt['mqtt_password']),
+            'pending_apply'      => !empty($mqtt['pending_apply']),
+            'applied_at'         => appDate($mqtt['applied_at'] ?? null),
+        ] : null,
+    ]);
+});
+
+/** Aktualisiert die Mail-/Microsoft-Graph-Konfiguration -- JSON-Äquivalent von
+ *  POST /admin/mail-settings (Logo-Upload bewusst NICHT enthalten, siehe APP_PARITY_BACKLOG.md). */
+$router->post('/api/v1/admin/settings/mail', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $current = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1');
+    $newSecret = trim((string)($body['client_secret'] ?? ''));
+    $clientSecret = $newSecret !== '' ? $newSecret : ($current['client_secret'] ?? null);
+    // "Feld war im Request gar nicht dabei" (unverändert) von "Feld war dabei, aber leer"
+    // (wirklich löschen) unterscheiden -- exakt dasselbe Prinzip wie $keep() im Web (siehe
+    // Kommentar dort zum Vorfall 13.08.2026, als das Fehlen dieser Unterscheidung
+    // Zugangsdaten/Signatur bei jedem Speichern gelöscht hat).
+    $keep = function (string $key) use ($body, $current) {
+        return array_key_exists($key, $body) ? (trim((string)$body[$key]) ?: null) : ($current[$key] ?? null);
+    };
+    $supportEmail = array_key_exists('support_notification_email', $body)
+        ? (trim((string)$body['support_notification_email']) ?: 'office@stromfueralle.at')
+        : ($current['support_notification_email'] ?? 'office@stromfueralle.at');
+
+    DB::execute(
+        'UPDATE platform_mail_config
+         SET tenant_id = ?, client_id = ?, client_secret = ?, sender_address = ?, reply_to = ?, signature_html = ?,
+             backup_alert_email_1 = ?, backup_alert_email_2 = ?, support_notification_email = ?,
+             eda_import_mailbox_address = ?, updated_at = now()
+         WHERE id = 1',
+        [
+            $keep('tenant_id'), $keep('client_id'), $clientSecret, $keep('sender_address'), $keep('reply_to'),
+            $keep('signature_html'), $keep('backup_alert_email_1'), $keep('backup_alert_email_2'),
+            $supportEmail, $keep('eda_import_mailbox_address'),
+        ]
+    );
+    logAudit(null, 'mail_config.update', 'platform_mail_config', '1', 'Mail-Konfiguration über die App geändert.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Sendet eine Test-Mail mit der aktuellen Konfiguration -- JSON-Äquivalent von
+ *  POST /admin/mail-settings/test. */
+$router->post('/api/v1/admin/settings/mail/test', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $to = trim((string)($body['to'] ?? ''));
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte eine gültige E-Mail-Adresse angeben.']);
+        return;
+    }
+    try {
+        Mailer::send($to, 'Test-Mail von Strom für alle', '<p>Diese Test-Mail bestätigt, dass die Mail-Konfiguration funktioniert.</p>');
+        logAudit(null, 'mail_config.test', null, null, 'Test-Mail an ' . $to . ' über die App versendet.');
+        echo json_encode(['status' => 'ok']);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Versand fehlgeschlagen: ' . $e->getMessage()]);
+    }
+});
+
+/** Bearbeitet eine einzelne E-Mail-Vorlage -- JSON-Äquivalent von POST /admin/mail-templates. */
+$router->post('/api/v1/admin/settings/mail-templates', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $key = (string)($body['key'] ?? '');
+    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both', 'sepa_prenotification', 'mahnung'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Unbekannte Vorlage.']);
+        return;
+    }
+    DB::execute(
+        'UPDATE platform_mail_templates SET subject = ?, body_html = ?, updated_at = now() WHERE key = ?',
+        [trim((string)($body['subject'] ?? '')), (string)($body['body_html'] ?? ''), $key]
+    );
+    logAudit(null, 'mail_template.update', 'platform_mail_templates', $key, 'E-Mail-Vorlage „' . $key . '" über die App bearbeitet.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Setzt die MQTT-Zugangsdaten (Anwendung auf den Broker läuft asynchron über den Host-Cron,
+ *  siehe scripts/mqtt_apply_pending.sh) -- JSON-Äquivalent von POST /admin/mqtt-settings. */
+$router->post('/api/v1/admin/settings/mqtt', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $mqttUser = trim((string)($body['mqtt_user'] ?? '')) ?: 'eeg-device';
+    $mqttPassword = trim((string)($body['mqtt_password'] ?? ''));
+    if ($mqttPassword === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte ein Passwort angeben.']);
+        return;
+    }
+    DB::execute(
+        'UPDATE platform_mqtt_config SET mqtt_user = ?, mqtt_password = ?, pending_apply = true, updated_at = now() WHERE id = 1',
+        [$mqttUser, $mqttPassword]
+    );
+    logAudit(null, 'mqtt_config.update', 'platform_mqtt_config', '1', 'MQTT-Zugangsdaten über die App geändert (Benutzer: ' . $mqttUser . ').');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Broadcastet neue MQTT-Zugangsdaten an ALLE Geräte im Feld -- JSON-Äquivalent von
+ *  POST /admin/mqtt-device-reconfig. */
+$router->post('/api/v1/admin/settings/mqtt-device-reconfig', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $host = trim((string)($body['device_mqtt_host'] ?? ''));
+    $port = (int)($body['device_mqtt_port'] ?? 0);
+    $user = trim((string)($body['device_mqtt_user'] ?? ''));
+    $pass = (string)($body['device_mqtt_pass'] ?? '');
+    if ($host === '' || $port <= 0 || $user === '' || $pass === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte Host, Port, Benutzername und Passwort angeben.']);
+        return;
+    }
+    $payload = json_encode(['mqtt_host' => $host, 'mqtt_port' => $port, 'mqtt_user' => $user, 'mqtt_pass' => $pass]);
+    DB::execute(
+        "UPDATE platform_mqtt_config SET device_reconfig_payload = ?, device_reconfig_requested_at = now() WHERE id = 1",
+        [$payload]
+    );
+    logAudit(null, 'mqtt_config.device_reconfig', 'platform_mqtt_config', '1',
+        "MQTT-Fernkonfiguration über die App an alle Geräte angestoßen (Host: $host:$port, Benutzer: $user).");
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Testmodus/Echtbetrieb umschalten -- JSON-Äquivalent von POST /admin/settings/test-mode. */
+$router->post('/api/v1/admin/settings/test-mode', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    $testMode = !empty($body['test_mode']);
+    DB::execute('UPDATE platform_settings SET test_mode = ?, updated_at = now() WHERE id = 1', [$testMode ? 'true' : 'false']);
+    logAudit(null, 'platform_settings.update', 'platform_settings', null,
+        'Plattform über die App auf ' . ($testMode ? 'Testmodus' : 'Echtbetrieb') . ' umgestellt.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** ESP-Offline-Schwelle setzen -- JSON-Äquivalent von POST /admin/settings/esp. */
+$router->post('/api/v1/admin/settings/esp', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    $minutes = (int)($body['esp_offline_after_minutes'] ?? 5);
+    if ($minutes < 1) $minutes = 5;
+    DB::execute('UPDATE platform_settings SET esp_offline_after_minutes = ?, updated_at = now() WHERE id = 1', [$minutes]);
+    logAudit(null, 'platform_settings.update', 'platform_settings', null,
+        'ESP-Offline-Schwelle über die App auf ' . $minutes . ' Minuten gesetzt.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/**
+ * Backup-Status (Alter/Größe der letzten Sicherungen) -- JSON-Äquivalent von GET /admin/backups.
+ * Rein lesend, wie im Web (Backup-Verzeichnis ist :ro gemountet).
+ */
+$router->get('/api/v1/admin/backups', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $dir = '/var/www/html/backups';
+    $status = null;
+    if (is_readable($dir . '/last_backup.json')) {
+        $status = json_decode((string)file_get_contents($dir . '/last_backup.json'), true) ?: null;
+    }
+    $arten = [
+        'stamm' => ['label' => 'Stammdaten (Mitglieder, Rechnungen, Verträge)', 'glob' => 'eeg_stamm_*.dump'],
+        'voll'  => ['label' => 'Datenbank vollständig (inkl. Messwerte)',        'glob' => 'eeg_2*.dump'],
+        'full'  => ['label' => 'Komplettsicherung (Datenbank + Dateien)',        'glob' => 'eeg_full_*.tar.gz'],
+    ];
+    $result = [];
+    $dirLesbar = is_dir($dir) && is_readable($dir);
+    foreach ($arten as $key => $art) {
+        $dateien = [];
+        if ($dirLesbar) {
+            foreach (glob($dir . '/' . $art['glob']) ?: [] as $pfad) {
+                $dateien[] = ['name' => basename($pfad), 'bytes' => filesize($pfad) ?: 0, 'zeit' => appDate(date('c', filemtime($pfad) ?: 0))];
+            }
+            usort($dateien, fn($a, $b) => strcmp($b['zeit'] ?? '', $a['zeit'] ?? ''));
+        }
+        $result[$key] = ['label' => $art['label'], 'dateien' => $dateien];
+    }
+    echo json_encode(['status' => $status, 'arten' => $result, 'verzeichnis_lesbar' => $dirLesbar]);
 });
 
 // ─── Portal: Mitgliederverwaltung ───────────────────────
@@ -6834,8 +7405,16 @@ $router->get('/admin/communities/:id', function ($params) {
     // ablesen können (z.B. um sich selbst einzuloggen), anders als z.B. das Graph-Client-Secret,
     // das nur die App selbst braucht -- siehe encryptSecret()/decryptSecret() in functions.php.
     $community['eda_login_password'] = decryptSecret($community['eda_login_password_enc'] ?? null);
-    // Bewusst ohne DB::setCommunity/RLS-Abhängigkeit: der Platform-Admin muss die Mitglieder
-    // JEDER EEG hier sehen können, nicht nur die seiner aktuell aktiven Rolle.
+    // members hat Row-Level Security (migrate_20260822.sql) -- OHNE DB::setCommunity() liefert
+    // die eingeschränkte Laufzeit-Rolle grundsätzlich GAR KEINE Zeile, auch bei korrektem WHERE
+    // (Patrick, 19.08.2026 beim App-API-Nachbau entdeckt: diese Seite zeigte seit dem RLS-Fix
+    // leer, obwohl Mitglieder vorhanden sind). Anders als z.B. bei requireMemberAccess() gibt es
+    // hier KEIN Henne-Ei-Problem -- die Ziel-Community ist ja schon aus der URL bekannt
+    // (:id), also einfach direkt setzen, kein "jede Community durchprobieren" nötig. Der
+    // Platform-Admin sieht dadurch weiterhin die Mitglieder JEDER EEG (nicht nur der eigenen
+    // aktiven Rolle) -- der ursprüngliche Kommentar hier meinte richtig "keine Bindung an die
+    // eigene aktive Rolle", nicht "gar keine Community setzen".
+    DB::setCommunity($params['id']);
     $members = DB::fetchAll(
         'SELECT m.id, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email, m.status,
                 m.user_id, u.email AS login_email

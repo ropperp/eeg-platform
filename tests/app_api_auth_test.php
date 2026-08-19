@@ -27,6 +27,15 @@ test('issueAccessToken()/verifyAccessToken() Round-Trip funktioniert auch ohne m
     assertSame('user-789', $ctx['user_id'] ?? null);
 });
 
+test('issueAccessToken()/verifyAccessToken() Round-Trip funktioniert auch ohne community_id (Admin)', function () {
+    $token = AppApiAuth::issueAccessToken(null, 'admin', null, 'user-789');
+    $ctx = AppApiAuth::verifyAccessToken($token);
+    assertTrue(array_key_exists('community_id', $ctx) && $ctx['community_id'] === null, 'community_id sollte explizit null sein');
+    assertTrue(array_key_exists('member_id', $ctx) && $ctx['member_id'] === null, 'member_id sollte explizit null sein');
+    assertSame('admin', $ctx['role'] ?? null);
+    assertSame('user-789', $ctx['user_id'] ?? null);
+});
+
 test('verifyAccessToken() lehnt ein manipuliertes Token ab (Payload verändert, Signatur alt)', function () {
     $token = AppApiAuth::issueAccessToken('community-abc', 'member', 'member-123');
     [$payload, $sig] = explode('.', $token);

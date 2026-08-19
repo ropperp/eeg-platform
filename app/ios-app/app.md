@@ -337,6 +337,41 @@ ausgenommen `email` (wird beim Bearbeiten nicht geändert) und die Zustimmungs-/
 `GET /api/v1/manager/members/:id` liefert bereits alle aktuell befüllten Werte zum Vorausfüllen
 des Bearbeiten-Formulars zurück.
 
+### Admin-Endpunkte (role: admin; NEU seit 19.08.2026, siehe Abschnitt 10)
+
+**Terminologie: ab jetzt in der App/UI einfach "Admin" nennen, nicht "Platform-Admin"** (Patrick,
+19.08.2026) -- der Rollenwert im Token/in der API heißt weiterhin technisch `admin` (bzw. in der
+Datenbank `platform_admin`), aber jeder sichtbare Text in der App ("Admin-Bereich",
+"Als Admin anmelden") soll das kürzere "Admin" verwenden.
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/api/v1/admin/overview` | Alle EEGs + Nutzerzahl |
+| GET | `/api/v1/admin/users` | Alle Login-Accounts + Rollen |
+| GET | `/api/v1/admin/users/:id` | Nutzer-Detail inkl. Rollen |
+| POST | `/api/v1/admin/users/:id/roles` | Rolle hinzufügen |
+| POST | `/api/v1/admin/users/:id/roles/delete` | Rolle entfernen |
+| POST | `/api/v1/admin/users/:id/delete` | Login-Account löschen |
+| GET | `/api/v1/admin/communities/:id` | EEG-Detail inkl. Mitgliederliste |
+| POST | `/api/v1/admin/communities` | Neue EEG anlegen |
+| POST | `/api/v1/admin/communities/:id` | EEG bearbeiten |
+| POST | `/api/v1/admin/communities/:id/delete` | **EEG unwiderruflich löschen** (eigene Bestätigung in der App einholen!) |
+| GET | `/api/v1/admin/log?community_id=` | Aktivitätslog, optional gefiltert |
+| GET | `/api/v1/admin/settings` | Alle Plattform-Einstellungen gesammelt (Mail/Graph, Mail-Vorlagen, MQTT, Plattform-Technik) |
+| POST | `/api/v1/admin/settings/mail` | Mail-/Graph-Konfiguration ändern |
+| POST | `/api/v1/admin/settings/mail/test` | Test-Mail senden |
+| POST | `/api/v1/admin/settings/mail-templates` | Eine E-Mail-Vorlage bearbeiten |
+| POST | `/api/v1/admin/settings/mqtt` | MQTT-Zugangsdaten ändern |
+| POST | `/api/v1/admin/settings/mqtt-device-reconfig` | MQTT-Zugangsdaten an ALLE Geräte im Feld broadcasten |
+| POST | `/api/v1/admin/settings/test-mode` | Testmodus/Echtbetrieb umschalten |
+| POST | `/api/v1/admin/settings/esp` | ESP-Offline-Schwelle setzen |
+| GET | `/api/v1/admin/backups` | Backup-Übersicht (nur lesend) |
+
+Vollständige Feldlisten/Beispiele: `docs/APP_API.md` Abschnitt "Admin-Endpunkte". Noch NICHT
+enthalten (siehe `APP_PARITY_BACKLOG.md`): LaTeX-Vorlagen-Verwaltung, Audit-Log-Export als
+Markdown, manueller EDA-Import-Testlauf, Mail-Signatur-Logo-Upload -- dafür bitte noch keine
+Endpunkte erfinden.
+
 ### Smart-Home-API (separates System, für die Mitglieder-App NICHT relevant)
 
 `GET /api/v1/me` und `GET /api/v1/live` verwenden ein anderes Auth-Schema (langlebige,
@@ -606,6 +641,61 @@ App-API-Endpunkte) -- **`app/ios-app/APP_PARITY_BACKLOG.md`** ist die laufend ak
 Fortschritts-/Aufgabenliste dafür (was fehlt noch, was ist schon fertig). Bitte diese Datei vor
 jeder neuen Xcode-Runde neu einlesen, um zu sehen, was seit dem letzten Mal an neuen
 Endpunkten dazugekommen ist, statt sich nur auf den Stand dieses `app.md` zu verlassen.
+
+---
+
+## 10. Runde 3: Admin-Bereich + Debugging-Vorgehen (19.08.2026)
+
+### 10.1 Admin-Endpunkte sind jetzt da
+
+Der größte Teil der Platform-Admin-Funktionen (Abschnitt 6 alte Fassung) ist jetzt als
+`role: "admin"`-Endpunkte umgesetzt -- siehe die neue Tabelle in Abschnitt 5 ("Admin-Endpunkte")
+und `docs/APP_API.md`. **Bitte jetzt einen eigenen Admin-Bereich in der App bauen**, analog zum
+Obmann-Bereich (eigener Tab/eigene Sektion, nur sichtbar wenn `GET /api/v1/roles` eine
+`role: "admin"`-Option zurückgibt):
+- **EEG-Übersicht:** Liste aller EEGs (`GET /api/v1/admin/overview`), Detail mit Mitgliederliste
+  antippen (`GET /api/v1/admin/communities/:id`), Bearbeiten-Formular, "Neue EEG anlegen".
+  Löschen-Button MUSS eine eigene, deutliche Bestätigung verlangen (z. B. EEG-Namen erneut
+  eintippen lassen) -- die Aktion ist unwiderruflich und löscht ALLE Daten der EEG.
+- **Nutzerverwaltung:** Liste/Detail/Rollen hinzufügen-entfernen/Account löschen.
+- **Aktivitätslog:** Liste mit EEG-Filter, read-only.
+- **Einstellungen:** EIN Bildschirm mit mehreren Abschnitten (Mail/Graph, Mail-Vorlagen, MQTT,
+  Plattform-Technik/Testmodus/ESP-Schwelle) -- `GET /api/v1/admin/settings` liefert alles auf
+  einmal, die einzelnen `POST`-Endpunkte sind aber getrennt (siehe Tabelle).
+- **Backups:** read-only Übersicht.
+
+Terminologie-Hinweis siehe Abschnitt 5 oben: in der App/UI überall "Admin" statt
+"Platform-Admin" verwenden.
+
+### 10.2 Beim Debuggen: bitte IMMER genaue Datei+Zeile angeben
+
+Ab jetzt bei jedem gemeldeten Fehler (egal ob Backend- oder Swift-seitig) bitte konkret
+benennen, WO im jeweiligen File nachgesehen werden soll -- also z. B. "Der Fehler liegt an
+`ManagerMemberDetail.swift`, in der `CodingKeys`-Enum, Zeile ~15" statt nur "das Swift-Model
+passt nicht". Für Backend-Fehler entsprechend mit Datei+Funktionsname aus diesem Repo (z. B.
+"`webapp/public/index.php`, Route `POST /api/v1/manager/members`, Zeile ca. 3400"). Erspart
+beim Debuggen ein Durchsuchen der ganzen Codebasis nach der relevanten Stelle.
+
+### 10.3 Noch nicht umgesetzt: Push-Benachrichtigungen (eigene, größere Runde)
+
+Patrick möchte native Push-Benachrichtigungen:
+- **Obmann/Admin:** Benachrichtigung, wenn im Postfach etwas Neues ankommt (unbekannter Zähler,
+  SSID-Wechsel, Support-Ticket, ...).
+- **Mitglied:** Benachrichtigung bei neuer verfügbarer Rechnung.
+- **Mitglied, individuell einstellbar:** Benachrichtigung, wenn die eigene Einspeisung eine
+  selbst festgelegte Schwelle übersteigt ("jetzt verbrauchen, es wird gerade zu viel
+  eingespeist") -- jedes Mitglied stellt seine eigene Schwelle in den Einstellungen ein. MIT
+  Hysterese/Cooldown -- NICHT alle paar Minuten erneut benachrichtigen, solange die Schwelle
+  weiter überschritten bleibt, sondern erst wieder, nachdem der Wert zwischenzeitlich unter die
+  Schwelle gefallen UND danach erneut überschritten wurde (klassische Hysterese, verhindert
+  Benachrichtigungs-Spam bei einem Wert, der genau um die Schwelle herum schwankt).
+
+Das ist ein eigenes, größeres Backend-Thema (APNs-Anbindung, Gerät-Push-Token-Verwaltung,
+Server-seitige Trigger-Logik, neue Datenbanktabellen für Schwellenwerte + Hysterese-Zustand je
+Mitglied) -- bewusst noch NICHT umgesetzt, um es nicht neben dem Admin-Bereich hier oberflächlich
+mit abzuhandeln. Detaillierte Anforderungen sind in `APP_PARITY_BACKLOG.md` festgehalten, wird
+als eigene Runde nachgezogen. Bitte in der App noch KEINE Push-Registrierung/-Anzeige bauen, bis
+die zugehörigen `/api/v1/*`-Endpunkte existieren und hier dokumentiert sind.
 
 ---
 

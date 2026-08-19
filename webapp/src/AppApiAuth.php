@@ -73,13 +73,17 @@ class AppApiAuth
 
     // ─── Zugriffstoken ──────────────────────────────────────────────────────
     /**
-     * $role ist 'member' oder 'manager' (Platform-Admins bekommen beim Login ebenfalls ein
-     * 'manager'-Token -- sie dürfen wie im Web jede EEG verwalten, ein eigener dritter Rollenwert
-     * würde in requireManagerAuth() nur unnötig dupliziert geprüft werden müssen).
-     * $memberId ist bei role='manager' meist leer (ein reiner Obmann-Account hat nicht
-     * zwingend einen eigenen Mitgliedsdatensatz in dieser EEG).
+     * $role ist 'member', 'manager' oder 'admin' (seit migrate_20260902.sql -- Platform-Admins
+     * bekommen beim Login weiterhin zusätzlich ein normales 'manager'-Token für ihre eigene(n)
+     * EEG(s), siehe resolveAppRoleOptions(), aber jetzt daneben auch die Möglichkeit, sich
+     * separat als 'admin' einzuloggen für die plattformweiten Admin-Funktionen).
+     * $memberId ist bei role='manager'/'admin' meist leer (kein eigener Mitgliedsdatensatz
+     * nötig). $communityId ist bei role='admin' NULL -- Admin-Funktionen sind bewusst NICHT an
+     * eine einzelne EEG gebunden (wirken plattformweit), betroffene Endpunkte bekommen die
+     * jeweilige Ziel-Community (falls nötig, z.B. bei einer bestimmten EEG bearbeiten) explizit
+     * aus der Request-URL, nicht aus dem Token.
      */
-    public static function issueAccessToken(string $communityId, string $role, ?string $memberId = null, ?string $userId = null): string
+    public static function issueAccessToken(?string $communityId, string $role, ?string $memberId = null, ?string $userId = null): string
     {
         return self::signToken('access', [
             'cid'  => $communityId,
@@ -99,10 +103,10 @@ class AppApiAuth
     public static function verifyAccessToken(string $token): ?array
     {
         $claims = self::verifySignedToken('access', $token);
-        if (!$claims || empty($claims['cid']) || empty($claims['role'])) return null;
+        if (!$claims || empty($claims['role'])) return null;
         return [
             'member_id'    => $claims['mid'] ?? null,
-            'community_id' => (string)$claims['cid'],
+            'community_id' => isset($claims['cid']) ? (string)$claims['cid'] : null,
             'role'         => (string)$claims['role'],
             'user_id'      => $claims['uid'] ?? null,
         ];
@@ -152,6 +156,24 @@ class AppApiAuth
         return $ctx;
     }
 
+    /**
+     * Wie requireAppAuth(), verlangt zusätzlich role='admin' -- für die plattformweiten
+     * Admin-Funktionen (EEG-Verwaltung, Nutzer & Rollen, Aktivitätslog, Mail-/MQTT-
+     * Einstellungen, Backups). Ein Mitglied- oder Obmann-Token wird hier mit 403 abgelehnt.
+     */
+    public static function requireAdminAuth(): ?array
+    {
+        $ctx = self::requireAppAuth();
+        if (!$ctx) return null;
+        if ($ctx['role'] !== 'admin') {
+            header('Content-Type: application/json; charset=UTF-8');
+            http_response_code(403);
+            echo json_encode(['error' => 'Diese Aktion erfordert einen Plattform-Admin-Zugang.']);
+            return null;
+        }
+        return $ctx;
+    }
+
     // ─── Login-Zwischenschritte (2FA, Community-Auswahl) ─────────────────────
     public static function issueTicket(string $typ, array $claims): string
     {
@@ -169,7 +191,7 @@ class AppApiAuth
     }
 
     // ─── Refresh-Token (DB-gestützt, widerrufbar, rotierend) ─────────────────
-    public static function issueRefreshToken(string $communityId, string $role, ?string $memberId, ?string $userId, ?string $deviceLabel = null): string
+    public static function issueRefreshToken(?string $communityId, string $role, ?string $memberId, ?string $userId, ?string $deviceLabel = null): string
     {
         $raw = bin2hex(random_bytes(32));
         DB::execute(
