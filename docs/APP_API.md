@@ -219,12 +219,14 @@ fehlendem/ungültigem/abgelaufenem Token: `401 {"error": "..."}` (Token ist abge
 `/api/v1/token/refresh` aufrufen und Request wiederholen).
 
 > **Datumsformat:** Alle Zeitstempel-/Datumsfelder in JSON-Antworten sind striktes ISO-8601 mit
-> Uhrzeit und Offset, z. B. `"2026-08-18T17:03:00+00:00"` -- auch reine Kalenderdaten ohne
-> eigentliche Uhrzeit (`member_since`, `geburtsdatum`, ...) kommen so (Mitternacht UTC). In
-> Swift: `JSONDecoder().dateDecodingStrategy = .iso8601` funktioniert damit direkt, keine
-> eigene Formatter-Logik nötig. Trotzdem defensiv als `Date?` (optional) modellieren, nicht
-> `Date` -- viele Felder sind legitim `null` (z. B. `last_invoice` vor der ersten Rechnung,
-> `sent_at` vor dem Versand).
+> Uhrzeit und Offset, IMMER normalisiert auf UTC (`+00:00`, nie ein anderer Offset) -- z. B.
+> `"2026-08-18T17:03:00+00:00"`. Auch reine Kalenderdaten ohne eigentliche Uhrzeit
+> (`member_since`, `geburtsdatum`, ...) kommen so (`T00:00:00+00:00`, als UTC-Mitternacht
+> konstruiert, nicht über die Server-Zeitzone hergeleitet -- sonst hätte sich das Kalenderdatum
+> beim Umrechnen verschieben können). In Swift: `JSONDecoder().dateDecodingStrategy = .iso8601`
+> funktioniert damit direkt, keine eigene Formatter-Logik nötig. Trotzdem defensiv als `Date?`
+> (optional) modellieren, nicht `Date` -- viele Felder sind legitim `null` (z. B. `last_invoice`
+> vor der ersten Rechnung, `sent_at` vor dem Versand).
 
 ### GET /api/v1/dashboard
 

@@ -345,37 +345,44 @@ dieser App verwenden, nur zur Abgrenzung erwähnt.
 
 ---
 
-## 6. Was bewusst NICHT Teil dieser App-Version ist
+## 6. Was aktuell NOCH NICHT Teil der App ist (Ziel: vollständige Parität)
 
-Bleibt Web-Portal-only (`https://portal.stromfueralle.at`), kein `/api/v1/*`-Endpunkt vorhanden:
+**Update 19.08.2026:** Patrick möchte VOLLE Feature-Parität mit dem Web-Portal, inkl.
+Platform-Admin-Funktionen ("Alles soll eins zu eins sein") -- die ursprüngliche bewusste
+Einschränkung dieses Dokuments ist damit aufgehoben, nicht mehr aktuell. Die folgende Liste ist
+jetzt eine ARBEITSLISTE, kein "bleibt für immer Web-only". Laufend aktuell gehalten (und um
+neue Ideen ergänzt) in **`app/ios-app/APP_PARITY_BACKLOG.md`** -- dort auch nachsehen, was seit
+diesem Dokument schon neu dazugekommen ist, bevor mit einem Bereich hier begonnen wird.
+
+Noch ohne `/api/v1/*`-Entsprechung, Backend-Arbeit jeweils noch nötig:
 
 - Abrechnung/Rechnungslauf-Erstellung, Freigabe, SEPA-XML, Mahnwesen
 - EDA-Import (monatliche Energiedaten-Exportdatei)
-- Vertrags-**Versand** als Obmann (Signieren als Mitglied ist enthalten, s. o.)
-- EEG-Einstellungen (Logo, Tarif, Steuer, E-Mail-Signatur)
+- Vertrags-**Versand** als Obmann (Signieren als Mitglied ist bereits enthalten, s. o.)
+- EEG-Einstellungen (Logo, Tarif, Steuer, E-Mail-Signatur, Stammdaten)
 - Beitrittsanträge prüfen/genehmigen/ablehnen
 - Postfach (Systembenachrichtigungen)
 - Zählpunkt nachträglich bearbeiten/löschen/zuordnen (nur Anlegen bei Mitglied-Neuanlage und
-  Ansehen sind in der App enthalten)
-- Alle Platform-Admin-Funktionen (EEG anlegen, Nutzerverwaltung, Vorlagen, MQTT-Einstellungen)
+  Ansehen sind aktuell in der App enthalten)
+- Alle Platform-Admin-Funktionen (E-Mail-/Graph-Einstellungen, Mail-/LaTeX-Vorlagen,
+  EEG-Verwaltung plattformweit, Nutzer & Rollen, Aktivitätslog, Backups, MQTT-Einstellungen +
+  Fernkonfiguration, Testmodus)
 
-Falls eine App-Version davon später gebraucht wird: neue Endpunkte nach demselben Muster wie die
-bestehenden bauen (Bearer-Token prüfen via `AppApiAuth::requireAppAuth()`/`requireManagerAuth()`,
-`DB::setCommunity()` setzen, JSON statt HTML liefern) -- ist explizit NICHT Teil des aktuellen
-App-Umfangs, um das Risiko bei der Backend-Erweiterung überschaubar zu halten.
+Neue Endpunkte dafür nach demselben Muster wie die bestehenden bauen (Bearer-Token prüfen via
+`AppApiAuth::requireAppAuth()`/`requireManagerAuth()`, `DB::setCommunity()` setzen, JSON statt
+HTML liefern) -- das Backend dafür entsteht schrittweise, Reihenfolge wird jeweils mit Patrick
+abgestimmt und in `APP_PARITY_BACKLOG.md` nachgeführt. Bitte in der App KEINE Endpunkte für
+diese Bereiche erfinden/raten, solange sie noch nicht in `docs/APP_API.md` auftauchen --
+stattdessen den jeweiligen Menüpunkt vorerst ausblenden/deaktivieren, bis das Backend nachzieht.
 
-**Wichtig zum Verständnis der Rolle "Platform-Admin":** Ein Platform-Admin-Account bekommt beim
-App-Login absichtlich GENAU DIESELBEN Rechte/Endpunkte wie ein normaler Obmann (`role:
-"manager"`) -- es gibt KEINEN dritten, mächtigeren Rollenwert und KEIN zusätzliches
-"Platform-Admin-Menü" in der App (spiegelt `Auth::isManager()` im Web-Backend, das für beide
-Rollen `true` liefert). Die tatsächlichen Platform-Admin-exklusiven Funktionen (EEGs anlegen/
-löschen, Nutzer & Rollen plattformweit verwalten, Aktivitätslog, Backups, LaTeX-/Mail-Vorlagen,
-MQTT-Fernkonfiguration) haben schlicht NOCH KEINE `/api/v1/*`-Entsprechung -- das war eine
-bewusste Entscheidung, um den Umfang dieser ersten App-Version überschaubar zu halten, keine
-vergessene Funktion. Eine als Obmann eingeloggte Person sieht deshalb korrekt nur "Mitglieder"
-und "Konto" im Menü -- das ist der VOLLE aktuelle Funktionsumfang der App für diese Rolle, kein
-Darstellungsfehler. Bei Bedarf lässt sich das analog zu den bestehenden Obmann-Endpunkten
-später erweitern (neues Themenfeld, eigene Absprache).
+**Zur Rolle "Platform-Admin" -- aktueller Stand, wird sich noch ändern:** Ein Platform-Admin-
+Account bekommt beim App-Login aktuell noch GENAU DIESELBEN Rechte/Endpunkte wie ein normaler
+Obmann (`role: "manager"`, kein dritter Rollenwert, spiegelt `Auth::isManager()` im
+Web-Backend). Das ist NICHT das Zielbild -- Platform-Admin-exklusive Funktionen sollen laut
+Patrick ebenfalls in die App, siehe Liste oben/Backlog. Bis das Backend dafür da ist, sieht ein
+Platform-Admin-Account in der App vorerst weiterhin nur den normalen Obmann-Umfang (Mitglieder,
+Konto) -- kein Darstellungsfehler, sondern der aktuelle Zwischenstand auf dem Weg zur vollen
+Parität.
 
 ---
 
@@ -543,9 +550,62 @@ aus Abschnitt 7 nochmal gegen Abschnitt 5 (bzw. `docs/APP_API.md`) durchgehen un
 JEDER dort gelistete Endpunkt tatsächlich einen erreichbaren Bildschirm/eine erreichbare Aktion
 in der App hat** -- insbesondere: Verträge (Status+PDF+Unterschreiben), eigene Dokumente,
 DSGVO-Export, Support-Tickets, 2FA-Verwaltung, sowie im Obmann-Bereich Mitglied bearbeiten
-und Datei-/Foto-Upload für ein Mitglied. Was NICHT in der App auftauchen soll, steht explizit
-in Abschnitt 6 (Abrechnung, EDA-Import, EEG-Einstellungen, Beitrittsanträge, Postfach,
-Platform-Admin-Funktionen) -- dafür bewusst KEINE Endpunkte erfinden/raten, die es nicht gibt.
+und Datei-/Foto-Upload für ein Mitglied. Was AKTUELL NOCH NICHT existiert, steht in Abschnitt 6
+bzw. `APP_PARITY_BACKLOG.md` (Abrechnung, EDA-Import, EEG-Einstellungen, Beitrittsanträge,
+Postfach, Platform-Admin-Funktionen, ...) -- dafür bitte KEINE Endpunkte erfinden/raten, die es
+noch nicht gibt; die kommen schrittweise nach (siehe 9.8 unten).
+
+### 9.7 Behobener Server-Bug: `DecodingError.keyNotFound("id")` bei `ManagerMemberDetail`
+
+**Das ist ein Fehler im Swift-Model, nicht im Server** -- zur Klarstellung, damit nicht am
+Backend danach gesucht wird. Die tatsächliche Serverantwort von `GET /api/v1/manager/members/:id`
+(unverändert, exakt wie in `docs/APP_API.md` dokumentiert):
+```json
+{
+  "member": { "id": "uuid", "kundennummer": 10003, "...": "..." },
+  "metering_points": [ { "id": "uuid", "...": "..." } ],
+  "files": [ { "id": "uuid", "...": "..." } ]
+}
+```
+`id` liegt hier VERSCHACHTELT unter `member.id`, NICHT auf der obersten Ebene der Antwort. Der
+Fehler `Key 'id' not found` bedeutet: das `ManagerMemberDetail`-Codable-Struct hat (vermutlich
+für `Identifiable`-Konformität) ein `id`-Feld auf oberster Ebene erwartet/synthetisiert, das es
+in der echten Antwort so nicht gibt. Korrektur im Swift-Model, z. B.:
+```swift
+struct ManagerMemberDetailResponse: Codable {
+    let member: ManagerMember
+    let meteringPoints: [MeteringPoint]
+    let files: [MemberFile]
+
+    enum CodingKeys: String, CodingKey {
+        case member
+        case meteringPoints = "metering_points"
+        case files
+    }
+}
+struct ManagerMember: Codable, Identifiable {
+    let id: String
+    // ... weitere Felder
+}
+```
+`Identifiable`-Konformität (falls für eine `List`/`ForEach` gebraucht) gehört auf `ManagerMember`
+selbst (dessen `id` existiert wirklich), nicht auf den äußeren Response-Wrapper. Gleiches Muster
+bitte bei ALLEN anderen verschachtelten Antworten prüfen (z. B. `GET /api/v1/support/:id` mit
+`ticket`+`messages`, `GET /api/v1/profile` mit `user`) -- dort liegt `id` ebenfalls jeweils
+innerhalb des verschachtelten Objekts, nicht auf oberster Ebene.
+
+### 9.8 Vollständige Feature-Parität (neues Ziel, ersetzt die bisherige bewusste Einschränkung)
+
+Patrick, 19.08.2026: "Bitte baue mir alle Funktionen von der Plattform in die App ein [...]
+Alles soll eins zu eins sein." Die in Abschnitt 6 (alte Fassung) beschriebene bewusste
+Einschränkung ist damit aufgehoben -- Ziel ist jetzt vollständige Parität zwischen Web-Portal
+und App, inklusive Platform-Admin-Funktionen (E-Mail-/Graph-Einstellungen, Vorlagen,
+EEG-Verwaltung, Nutzerverwaltung, Aktivitätslog, Backups, MQTT). Das Backend dafür entsteht
+schrittweise (jeweils eigene PRs, mit denselben Tests/Sorgfalt wie die bisherigen
+App-API-Endpunkte) -- **`app/ios-app/APP_PARITY_BACKLOG.md`** ist die laufend aktuelle
+Fortschritts-/Aufgabenliste dafür (was fehlt noch, was ist schon fertig). Bitte diese Datei vor
+jeder neuen Xcode-Runde neu einlesen, um zu sehen, was seit dem letzten Mal an neuen
+Endpunkten dazugekommen ist, statt sich nur auf den Stand dieses `app.md` zu verlassen.
 
 ---
 

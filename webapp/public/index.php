@@ -2231,13 +2231,33 @@ $router->post('/portal/my/support/:id/reply', function ($params) {
  * 19.08.2026). ALLE Datums-/Zeitstempelfelder in /api/v1/*-JSON-Antworten laufen deshalb durch
  * diese Funktion, NICHT nur roh durchgereicht wie im Web-Portal (dort macht PHPs eigenes
  * date()/strtotime() auf denselben Rohstring ohnehin unabhängig vom Format weiter Sinn).
+ *
+ * Immer auf UTC normalisiert (Offset im Ergebnis ist IMMER "+00:00"), NICHT die
+ * PHP-Standard-Zeitzone des Containers (Europe/Vienna) -- sonst hätte je nach Kalenderdatum ein
+ * unterschiedlicher Offset im Ergebnis gestanden (+02:00 im Sommer/DST, +01:00 im Winter, siehe
+ * Patrick 19.08.2026: "member_until":"...+01:00" vs. "member_since":"...+02:00" in derselben
+ * Antwort) -- syntaktisch für Swift zwar beides gültiges ISO-8601, aber unnötig verwirrend und
+ * schwerer zu vergleichen/cachen als ein durchgehend fester Offset.
+ *
+ * Reine DATE-Spalten (z.B. "2026-08-19", ohne Uhrzeit/Offset im Rohwert) werden explizit ALS
+ * UTC-Mitternacht konstruiert statt über die PHP-Standard-Zeitzone interpretiert -- sonst hätte
+ * "new DateTimeImmutable('2026-08-19')" das als Mitternacht in Europe/Vienna gelesen und beim
+ * Umrechnen auf UTC (Sommerzeit: -2h) daraus fälschlich den 18.08. gemacht (Kalenderdatum
+ * verschoben, z.B. bei geburtsdatum sichtbar falsch). Bei TIMESTAMPTZ-Werten ist das nicht
+ * nötig -- die bringen ihren Offset schon selbst mit (Postgres liefert immer z.B. "...+00"),
+ * PHP respektiert den beim Parsen unabhängig von der Standard-Zeitzone.
  */
 function appDate(?string $value): ?string
 {
     if ($value === null || $value === '') return null;
-    $ts = strtotime($value);
-    if ($ts === false) return null;
-    return date(DATE_ATOM, $ts);
+    try {
+        $dt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)
+            ? new DateTimeImmutable($value, new DateTimeZone('UTC'))
+            : new DateTimeImmutable($value);
+    } catch (\Throwable $e) {
+        return null;
+    }
+    return $dt->setTimezone(new DateTimeZone('UTC'))->format(DATE_ATOM);
 }
 
 // ─── Mitglieder-App: Login-Flow (seit 30.08.2026, siehe docs/APP_API.md) ─────
@@ -3744,11 +3764,21 @@ $router->get('/portal/members', function () {
                 -- aktiv) -- ohne diese Sperre zeigte die Zähler-Spalte für so ein Mitglied
                 -- weiterhin OK/Fehler statt kein Zähler (Patrick, 09.08.2026).
                 bool_or(mp.active AND mp.meter_code IS NOT NULL AND mp.esp_last_seen_at IS NOT NULL) AS hat_esp_bekannt,
+                -- NICHT mehr zusätzlich auf mp.esp_online geprüft (Patrick, 19.08.2026: Status
+                -- blinkte zwischen Mama/Papa trotz durchgehender Live-Daten alle 5s) -- die
+                -- Recency von esp_last_seen_at allein ist das zuverlässigere Signal, seit
+                -- insert_measurement() (mqtt-subscriber) diesen Zeitstempel bei JEDER Live-
+                -- Messung mitzieht. esp_online selbst bleibt dagegen weiterhin nur eine
+                -- Momentaufnahme des zuletzt empfangenen Status-Heartbeats und kann durch dessen
+                -- MQTT-Last-Will-Testament bei einem kurzen Verbindungsaussetzer auf false
+                -- hängen bleiben, bis der NÄCHSTE Heartbeat (nicht: die nächste Live-Nachricht)
+                -- eintrifft -- ein zusätzliches AND mp.esp_online hätte also weiterhin genau die
+                -- Fehlanzeige verursacht, die eigentlich behoben werden sollte. esp_online bleibt
+                -- als Spalte/Diagnosewert erhalten (WLAN-Info-Anzeige), fließt hier aber
+                -- bewusst nicht mehr ein.
                 bool_or(
-                    mp.active AND mp.meter_code IS NOT NULL AND mp.esp_last_seen_at IS NOT NULL AND (
-                        NOT (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval)
-                        OR (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT mp.meter_reachable)
-                    )
+                    mp.active AND mp.meter_code IS NOT NULL AND mp.esp_last_seen_at IS NOT NULL AND
+                    NOT (mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND mp.meter_reachable)
                 ) AS hat_esp_fehler,
                 MAX(u.last_login_at) AS last_login_at,
                 (SELECT mp2.zaehlpunkt_nr FROM metering_points mp2
@@ -3762,7 +3792,7 @@ $router->get('/portal/members', function () {
          LEFT JOIN metering_points mp ON mp.member_id = m.id AND mp.active = true
          WHERE m.community_id = ?
          GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
-        [$espOfflineMinutes, $espOfflineMinutes, $communityId]
+        [$espOfflineMinutes, $communityId]
     );
     $contractsEnabled = contractsEnabled($communityId);
     require ROOT . '/src/views/pages/member_list.php';
