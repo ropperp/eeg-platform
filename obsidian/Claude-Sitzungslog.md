@@ -8,6 +8,33 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-19 (59) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich schicke dir die Anweisungen, die ich jetzt noch in Xcode geben werde [...]
+Bitte sag es genauer [...] Gib mir dein Prompt nochmal raus für Xcode [...] Bitte die aktuelle
+Leistung automatisch aktualisieren [...] Das mit dem dunkel blau als Hintergrund [...] die
+Fenster mit dem dunkel Grau passen hier nicht zusammen [...] Was noch cool wäre ist den
+Energiefluss als Grafik anzuzeigen [...] Bei einzelnen Mitglieder kommt noch 'Unerwartete
+Antwort vom Server' [...] Bei Mitgliedern hinzufügen, fehlen paar Daten zum eingeben [...] Die
+Rolle Plattform Admin [...] gibt es noch garnicht [...] Wo kann man dann Rollen wechseln? Als
+Obmann hab ich nur die Menüs Mitglieder und Konto."
+**Auftrag:** Die erste Xcode-Bauversion der App gegenprüfen, einen gemeldeten "Unerwartete
+Antwort vom Server"-Fehler untersuchen/beheben, fehlende Formularfelder und fehlende
+Rollenwechsel-Möglichkeit klären/nachrüsten, und daraus eine aktualisierte, vollständige
+Anleitung (`app.md`) für die nächste Xcode-Runde erstellen.
+**Ergebnis:** Root Cause gefunden: PostgreSQL/PDO liefert Zeitstempel im eigenen Format
+zurück (kein striktes ISO-8601), was Swifts `JSONDecoder` bei jedem Datumsfeld zum Absturz
+brachte -- neue `appDate()`-Helferfunktion konvertiert jetzt alle `/api/v1/*`-Zeitstempel
+korrekt. Zwei neue Endpunkte ergänzt: `GET /api/v1/current-power` (Live-Poll ohne vollen
+Reload) und `GET /api/v1/roles` + `POST /api/v1/switch-role` (Rollenwechsel ohne
+Neuanmeldung -- beantwortet die "wo wechselt man die Rolle"-Frage). `app.md` um Abschnitt 9
+("Runde 2") erweitert: Bugfix-Erklärung, vollständige Mitglied-Anlegen-Feldliste, Klarstellung
+dass Platform-Admin bewusst keine Zusatzrechte in der App hat, Konzept für eine animierte
+Energiefluss-Grafik (Netz/Einspeiser/Bezieher/EEG) rein auf Basis bereits vorhandener Daten.
+PR #97 gemergt, alle 95 Tests grün. Fertige Runde-2-Prompt-Zusammenfassung im Chat an Patrick
+übergeben, zum Einfügen in Xcode.
+
+---
+
 ## 2026-08-18 (58) — Claude Code — Claude Sonnet 5
 **Prompt:** "[4 Screenshots: Mitglied-Detailseiten von Daniel/Stefanie zeigen 'Online'/
 'Erreichbar', Mitgliederliste zeigt für Stefanie 'Fehler'] alles nach einem reload. In der
