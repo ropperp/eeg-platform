@@ -8,6 +8,35 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (62) — Claude Code — Claude Sonnet 5
+**Prompt:** "ja leg mit den Push-Benachrichtigungen los. Zur App, Die Dateien haben keine
+Endung. Ich kann sie nicht öffnen, wenn ich sie über die App heruntergeladen hab. Bitte ein
+.pdf anhängen. Zur Live-Anzeige, die Striche an den Verbindungen bewegen sich hin und wieder,
+oder erst ab einer bestimmten Leistung. Bitte immer Bewegen, sobald über 0 /beim Netz unter 0
+ist. Wo kann man in der App jetzt zum Admin wechseln? Bitte in die Anweisung dann auch gleich
+die Benachrichtigungen hinzufügen."
+**Auftrag:** Push-Benachrichtigungen für die App bauen (Postfach an Obmann/Admin, neue
+Rechnung an Mitglied, Einspeisung-Schwelle mit Hysterese an Mitglied); Bugfix fehlende
+Dateiendung bei App-Downloads; Korrektur der Energiefluss-Animation (immer bewegen sobald
+Wert > 0, bei Netz < 0) sowie Klärung, wo in der App zur Admin-Rolle gewechselt wird -- beides
+als Xcode-Anweisung dokumentieren.
+**Ergebnis:** `database/migrate_20260903.sql` (APNs-Konfig, Push-Token, Mitglied-Einstellungen,
+Warteschlange, 3 DB-Trigger, live gegen PostgreSQL getestet inkl. vollständiger
+Hysterese-Sequenz), `webapp/src/Push.php` (ES256-JWT via `openssl_sign()`, APNs über
+HTTP/2-cURL, Queue-Drain), `scripts/send_pending_push.php` + Cron-Doku, neue Endpunkte
+`/api/v1/push/{register,unregister}`, `/api/v1/notifications/settings`,
+`/api/v1/admin/settings/apns[/test]`. Dabei nebenbei entdeckt und behoben: `invoices.sent_at`
+wurde bisher NIRGENDS gesetzt (auch das "letzte Rechnung"-Dashboard-Widget war dadurch immer
+leer) -- `Billing::finalize()` setzt es jetzt beim Freigeben eines Abrechnungslaufs.
+`filenameWithExtension()` (nach `functions.php` verschoben, jetzt testbar) behebt die fehlende
+Dateiendung bei Downloads. `webapp/Dockerfile` bekommt das PHP-`curl`-Modul (für APNs' HTTP/2
+nötig, PHPs Stream-Wrapper kann das nicht). 7 neue Tests (103 statt 96), `php -l` sauber.
+`docs/APP_API.md`, `app/ios-app/app.md` (§10.3 fertiggestellt + neue Runde 4 mit
+Energiefluss-/Downloads-/Rollen-Klärung), `APP_PARITY_BACKLOG.md`, `CLAUDE.md` +
+`obsidian/Infrastruktur.md` aktualisiert.
+
+---
+
 ## 2026-08-19 (61) — Claude Code — Claude Sonnet 5
 **Prompt:** "Bitte mach das mit dem Plattform-Admin, oder ab jetzt bitte nur Admin. Alle
 Einstellungen auch in die App übertragen. Bei Fehlern, sag XCode bitte auch, wo er in dem
