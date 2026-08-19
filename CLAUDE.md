@@ -664,6 +664,32 @@ docker compose up -d --build
 > einer **Neuinstallation** ruft `scripts/setup.sh` `redis_secure_setup.sh` und
 > `db_runtime_role_setup.sh` automatisch mit auf (gleiches Muster wie `mqtt_secure_setup.sh`).
 
+> **Einmalig nach dem Update vom 03.09.2026** (Push-Benachrichtigungen für die iOS-App --
+> Obmann/Admin bei neuem Postfach-Element, Mitglied bei neuer Rechnung, Mitglied bei
+> Einspeisung über selbst gesetzter Schwelle mit Hysterese, Patrick 19.08.2026: "ja leg mit den
+> Push-Benachrichtigungen los"): Datenbank-Trigger füllen `push_notifications_queue`
+> (`database/migrate_20260903.sql`), `Push.php` leert sie über Apples APNs (HTTP/2 + ES256-JWT,
+> siehe Klassendoc). Braucht zusätzlich das PHP-`curl`-Modul (jetzt im `webapp`-Image, da
+> PHPs eingebauter `http://`-Wrapper kein HTTP/2 kann) -- kommt automatisch mit dem nächsten
+> `docker compose up -d --build`, kein Extra-Schritt.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260903.sql
+> docker compose up -d --build
+> ( crontab -l 2>/dev/null; echo "* * * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/send_pending_push.php >> /var/log/eeg-push.log 2>&1" ) | crontab -
+> ```
+> **Ohne Apples echte Zugangsdaten bleibt die Warteschlange liegen, sonst passiert nichts
+> Schlimmes** -- `Push::sendPending()` prüft `platform_apns_config` zuerst und rührt die Queue
+> gar nicht an, wenn dort noch nichts hinterlegt ist (kein Fehlerspam, einfach nichts zu tun).
+> Patrick muss dafür einmalig in seinem Apple-Developer-Account einen APNs-Auth-Key (.p8)
+> erzeugen (Team-ID, Key-ID, Bundle-ID der iOS-App, Inhalt der .p8-Datei) und über
+> Platform-Admin → Einstellungen → "Push-Benachrichtigungen" (bzw. direkt
+> `POST /api/v1/admin/settings/apns`) hinterlegen -- sobald das steht, greift der nächste
+> Cron-Lauf automatisch, kein Neustart nötig. Test ohne auf eine echte Auslösung zu warten:
+> `POST /api/v1/admin/settings/apns/test` (erfordert vorher ein über
+> `POST /api/v1/push/register` registriertes eigenes Gerät).
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

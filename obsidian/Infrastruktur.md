@@ -255,6 +255,22 @@ docker compose up -d --build
 > falscher Reihenfolge läuft. Bei einer Neuinstallation ruft `scripts/setup.sh`
 > `redis_secure_setup.sh` und `db_runtime_role_setup.sh` automatisch mit auf.
 
+> **Einmalig nach dem Update vom 03.09.2026** (Push-Benachrichtigungen für die iOS-App --
+> Postfach an Obmann/Admin, neue Rechnung an Mitglied, Einspeisung-Schwelle mit Hysterese an
+> Mitglied): DB-Trigger füllen `push_notifications_queue`, `Push.php` liefert per APNs aus
+> (ES256-JWT + HTTP/2-cURL, deshalb PHP-`curl`-Modul jetzt im `webapp`-Image). Setup:
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260903.sql
+> docker compose up -d --build
+> ( crontab -l 2>/dev/null; echo "* * * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/send_pending_push.php >> /var/log/eeg-push.log 2>&1" ) | crontab -
+> ```
+> Ohne Apples echte APNs-Zugangsdaten bleibt die Warteschlange einfach liegen (kein
+> Fehlerspam). Patrick muss einmalig in seinem Apple-Developer-Account einen Auth-Key (.p8)
+> erzeugen und Team-ID/Key-ID/Bundle-ID/.p8-Inhalt über Platform-Admin → Einstellungen
+> hinterlegen -- danach greift der nächste Cron-Lauf automatisch.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

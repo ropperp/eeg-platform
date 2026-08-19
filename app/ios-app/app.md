@@ -676,26 +676,77 @@ passt nicht". Für Backend-Fehler entsprechend mit Datei+Funktionsname aus diese
 "`webapp/public/index.php`, Route `POST /api/v1/manager/members`, Zeile ca. 3400"). Erspart
 beim Debuggen ein Durchsuchen der ganzen Codebasis nach der relevanten Stelle.
 
-### 10.3 Noch nicht umgesetzt: Push-Benachrichtigungen (eigene, größere Runde)
+### 10.3 Push-Benachrichtigungen -- jetzt fertig, bitte bauen
 
-Patrick möchte native Push-Benachrichtigungen:
-- **Obmann/Admin:** Benachrichtigung, wenn im Postfach etwas Neues ankommt (unbekannter Zähler,
-  SSID-Wechsel, Support-Ticket, ...).
-- **Mitglied:** Benachrichtigung bei neuer verfügbarer Rechnung.
-- **Mitglied, individuell einstellbar:** Benachrichtigung, wenn die eigene Einspeisung eine
-  selbst festgelegte Schwelle übersteigt ("jetzt verbrauchen, es wird gerade zu viel
-  eingespeist") -- jedes Mitglied stellt seine eigene Schwelle in den Einstellungen ein. MIT
-  Hysterese/Cooldown -- NICHT alle paar Minuten erneut benachrichtigen, solange die Schwelle
-  weiter überschritten bleibt, sondern erst wieder, nachdem der Wert zwischenzeitlich unter die
-  Schwelle gefallen UND danach erneut überschritten wurde (klassische Hysterese, verhindert
-  Benachrichtigungs-Spam bei einem Wert, der genau um die Schwelle herum schwankt).
+Server-seitig seit 03.09.2026 vollständig umgesetzt (siehe `docs/APP_API.md`, Abschnitt
+"Push-Benachrichtigungen"). Drei automatische Auslöser -- Obmann/Admin bei neuem
+Postfach-Element, Mitglied bei neuer verfügbarer Rechnung, Mitglied bei Einspeisung über der
+selbst gesetzten Schwelle (mit Hysterese, keine Spam-Benachrichtigungen). **Bitte jetzt in der
+App umsetzen:**
 
-Das ist ein eigenes, größeres Backend-Thema (APNs-Anbindung, Gerät-Push-Token-Verwaltung,
-Server-seitige Trigger-Logik, neue Datenbanktabellen für Schwellenwerte + Hysterese-Zustand je
-Mitglied) -- bewusst noch NICHT umgesetzt, um es nicht neben dem Admin-Bereich hier oberflächlich
-mit abzuhandeln. Detaillierte Anforderungen sind in `APP_PARITY_BACKLOG.md` festgehalten, wird
-als eigene Runde nachgezogen. Bitte in der App noch KEINE Push-Registrierung/-Anzeige bauen, bis
-die zugehörigen `/api/v1/*`-Endpunkte existieren und hier dokumentiert sind.
+1. **Push-Berechtigung anfragen** (Standard-iOS-Dialog,
+   `UNUserNotificationCenter.requestAuthorization`), sinnvollerweise NICHT sofort beim ersten
+   App-Start, sondern z. B. nach dem ersten erfolgreichen Login oder über einen Hinweis in den
+   Konto-Einstellungen ("Benachrichtigungen aktivieren").
+2. Nach Erhalt des Device-Tokens (`application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`)
+   `POST /api/v1/push/register` mit `{"device_token": "<hex>", "device_label": "<Gerätename>"}`
+   aufrufen -- bei jedem App-Start erneut (Token kann sich ändern), nicht nur einmalig.
+3. Beim Logout `POST /api/v1/push/unregister` mit demselben `device_token` aufrufen, BEVOR die
+   Token im Keychain gelöscht werden.
+4. **Mitglied-Einstellungen:** im Konto-/Einstellungen-Bereich (nur für `role: "member"`) einen
+   Abschnitt "Benachrichtigungen" mit: Schalter "Neue Rechnung" (`notify_new_invoice`) und
+   Eingabefeld "Einspeisung-Schwelle (W)" (`einspeisung_threshold_w`, leer/0 = deaktiviert) --
+   `GET /api/v1/notifications/settings` zum Laden, `POST /api/v1/notifications/settings` zum
+   Speichern (siehe `docs/APP_API.md` für Felder/Beispiele).
+5. Eingehende Push-Payloads enthalten `aps.alert.title`/`aps.alert.body` (Standard-iOS-Anzeige)
+   plus ein `data`-Feld mit `type` (`"postfach"` / `"invoice"` / `"einspeisung_threshold"` /
+   `"test"`) und einer passenden ID (`notification_id`/`invoice_id`/`metering_point_id`) -- beim
+   Antippen einer Benachrichtigung sinnvollerweise direkt zum jeweiligen Bildschirm springen
+   (Postfach-Eintrag, Rechnungsdetail, Dashboard), sofern das ohne großen Aufwand machbar ist.
+
+**Für Admin/Obmann reicht Schritt 1-3** (kein eigener Einstellungs-Abschnitt nötig, ihr
+Postfach-Push ist serverseitig immer an). Falls beim Testen keine Push ankommt: liegt am
+ehesten daran, dass Patrick die echten Apple-Developer-Zugangsdaten (Team-ID/Key-ID/Bundle-ID/
+Auth-Key) auf dem Server noch nicht hinterlegt hat -- das ist ein reiner Server-Konfigurationsschritt
+außerhalb der App, kein Bug in der App selbst.
+
+---
+
+## 11. Runde 4: Push-Benachrichtigungen, Datei-Downloads, Energiefluss-Korrektur (03.09.2026)
+
+### 11.1 Datei-Downloads: fehlende Dateiendung -- bereits serverseitig behoben
+
+Rückmeldung: über die App heruntergeladene Dateien hatten keine Endung und ließen sich auf dem
+iPhone nicht öffnen. Ursache war serverseitig (`member_files.name` ist nur eine frei getippte
+Anzeige-Bezeichnung ohne Endung) und ist bereits behoben -- sowohl der Dateiname in
+`GET /api/v1/documents` als auch der `Content-Disposition`-Header beim eigentlichen Download
+tragen jetzt IMMER die echte Endung (siehe `docs/APP_API.md`). **Kein App-seitiger Änderungsbedarf**,
+bitte nur nach dem nächsten Server-Deploy erneut testen, ob heruntergeladene Dateien (z. B. eine
+Beitrittserklärung) sich jetzt normal öffnen lassen.
+
+### 11.2 Energiefluss-Grafik: Animation korrigieren
+
+Rückmeldung zur in 9.5 vorgeschlagenen Energiefluss-Grafik: die Linien-Animation an den
+Verbindungen bewegt sich aktuell nur "hin und wieder" bzw. erst ab einer bestimmten Leistung.
+**Gewünschtes Verhalten:** JEDE Verbindung, deren zugehöriger Wert über 0 liegt, soll
+DURCHGEHEND animiert sein (nicht nur bei hoher Leistung, keine Mindestschwelle) -- bei der
+Netz-Verbindung gilt das Kriterium spiegelverkehrt (Fluss sichtbar/animiert sobald der Wert
+UNTER 0 liegt, je nach gewählter Vorzeichenkonvention für Netzbezug vs. -einspeisung, siehe die
+Berechnung `netz_bezug_w`/`netz_einspeisung_w` in 9.5 -- eine der beiden ist immer 0, die jeweils
+andere >0 sobald überhaupt Netzaustausch stattfindet). Praktisch: die Animation läuft immer,
+sobald der Fluss-Wert einer Verbindung `> 0` ist (bzw. bei der jeweils aktiven Netz-Richtung),
+komplett unabhängig von der absoluten Höhe der Leistung -- nur wenn ein Wert exakt 0 ist, steht
+die zugehörige Linie still bzw. wird ausgeblendet.
+
+### 11.3 Frage: Wo wechselt man in der App zum Admin-Bereich?
+
+Der Rollen-/EEG-Wechsel wurde bereits in 9.3 spezifiziert (`GET /api/v1/roles` +
+`POST /api/v1/switch-role`, Umschalter im Konto-Bereich) und gilt unverändert auch für
+`role: "admin"` -- ein Account mit Admin-Rechten bekommt dort einen zusätzlichen Eintrag in der
+Rollenliste. Falls das im aktuellen Build fehlt oder nicht auffindbar ist: bitte 9.3 nochmal
+gegen den aktuellen Stand prüfen und den Umschalter (falls noch nicht vorhanden oder nicht klar
+erreichbar) gut sichtbar im Konto-Bereich ergänzen -- das ist aktuell der einzige vorgesehene
+Weg, um zwischen Mitglied-/Obmann-/Admin-Ansicht zu wechseln.
 
 ---
 

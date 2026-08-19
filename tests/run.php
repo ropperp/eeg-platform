@@ -50,6 +50,9 @@ require __DIR__ . '/../webapp/src/Billing.php';
 // Nur die DB-freien Methoden (Token-Signieren/-Prüfen) werden hier getestet -- DB wird erst zur
 // Laufzeit innerhalb der DB-gestützten Methoden aufgelöst, ein require reicht ohne DB-Verbindung.
 require __DIR__ . '/../webapp/src/AppApiAuth.php';
+// Nur die DB-freien Methoden (JWT-Bau/Signatur-Konvertierung) werden hier getestet -- sendOne()/
+// sendPending() brauchen echte Netzwerk-/DB-Zugriffe und werden hier bewusst nicht getestet.
+require __DIR__ . '/../webapp/src/Push.php';
 
 foreach (glob(__DIR__ . '/*_test.php') as $file) {
     echo "\n" . basename($file) . "\n";

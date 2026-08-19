@@ -7,9 +7,9 @@ FROM php:8.2-fpm-alpine
 # Parser-Fehler beim EDA-Import ("zoneinfo/_common.py, load_tzdata"). apk-Paket statt separatem
 # pip-Paket "tzdata", weil es zusätzlich PHP-Datumsfunktionen (date_default_timezone_set u.ä.)
 # zugutekommt, die dieselbe Systemdatenbank verwenden.
-RUN apk add --no-cache nginx libpq-dev python3 py3-pip tzdata \
+RUN apk add --no-cache nginx libpq-dev curl-dev python3 py3-pip tzdata \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
-    && docker-php-ext-install pdo pdo_pgsql \
+    && docker-php-ext-install pdo pdo_pgsql curl \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps \

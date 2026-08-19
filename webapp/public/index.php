@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'RateLimiter', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter'] as $class) {
+foreach (['DB', 'Auth', 'RateLimiter', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -2072,7 +2072,7 @@ $router->get('/portal/my/documents/:fileid/download', function ($params) {
     if (!$file || !is_file($file['pfad'])) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
 
     header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
-    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Disposition: attachment; filename="' . addslashes(filenameWithExtension($file['name'], $file['pfad'])) . '"');
     header('Content-Length: ' . filesize($file['pfad']));
     readfile($file['pfad']);
     exit;
@@ -3019,10 +3019,10 @@ $router->get('/api/v1/documents', function () {
     if (!requireAppMemberId($ctx)) return;
     DB::setCommunity($ctx['community_id']);
 
-    $files = DB::fetchAll('SELECT id, name, mime, created_at FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$ctx['member_id']]);
+    $files = DB::fetchAll('SELECT id, name, pfad, mime, created_at FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$ctx['member_id']]);
     echo json_encode(['documents' => array_map(fn($f) => [
         'id'         => $f['id'],
-        'name'       => $f['name'],
+        'name'       => filenameWithExtension($f['name'], $f['pfad']),
         'mime'       => $f['mime'],
         'created_at' => appDate($f['created_at']),
     ], $files)]);
@@ -3046,7 +3046,7 @@ $router->get('/api/v1/documents/:fileid/download', function ($params) {
         return;
     }
     header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
-    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Disposition: attachment; filename="' . addslashes(filenameWithExtension($file['name'], $file['pfad'])) . '"');
     header('Content-Length: ' . filesize($file['pfad']));
     readfile($file['pfad']);
 });
@@ -3347,6 +3347,114 @@ $router->post('/api/v1/2fa/disable', function () {
     echo json_encode(['status' => 'ok']);
 });
 
+// ─── Push-Benachrichtigungen (APNs, siehe Push.php + database/migrate_20260903.sql) ──────────
+// Token-Registrierung ist rollenunabhängig (jeder angemeldete App-Zugang -- Mitglied, Obmann,
+// Admin -- kann ein Gerät für Push registrieren), die Einstellungen (Rechnungs-Push an/aus,
+// Einspeisung-Schwelle) gelten nur für Mitglieder (member_id nur bei role='member' gesetzt).
+
+/** Registriert/aktualisiert ein Gerät für Push. Ein Gerät (device_token) kann jeweils nur EINEM
+ *  Account zugeordnet sein -- meldet sich ein anderer Account auf demselben Gerät an (Geräte-
+ *  wechsel/-weitergabe), übernimmt dieser Account den Token (UPSERT über die UNIQUE-Spalte). */
+$router->post('/api/v1/push/register', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $deviceToken = trim((string)($body['device_token'] ?? ''));
+    if ($deviceToken === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte device_token angeben.']);
+        return;
+    }
+    $deviceLabel = trim((string)($body['device_label'] ?? '')) ?: null;
+
+    DB::execute(
+        'INSERT INTO app_push_tokens (user_id, role, device_token, device_label)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (device_token) DO UPDATE
+         SET user_id = EXCLUDED.user_id, role = EXCLUDED.role, device_label = EXCLUDED.device_label,
+             last_seen_at = now(), revoked_at = NULL',
+        [$ctx['user_id'], $ctx['role'], $deviceToken, $deviceLabel]
+    );
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Meldet ein Gerät wieder ab (z.B. Logout/Deinstallation) -- nur der eigene Account darf sein
+ *  eigenes Gerät abmelden, kein globaler Zugriff über die device_token allein. */
+$router->post('/api/v1/push/unregister', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $deviceToken = trim((string)($body['device_token'] ?? ''));
+    if ($deviceToken === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bitte device_token angeben.']);
+        return;
+    }
+    DB::execute(
+        'UPDATE app_push_tokens SET revoked_at = now() WHERE device_token = ? AND user_id = ?',
+        [$deviceToken, $ctx['user_id']]
+    );
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Eigene Benachrichtigungs-Einstellungen (nur Mitglied-Rolle -- Obmann/Admin haben aktuell
+ *  keine eigenen Einstellungen, ihr Postfach-Push ist immer an). */
+$router->get('/api/v1/notifications/settings', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!$ctx['member_id']) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Mitglied nicht gefunden.']);
+        return;
+    }
+    DB::setCommunity($ctx['community_id']);
+    $s = DB::fetchOne('SELECT * FROM member_notification_settings WHERE member_id = ?', [$ctx['member_id']]);
+    echo json_encode([
+        'notify_new_invoice'      => $s ? (bool)$s['notify_new_invoice'] : true,
+        'einspeisung_threshold_w' => $s['einspeisung_threshold_w'] ?? null,
+    ]);
+});
+
+/** Setzt die eigenen Benachrichtigungs-Einstellungen. einspeisung_threshold_w = null/0 im
+ *  Request deaktiviert die Einspeisung-Push (siehe Trigger-Bedingung "IF v_threshold IS NULL"
+ *  in migrate_20260903.sql) -- ein neu gesetzter Schwellenwert startet bewusst mit
+ *  einspeisung_above_threshold = false (Hysterese-Ausgangszustand), damit ein Wert, der schon
+ *  jetzt über der neuen Schwelle liegt, beim nächsten Messwert normal auslöst statt als
+ *  "schon oberhalb, keine erneute Benachrichtigung" übersprungen zu werden. */
+$router->post('/api/v1/notifications/settings', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!$ctx['member_id']) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Mitglied nicht gefunden.']);
+        return;
+    }
+    DB::setCommunity($ctx['community_id']);
+
+    $body = jsonBody();
+    $notifyInvoice = array_key_exists('notify_new_invoice', $body) ? (bool)$body['notify_new_invoice'] : true;
+    $thresholdRaw = $body['einspeisung_threshold_w'] ?? null;
+    $threshold = ($thresholdRaw !== null && (int)$thresholdRaw > 0) ? (int)$thresholdRaw : null;
+
+    DB::execute(
+        'INSERT INTO member_notification_settings (member_id, notify_new_invoice, einspeisung_threshold_w, einspeisung_above_threshold)
+         VALUES (?, ?, ?, false)
+         ON CONFLICT (member_id) DO UPDATE
+         SET notify_new_invoice = EXCLUDED.notify_new_invoice,
+             einspeisung_threshold_w = EXCLUDED.einspeisung_threshold_w,
+             einspeisung_above_threshold = false,
+             updated_at = now()',
+        [$ctx['member_id'], $notifyInvoice, $threshold]
+    );
+    echo json_encode(['status' => 'ok']);
+});
+
 // ─── Mitglieder-App: Obmann-Endpunkte (Mitgliederverwaltung von unterwegs) ───────────────────
 // Nur mit role='manager'-Token (AppApiAuth::requireManagerAuth()). Anders als
 // requireMemberAccess() im Web-Portal ist hier KEIN Platform-Admin-"jede Community
@@ -3413,7 +3521,7 @@ $router->get('/api/v1/manager/members/:id', function ($params) {
     if (!$member) return;
 
     $meteringPoints = DB::fetchAll('SELECT id, zaehlpunkt_nr, type, active, registered_at FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at DESC', [$member['id']]);
-    $files = DB::fetchAll('SELECT id, name, mime, created_at FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$member['id']]);
+    $files = DB::fetchAll('SELECT id, name, pfad, mime, created_at FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$member['id']]);
 
     echo json_encode([
         'member' => [
@@ -3446,7 +3554,7 @@ $router->get('/api/v1/manager/members/:id', function ($params) {
         ], $meteringPoints),
         'files' => array_map(fn($f) => [
             'id'         => $f['id'],
-            'name'       => $f['name'],
+            'name'       => filenameWithExtension($f['name'], $f['pfad']),
             'mime'       => $f['mime'],
             'created_at' => appDate($f['created_at']),
         ], $files),
@@ -3726,7 +3834,7 @@ $router->get('/api/v1/manager/members/:id/files/:fileid/download', function ($pa
         return;
     }
     header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
-    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Disposition: attachment; filename="' . addslashes(filenameWithExtension($file['name'], $file['pfad'])) . '"');
     header('Content-Length: ' . filesize($file['pfad']));
     readfile($file['pfad']);
 });
@@ -4070,6 +4178,7 @@ $router->get('/api/v1/admin/settings', function () {
     $templates = DB::fetchAll('SELECT key, subject, body_html, updated_at FROM platform_mail_templates ORDER BY key');
     try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1'); } catch (\Throwable $e) { $platformSettings = null; }
     try { $mqtt = DB::fetchOne('SELECT * FROM platform_mqtt_config WHERE id = 1'); } catch (\Throwable $e) { $mqtt = null; }
+    try { $apns = DB::fetchOne('SELECT * FROM platform_apns_config WHERE id = 1'); } catch (\Throwable $e) { $apns = null; }
 
     echo json_encode([
         'mail' => $mail ? [
@@ -4100,6 +4209,14 @@ $router->get('/api/v1/admin/settings', function () {
             'mqtt_password_set'  => !empty($mqtt['mqtt_password']),
             'pending_apply'      => !empty($mqtt['pending_apply']),
             'applied_at'         => appDate($mqtt['applied_at'] ?? null),
+        ] : null,
+        'apns' => $apns ? [
+            'team_id'         => $apns['team_id'],
+            'key_id'          => $apns['key_id'],
+            'bundle_id'       => $apns['bundle_id'],
+            'private_key_set' => !empty($apns['private_key_enc']),
+            'sandbox'         => (bool)$apns['sandbox'],
+            'configured'      => Push::isConfigured(),
         ] : null,
     ]);
 });
@@ -4235,6 +4352,71 @@ $router->post('/api/v1/admin/settings/mqtt-device-reconfig', function () {
     logAudit(null, 'mqtt_config.device_reconfig', 'platform_mqtt_config', '1',
         "MQTT-Fernkonfiguration über die App an alle Geräte angestoßen (Host: $host:$port, Benutzer: $user).");
     echo json_encode(['status' => 'ok']);
+});
+
+/**
+ * Setzt die APNs-Zugangsdaten für Push-Benachrichtigungen (Team-ID/Key-ID/Bundle-ID/.p8-Auth-Key
+ * aus Patricks Apple-Developer-Account -- ohne diese echten Zugangsdaten bleibt
+ * push_notifications_queue liegen, siehe Push::sendPending()). Kein Web-Portal-Äquivalent
+ * (bewusst nur über die App/API eingerichtet, kein Formular in admin_mail_settings.php).
+ * private_key erwartet den kompletten .p8-Dateiinhalt (PEM, inkl. BEGIN/END-Zeilen) und wird wie
+ * andere Secrets in diesem Projekt (WLAN-Passwörter, EDA-Zugangsdaten) mit encryptSecret()
+ * verschlüsselt abgelegt, nie im Klartext.
+ */
+$router->post('/api/v1/admin/settings/apns', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $current = DB::fetchOne('SELECT * FROM platform_apns_config WHERE id = 1');
+    $newKey = trim((string)($body['private_key'] ?? ''));
+    $privateKeyEnc = $newKey !== '' ? encryptSecret($newKey) : ($current['private_key_enc'] ?? null);
+    $keep = function (string $key) use ($body, $current) {
+        return array_key_exists($key, $body) ? (trim((string)$body[$key]) ?: null) : ($current[$key] ?? null);
+    };
+
+    DB::execute(
+        'UPDATE platform_apns_config SET team_id = ?, key_id = ?, bundle_id = ?, private_key_enc = ?, sandbox = ?, updated_at = now() WHERE id = 1',
+        [$keep('team_id'), $keep('key_id'), $keep('bundle_id'), $privateKeyEnc, !empty($body['sandbox'])]
+    );
+    logAudit(null, 'apns_config.update', 'platform_apns_config', '1', 'APNs-Konfiguration (Push-Benachrichtigungen) über die App geändert.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Schickt eine Test-Push an alle eigenen (des aufrufenden Admin-Accounts) registrierten Geräte
+ *  -- JSON-Äquivalent von POST /admin/mail-settings/test, nur für Push statt Mail. Erfordert,
+ *  dass der Admin zuvor in der App selbst (Einstellungen -> Push aktivieren) sein Gerät über
+ *  POST /api/v1/push/register registriert hat, sonst "Kein registriertes Gerät." */
+$router->post('/api/v1/admin/settings/apns/test', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    if (!Push::isConfigured()) {
+        http_response_code(400);
+        echo json_encode(['error' => 'APNs ist noch nicht konfiguriert (Team-ID/Key-ID/Bundle-ID/Auth-Key fehlen).']);
+        return;
+    }
+    DB::execute(
+        'INSERT INTO push_notifications_queue (user_id, role, title, body, data)
+         VALUES (?, ?, ?, ?, ?)',
+        [$ctx['user_id'], 'admin', 'Test-Benachrichtigung', 'Push-Benachrichtigungen funktionieren.', json_encode(['type' => 'test'])]
+    );
+    try {
+        $result = Push::sendPending();
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Versand fehlgeschlagen: ' . $e->getMessage()]);
+        return;
+    }
+    if (($result['sent'] ?? 0) > 0) {
+        logAudit(null, 'apns_config.test', null, null, 'Test-Push über die App versendet.');
+        echo json_encode(['status' => 'ok']);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Versand fehlgeschlagen oder kein registriertes Gerät. Details im Aktivitätslog/Server-Log.']);
+    }
 });
 
 /** Testmodus/Echtbetrieb umschalten -- JSON-Äquivalent von POST /admin/settings/test-mode. */
@@ -4936,7 +5118,7 @@ $router->get('/portal/members/:id/files/:fileid/download', function ($params) {
     if (!$file || !is_file($file['pfad'])) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
 
     header('Content-Type: ' . ($file['mime'] ?: 'application/octet-stream'));
-    header('Content-Disposition: attachment; filename="' . addslashes($file['name']) . '"');
+    header('Content-Disposition: attachment; filename="' . addslashes(filenameWithExtension($file['name'], $file['pfad'])) . '"');
     header('Content-Length: ' . filesize($file['pfad']));
     readfile($file['pfad']);
     exit;
