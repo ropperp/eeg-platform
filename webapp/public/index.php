@@ -2218,6 +2218,28 @@ $router->post('/portal/my/support/:id/reply', function ($params) {
     exit;
 });
 
+/**
+ * Wandelt einen von PostgreSQL/PDO gelieferten Datums-/Zeitstempel-String in striktes
+ * ISO-8601 ("2026-08-18T17:03:00+00:00") um -- PDO gibt TIMESTAMPTZ-Spalten im
+ * Postgres-eigenen Format zurück (Leerzeichen statt "T", Offset ohne Doppelpunkt, z.B.
+ * "2026-08-18 17:03:00+00"), reine DATE-Spalten ganz ohne Uhrzeit (z.B. "2026-08-18"). Beides
+ * ist kein gültiges ISO-8601 nach strengem Verständnis und lässt Swifts
+ * `JSONDecoder`/`ISO8601DateFormatter` (Standardeinstellung, von der Xcode-App verwendet)
+ * fehlschlagen -- genau das führte zu "Unerwartete Antwort vom Server" beim Mitglied-Detail
+ * (viele Datumsfelder gleichzeitig: member_since, member_until, geburtsdatum, mehrere
+ * registered_at/created_at) und potenziell an jeder anderen Stelle mit Datumsfeldern (Patrick,
+ * 19.08.2026). ALLE Datums-/Zeitstempelfelder in /api/v1/*-JSON-Antworten laufen deshalb durch
+ * diese Funktion, NICHT nur roh durchgereicht wie im Web-Portal (dort macht PHPs eigenes
+ * date()/strtotime() auf denselben Rohstring ohnehin unabhängig vom Format weiter Sinn).
+ */
+function appDate(?string $value): ?string
+{
+    if ($value === null || $value === '') return null;
+    $ts = strtotime($value);
+    if ($ts === false) return null;
+    return date(DATE_ATOM, $ts);
+}
+
 // ─── Mitglieder-App: Login-Flow (seit 30.08.2026, siehe docs/APP_API.md) ─────
 // Getrennt von der Smart-Home-API unten (member_api_keys, langlebig/selbst erzeugt): hier
 // meldet sich ein MENSCH mit E-Mail/Passwort in der App an, bekommt ein kurzlebiges
@@ -2371,6 +2393,58 @@ $router->post('/api/v1/login/select-community', function () {
     if (!$chosen) {
         http_response_code(400);
         echo json_encode(['error' => 'Ungültige Community-Auswahl.']);
+        return;
+    }
+    echo json_encode(appIssueSessionResponse($chosen, $deviceLabel));
+});
+
+/**
+ * Listet alle Rollen-Optionen des eingeloggten Accounts (Mitgliedschaft(en) + Obmann-Zugänge)
+ * -- Grundlage für einen Rollen-/Community-Umschalter INNERHALB der App, ohne Neuanmeldung
+ * (Patrick, 19.08.2026: "als Obmann hab ich nur Mitglieder und Konto, wo wechselt man die
+ * Rolle?"). Markiert zusätzlich, welche Option gerade aktiv ist (aus dem Access-Token im
+ * Request), damit der Client sie in der Auswahl hervorheben kann.
+ */
+$router->get('/api/v1/roles', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $options = resolveAppRoleOptions($ctx['user_id']);
+    echo json_encode(['roles' => array_map(fn($m) => [
+        'role'           => $m['role'],
+        'community_id'   => $m['community_id'],
+        'community_name' => $m['community_name'],
+        'name'           => $m['name'],
+        'active'         => $m['role'] === $ctx['role'] && $m['community_id'] === $ctx['community_id'],
+    ], $options)]);
+});
+
+/**
+ * Wechselt die aktive Rolle/Community, OHNE dass sich der Nutzer neu anmelden muss (Web-Pendant:
+ * POST /portal/switch-role, dort session-basiert) -- braucht dafür ein aktuell gültiges
+ * Zugriffstoken statt eines separaten Auswahl-Tickets wie beim Login (dort ist die Identität ja
+ * noch nicht bestätigt, hier schon). Liefert wie beim Login ein frisches Zugriffs-/
+ * Refresh-Token-Paar für die NEUE Rolle zurück -- das alte Refresh-Token bleibt bis zu seinem
+ * Ablauf gültig (kein Widerruf nötig, ein Rollenwechsel ist kein Sicherheitsvorfall, nur ein
+ * zweites paralleles Gerätesitzungs-Paar, siehe app_sessions).
+ */
+$router->post('/api/v1/switch-role', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+
+    $body = jsonBody();
+    $communityId = (string)($body['community_id'] ?? '');
+    $role = (string)($body['role'] ?? '');
+    $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
+
+    $chosen = null;
+    foreach (resolveAppRoleOptions($ctx['user_id']) as $m) {
+        if ($m['community_id'] === $communityId && $m['role'] === $role) { $chosen = $m; break; }
+    }
+    if (!$chosen) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültige Rollen-/Community-Auswahl.']);
         return;
     }
     echo json_encode(appIssueSessionResponse($chosen, $deviceLabel));
@@ -2593,8 +2667,46 @@ $router->get('/api/v1/dashboard', function () {
             'id'              => $lastInvoice['id'],
             'rechnungsnummer' => $lastInvoice['rechnungsnummer'],
             'saldo_eur'       => (float)$lastInvoice['saldo_eur'],
-            'created_at'      => $lastInvoice['created_at'],
+            'created_at'      => appDate($lastInvoice['created_at']),
         ] : null,
+    ]);
+});
+
+/**
+ * Leichtgewichtiger Polling-Endpunkt für die aktuelle Leistung -- zum Pollen alle paar Sekunden
+ * (Patrick, 19.08.2026: "aktuelle Leistung automatisch aktualisieren, ohne die ganze Seite neu
+ * zu laden"), OHNE bei jedem Aufruf die komplette /api/v1/dashboard-Antwort inkl. der
+ * schwereren Monatsaggregation gegen eda_measurements neu zu berechnen. Web-Pendant:
+ * /portal/api/current-power + /portal/api/live-power (dort zwei getrennte Endpunkte, hier zu
+ * einem zusammengefasst -- eine App braucht für einen "Live"-Bildschirm ohnehin meist beides
+ * gleichzeitig). Funktioniert für role=member (eigene Nettoleistung + Community) UND
+ * role=manager (nur Community-Werte, current_power_w dann null -- ein reiner Obmann-Account
+ * hat keine eigenen Zählpunkte).
+ */
+$router->get('/api/v1/current-power', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $currentPowerW = null;
+    if ($ctx['member_id']) {
+        $mpIds = array_column(
+            DB::fetchAll('SELECT id FROM metering_points WHERE member_id = ? AND active = true', [$ctx['member_id']]),
+            'id'
+        );
+        $currentPowerW = $mpIds ? memberCurrentNetPowerW($ctx['community_id'], $mpIds) : null;
+    }
+    $community = communityLivePower($ctx['community_id']);
+
+    echo json_encode([
+        'current_power_w' => $currentPowerW,
+        'community' => [
+            'bezug_w'       => $community['bezug_w'],
+            'einspeisung_w' => $community['einsp_w'],
+            'active_meters' => $community['active_meters'],
+            'total_meters'  => $community['total_meters'],
+        ],
     ]);
 });
 
@@ -2656,10 +2768,10 @@ $router->get('/api/v1/invoices', function () {
         'rechnungsnummer' => $i['rechnungsnummer'],
         'saldo_eur'       => (float)$i['saldo_eur'],
         'quartal'         => $i['quartal'],
-        'period_from'     => $i['period_from'],
-        'period_to'       => $i['period_to'],
-        'sent_at'         => $i['sent_at'],
-        'created_at'      => $i['created_at'],
+        'period_from'     => appDate($i['period_from']),
+        'period_to'       => appDate($i['period_to']),
+        'sent_at'         => appDate($i['sent_at']),
+        'created_at'      => appDate($i['created_at']),
     ], $invoices)]);
 });
 
@@ -2681,7 +2793,7 @@ $router->get('/api/v1/metering-points', function () {
         'zaehlpunkt_nr'  => $p['zaehlpunkt_nr'],
         'type'           => $p['type'],
         'active'         => (bool)$p['active'],
-        'registered_at'  => $p['registered_at'],
+        'registered_at'  => appDate($p['registered_at']),
     ], $points)]);
 });
 
@@ -2723,11 +2835,11 @@ $router->get('/api/v1/contracts/status', function () {
         'contracts_enabled' => contractsEnabled($member['community_id']),
         'bezug' => $hasConsumer ? [
             'status'    => $member['contract_bezug_status'] ?? 'none',
-            'signed_at' => $member['contract_bezug_signed_at'] ?? null,
+            'signed_at' => appDate($member['contract_bezug_signed_at'] ?? null),
         ] : null,
         'einspeisung' => $hasProducer ? [
             'status'    => $member['contract_einspeisung_status'] ?? 'none',
-            'signed_at' => $member['contract_einspeisung_signed_at'] ?? null,
+            'signed_at' => appDate($member['contract_einspeisung_signed_at'] ?? null),
         ] : null,
     ]);
 });
@@ -2866,7 +2978,7 @@ $router->get('/api/v1/documents', function () {
         'id'         => $f['id'],
         'name'       => $f['name'],
         'mime'       => $f['mime'],
-        'created_at' => $f['created_at'],
+        'created_at' => appDate($f['created_at']),
     ], $files)]);
 });
 
@@ -2930,8 +3042,8 @@ $router->get('/api/v1/support', function () {
         'subject'    => $t['subject'],
         'category'   => $t['category'],
         'status'     => $t['status'],
-        'created_at' => $t['created_at'],
-        'updated_at' => $t['updated_at'],
+        'created_at' => appDate($t['created_at']),
+        'updated_at' => appDate($t['updated_at']),
     ], $tickets)]);
 });
 
@@ -2981,15 +3093,15 @@ $router->get('/api/v1/support/:id', function ($params) {
             'subject'    => $ticket['subject'],
             'category'   => $ticket['category'],
             'status'     => $ticket['status'],
-            'created_at' => $ticket['created_at'],
-            'updated_at' => $ticket['updated_at'],
+            'created_at' => appDate($ticket['created_at']),
+            'updated_at' => appDate($ticket['updated_at']),
         ],
         'messages' => array_map(fn($m) => [
             'id'           => $m['id'],
             'author_label' => $m['author_label'],
             'is_staff'     => (bool)$m['is_staff'],
             'message'      => $m['message'],
-            'created_at'   => $m['created_at'],
+            'created_at'   => appDate($m['created_at']),
         ], $messages),
     ]);
 });
@@ -3239,8 +3351,8 @@ $router->get('/api/v1/manager/members', function () {
         'email'                 => $m['email'],
         'phone'                 => $m['phone'],
         'city'                  => $m['city'],
-        'member_since'          => $m['member_since'],
-        'member_until'          => $m['member_until'],
+        'member_since'          => appDate($m['member_since']),
+        'member_until'          => appDate($m['member_until']),
         'metering_point_count'  => (int)$m['metering_point_count'],
         'open_amount_eur'       => (float)$m['open_amount'],
     ], $members)]);
@@ -3274,9 +3386,9 @@ $router->get('/api/v1/manager/members/:id', function ($params) {
             'invoice_uid'      => $member['invoice_uid'],
             'member_iban'      => $member['member_iban'],
             'member_bic'       => $member['member_bic'],
-            'member_since'     => $member['member_since'],
-            'member_until'     => $member['member_until'],
-            'geburtsdatum'     => $member['geburtsdatum'],
+            'member_since'     => appDate($member['member_since']),
+            'member_until'     => appDate($member['member_until']),
+            'geburtsdatum'     => appDate($member['geburtsdatum']),
             'stromlieferant'   => $member['stromlieferant'],
         ],
         'metering_points' => array_map(fn($p) => [
@@ -3284,13 +3396,13 @@ $router->get('/api/v1/manager/members/:id', function ($params) {
             'zaehlpunkt_nr' => $p['zaehlpunkt_nr'],
             'type'          => $p['type'],
             'active'        => (bool)$p['active'],
-            'registered_at' => $p['registered_at'],
+            'registered_at' => appDate($p['registered_at']),
         ], $meteringPoints),
         'files' => array_map(fn($f) => [
             'id'         => $f['id'],
             'name'       => $f['name'],
             'mime'       => $f['mime'],
-            'created_at' => $f['created_at'],
+            'created_at' => appDate($f['created_at']),
         ], $files),
     ]);
 });

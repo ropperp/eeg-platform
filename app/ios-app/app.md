@@ -240,6 +240,7 @@ brauchen `Content-Type: application/json`; Datei-Uploads brauchen `multipart/for
 | Methode | Pfad | Zweck |
 |---|---|---|
 | GET | `/api/v1/dashboard` | Startbildschirm: aktuelle Leistung, Community-Live-Werte, Verbrauchsmonat, letzte Rechnung |
+| GET | `/api/v1/current-power` | **Leichtgewichtiger Live-Poll** (auch role: manager) -- alle 5s pollen für automatisch aktualisierte Leistung ohne Reload, siehe Abschnitt 9 |
 | GET | `/api/v1/consumption?months=6` | Monatlicher Verbrauchs-/Erzeugungsverlauf (1–24 Monate) |
 | GET | `/api/v1/invoices` | Rechnungsliste (Metadaten) |
 | GET | `/api/v1/invoices/:id/pdf` | Einzelne Rechnung als PDF |
@@ -267,6 +268,13 @@ brauchen `Content-Type: application/json`; Datei-Uploads brauchen `multipart/for
 | POST | `/api/v1/2fa/enable` | 2FA aktivieren (`setup_ticket` + `code`) |
 | POST | `/api/v1/2fa/disable` | 2FA deaktivieren (kein Body) |
 
+### Rollen-/Community-Wechsel OHNE Neuanmeldung (seit 19.08.2026)
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/api/v1/roles` | Alle Rollen-Optionen des eingeloggten Accounts, mit `active: true` bei der gerade aktiven |
+| POST | `/api/v1/switch-role` | Wechselt zu `community_id`+`role` aus obiger Liste -- liefert komplett neues Token-Paar, siehe Abschnitt 9 |
+
 ### Obmann-Endpunkte (role: manager; mit einem Mitglied-Token 403)
 
 | Methode | Pfad | Zweck |
@@ -279,13 +287,55 @@ brauchen `Content-Type: application/json`; Datei-Uploads brauchen `multipart/for
 | GET | `/api/v1/manager/members/:id/files/:fileid/download` | Mitglied-Datei herunterladen |
 | POST | `/api/v1/manager/members/:id/photo` | Profilbild eines Mitglieds setzen (**multipart**, Feld `photo`) |
 
-**Pflichtfelder beim Anlegen (`POST /api/v1/manager/members`):** `first_name`, `last_name`,
-`email`, `address`, `zip`, `city` PLUS alle sechs rechtlichen Zustimmungen als `true`:
+**WICHTIG -- vollständige Feldliste für "Mitglied anlegen" (`POST /api/v1/manager/members`):**
+Im ersten Durchlauf hat das Formular nur die sechs Pflichtfelder umgesetzt -- das reicht nicht,
+das Backend/der Web-Auftritt kennt deutlich mehr Felder, die alle in der App eingebbar sein
+sollen (auch wenn viele optional bleiben). Vollständige Liste:
+
+| Feld | Pflicht? | Typ/Beispiel | Hinweis |
+|---|---|---|---|
+| `salutation` | optional | `"Herr"` / `"Frau"` / leer | Picker |
+| `titel` | optional | `"Dipl.-Ing."` | Freitext |
+| `first_name` | **Pflicht** | Freitext | |
+| `last_name` | **Pflicht** | Freitext | |
+| `company_name` | optional | Freitext | für Firmenmitglieder |
+| `address` | **Pflicht** | Freitext | Straße + Nr. |
+| `zip` | **Pflicht** | Freitext | PLZ |
+| `city` | **Pflicht** | Freitext | |
+| `email` | **Pflicht** | E-Mail | Login-Adresse des neuen Accounts |
+| `phone` | optional | Freitext | |
+| `invoice_uid` | optional | Freitext | UID-Nummer für die Rechnung (Firmenmitglieder) |
+| `member_iban` | optional | IBAN | wird serverseitig validiert (400 bei ungültiger Prüfsumme) |
+| `member_bic` | optional | BIC | |
+| `kontoinhaber` | optional | Freitext | falls abweichend vom Mitgliedsnamen |
+| `konto_adresse` | optional | Freitext | falls abweichend |
+| `member_since` | optional | Datum, Default heute | Beitrittsdatum |
+| `member_until` | optional | Datum, Default `2099-12-31` | i. d. R. leer lassen |
+| `geburtsdatum` | optional | Datum | |
+| `stromlieferant` | optional | Freitext | bisheriger Lieferant |
+| `speicher_status` | optional | Freitext/Picker | ob ein Batteriespeicher vorhanden ist |
+| `speicher_kwh` | optional | Zahl | Speicherkapazität |
+| `andere_eeg` | optional | Bool | ob das Mitglied noch in einer anderen EEG ist |
+| `andere_eeg_name` | optional | Freitext | nur relevant wenn `andere_eeg` an |
+| `email_anrede_mode` | optional | `"auto"`/`"herr"`/`"frau"`/`"familie"`, Default `auto` | steuert die Anrede in automatischen E-Mails |
+
+**Zusätzlich als EINE gemeinsame Checkbox** ("Ich bestätige, dass die unterschriebene
+Beitrittserklärung vorliegt") alle sechs rechtlichen Zustimmungen auf `true` setzen:
 `zustimmung_mitgliedschaft`, `zustimmung_vollmacht`, `zustimmung_widerrufsfrist`,
-`zustimmung_email_kommunikation`, `zustimmung_datenschutz`, `zustimmung_agb` (in der App z. B.
-eine einzige Checkbox "Ich bestätige, dass die unterschriebene Beitrittserklärung vorliegt", die
-alle sechs setzt). Optional gleich Zählpunkte mitgeben (`add_bezug_zp`/`add_einspeisung_zp` +
-zugehörige Zählpunktnummer-Felder) -- Details in `docs/APP_API.md`.
+`zustimmung_email_kommunikation`, `zustimmung_datenschutz`, `zustimmung_agb`.
+
+**Optional gleich einen oder zwei Zählpunkte mitgeben** (eigene Sektion im Formular, z. B.
+"Zählpunkt jetzt schon anlegen?"):
+- Bezug: `add_bezug_zp` (Bool) + `bezug_zaehlpunkt_nr` (Pflicht wenn an) + optional
+  `bezug_meter_code` (13-stellige Zählernummer) + optional `bezug_jahresverbrauch_kwh`
+- Einspeisung: `add_einspeisung_zp` (Bool) + `einspeisung_zaehlpunkt_nr` (Pflicht wenn an) +
+  optional `einspeisung_meter_code` + optional `einspeisung_engpassleistung_kw` + optional
+  `einspeisung_geplante_einspeisung_kwh`
+
+Gleiche Feldliste gilt sinngemäß für `POST /api/v1/manager/members/:id` (Bearbeiten) --
+ausgenommen `email` (wird beim Bearbeiten nicht geändert) und die Zustimmungs-/Zählpunkt-Felder.
+`GET /api/v1/manager/members/:id` liefert bereits alle aktuell befüllten Werte zum Vorausfüllen
+des Bearbeiten-Formulars zurück.
 
 ### Smart-Home-API (separates System, für die Mitglieder-App NICHT relevant)
 
@@ -313,6 +363,19 @@ Falls eine App-Version davon später gebraucht wird: neue Endpunkte nach demselb
 bestehenden bauen (Bearer-Token prüfen via `AppApiAuth::requireAppAuth()`/`requireManagerAuth()`,
 `DB::setCommunity()` setzen, JSON statt HTML liefern) -- ist explizit NICHT Teil des aktuellen
 App-Umfangs, um das Risiko bei der Backend-Erweiterung überschaubar zu halten.
+
+**Wichtig zum Verständnis der Rolle "Platform-Admin":** Ein Platform-Admin-Account bekommt beim
+App-Login absichtlich GENAU DIESELBEN Rechte/Endpunkte wie ein normaler Obmann (`role:
+"manager"`) -- es gibt KEINEN dritten, mächtigeren Rollenwert und KEIN zusätzliches
+"Platform-Admin-Menü" in der App (spiegelt `Auth::isManager()` im Web-Backend, das für beide
+Rollen `true` liefert). Die tatsächlichen Platform-Admin-exklusiven Funktionen (EEGs anlegen/
+löschen, Nutzer & Rollen plattformweit verwalten, Aktivitätslog, Backups, LaTeX-/Mail-Vorlagen,
+MQTT-Fernkonfiguration) haben schlicht NOCH KEINE `/api/v1/*`-Entsprechung -- das war eine
+bewusste Entscheidung, um den Umfang dieser ersten App-Version überschaubar zu halten, keine
+vergessene Funktion. Eine als Obmann eingeloggte Person sieht deshalb korrekt nur "Mitglieder"
+und "Konto" im Menü -- das ist der VOLLE aktuelle Funktionsumfang der App für diese Rolle, kein
+Darstellungsfehler. Bei Bedarf lässt sich das analog zu den bestehenden Obmann-Endpunkten
+später erweitern (neues Themenfeld, eigene Absprache).
 
 ---
 
@@ -361,11 +424,128 @@ App-Umfangs, um das Risiko bei der Backend-Erweiterung überschaubar zu halten.
   `URLSession.shared.upload(for:from:)` bzw. einem manuell gebauten `multipart/form-data`-Body
   umsetzen (Feldname exakt wie oben angegeben: `photo` bzw. `file` + optional `name`).
 7. **Rollen-UI:** Ist `role == "manager"`, zusätzlich einen Obmann-Tab/-Bereich anzeigen; ist
-  `role == "member"`, den normalen Mitglied-Bereich. Ein Nutzer mit beiden Rollen loggt sich für
-  jede Rolle separat ein (zwei unterschiedliche Access-Token, siehe "Mehrfach-Rolle" oben) --
-  kein Rollenwechsel innerhalb einer laufenden Session ohne erneuten Login.
+  `role == "member"`, den normalen Mitglied-Bereich. Hat der Account laut `GET /api/v1/roles`
+  MEHR als eine Option, einen Rollen-/EEG-Umschalter anzeigen (z. B. im Konto-Bereich) --
+  `POST /api/v1/switch-role` liefert ein neues Token-Paar OHNE erneute Passworteingabe, siehe
+  Abschnitt 9.3. Hat der Account nur eine Option, keinen Umschalter anzeigen.
 8. Beträge immer mit Komma als Dezimaltrennzeichen und "EUR" bzw. "€" passend zur
   deutschsprachigen Zielgruppe formatieren (`NumberFormatter` mit `locale = Locale(identifier: "de_AT")`).
+
+---
+
+## 9. Runde 2: Nachbesserungen nach dem ersten Build (19.08.2026)
+
+Der erste Durchlauf hat die App bereits gegen das Backend gebaut. Beim Testen sind ein echter
+Server-Bug (jetzt behoben) und mehrere Verbesserungswünsche aufgefallen. Alles hier ist NEU seit
+dem ersten Durchlauf -- die Abschnitte 1-8 oben bleiben unverändert gültig.
+
+### 9.1 Behobener Server-Bug: "Unerwartete Antwort vom Server" beim Mitglied-Detail
+
+**War ein echter Backend-Bug, ist bereits gefixt, kein Workaround in der App nötig** -- aber
+bitte trotzdem prüfen/anpassen, wie unten beschrieben. Ursache: PostgreSQL liefert Zeitstempel
+im eigenen Format zurück (`"2026-08-18 17:03:00+00"` -- Leerzeichen statt `"T"`, Offset ohne
+Doppelpunkt), das ist KEIN gültiges striktes ISO-8601 und ließ Swifts
+`JSONDecoder`/`ISO8601DateFormatter` (Standardeinstellung) fehlschlagen -- besonders beim
+Mitglied-Detail, das gleich mehrere Datumsfelder auf einmal liefert (`member_since`,
+`member_until`, `geburtsdatum`, mehrere `registered_at`/`created_at`), daher dort am
+zuverlässigsten reproduzierbar. **Alle** `/api/v1/*`-Antworten liefern Zeitstempel jetzt als
+sauberes ISO-8601 mit Uhrzeit+Offset, z. B. `"2026-08-18T17:03:00+00:00"` (auch reine
+Kalenderdaten wie `geburtsdatum` -- dann mit `T00:00:00+00:00`).
+
+**Was in der App zu tun ist:**
+1. Sicherstellen, dass `JSONDecoder().dateDecodingStrategy = .iso8601` gesetzt ist (Standard-
+   `ISO8601DateFormatter` reicht, keine eigene Formatter-Logik nötig) -- falls stattdessen z. B.
+   eine eigene, an das alte Format angepasste Parsing-Logik gebaut wurde, die jetzt entfernen.
+2. Alle Datumsfelder in den Codable-Models als `Date?` (OPTIONAL) modellieren, nicht `Date` --
+   viele sind legitim `null` (`last_invoice` vor der ersten Rechnung, `sent_at` vor Versand,
+   `geburtsdatum` wenn nicht erfasst usw.). Ein non-optionales `Date`-Feld lässt den GESAMTEN
+   Decode fehlschlagen, sobald genau dieses eine Feld `null` ist -- das war vermutlich die
+   zweite, unabhängige Ursache für "Unerwartete Antwort vom Server" bei manchen Mitgliedern.
+3. Generell: Fehler beim JSON-Decodieren nicht mit einer generischen "Unerwartete Antwort vom
+   Server"-Meldung verschlucken, sondern (zumindest im Debug-Build) den tatsächlichen
+   `DecodingError` loggen (`context.debugDescription`) -- damit ein künftiges Feld-Mismatch
+   sofort erkennbar ist, statt wieder nur als vages Symptom sichtbar zu werden.
+
+### 9.2 Aktuelle Leistung automatisch aktualisieren (ohne Reload)
+
+Neuer, leichtgewichtiger Endpunkt dafür: **`GET /api/v1/current-power`** (funktioniert mit
+`role: "member"` UND `role: "manager"`):
+```json
+{
+  "current_power_w": 320.0,
+  "community": { "bezug_w": 4200, "einspeisung_w": 1800, "active_meters": 12, "total_meters": 14 }
+}
+```
+Auf jedem Bildschirm, der die aktuelle Leistung zeigt (Dashboard, ggf. Mitglied-Detail): alle
+5 Sekunden pollen (`Timer.publish` in Combine, oder eine `Task` mit `Task.sleep` in einer
+`while`-Schleife, solange der Screen sichtbar ist -- Polling beim Verlassen des Screens
+stoppen). NICHT den ganzen Bildschirm/das ganze ViewModel neu laden, nur die betroffenen
+Zahlen aktualisieren (z. B. mit einer sanften Zahlen-Animation, `.contentTransition(.numericText())`
+o. ä.). 5 Sekunden ist auch das Sende-Intervall der ESP32-Geräte -- schnelleres Pollen bringt
+nichts, da sich serverseitig nicht öfter etwas ändert.
+
+### 9.3 Rollen-/EEG-Wechsel ohne Neuanmeldung
+
+Siehe auch Abschnitt 5. Konkreter Ablauf für einen Umschalter im Konto-Bereich:
+1. Beim Öffnen des Konto-Bereichs `GET /api/v1/roles` aufrufen. Nur EINEN Eintrag? Keinen
+   Umschalter anzeigen. Mehrere? Liste anzeigen, aktive Option (`active: true`) markiert.
+2. Tippt der Nutzer eine andere Option an: `POST /api/v1/switch-role` mit deren
+   `community_id`+`role`. Antwort hat exakt dieselbe Struktur wie die Login-Erfolgsantwort
+   (`access_token`, `refresh_token`, `role`, `account`).
+3. Beide Token im Keychain durch die neuen ersetzen, App-Zustand (aktive Rolle, geladene Daten)
+   zurücksetzen und zum jeweiligen Start-Bildschirm (Mitglied-Dashboard bzw. Obmann-
+   Mitgliederliste) navigieren -- wie nach einem frischen Login, nur ohne Passworteingabe.
+
+### 9.4 Design: Card-Hintergrund im Dark Mode zu dunkel
+
+Rückmeldung: der dunkelblaue Seitenhintergrund gefällt, aber die Cards/Fenster darauf wirken in
+zu dunklem Grau -- zu wenig Kontrast zum Hintergrund. Bitte für die Card-/Panel-Fläche im Dark
+Mode ein SPÜRBAR helleres Grau verwenden als aktuell umgesetzt (Richtwert aus der Farbtabelle in
+Abschnitt 2: `Fläche` = `#1E293B`, `Fläche 2` = `#263244` -- eher in Richtung `Fläche 2` oder
+noch etwas heller gehen, damit sich Card vs. Hintergrund klar abhebt). Gilt für JEDEN Screen mit
+Cards/Panels, nicht nur einen -- insbesondere auch für die Übersichts-/Dashboard-Seite, dort
+wurde es zuerst bemerkt.
+
+### 9.5 Neue Idee: Energiefluss-Grafik (animiert)
+
+Zusätzlicher Wunsch fürs Dashboard (Mitglied UND Obmann-Bereich): eine Grafik, die den
+Energiefluss der EEG visualisiert, ähnlich einem Sankey-/Fluss-Diagramm:
+- **Links:** Netz (öffentliches Stromnetz)
+- **Oben:** Einspeiser (Community-Erzeuger, PV-Anlagen)
+- **Rechts:** Bezieher (Community-Verbraucher)
+- **Mitte:** die EEG selbst als zentraler Knoten
+- Animierte Linien/Pfeile zwischen den Knoten, die den aktuellen Energiefluss zeigen (Richtung +
+  Stärke, z. B. Linienbreite oder Animationsgeschwindigkeit proportional zur Leistung).
+
+**Datengrundlage (kein neuer Endpunkt nötig, bereits vorhanden):** `GET /api/v1/current-power`
+(Abschnitt 9.2) liefert `community.bezug_w` (= Fluss Einspeiser→EEG→Bezieher, Summe der
+Community-weiten Last) und `community.einspeisung_w` (= Fluss Einspeiser→EEG, Summe der
+Community-weiten Erzeugung). Netz-Fluss ist rechnerisch die Differenz:
+- `netz_bezug_w = max(0, community.bezug_w - community.einspeisung_w)` -- wie viel zusätzlich
+  aus dem öffentlichen Netz geholt werden muss, weil die Community-Erzeugung nicht reicht (Fluss
+  Netz→EEG).
+- `netz_einspeisung_w = max(0, community.einspeisung_w - community.bezug_w)` -- Überschuss, der
+  ins öffentliche Netz zurückgespeist wird (Fluss EEG→Netz).
+- Ist `community.einspeisung_w >= community.bezug_w`, fließt kein Strom vom Netz (Autarkie
+  100 %, siehe `community_autarkie_pct` in `/api/v1/dashboard`).
+
+Rein clientseitig mit SwiftUI umsetzbar (Pfade/Shapes + `.animation()` auf die Breite/Opazität
+der Flusslinien, aktualisiert bei jedem 5s-Poll aus 9.2) -- keine Backend-Änderung nötig, reine
+Visualisierungsarbeit in der App.
+
+### 9.6 Feature-Parität: alle vorhandenen Endpunkte auch tatsächlich nutzen
+
+Rückmeldung: es sollen "auch die Funktionen und Einstellungen, die auf der Plattform sind", in
+der App auftauchen. Der erste Durchlauf hat einen Teil der bereits fertigen Endpunkte aus
+Abschnitt 5 noch nicht in eigene Bildschirme umgesetzt (z. B. fehlten beim Mitglied-Anlegen-
+Formular etliche Felder, siehe 9.1/oben in Abschnitt 5). **Bitte den kompletten Bildschirmplan
+aus Abschnitt 7 nochmal gegen Abschnitt 5 (bzw. `docs/APP_API.md`) durchgehen und prüfen, dass
+JEDER dort gelistete Endpunkt tatsächlich einen erreichbaren Bildschirm/eine erreichbare Aktion
+in der App hat** -- insbesondere: Verträge (Status+PDF+Unterschreiben), eigene Dokumente,
+DSGVO-Export, Support-Tickets, 2FA-Verwaltung, sowie im Obmann-Bereich Mitglied bearbeiten
+und Datei-/Foto-Upload für ein Mitglied. Was NICHT in der App auftauchen soll, steht explizit
+in Abschnitt 6 (Abrechnung, EDA-Import, EEG-Einstellungen, Beitrittsanträge, Postfach,
+Platform-Admin-Funktionen) -- dafür bewusst KEINE Endpunkte erfinden/raten, die es nicht gibt.
 
 ---
 

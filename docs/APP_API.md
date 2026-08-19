@@ -160,6 +160,30 @@ Das erste und zweite Beispiel oben zeigen denselben Account, der in EEG A sowohl
 auch Obmann ist -- der Client muss dem Nutzer dann eine Auswahl anbieten ("Als Mitglied
 anmelden" / "Als Obmann anmelden"), nicht nur eine EEG-Auswahl.
 
+### Rolle/Community wechseln, OHNE sich neu anzumelden
+
+Seit 19.08.2026: hat ein Account mehrere Rollen-Optionen (z. B. Mitglied UND Obmann, oder
+Mitglied in mehreren EEGs), muss die App dafür NICHT jedes Mal ausloggen/neu einloggen lassen.
+
+- `GET /api/v1/roles` -- alle Rollen-Optionen des eingeloggten Accounts, mit `active: true` bei
+  der gerade über den Access-Token aktiven:
+  ```json
+  { "roles": [
+    { "role": "member",  "community_id": "uuid-a", "community_name": "EEG A",         "name": "Anna Mustermann", "active": false },
+    { "role": "manager", "community_id": "uuid-a", "community_name": "EEG A (Obmann)", "name": "EEG A",           "active": true  }
+  ] }
+  ```
+- `POST /api/v1/switch-role` -- Body `{"community_id": "...", "role": "member"|"manager", "device_label": "..."}`
+  (aus `GET /api/v1/roles` gewählt). Liefert wie beim Login ein KOMPLETT NEUES
+  `access_token`/`refresh_token`-Paar für die gewählte Rolle zurück (gleiche Antwortstruktur
+  wie die Login-Erfolgsantwort oben) -- dieses ersetzt das bisherige Token-Paar im Client. 400
+  bei ungültiger Kombination.
+
+Praktisch: das ist der App-Ersatz für den "Rolle wechseln"-Dropdown oben rechts im Web-Portal.
+Ein Account, der nur EINE Rolle hat, sieht in `GET /api/v1/roles` entsprechend nur einen
+Eintrag -- die App sollte den Umschalter dann gar nicht erst anzeigen (kein Rollenwechsel
+nötig/möglich).
+
 ### POST /api/v1/token/refresh
 
 ```json
@@ -186,12 +210,21 @@ dem Logout ohnehin verworfen wird.
 
 ---
 
-## Daten-Endpunkte (role: member)
+## Daten-Endpunkte (role: member, außer wo anders vermerkt)
 
-Alle mit `Authorization: Bearer <access_token>` und `role: "member"` (liefern mit einem reinen
-Obmann-Token `403 {"error": "Kein Mitgliedskonto in dieser EEG."}`). Bei fehlendem/ungültigem/
-abgelaufenem Token: `401 {"error": "..."}` (Token ist abgelaufen → `/api/v1/token/refresh`
-aufrufen und Request wiederholen).
+Alle mit `Authorization: Bearer <access_token>`. Die meisten brauchen `role: "member"` (liefern
+mit einem reinen Obmann-Token `403 {"error": "Kein Mitgliedskonto in dieser EEG."}`) --
+Ausnahme ist `GET /api/v1/current-power` (funktioniert mit BEIDEN Rollen, siehe dort). Bei
+fehlendem/ungültigem/abgelaufenem Token: `401 {"error": "..."}` (Token ist abgelaufen →
+`/api/v1/token/refresh` aufrufen und Request wiederholen).
+
+> **Datumsformat:** Alle Zeitstempel-/Datumsfelder in JSON-Antworten sind striktes ISO-8601 mit
+> Uhrzeit und Offset, z. B. `"2026-08-18T17:03:00+00:00"` -- auch reine Kalenderdaten ohne
+> eigentliche Uhrzeit (`member_since`, `geburtsdatum`, ...) kommen so (Mitternacht UTC). In
+> Swift: `JSONDecoder().dateDecodingStrategy = .iso8601` funktioniert damit direkt, keine
+> eigene Formatter-Logik nötig. Trotzdem defensiv als `Date?` (optional) modellieren, nicht
+> `Date` -- viele Felder sind legitim `null` (z. B. `last_invoice` vor der ersten Rechnung,
+> `sent_at` vor dem Versand).
 
 ### GET /api/v1/dashboard
 
@@ -209,6 +242,25 @@ Für den Startbildschirm der App -- ein Request, alle wichtigen Kennzahlen.
 `current_power_w`: positiv = Bezug, negativ = Einspeisung, `null` = kein aktueller Messwert
 (kein ESP32 / gerade offline). `current_month`/`last_invoice`: `null`, wenn (noch) keine Daten
 vorhanden.
+
+### GET /api/v1/current-power (role: member ODER manager)
+
+Leichtgewichtiger Endpunkt zum Pollen der aktuellen Leistung (z. B. alle 5s), OHNE bei jedem
+Aufruf die komplette `/api/v1/dashboard`-Antwort inkl. der schwereren Monatsaggregation neu zu
+berechnen -- damit sich "aktuelle Leistung" live aktualisieren lässt, ohne den ganzen Bildschirm
+neu zu laden. Web-Pendant: `/portal/api/current-power` + `/portal/api/live-power` (dort clientseitig
+per `fetch()` alle 5s abgefragt, gleiche Empfehlung für die App).
+
+```json
+{
+  "current_power_w": 320.0,
+  "community": { "bezug_w": 4200, "einspeisung_w": 1800, "active_meters": 12, "total_meters": 14 }
+}
+```
+Mit `role: "manager"`-Token ist `current_power_w` immer `null` (ein reiner Obmann-Account hat
+keine eigenen Zählpunkte) -- `community` ist bei beiden Rollen gleich befüllt. Empfehlung fürs
+Polling-Intervall: 5 Sekunden (deckt sich mit dem Sende-Intervall der ESP32-Geräte), nicht
+kürzer -- schneller ändert sich serverseitig ohnehin nichts.
 
 ### GET /api/v1/consumption?months=6
 
@@ -229,7 +281,7 @@ Liste heißt "noch keine verlässlichen Daten", nicht zwingend "kein Verbrauch".
 { "invoices": [
   {
     "id": "uuid", "rechnungsnummer": "RC108175-2026-Q2-001", "saldo_eur": 42.10,
-    "quartal": "2026-Q2", "period_from": "2026-04-01", "period_to": "2026-06-30",
+    "quartal": "2026-Q2", "period_from": "2026-04-01T00:00:00+00:00", "period_to": "2026-06-30T00:00:00+00:00",
     "sent_at": "2026-07-01T08:00:00+00:00", "created_at": "2026-07-01T07:55:00+00:00"
   }
 ] }
@@ -406,7 +458,7 @@ Mitgliederliste der eigenen EEG.
   {
     "id": "uuid", "kundennummer": 10042, "name": "Anna Mustermann", "company_name": null,
     "email": "anna@example.at", "phone": "+43 664 1234567", "city": "Klagenfurt",
-    "member_since": "2026-01-15", "member_until": "2099-12-31",
+    "member_since": "2026-01-15T00:00:00+00:00", "member_until": "2099-12-31T00:00:00+00:00",
     "metering_point_count": 1, "open_amount_eur": 0.0
   }
 ] }
