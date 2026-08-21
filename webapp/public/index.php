@@ -1179,13 +1179,23 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         }
     }
 
+    // IBAN + Kontoinhaber:in sind Pflicht (Patrick: ein Mitglied kam drauf, dass die
+    // Bankverbindung optional war -- ohne sie kann weder eine Einspeisevergütung ausbezahlt noch
+    // per SEPA-Lastschrift eingezogen werden). Deshalb HIER, nicht nur im generischen
+    // $required-Block oben, damit eine fehlende IBAN eine eigene, klare Fehlermeldung bekommt
+    // statt der generischen "Bitte alle Pflichtfelder ausfüllen.".
     $iban = trim($_POST['member_iban'] ?? '');
-    if ($iban !== '' && !validateIban($iban)) {
+    if ($iban === '') {
+        $error = 'Bitte eine IBAN angeben -- ohne Bankverbindung können weder Einspeisevergütungen ausbezahlt noch Rechnungsbeträge per SEPA-Lastschrift eingezogen werden.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
+    if (!validateIban($iban)) {
         $error = 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).';
         require ROOT . '/src/views/pages/beitreten_formular.php';
         return;
     }
-    if ($iban !== '' && trim($_POST['kontoinhaber'] ?? '') === '') {
+    if (trim($_POST['kontoinhaber'] ?? '') === '') {
         $error = 'Bitte bei Bankverbindung den vollen Namen des Kontoinhabers/der Kontoinhaberin angeben.';
         require ROOT . '/src/views/pages/beitreten_formular.php';
         return;
@@ -1198,8 +1208,8 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         return;
     }
     $sepaSignature = $_POST['sepa_signature_image'] ?? '';
-    if ($iban !== '' && !str_starts_with($sepaSignature, 'data:image/png;base64,')) {
-        $error = 'Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat, da Sie eine IBAN angegeben haben.';
+    if (!str_starts_with($sepaSignature, 'data:image/png;base64,')) {
+        $error = 'Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat.';
         require ROOT . '/src/views/pages/beitreten_formular.php';
         return;
     }
@@ -1240,15 +1250,15 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             ($_POST['speicher_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['speicher_kwh']) : null,
             isset($_POST['andere_eeg']) ? 'true' : 'false',
             trim($_POST['andere_eeg_name'] ?? '') ?: null,
-            $iban ?: null,
+            $iban,
             trim($_POST['member_bic'] ?? '') ?: null,
             trim($_POST['kontoinhaber'] ?? '') ?: null,
             trim($_POST['konto_adresse'] ?? '') ?: null,
             'true', 'true', 'true', 'true', 'true', 'true',
             $signature,
             $_SERVER['REMOTE_ADDR'] ?? null,
-            $iban !== '' ? $sepaSignature : null,
-            $iban !== '' ? date('Y-m-d H:i:s') : null,
+            $sepaSignature,
+            date('Y-m-d H:i:s'),
         ]
     );
     $application = DB::fetchOne(
