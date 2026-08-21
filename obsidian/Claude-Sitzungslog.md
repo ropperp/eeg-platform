@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (64) — Claude Code — Claude Sonnet 5
+**Prompt:** "Die zweite Sache wäre: Ich habe gerade wieder ein Mitglied, das die 33-stellige
+Zählpunktnummer aus der Kellag-Webseite rauskopiert hat. Nur sind in dieser 33-stelligen
+Nummer Leerzeichen vorhanden, die meine Plattform beim Reinkopieren als Zeichen identifiziert
+hat. [...] Bitte überprüfe auch auf Buchstaben und Zahlen, ob davon 33 Zeichen vorhanden sind,
+und nimm bitte Leerzeichen oder zähle Leerzeichen bitte nicht. Wenn Leerzeichen vorhanden sind,
+bitte fordere den Kunden bitte auf, die Leerzeichen rauszulöschen, und mach erst etwas grün,
+wenn wirklich 33 Zeichen in Buchstaben und Zahlen eingetippt worden sind."
+**Auftrag:** Bug beheben, bei dem eine aus einem Netzbetreiber-Portal (Kelag) mit Leerzeichen
+kopierte 33-stellige Zählpunktnummer in der Online-Beitrittserklärung durch das dortige
+`maxlength="33"` am Ende abgeschnitten wurde, weil Leerzeichen als Zeichen mitgezählt wurden.
+**Ergebnis:** `validateZaehlpunkt()`/neue `normalizeZaehlpunkt()` (`webapp/src/functions.php`)
+entfernen Leerzeichen jetzt vor der Längenprüfung, analog zu `validateIban()`.
+`beitreten_formular.php`: `maxlength` entfernt, Live-Rückmeldung (grün erst bei 33 echten
+Zeichen, Aufforderung zum Entfernen erkannter Leerzeichen). `webapp/public/index.php`:
+serverseitige Validierung + Speicherung des normalisierten Werts. `php -l` sauber, 106/106
+Tests grün (3 neu). PR #107, sofort gemergt.
+
+---
+
 ## 2026-09-03 (63) — Claude Code — Claude Sonnet 5
 **Prompt:** "ich habe eine neue Anweisung für Dich bitte. Ein Mitglied ist gerade
 draufgekommen, dass bei der Online-Beitrittserklärung die Bankverbindung kein Pflichtfeld ist.
