@@ -66,6 +66,9 @@
     <?php if (!empty($application)): ?>
     <a href="/portal/applications/<?= $application['id'] ?>/formular" target="_blank"
        class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"><?= icon('printer') ?> Formular ausdrucken (PDF)</a>
+    <a href="/portal/applications/<?= $application['id'] ?>"
+       class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"
+       title="Eingereichte Daten der Beitrittserklärung ansehen/korrigieren (z.B. Zählpunktnummer)"><?= icon('pencil-simple') ?> Beitrittserklärung-Daten</a>
     <?php endif; ?>
     <a href="/portal/members/<?= $member['id'] ?>/edit"
        class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem"><?= icon('pencil-simple') ?> Bearbeiten</a>
