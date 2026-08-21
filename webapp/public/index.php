@@ -1179,6 +1179,25 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         }
     }
 
+    // Zählpunktnummer: normalizeZaehlpunkt() entfernt Leerzeichen VOR der Längenprüfung, damit
+    // eine z.B. aus dem Kelag-Portal mit Leerzeichen kopierte Nummer nicht durch das frühere
+    // Zählen der Leerzeichen als "Zeichen" fälschlich zu kurz erscheint bzw. (bei einem
+    // längenbegrenzten Feld) am Ende abgeschnitten wird (Patrick, 03.09.2026: Mitglied fehlten
+    // dadurch die letzten drei echten Ziffern). Gespeichert wird der normalisierte
+    // (leerzeichenfreie) Wert, nicht die Roheingabe.
+    $bezugZaehlpunkt = normalizeZaehlpunkt($_POST['bezug_zaehlpunkt'] ?? '');
+    if (!empty($_POST['bezug_gewuenscht']) && $bezugZaehlpunkt !== '' && !validateZaehlpunkt($bezugZaehlpunkt)) {
+        $error = 'Die Zählpunktnummer für den Bezug ist ungültig -- es werden genau 33 Zeichen (AT + 31 Buchstaben/Ziffern, ohne Leerzeichen) benötigt.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
+    $einspeisungZaehlpunkt = normalizeZaehlpunkt($_POST['einspeisung_zaehlpunkt'] ?? '');
+    if (!empty($_POST['einspeisung_gewuenscht']) && $einspeisungZaehlpunkt !== '' && !validateZaehlpunkt($einspeisungZaehlpunkt)) {
+        $error = 'Die Zählpunktnummer für die Einspeisung ist ungültig -- es werden genau 33 Zeichen (AT + 31 Buchstaben/Ziffern, ohne Leerzeichen) benötigt.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
+    }
+
     // IBAN + Kontoinhaber:in sind Pflicht (Patrick: ein Mitglied kam drauf, dass die
     // Bankverbindung optional war -- ohne sie kann weder eine Einspeisevergütung ausbezahlt noch
     // per SEPA-Lastschrift eingezogen werden). Deshalb HIER, nicht nur im generischen
@@ -1240,10 +1259,10 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             strtolower(trim($_POST['email'])),
             trim($_POST['stromlieferant'] ?? '') ?: null,
             isset($_POST['bezug_gewuenscht']) ? 'true' : 'false',
-            trim($_POST['bezug_zaehlpunkt'] ?? '') ?: null,
+            $bezugZaehlpunkt ?: null,
             ($_POST['bezug_jahresverbrauch_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['bezug_jahresverbrauch_kwh']) : null,
             isset($_POST['einspeisung_gewuenscht']) ? 'true' : 'false',
-            trim($_POST['einspeisung_zaehlpunkt'] ?? '') ?: null,
+            $einspeisungZaehlpunkt ?: null,
             ($_POST['einspeisung_kwp'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['einspeisung_kwp']) : null,
             ($_POST['einspeisung_geplante_kwh'] ?? '') !== '' ? (float)str_replace(',', '.', $_POST['einspeisung_geplante_kwh']) : null,
             ($_POST['speicher_status'] ?? '') ?: null,
