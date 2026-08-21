@@ -8,6 +8,21 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (65) — Claude Code — Claude Sonnet 5
+**Prompt:** "Was ich noch vergessen habe, ist: Bei dem Kontoinhaber bei der Bankverbindung
+bitte dieses Feld nicht als Pflichtfeld markieren, weil der Kontoinhaber dann nur eingetragen
+wird, wenn er vom Namen der Kundendaten oder Mitgliedsdaten abweicht. [...] bitte diesen nicht
+wieder als Pflichtfeld machen, sondern nur zum Ausfüllen, wenn es eine Abweichung vom Kontakt
+oder von Mitgliedsdaten gibt."
+**Auftrag:** Nachbesserung zu PR #105 -- Kontoinhaber:in bei der Online-Beitrittserklärung
+wieder optional machen (nur die IBAN selbst bleibt Pflicht), da das Feld laut Patrick nur bei
+Abweichung vom Mitgliedsnamen ausgefüllt werden soll.
+**Ergebnis:** `beitreten_formular.php` (required-Attribut/Stern entfernt, Label/Placeholder
+klargestellt) und `webapp/public/index.php` (serverseitige Pflichtprüfung entfernt)
+angepasst. `php -l` sauber, 106/106 Tests weiterhin grün. PR #109, sofort gemergt.
+
+---
+
 ## 2026-09-03 (64) — Claude Code — Claude Sonnet 5
 **Prompt:** "Die zweite Sache wäre: Ich habe gerade wieder ein Mitglied, das die 33-stellige
 Zählpunktnummer aus der Kellag-Webseite rauskopiert hat. Nur sind in dieser 33-stelligen
