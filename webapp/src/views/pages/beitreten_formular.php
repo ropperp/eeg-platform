@@ -180,8 +180,8 @@ ob_start();
           <input type="text" name="member_bic" placeholder="OPSKATWW" value="<?= htmlspecialchars($d['member_bic'] ?? '') ?>">
         </div>
         <div class="form-group">
-          <label>Kontoinhaber:in (voller Name lt. Bankkonto) <span style="color:#ef4444">*</span></label>
-          <input type="text" name="kontoinhaber" required placeholder="z.B. mit zweitem Vornamen, falls am Konto so hinterlegt" value="<?= htmlspecialchars($d['kontoinhaber'] ?? '') ?>">
+          <label>Kontoinhaber:in (nur ausfüllen, falls abweichend von obigen Namen)</label>
+          <input type="text" name="kontoinhaber" placeholder="nur bei Abweichung, z.B. anderer Vorname am Konto" value="<?= htmlspecialchars($d['kontoinhaber'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>Adresse Kontoinhaber:in</label>
