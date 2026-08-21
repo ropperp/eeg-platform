@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (63) — Claude Code — Claude Sonnet 5
+**Prompt:** "ich habe eine neue Anweisung für Dich bitte. Ein Mitglied ist gerade
+draufgekommen, dass bei der Online-Beitrittserklärung die Bankverbindung kein Pflichtfeld ist.
+Bitte mach diese zu einem Pflichtfeld, damit ich an die Kunden die Einspeisen überweisen kann
+und die Bezieher auch ihre Bankverbindungen angeben, damit ich bei diesem Per se-Bereinzug das
+Geld einziehen kann."
+**Auftrag:** IBAN + Kontoinhaber:in bei der öffentlichen Online-Beitrittserklärung
+(`/:communityid/beitreten/formular`) von optional auf verpflichtend umstellen, damit für jedes
+neue Mitglied von Anfang an sowohl Einspeisevergütungen ausgezahlt als auch Rechnungsbeträge
+per SEPA-Lastschrift eingezogen werden können.
+**Ergebnis:** `webapp/src/views/pages/beitreten_formular.php` (required-Attribute,
+SEPA-Lastschriftmandat-Feld immer sichtbar statt nur bei getippter IBAN) und
+`webapp/public/index.php` (serverseitige Pflichtprüfung mit eigener Fehlermeldung statt der
+generischen) angepasst. `php -l` sauber, 103/103 Tests weiterhin grün. PR #105, sofort
+gemergt.
+
+---
+
 ## 2026-09-03 (62) — Claude Code — Claude Sonnet 5
 **Prompt:** "ja leg mit den Push-Benachrichtigungen los. Zur App, Die Dateien haben keine
 Endung. Ich kann sie nicht öffnen, wenn ich sie über die App heruntergeladen hab. Bitte ein
