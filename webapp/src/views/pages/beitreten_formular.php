@@ -162,10 +162,15 @@ ob_start();
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Bankverbindung (für SEPA-Lastschrift/Überweisung)</h3>
+      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
+        Pflichtangabe: wir brauchen Ihre Bankverbindung sowohl für die Auszahlung von
+        Einspeisevergütungen als auch für den Einzug von Mitgliedsbeitrag/Rechnungsbeträgen per
+        SEPA-Lastschrift.
+      </p>
       <div class="grid-2">
         <div class="form-group">
-          <label>IBAN</label>
-          <input type="text" name="member_iban" id="member_iban" placeholder="AT61 1904 3002 3457 3201" value="<?= htmlspecialchars($d['member_iban'] ?? '') ?>">
+          <label>IBAN <span style="color:#ef4444">*</span></label>
+          <input type="text" name="member_iban" id="member_iban" required placeholder="AT61 1904 3002 3457 3201" value="<?= htmlspecialchars($d['member_iban'] ?? '') ?>">
           <div id="iban-feedback" style="font-size:.78rem;margin-top:.35rem;min-height:1.1em"></div>
         </div>
         <div class="form-group">
@@ -173,8 +178,8 @@ ob_start();
           <input type="text" name="member_bic" placeholder="OPSKATWW" value="<?= htmlspecialchars($d['member_bic'] ?? '') ?>">
         </div>
         <div class="form-group">
-          <label>Kontoinhaber:in (voller Name lt. Bankkonto)</label>
-          <input type="text" name="kontoinhaber" placeholder="z.B. mit zweitem Vornamen, falls am Konto so hinterlegt" value="<?= htmlspecialchars($d['kontoinhaber'] ?? '') ?>">
+          <label>Kontoinhaber:in (voller Name lt. Bankkonto) <span style="color:#ef4444">*</span></label>
+          <input type="text" name="kontoinhaber" required placeholder="z.B. mit zweitem Vornamen, falls am Konto so hinterlegt" value="<?= htmlspecialchars($d['kontoinhaber'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>Adresse Kontoinhaber:in</label>
@@ -225,10 +230,10 @@ ob_start();
       <input type="hidden" name="signature_image" id="signature_image">
     </div>
 
-    <div class="card" id="sepa-card" style="margin-bottom:1.5rem;display:none">
+    <div class="card" id="sepa-card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">SEPA-Lastschriftmandat</h3>
       <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">
-        Da Sie eine IBAN angegeben haben, benötigen wir Ihre gesonderte Unterschrift für das
+        Zusätzlich zur Beitrittserklärung benötigen wir Ihre gesonderte Unterschrift für das
         SEPA-Lastschriftmandat (Einzug von Mitgliedsbeitrag und Rechnungsbeträgen).
       </p>
       <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
@@ -334,11 +339,9 @@ ob_start();
   function updateConditional() {
     document.getElementById('bezug-fields').style.display = document.getElementById('bezug_gewuenscht').checked ? 'grid' : 'none';
     document.getElementById('einspeisung-fields').style.display = document.getElementById('einspeisung_gewuenscht').checked ? 'grid' : 'none';
-    document.getElementById('sepa-card').style.display = document.getElementById('member_iban').value.trim() !== '' ? 'block' : 'none';
   }
   document.getElementById('bezug_gewuenscht').addEventListener('change', updateConditional);
   document.getElementById('einspeisung_gewuenscht').addEventListener('change', updateConditional);
-  document.getElementById('member_iban').addEventListener('input', updateConditional);
   updateConditional();
 
   // IBAN: Prüfziffer per Mod-97 (ISO 7064) validieren und in 4er-Blöcken anzeigen,
@@ -382,16 +385,13 @@ ob_start();
       alert('Bitte unterschreiben Sie die Beitrittserklärung im Unterschriftsfeld.');
       return;
     }
-    const sepaVisible = document.getElementById('sepa-card').style.display !== 'none';
-    if (sepaVisible && !sepaSigPad.state.hasSignature) {
+    if (!sepaSigPad.state.hasSignature) {
       e.preventDefault();
-      alert('Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat, da Sie eine IBAN angegeben haben.');
+      alert('Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat.');
       return;
     }
     document.getElementById('signature_image').value = sigPad.canvas.toDataURL('image/png');
-    if (sepaVisible) {
-      document.getElementById('sepa_signature_image').value = sepaSigPad.canvas.toDataURL('image/png');
-    }
+    document.getElementById('sepa_signature_image').value = sepaSigPad.canvas.toDataURL('image/png');
   });
 })();
 </script>
