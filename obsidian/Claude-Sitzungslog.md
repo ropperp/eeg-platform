@@ -8,6 +8,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (66) — Claude Code — Claude Sonnet 5
+**Prompt:** "Bezüglich dem Problem mit dem Zählpunktnummer mit den Leerzeichen: Ich habe
+gerade jetzt gesehen, dass in dem Formular, in dem man die ganzen Daten überträgt, jetzt die
+letzten drei Stellen frei sind. Ich habe sie ja händisch jetzt schon nachgetragen, aber
+kannst du da irgendetwas hinzufügen, damit ich die Beitragserklärungen mit den aktuellen
+Daten nochmal neu generieren lasse? Denn so stimmt die Beitragserklärung ja leider nicht."
+**Auftrag:** Möglichkeit schaffen, die bei einem älteren (vor dem Leerzeichen-Fix
+eingereichten) Beitrittsantrag bereits abgeschnitten gespeicherte Zählpunktnummer nachträglich
+zu korrigieren, damit das daraus erzeugte Beitrittserklärung-PDF wieder stimmt.
+**Ergebnis:** Neue Route `POST /portal/applications/:id/zaehlpunkt` (mit
+validateZaehlpunkt()/normalizeZaehlpunkt()) plus Korrektur-Formular auf der
+Antragsdetailseite (`application_detail.php`); Link dorthin von der Mitglied-Detailseite
+ergänzt (vorher nur reiner PDF-Download verlinkt). Das PDF wird ohnehin bei jedem Ausdruck
+neu aus den Daten gerendert (kein Caching) -- die Korrektur allein reicht deshalb bereits.
+`php -l` sauber, 106/106 Tests weiterhin grün. PR #111, sofort gemergt.
+
+---
+
 ## 2026-09-03 (65) — Claude Code — Claude Sonnet 5
 **Prompt:** "Was ich noch vergessen habe, ist: Bei dem Kontoinhaber bei der Bankverbindung
 bitte dieses Feld nicht als Pflichtfeld markieren, weil der Kontoinhaber dann nur eingetragen
