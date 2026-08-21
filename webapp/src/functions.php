@@ -142,11 +142,23 @@ function validateIban(string $iban): bool
 
 /**
  * Prüft eine österreichische Zählpunktnummer: "AT" + 31 alphanumerische
- * Stellen = 33 Zeichen gesamt.
+ * Stellen = 33 Zeichen gesamt. Leerzeichen werden dabei NICHT mitgezählt (siehe
+ * normalizeZaehlpunkt()) -- manche Netzbetreiber-Portale (z.B. Kelag) zeigen die Nummer mit
+ * Leerzeichen zur Lesbarkeit an; kopiert ein Mitglied das 1:1, zählen die Leerzeichen sonst als
+ * "Zeichen" mit und drücken bei einem längenbegrenzten Eingabefeld die letzten echten Ziffern
+ * heraus (Patrick, 03.09.2026: dadurch fehlten einem Mitglied die letzten drei Stellen).
  */
 function validateZaehlpunkt(string $zp): bool
 {
-    return (bool)preg_match('/^AT[A-Z0-9]{31}$/', strtoupper(trim($zp)));
+    return (bool)preg_match('/^AT[A-Z0-9]{31}$/', normalizeZaehlpunkt($zp));
+}
+
+/** Entfernt Leerzeichen und normalisiert auf Großbuchstaben, ohne die Gültigkeit zu prüfen --
+ *  gemeinsame Grundlage für validateZaehlpunkt() und den beim Speichern tatsächlich
+ *  abgelegten Wert (siehe Aufrufstellen in webapp/public/index.php). */
+function normalizeZaehlpunkt(string $zp): string
+{
+    return strtoupper(str_replace(' ', '', trim($zp)));
 }
 
 /**

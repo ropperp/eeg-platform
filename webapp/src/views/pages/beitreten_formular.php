@@ -98,7 +98,8 @@ ob_start();
       <div class="grid-2" id="bezug-fields" style="display:none;margin-bottom:1rem">
         <div class="form-group">
           <label>Zählpunktnummer (33-stellig)</label>
-          <input type="text" name="bezug_zaehlpunkt" maxlength="33" placeholder="AT..." value="<?= htmlspecialchars($d['bezug_zaehlpunkt'] ?? '') ?>">
+          <input type="text" name="bezug_zaehlpunkt" id="bezug_zaehlpunkt" class="zaehlpunkt-input" placeholder="AT..." value="<?= htmlspecialchars($d['bezug_zaehlpunkt'] ?? '') ?>">
+          <div class="zaehlpunkt-feedback" style="font-size:.78rem;margin-top:.35rem;min-height:1.1em"></div>
         </div>
         <div class="form-group">
           <label>Jahresverbrauch (kWh), falls bekannt</label>
@@ -116,7 +117,8 @@ ob_start();
       <div class="grid-2" id="einspeisung-fields" style="display:none">
         <div class="form-group">
           <label>Zählpunktnummer (33-stellig)</label>
-          <input type="text" name="einspeisung_zaehlpunkt" maxlength="33" placeholder="AT..." value="<?= htmlspecialchars($d['einspeisung_zaehlpunkt'] ?? '') ?>">
+          <input type="text" name="einspeisung_zaehlpunkt" id="einspeisung_zaehlpunkt" class="zaehlpunkt-input" placeholder="AT..." value="<?= htmlspecialchars($d['einspeisung_zaehlpunkt'] ?? '') ?>">
+          <div class="zaehlpunkt-feedback" style="font-size:.78rem;margin-top:.35rem;min-height:1.1em"></div>
         </div>
         <div class="form-group">
           <label>Anlagenleistung (kWp), falls bekannt</label>
@@ -378,6 +380,31 @@ ob_start();
   }
   document.getElementById('member_iban').addEventListener('input', updateIbanFeedback);
   updateIbanFeedback();
+
+  // Zählpunktnummer: manche Netzbetreiber-Portale (z.B. Kelag) zeigen die 33-stellige Nummer
+  // mit Leerzeichen zur Lesbarkeit an -- kopiert ein Mitglied das 1:1, sollen die Leerzeichen
+  // NICHT als Zeichen mitzählen. Erst grün, wenn wirklich 33 Buchstaben/Ziffern (ohne
+  // Leerzeichen) eingetragen sind; bei erkannten Leerzeichen ausdrücklich zum Entfernen
+  // auffordern, statt sie automatisch selbst zu entfernen (Patrick, 03.09.2026).
+  function updateZaehlpunktFeedback(input) {
+    const feedback = input.parentElement.querySelector('.zaehlpunkt-feedback');
+    const raw = input.value;
+    if (raw.trim() === '') { feedback.textContent = ''; return; }
+    if (/\s/.test(raw)) {
+      feedback.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:.3rem"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-x-circle"></use></svg> Bitte alle Leerzeichen aus der Zählpunktnummer entfernen.</span>';
+      return;
+    }
+    const clean = raw.toUpperCase();
+    if (/^AT[A-Z0-9]{31}$/.test(clean)) {
+      feedback.innerHTML = '<span style="color:#16a34a;display:inline-flex;align-items:center;gap:.3rem"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-check-circle"></use></svg> 33 Zeichen — gültig</span>';
+    } else {
+      feedback.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:.3rem"><svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-x-circle"></use></svg> ' + clean.length + ' von 33 Zeichen</span>';
+    }
+  }
+  document.querySelectorAll('.zaehlpunkt-input').forEach(function(input) {
+    input.addEventListener('input', function() { updateZaehlpunktFeedback(input); });
+    updateZaehlpunktFeedback(input);
+  });
 
   form.addEventListener('submit', function(e) {
     if (!sigPad.state.hasSignature) {

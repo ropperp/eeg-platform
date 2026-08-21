@@ -16,6 +16,27 @@ test('Zählpunkt gültig (33 Zeichen)', fn() => assertTrue(validateZaehlpunkt('A
 test('Zählpunkt zu kurz', fn() => assertFalse(validateZaehlpunkt('AT' . str_repeat('0', 30))));
 test('Zählpunkt ohne AT-Präfix', fn() => assertFalse(validateZaehlpunkt('DE' . str_repeat('0', 31))));
 test('Zählpunkt kleingeschrieben wird normalisiert', fn() => assertTrue(validateZaehlpunkt('at' . str_repeat('a', 31))));
+test('Zählpunkt mit eingestreuten Leerzeichen bleibt gültig (Leerzeichen zählen nicht mit)', function () {
+    // 33 echte Zeichen, wie beim Kopieren aus einem Netzbetreiber-Portal (z.B. Kelag) in
+    // 4er-Gruppen formatiert -- die Leerzeichen dürfen die Zeichen NICHT verdrängen.
+    $valid = 'AT' . str_repeat('0', 31);
+    $spaced = implode(' ', str_split($valid, 4));
+    assertTrue(validateZaehlpunkt($spaced));
+});
+test('Zählpunkt mit Leerzeichen, aber zu wenig echten Zeichen, bleibt ungültig', function () {
+    // Simuliert genau den gemeldeten Fehler: ein auf 33 Zeichen begrenztes Eingabefeld hat
+    // beim Einfügen Leerzeichen mitgezählt, wodurch die letzten echten Ziffern abgeschnitten
+    // wurden.
+    $valid = 'AT' . str_repeat('0', 31);
+    $spaced = implode(' ', str_split($valid, 4));
+    $truncated = substr($spaced, 0, 33);
+    assertFalse(validateZaehlpunkt($truncated));
+});
+test('normalizeZaehlpunkt() entfernt Leerzeichen und wandelt in Großbuchstaben', function () {
+    $valid = 'AT' . str_repeat('0', 31);
+    $spacedLower = implode(' ', str_split(strtolower($valid), 4));
+    assertSame($valid, normalizeZaehlpunkt($spacedLower));
+});
 
 // ─── LaTeX-Escaping ──────────────────────────────────────────────────────────
 test('texEscape maskiert % und &', fn() => assertSame('50\\% \\& mehr', texEscape('50% & mehr')));
