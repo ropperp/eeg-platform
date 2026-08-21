@@ -1198,11 +1198,15 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         return;
     }
 
-    // IBAN + Kontoinhaber:in sind Pflicht (Patrick: ein Mitglied kam drauf, dass die
-    // Bankverbindung optional war -- ohne sie kann weder eine Einspeisevergütung ausbezahlt noch
-    // per SEPA-Lastschrift eingezogen werden). Deshalb HIER, nicht nur im generischen
-    // $required-Block oben, damit eine fehlende IBAN eine eigene, klare Fehlermeldung bekommt
-    // statt der generischen "Bitte alle Pflichtfelder ausfüllen.".
+    // IBAN ist Pflicht (Patrick: ein Mitglied kam drauf, dass die Bankverbindung optional war --
+    // ohne sie kann weder eine Einspeisevergütung ausbezahlt noch per SEPA-Lastschrift
+    // eingezogen werden). Deshalb HIER, nicht nur im generischen $required-Block oben, damit
+    // eine fehlende IBAN eine eigene, klare Fehlermeldung bekommt statt der generischen "Bitte
+    // alle Pflichtfelder ausfüllen.". Kontoinhaber:in dagegen bewusst NICHT Pflicht (Patrick,
+    // 03.09.2026): das Feld wird nur ausgefüllt, wenn der/die Kontoinhaber:in vom Namen der
+    // Mitgliedsdaten abweicht -- beim Regelfall (Konto läuft auf den Namen des Mitglieds) bleibt
+    // es leer. Der SEPA-Mandatstext fällt bei leerem Feld auf first_name/last_name zurück (siehe
+    // 'Kontoinhaber:in: ' . texEscape($a['kontoinhaber'] ?: ...) in renderContractPdf()).
     $iban = trim($_POST['member_iban'] ?? '');
     if ($iban === '') {
         $error = 'Bitte eine IBAN angeben -- ohne Bankverbindung können weder Einspeisevergütungen ausbezahlt noch Rechnungsbeträge per SEPA-Lastschrift eingezogen werden.';
@@ -1211,11 +1215,6 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
     }
     if (!validateIban($iban)) {
         $error = 'Die eingegebene IBAN ist ungültig (Prüfsumme stimmt nicht).';
-        require ROOT . '/src/views/pages/beitreten_formular.php';
-        return;
-    }
-    if (trim($_POST['kontoinhaber'] ?? '') === '') {
-        $error = 'Bitte bei Bankverbindung den vollen Namen des Kontoinhabers/der Kontoinhaberin angeben.';
         require ROOT . '/src/views/pages/beitreten_formular.php';
         return;
     }
