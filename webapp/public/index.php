@@ -7170,6 +7170,46 @@ $router->post('/portal/applications/:id/reject', function ($params) {
     exit;
 });
 
+/**
+ * Korrigiert die Zählpunktnummer(n) einer bereits eingereichten Beitrittserklärung -- nötig,
+ * weil z.B. eine aus einem Netzbetreiber-Portal mit Leerzeichen kopierte Nummer bei einem
+ * älteren, bereits eingereichten Antrag (vor dem Leerzeichen-Fix, siehe validateZaehlpunkt())
+ * schon abgeschnitten in membership_applications gespeichert wurde (Patrick, 03.09.2026: "die
+ * letzten drei Stellen sind frei"). Das Beitrittserklärung-PDF (/portal/applications/:id/formular)
+ * wird bei JEDEM Abruf frisch aus dieser Tabelle gerendert (kein Caching) -- diese Korrektur
+ * allein reicht deshalb bereits aus, damit der nächste PDF-Ausdruck die richtigen Daten zeigt,
+ * ohne einen gesonderten "neu generieren"-Schritt. Erlaubt für JEDEN Antragsstatus (auch schon
+ * freigegeben/abgelehnt), nicht nur 'pending' -- die Korrektur betrifft nur das Dokument selbst.
+ */
+$router->post('/portal/applications/:id/zaehlpunkt', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $application = DB::fetchOne('SELECT id FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$application) { http_response_code(404); echo 'Nicht gefunden'; return; }
+
+    $bezug = normalizeZaehlpunkt($_POST['bezug_zaehlpunkt'] ?? '');
+    if ($bezug !== '' && !validateZaehlpunkt($bezug)) {
+        header('Location: /portal/applications/' . $params['id'] . '?error=' . urlencode('Zählpunktnummer (Bezug) ungültig -- es werden genau 33 Zeichen (AT + 31 Buchstaben/Ziffern) benötigt.'));
+        exit;
+    }
+    $einspeisung = normalizeZaehlpunkt($_POST['einspeisung_zaehlpunkt'] ?? '');
+    if ($einspeisung !== '' && !validateZaehlpunkt($einspeisung)) {
+        header('Location: /portal/applications/' . $params['id'] . '?error=' . urlencode('Zählpunktnummer (Einspeisung) ungültig -- es werden genau 33 Zeichen (AT + 31 Buchstaben/Ziffern) benötigt.'));
+        exit;
+    }
+
+    DB::execute(
+        'UPDATE membership_applications SET bezug_zaehlpunkt = ?, einspeisung_zaehlpunkt = ? WHERE id = ? AND community_id = ?',
+        [$bezug ?: null, $einspeisung ?: null, $params['id'], $communityId]
+    );
+    logAudit($communityId, 'application.zaehlpunkt_correct', 'membership_application', $params['id'],
+        'Zählpunktnummer(n) einer Beitrittserklärung nachträglich korrigiert.');
+
+    header('Location: /portal/applications/' . $params['id'] . '?success=' . urlencode('Zählpunktnummer(n) gespeichert -- das Beitrittserklärung-PDF zeigt beim nächsten Ausdruck die korrigierten Daten.'));
+    exit;
+});
+
 // ─── Portal: EDA-Import ─────────────────────────────────
 // Import-Historie dieser Community: für die Übersicht auf /portal/eda/upload (welche Dateien
 // wurden für welchen Zeitraum importiert) UND für den Lösch-Button dort (siehe

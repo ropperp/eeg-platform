@@ -13,6 +13,14 @@ ob_start();
      class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:auto"><?= icon('printer') ?> Formular ausdrucken (PDF)</a>
 </div>
 
+<?php if (!empty($_GET['success']) && $_GET['success'] !== '1'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['success']) ?></div>
+<?php elseif (isset($_GET['success'])): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
+<?php elseif (!empty($_GET['error'])): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
+<?php endif; ?>
+
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem">
   <div class="card">
     <h3 style="margin-bottom:1rem">Stammdaten</h3>
@@ -31,14 +39,31 @@ ob_start();
     <h3 style="margin-bottom:1rem">Teilnahme &amp; Weitere Infos</h3>
     <table>
       <tr><th>Bezug gewünscht</th><td><?= in_array($a['bezug_gewuenscht'], [true, 't', '1', 1], true) ? 'Ja' : 'Nein' ?></td></tr>
-      <tr><th>Zählpunkt (Bezug)</th><td><?= htmlspecialchars($a['bezug_zaehlpunkt'] ?? '—') ?></td></tr>
       <tr><th>Jahresverbrauch</th><td><?= $a['bezug_jahresverbrauch_kwh'] ? number_format((float)$a['bezug_jahresverbrauch_kwh'], 0, ',', '.') . ' kWh' : '—' ?></td></tr>
       <tr><th>Einspeisung gewünscht</th><td><?= in_array($a['einspeisung_gewuenscht'], [true, 't', '1', 1], true) ? 'Ja' : 'Nein' ?></td></tr>
-      <tr><th>Zählpunkt (Einspeisung)</th><td><?= htmlspecialchars($a['einspeisung_zaehlpunkt'] ?? '—') ?></td></tr>
       <tr><th>Anlagenleistung</th><td><?= $a['einspeisung_kwp'] ? number_format((float)$a['einspeisung_kwp'], 2, ',', '.') . ' kWp' : '—' ?></td></tr>
       <tr><th>Speicher</th><td><?= htmlspecialchars($a['speicher_status'] ?? '—') ?><?= $a['speicher_kwh'] ? ' (' . number_format((float)$a['speicher_kwh'], 1, ',', '.') . ' kWh)' : '' ?></td></tr>
       <tr><th>Andere EEG/BEG</th><td><?= in_array($a['andere_eeg'], [true, 't', '1', 1], true) ? htmlspecialchars($a['andere_eeg_name'] ?? 'Ja') : 'Nein' ?></td></tr>
     </table>
+
+    <h4 style="margin:1.25rem 0 .5rem;font-size:.9rem">Zählpunktnummern</h4>
+    <p style="font-size:.78rem;color:var(--gray-600);margin-bottom:.75rem">
+      Bei Bedarf korrigierbar -- z.B. wenn beim Kopieren aus einem Netzbetreiber-Portal
+      Leerzeichen mitgezählt und dadurch die letzten Ziffern abgeschnitten wurden. Das
+      Beitrittserklärung-PDF oben wird bei jedem Ausdruck neu aus diesen Daten erzeugt, eine
+      Korrektur hier wirkt sich also direkt auf den nächsten Ausdruck aus.
+    </p>
+    <form method="post" action="/portal/applications/<?= $a['id'] ?>/zaehlpunkt" style="display:grid;gap:.75rem">
+      <div class="form-group" style="margin:0">
+        <label style="font-size:.82rem">Zählpunkt (Bezug)</label>
+        <input type="text" name="bezug_zaehlpunkt" style="font-family:monospace;font-size:.8rem" value="<?= htmlspecialchars($a['bezug_zaehlpunkt'] ?? '') ?>">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label style="font-size:.82rem">Zählpunkt (Einspeisung)</label>
+        <input type="text" name="einspeisung_zaehlpunkt" style="font-family:monospace;font-size:.8rem" value="<?= htmlspecialchars($a['einspeisung_zaehlpunkt'] ?? '') ?>">
+      </div>
+      <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;justify-self:start"><?= icon('check') ?> Zählpunktnummern speichern</button>
+    </form>
   </div>
 
   <div class="card">
