@@ -280,6 +280,32 @@ Monatlicher Verlauf für ein Balkendiagramm. `months` optional, 1–24, Default 
 Neueste zuerst. Nur Monate mit belastbarer Datenqualität (L1/L2) -- ein fehlender Monat in der
 Liste heißt "noch keine verlässlichen Daten", nicht zwingend "kein Verbrauch".
 
+### GET /api/v1/consumption/interval?date=YYYY-MM-DD
+
+Viertelstündlicher Verbrauch vs. gemeinschaftliche Eigendeckung für EINEN Tag (96 Intervalle) --
+Grundlage für ein Tages-Diagramm in der App, analog `/portal/my/verbrauch` im Web-Portal.
+Implementiert seit 04.09.2026 (`database/migrate_20260904.sql`,
+`eda-parser/parser_interval.py`) -- Datenquelle ist ein zweiter, eigener EDA-Export-Typ
+("Energiedaten"-Sheet, echte Viertelstundenwerte) neben dem bereits vorhandenen monatlichen
+Energiedatenreport, hat mit der Abrechnung nichts zu tun. `date` optional, Default heute (an
+den meisten Tagen ohne Daten, siehe `has_data` -- der Obmann lädt diese Werte nicht täglich
+hoch, sondern alle paar Tage nachträglich).
+
+```json
+{ "date": "2026-07-26", "has_data": true,
+  "total_messung_kwh": 2.41, "total_gemeinschaft_kwh": 0.87,
+  "intervals": [
+    { "zeit": "00:00", "verbrauch_w": 100, "gemeinschaft_w": 23 },
+    { "zeit": "00:15", "verbrauch_w": 132, "gemeinschaft_w": 18 }
+  ] }
+```
+`intervals` hat immer genau 96 Einträge (00:00 bis 23:45, 15-Minuten-Schritte). `verbrauch_w`/
+`gemeinschaft_w` sind `null`, wenn für diesen Zeitpunkt kein Wert vorliegt (nicht 0 -- ein
+echter Nullverbrauch wird von einem fehlenden Wert unterschieden). `verbrauch_w` ist die
+Durchschnittsleistung des Viertelstunden-Intervalls in Watt (kWh × 4000), direkt vergleichbar
+mit `current_power_w` aus `/api/v1/current-power`. `gemeinschaft_w` ist der Anteil davon, der
+aus der Energiegemeinschaft gedeckt wurde -- die Differenz kam aus dem öffentlichen Netz.
+
 ### GET /api/v1/invoices
 
 ```json

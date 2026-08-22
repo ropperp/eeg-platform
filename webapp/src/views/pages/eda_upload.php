@@ -131,6 +131,87 @@
   <?php endif; ?>
 </div>
 
+
+<div class="card" style="margin-top:1.5rem;border:1px solid #93c5fd">
+  <h3 style="margin-bottom:1rem"><?= icon('chart-bar') ?> Viertelstundenwerte für das Mitglieder-Diagramm</h3>
+  <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:1rem">
+    Zweiter, eigener Export-Typ aus dem EDA-Portal ("Energiedaten"-Sheet, echte
+    Viertelstundenwerte statt Monatssummen) -- <strong>rein für das Verbrauchsdiagramm der
+    Mitglieder</strong>, hat mit der Abrechnung nichts zu tun. Da EDA maximal einen Monat pro
+    Export erlaubt, aber auch beliebig kürzere/überlappende Zeiträume: einfach alle paar Tage
+    den aktuellen Ausschnitt hochladen, ein überschneidender Zeitraum wird automatisch
+    überschrieben.
+  </p>
+
+  <?php if (!empty($intervalGap['letzter'])): ?>
+    <div class="alert <?= ($intervalGap['fehlende_tage'] ?? 0) > 3 ? 'alert-warning' : 'alert-success' ?>" style="margin-bottom:1rem">
+      <strong>Daten vorhanden bis <?= date('d.m.Y H:i', strtotime($intervalGap['letzter'])) ?>.</strong>
+      <?php if (($intervalGap['fehlende_tage'] ?? 0) > 0): ?>
+        Es fehlen die letzten <?= (int)$intervalGap['fehlende_tage'] ?> Tag<?= (int)$intervalGap['fehlende_tage'] === 1 ? '' : 'e' ?>
+        bis heute (<?= date('d.m.Y') ?>) -- als Nächstes ab
+        <strong><?= date('d.m.Y', strtotime($intervalGap['letzter'] . ' +1 day')) ?></strong> exportieren.
+      <?php else: ?>
+        Aktuell, keine Lücke bis heute.
+      <?php endif; ?>
+    </div>
+  <?php else: ?>
+    <div class="alert alert-warning" style="margin-bottom:1rem">
+      Noch keine Viertelstundenwerte importiert -- als Erstes ab dem Beitrittsdatum des ersten
+      Mitglieds exportieren (siehe Mitgliederliste, nach Beitrittsdatum sortiert).
+    </div>
+  <?php endif; ?>
+
+  <?php if (!empty($intervalError)): ?>
+    <div class="alert alert-error" style="margin-bottom:1rem"><?= $intervalError ?></div>
+  <?php endif; ?>
+  <?php if (!empty($intervalResult)): ?>
+    <div class="alert alert-<?= empty($intervalResult['warnings']) ? 'success' : 'warning' ?>" style="margin-bottom:1rem">
+      <strong>Import abgeschlossen.</strong>
+      <?= number_format($intervalResult['records'], 0, ',', '.') ?> Viertelstundenwerte importiert
+      (<?= htmlspecialchars($intervalResult['period_from']) ?> – <?= htmlspecialchars($intervalResult['period_to']) ?>).
+      <?php foreach ($intervalResult['warnings'] ?? [] as $w): ?>
+        <br><span style="font-size:.85rem"><?= htmlspecialchars($w) ?></span>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+
+  <form method="post" action="/portal/eda/upload-interval" enctype="multipart/form-data" style="text-align:center">
+    <input type="file" name="xlsx_interval" accept=".xlsx" required style="margin-bottom:1rem;display:block;margin-left:auto;margin-right:auto">
+    <button type="submit" class="btn btn-primary">Viertelstundenwerte importieren</button>
+  </form>
+
+  <?php if (!empty($intervalImports)): ?>
+    <div style="overflow-x:auto;margin-top:1.5rem">
+      <table style="font-size:.85rem;width:100%">
+        <thead>
+          <tr><th>Datei</th><th>Zeitraum</th><th>Datensätze</th><th>Importiert</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($intervalImports as $imp): ?>
+            <tr>
+              <td><code style="font-size:.78rem"><?= htmlspecialchars($imp['filename']) ?></code></td>
+              <td><?= date('d.m.Y H:i', strtotime($imp['period_from'])) ?> – <?= date('d.m.Y H:i', strtotime($imp['period_to'])) ?></td>
+              <td><?= number_format((int)$imp['records_imported'], 0, ',', '.') ?></td>
+              <td>
+                <?= date('d.m.Y H:i', strtotime($imp['imported_at'])) ?>
+                <?php if (!empty($imp['first_name'])): ?>
+                  <br><span style="color:var(--gray-600);font-size:.78rem"><?= htmlspecialchars($imp['first_name'] . ' ' . $imp['last_name']) ?></span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <form method="post" action="/portal/eda/interval-imports/<?= $imp['id'] ?>/delete" style="display:inline"
+                      onsubmit="return confirmDangerDelete('den Protokolleintrag „<?= htmlspecialchars(addslashes($imp['filename'])) ?>“ (Messwerte bleiben erhalten)')">
+                  <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem" title="Nur Protokolleintrag löschen"><?= icon('trash') ?></button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php endif; ?>
+</div>
+
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('info') ?> Wichtiger Hinweis</h3>
   <p style="font-size:.875rem;color:var(--gray-600)">

@@ -1992,6 +1992,87 @@ $router->post('/portal/my/contract/:type/sign', function ($params) {
  * Beitrittserklärungen/Ausweis-Scans ab) und -- falls online beigetreten -- das
  * Beitrittsformular.
  */
+/**
+ * Viertelstündlicher Verbrauch vs. gemeinschaftliche Eigendeckung für EINEN Tag, summiert über
+ * alle aktiven Bezugs-/Prosumer-Zählpunkte eines Mitglieds -- Grundlage für /portal/my/verbrauch
+ * und GET /api/v1/consumption/interval (App). Patrick, 03.09.2026: "wie viel sie viertelstündlich
+ * verbrauchen und wie viel davon energiegemeinschaftlich genutzt wird [...] damit wissen die
+ * Mitglieder auch, wie sie ihren Verbrauch optimieren können".
+ *
+ * kwh_gemeinschaft ist der Anteil von kwh_messung, der aus der EEG gedeckt wurde (siehe
+ * Spaltenkommentar in database/migrate_20260904.sql) -- die Differenz kam aus dem öffentlichen
+ * Netz. Rückgabe in DURCHSCHNITTS-WATT je Viertelstunde (kWh * 4000), nicht kWh, damit die
+ * Werte direkt mit der Live-Leistungsanzeige (current-power, ebenfalls in W) vergleichbar sind.
+ */
+function memberIntervalDayData(string $communityId, array $meteringPointIds, string $date): array
+{
+    if (!$meteringPointIds) {
+        return ['intervals' => [], 'total_messung_kwh' => 0.0, 'total_gemeinschaft_kwh' => 0.0, 'has_data' => false];
+    }
+    DB::setCommunity($communityId);
+    $placeholders = implode(',', array_fill(0, count($meteringPointIds), '?'));
+    $rows = DB::fetchAll(
+        "SELECT time, SUM(kwh_messung) AS kwh_messung, SUM(kwh_gemeinschaft) AS kwh_gemeinschaft
+         FROM eda_interval_data
+         WHERE community_id = ? AND metering_point_id IN ($placeholders)
+           AND energy_direction = 'CONSUMPTION' AND time >= ?::date AND time < ?::date + INTERVAL '1 day'
+         GROUP BY time ORDER BY time",
+        array_merge([$communityId], $meteringPointIds, [$date, $date])
+    );
+    $byTime = [];
+    foreach ($rows as $r) {
+        $byTime[date('H:i', strtotime($r['time']))] = [
+            'messung_w'     => round((float)$r['kwh_messung'] * 4000),
+            'gemeinschaft_w' => round((float)$r['kwh_gemeinschaft'] * 4000),
+        ];
+    }
+    $intervals = [];
+    $totalMessung = 0.0;
+    $totalGemeinschaft = 0.0;
+    for ($m = 0; $m < 24 * 60; $m += 15) {
+        $label = sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
+        $v = $byTime[$label] ?? null;
+        $intervals[] = ['zeit' => $label, 'verbrauch_w' => $v['messung_w'] ?? null, 'gemeinschaft_w' => $v['gemeinschaft_w'] ?? null];
+    }
+    foreach ($rows as $r) {
+        $totalMessung += (float)$r['kwh_messung'];
+        $totalGemeinschaft += (float)$r['kwh_gemeinschaft'];
+    }
+    return [
+        'intervals' => $intervals,
+        'total_messung_kwh' => round($totalMessung, 3),
+        'total_gemeinschaft_kwh' => round($totalGemeinschaft, 3),
+        'has_data' => count($rows) > 0,
+    ];
+}
+
+$router->get('/portal/my/verbrauch', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $mpIds = array_column(
+        DB::fetchAll("SELECT id FROM metering_points WHERE member_id = ? AND active = true AND type IN ('consumer', 'prosumer')", [$member['id']]),
+        'id'
+    );
+
+    // Ohne Datumsangabe: den letzten Tag mit tatsächlich vorhandenen Daten vorschlagen (heute hat
+    // fast nie schon Werte, siehe Lücken-Anzeige unter /portal/eda/upload) statt stur "heute" zu
+    // zeigen, wo dann ohnehin nichts zu sehen wäre.
+    $date = $_GET['date'] ?? null;
+    if (!$date) {
+        $latest = $mpIds ? DB::fetchOne(
+            "SELECT MAX(time) AS letzter FROM eda_interval_data WHERE community_id = ? AND metering_point_id IN ("
+            . implode(',', array_fill(0, count($mpIds), '?')) . ")",
+            array_merge([$member['community_id']], $mpIds)
+        ) : null;
+        $date = !empty($latest['letzter']) ? date('Y-m-d', strtotime($latest['letzter'])) : date('Y-m-d');
+    }
+
+    $data = memberIntervalDayData($member['community_id'], $mpIds, $date);
+    require ROOT . '/src/views/pages/my_verbrauch.php';
+});
+
 $router->get('/portal/my/documents', function () {
     Auth::requireLogin();
     $member = currentMemberFull();
@@ -2820,6 +2901,44 @@ $router->get('/api/v1/consumption', function () {
         'teilnahme_kwh' => (float)$r['teilnahme_kwh'],
         'erzeugung_kwh' => (float)$r['erzeugung_kwh'],
     ], $rows)]);
+});
+
+/**
+ * Viertelstündlicher Verbrauch vs. gemeinschaftliche Eigendeckung für EINEN Tag (App-Äquivalent
+ * von /portal/my/verbrauch, siehe memberIntervalDayData() weiter oben für die geteilte Logik).
+ * ?date=YYYY-MM-DD, Default: heute (anders als im Web-Portal kein automatisches Zurückfallen auf
+ * den letzten Tag mit Daten -- die App zeigt bei fehlenden Werten stattdessen einen eigenen
+ * Hinweis an, siehe app.md).
+ */
+$router->get('/api/v1/consumption/interval', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $date = $_GET['date'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültiges Datum, erwartet YYYY-MM-DD.']);
+        return;
+    }
+    $mpIds = array_column(
+        DB::fetchAll("SELECT id FROM metering_points WHERE member_id = ? AND active = true AND type IN ('consumer', 'prosumer')", [$ctx['member_id']]),
+        'id'
+    );
+    $data = memberIntervalDayData($ctx['community_id'], $mpIds, $date);
+
+    echo json_encode([
+        'date'                   => $date,
+        'has_data'               => $data['has_data'],
+        'total_messung_kwh'      => $data['total_messung_kwh'],
+        'total_gemeinschaft_kwh' => $data['total_gemeinschaft_kwh'],
+        'intervals'              => array_map(fn($iv) => [
+            'zeit'           => $iv['zeit'],
+            'verbrauch_w'    => $iv['verbrauch_w'],
+            'gemeinschaft_w' => $iv['gemeinschaft_w'],
+        ], $data['intervals']),
+    ]);
 });
 
 /** Rechnungsliste des Mitglieds (Metadaten -- die PDF selbst kommt über
@@ -7240,9 +7359,47 @@ function edaImportsForCommunity(string $communityId): array
     );
 }
 
+/** Import-Historie der Viertelstundenwerte (zweiter Export-Typ, siehe
+ *  eda-parser/parser_interval.py) -- eigene, schlankere Tabelle als edaImportsForCommunity()
+ *  oben, da hier bewusst überlappende Zeiträume normal sind (siehe Kommentar in
+ *  database/migrate_20260904.sql), keine Datenqualitäts-Aggregation nötig (nicht
+ *  abrechnungsrelevant). */
+function edaIntervalImportsForCommunity(string $communityId): array
+{
+    DB::setCommunity($communityId);
+    return DB::fetchAll(
+        "SELECT ei.*, u.first_name, u.last_name
+         FROM eda_interval_imports ei
+         LEFT JOIN users u ON u.id = ei.imported_by
+         WHERE ei.community_id = ?
+         ORDER BY ei.imported_at DESC",
+        [$communityId]
+    );
+}
+
+/**
+ * Lücken-Anzeige für die Viertelstundenwerte: letzter vorhandener Zeitstempel community-weit
+ * (über alle Zählpunkte) plus wie viele Tage bis heute fehlen -- Patrick, 03.09.2026: "ab
+ * welchem Datum es noch keine Werte gibt, ab welchem Datum gehe ich die Daten exportieren
+ * muss", "wenn ich jetzt den juli importier und dann von 01.08. bis 21.08. ich sehe, dass ab
+ * 22.08. die Daten fehlen". Bewusst eine einfache MAX(time)-Abfrage statt eine eigene
+ * Fortschritts-Tabelle zu pflegen -- immer exakt aktuell, unabhängig vom Import-Protokoll.
+ */
+function edaIntervalGap(string $communityId): array
+{
+    DB::setCommunity($communityId);
+    $row = DB::fetchOne('SELECT MAX(time) AS letzter FROM eda_interval_data WHERE community_id = ?', [$communityId]);
+    $letzter = $row['letzter'] ?? null;
+    $fehlendeTage = $letzter ? (int)floor((time() - strtotime($letzter)) / 86400) : null;
+    return ['letzter' => $letzter, 'fehlende_tage' => $fehlendeTage];
+}
+
 $router->get('/portal/eda/upload', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
-    $imports = edaImportsForCommunity(Auth::activeCommunityId());
+    $communityId = Auth::activeCommunityId();
+    $imports = edaImportsForCommunity($communityId);
+    $intervalImports = edaIntervalImportsForCommunity($communityId);
+    $intervalGap = edaIntervalGap($communityId);
     require ROOT . '/src/views/pages/eda_upload.php';
 });
 
@@ -7250,6 +7407,8 @@ $router->post('/portal/eda/upload', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     $imports = edaImportsForCommunity($communityId);
+    $intervalImports = edaIntervalImportsForCommunity($communityId);
+    $intervalGap = edaIntervalGap($communityId);
 
     if (!isset($_FILES['xlsx']) || $_FILES['xlsx']['error'] !== UPLOAD_ERR_OK) {
         $error = 'Upload fehlgeschlagen (Fehlercode: ' . ($_FILES['xlsx']['error'] ?? '?') . ')';
@@ -7300,6 +7459,55 @@ $router->post('/portal/eda/upload', function () {
     require ROOT . '/src/views/pages/eda_upload.php';
 });
 
+/** Wie POST /portal/eda/upload, aber für den zweiten Export-Typ (Viertelstundenwerte,
+ *  "Energiedaten"-Sheet, siehe eda-parser/parser_interval.py) -- eigene Route, eigenes
+ *  Datei-Feld (xlsx_interval), damit beide Upload-Formulare unabhängig auf derselben Seite
+ *  stehen können. */
+$router->post('/portal/eda/upload-interval', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    $imports = edaImportsForCommunity($communityId);
+    $intervalImports = edaIntervalImportsForCommunity($communityId);
+    $intervalGap = edaIntervalGap($communityId);
+
+    if (!isset($_FILES['xlsx_interval']) || $_FILES['xlsx_interval']['error'] !== UPLOAD_ERR_OK) {
+        $intervalError = 'Upload fehlgeschlagen (Fehlercode: ' . ($_FILES['xlsx_interval']['error'] ?? '?') . ')';
+        require ROOT . '/src/views/pages/eda_upload.php';
+        return;
+    }
+    $origName = basename($_FILES['xlsx_interval']['name']);
+    if (!str_ends_with(strtolower($origName), '.xlsx')) {
+        $intervalError = 'Nur XLSX-Dateien erlaubt.';
+        require ROOT . '/src/views/pages/eda_upload.php';
+        return;
+    }
+
+    $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . $origName;
+    move_uploaded_file($_FILES['xlsx_interval']['tmp_name'], $savePath);
+
+    $parserResult = EdaParserRunner::runInterval($savePath, Auth::activeCommunitySlug(), Auth::userId());
+    $intervalResult = json_decode($parserResult['stdout'], true);
+    if ($intervalResult === null) {
+        $diag = EdaParserRunner::diagnostics($parserResult);
+        $intervalError = 'Parser-Fehler: ' . htmlspecialchars(substr($diag, 0, 4000));
+        logAudit($communityId, 'eda.interval_import', null, null, 'Viertelstundenwerte-Import fehlgeschlagen: ' . substr($diag, 0, 4000), true);
+    } else {
+        logAudit($communityId, 'eda.interval_import', null, null,
+            'Viertelstundenwerte-Import: ' . ($intervalResult['records'] ?? '?') . ' Datensätze importiert'
+            . (!empty($intervalResult['warnings']) ? ', ' . count($intervalResult['warnings']) . ' Warnung(en)' : ''));
+        foreach ($intervalResult['neu_angelegt'] ?? [] as $neu) {
+            logAudit($communityId, 'eda.metering_point.autocreate', 'metering_point', $neu['metering_point_id'] ?? null,
+                'Zählpunkt ' . $neu['zaehlpunkt_nr'] . ' automatisch aus Viertelstundenwerte-Import angelegt (Typ-Vermutung: '
+                . $neu['type_guess'] . '), noch keinem Mitglied zugeordnet.');
+        }
+    }
+
+    $intervalImports = edaIntervalImportsForCommunity($communityId);
+    $intervalGap = edaIntervalGap($communityId);
+
+    require ROOT . '/src/views/pages/eda_upload.php';
+});
+
 /**
  * Löscht einen EDA-Import wieder -- den Log-Eintrag UND die dabei importierten Messwerte
  * (eda_measurements), damit dieselbe Datei anschließend erneut hochgeladen werden kann (der
@@ -7330,6 +7538,32 @@ $router->post('/portal/eda/imports/:id/delete', function ($params) {
     logAudit($communityId, 'eda.import.delete', 'eda_import', $imp['id'],
         'EDA-Import "' . $imp['filename'] . '" (' . date('d.m.Y', strtotime($imp['period_from'])) . ' – '
         . date('d.m.Y', strtotime($imp['period_to'])) . ') gelöscht, ' . $deletedMeasurements . ' Messwert-Datensätze entfernt.');
+
+    header('Location: /portal/eda/upload?deleted=1');
+    exit;
+});
+
+/**
+ * Löscht nur den Protokoll-Eintrag eines Viertelstundenwerte-Imports, NICHT die dabei
+ * importierten Messwerte selbst -- anders als beim Monatsimport oben ist das hier sicher genug:
+ * Zeiträume überlappen sich bei diesem Import-Typ bewusst normal (Patrick lädt alle paar Tage
+ * einen neuen, teils überlappenden Ausschnitt hoch), ein exaktes Zurückrechnen "welche Zeilen
+ * gehören zu genau diesem Log-Eintrag" wäre bei Überlappungen nicht mehr eindeutig. Falsche/
+ * veraltete Werte werden stattdessen einfach durch einen erneuten Upload desselben Zeitraums
+ * überschrieben (siehe import_to_db() in eda-parser/parser_interval.py) -- diese Route räumt
+ * nur die Historien-Anzeige auf.
+ */
+$router->post('/portal/eda/interval-imports/:id/delete', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $imp = DB::fetchOne('SELECT * FROM eda_interval_imports WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$imp) { http_response_code(404); return; }
+
+    DB::execute('DELETE FROM eda_interval_imports WHERE id = ?', [$imp['id']]);
+    logAudit($communityId, 'eda.interval_import.delete', 'eda_interval_import', $imp['id'],
+        'Viertelstundenwerte-Import-Protokolleintrag "' . $imp['filename'] . '" gelöscht (Messwerte selbst bleiben erhalten).');
 
     header('Location: /portal/eda/upload?deleted=1');
     exit;

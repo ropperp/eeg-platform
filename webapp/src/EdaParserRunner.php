@@ -45,4 +45,27 @@ class EdaParserRunner
         $combined = trim($runResult['stderr'] . "\n" . $runResult['stdout']);
         return $combined !== '' ? $combined : 'Keine Ausgabe';
     }
+
+    /** Wie run(), aber für den zweiten Export-Typ (Viertelstundenwerte, "Energiedaten"-Sheet,
+     *  siehe eda-parser/parser_interval.py) -- eigenes Skript, komplett anderes Dateiformat. */
+    public static function runInterval(string $filePath, string $communitySlug, ?string $userId = null): array
+    {
+        $cmd = 'python3 /var/www/html/eda-parser/parser_interval.py --file ' . escapeshellarg($filePath)
+             . ' --community ' . escapeshellarg($communitySlug)
+             . ($userId !== null && $userId !== '' ? ' --user-id ' . escapeshellarg($userId) : '');
+
+        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $process = proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($process)) {
+            return ['stdout' => '', 'stderr' => 'Parser-Prozess konnte nicht gestartet werden.', 'exit_code' => -1];
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        return ['stdout' => (string)$stdout, 'stderr' => (string)$stderr, 'exit_code' => $exitCode];
+    }
 }
