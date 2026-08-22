@@ -31,8 +31,12 @@
         // Pre-Launch-Hinweis-Popup nur für die Mitglieder-Ansicht (Obmänner/Platform-Admins
         // wissen ohnehin, dass wir uns in der Vorbereitungsphase befinden), einmal pro Login
         // (Flag wird bei jedem establishSession() zurückgesetzt, siehe Auth.php) -- Patrick,
-        // 30.07.2026.
-        $showPrelaunchNotice = !$isPlatformAdmin && !$isManager && empty($_SESSION['prelaunch_ack']);
+        // 30.07.2026. Für Demo-Logins IMMER unterdrückt (Patrick, 06.09.2026, per Screenshot):
+        // der Hinweistext richtet sich an echte, neue Mitglieder und ist für eine Präsentation
+        // irrelevant -- schlimmer noch, der "Gelesen"-Button dahinter ist ein POST und wäre für
+        // einen read-only Demo-Login gar nicht klickbar (siehe Router.php), der Zugang saß also
+        // bisher hinter diesem Banner fest.
+        $showPrelaunchNotice = !$isPlatformAdmin && !$isManager && !Auth::isDemo() && empty($_SESSION['prelaunch_ack']);
       ?>
 
       <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>

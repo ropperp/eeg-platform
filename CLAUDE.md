@@ -835,6 +835,19 @@ docker compose up -d --build
 > in Eingabefeldern, auch wenn Speichern ohnehin gesperrt ist) -- diese Seiten beim Vorführen des
 > Demo-Accounts vorerst meiden, bis sie ebenfalls maskiert sind.
 
+> **Stolperstein Pre-Launch-Popup (Patrick, 06.09.2026, per Screenshot):** ein Demo-Login saß
+> beim allerersten Aufruf der Mitglied-Ansicht ("Verbraucher 1"/"Einspeiser 1") hinter dem
+> Pre-Launch-Hinweis-Popup ("Willkommen! Ein kurzer Hinweis...") fest -- der "Gelesen"-Button
+> dahinter ist ein POST (`/portal/ack-prelaunch`) und wurde von der Read-only-Sperre blockiert,
+> landete auf der "Nur Lesezugriff"-Seite statt das Popup zu schließen; da der dahinterliegende
+> Seiteninhalt bewusst per `pointer-events:none` gesperrt ist, kam man so gar nicht mehr weiter.
+> Behoben: das Popup wird für Demo-Logins jetzt grundsätzlich gar nicht mehr angezeigt (der
+> Hinweistext richtet sich an echte, neue Mitglieder und ist für eine Präsentation irrelevant),
+> zusätzlich steht `/portal/ack-prelaunch` als zweite, folgenlose Ausnahme neben
+> `/portal/switch-role` auf der Demo-Erlaubnisliste in `Router.php` (falls es je doch auftaucht).
+> Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten `git pull &&
+> docker compose up -d --build` aktiv.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
