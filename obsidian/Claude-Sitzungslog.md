@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (67) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich wollte nur mit dir erst gerne abklären bzw. schreib mir das bitte auch sehr
+detailliert in eine Datei, die ich dann bitte auch auf GitHub pushe, damit ich sie dann mit
+Git-Pool wieder runterholen kann und bei mir in Obsidian synchronisieren kann [...] Auf jeden
+Fall geht es darum, dass Kärnten jetzt auf einmal die Schaltanlagen irgendwie geändert haben.
+[...] 23 R1 ist jetzt auf einmal der nordöstliche Teil von Feldkirchen. [...] Was jetzt
+wirklich mit 'Süd-West' gemeint ist, weiß ich nicht [...] Ich glaube, das lassen wir jetzt
+einfach mal so. [...] Bitte dokumentier mir das, und dann geht's weiter mit der Webseite und
+ein paar Ideen von mir!"
+**Auftrag:** Die von Kärnten Netz neu gezogenen Regionalgrenzen (Regionale ID 23R1 bezeichnet
+jetzt den nordöstlichen statt südwestlichen Teil von Feldkirchen) und Patricks Entscheidung,
+Vereinsname/Bankkonto trotz der geografischen Verschiebung NICHT umzubenennen, als
+Hintergrund-Dokumentation festhalten -- ausdrücklich ohne Code-Änderung, nur zur
+Nachvollziehbarkeit für später.
+**Ergebnis:** Neue Notiz `obsidian/Problemstellungen.md` (neue Kategorie für organisatorische/
+rechtliche Problemstellungen ohne unmittelbaren Code-Bezug, ergänzend zu `Infrastruktur.md`
+und diesem Sitzungslog), `obsidian/README.md` um Verweis ergänzt. Statuten und öffentliche
+Website geprüft und für von der Änderung unberührt befunden. PR #113, sofort gemergt.
+
+---
+
 ## 2026-09-03 (66) — Claude Code — Claude Sonnet 5
 **Prompt:** "Bezüglich dem Problem mit dem Zählpunktnummer mit den Leerzeichen: Ich habe
 gerade jetzt gesehen, dass in dem Formular, in dem man die ganzen Daten überträgt, jetzt die
