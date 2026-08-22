@@ -690,6 +690,27 @@ docker compose up -d --build
 > `POST /api/v1/admin/settings/apns/test` (erfordert vorher ein über
 > `POST /api/v1/push/register` registriertes eigenes Gerät).
 
+> **Einmalig nach dem Update vom 04.09.2026** (Viertelstunden-Verbrauchsdiagramm für Mitglieder
+> -- Patrick, 03.09.2026: "wie viel sie viertelstündlich verbrauchen und wie viel davon
+> energiegemeinschaftlich genutzt wird"): nur die Migration nötig, sonst nichts (kein neues
+> Python-Paket, `openpyxl`/`pandas` sind schon da):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260904.sql
+> docker compose up -d --build
+> ```
+> Datenquelle ist ein **zweiter, eigener EDA-Export-Typ** ("Energiedaten"-Sheet, echte
+> Viertelstundenwerte) neben dem bisherigen monatlichen Energiedatenreport -- beide werden im
+> EDA-Anwenderportal separat exportiert, hat mit der Abrechnung nichts zu tun (eigene Tabelle
+> `eda_interval_data`, siehe Kommentar in der Migration). Unter Platform-Admin bzw.
+> Obmann-Bereich → "EDA-Daten importieren" gibt es dafür jetzt eine zweite Upload-Karte inkl.
+> Anzeige "Daten vorhanden bis ..., es fehlen X Tage" -- da EDA maximal einen Monat pro Export
+> erlaubt, aber auch kürzere/überlappende Zeiträume liefert, einfach alle paar Tage den
+> aktuellen Ausschnitt hochladen (ein überschneidender Zeitraum wird automatisch überschrieben,
+> nicht wie beim Monatsimport als Duplikat abgelehnt). Mitglieder sehen das Diagramm unter
+> "Mein Verbrauch" im Portal bzw. in der App (`GET /api/v1/consumption/interval`).
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

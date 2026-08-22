@@ -750,4 +750,40 @@ Weg, um zwischen Mitglied-/Obmann-/Admin-Ansicht zu wechseln.
 
 ---
 
+## 12. Runde 5: Viertelstunden-Verbrauchsdiagramm (04.09.2026)
+
+Neuer Endpunkt `GET /api/v1/consumption/interval?date=YYYY-MM-DD` (Details:
+`docs/APP_API.md`) -- liefert für einen einzelnen Tag 96 Viertelstunden-Werte: eigener
+Verbrauch (`verbrauch_w`) und davon aus der Energiegemeinschaft gedeckter Anteil
+(`gemeinschaft_w`), beides in Watt (Durchschnittsleistung des Intervalls). Ziel laut Patrick:
+Mitglieder sollen sehen können, wie viel sie zu welcher Tageszeit verbrauchen und wie viel
+davon "grün" (aus der EEG) gedeckt wird, um den eigenen Verbrauch gezielt in Zeiten mit hoher
+Eigendeckung verschieben zu können (Waschmaschine, Wallbox, Wärmepumpe).
+
+**Bitte einen neuen Bildschirm bauen** (erreichbar z.B. über einen Button/Link im
+Mitglied-Dashboard, nur wenn `role: "member"` UND mindestens ein Bezugs-/Prosumer-Zählpunkt
+vorhanden ist):
+1. **Gestapeltes Flächendiagramm** über den Tagesverlauf (X-Achse 00:00–24:00, Y-Achse Watt):
+   untere Fläche (grün) = `gemeinschaft_w`, obere Fläche (grau/neutral) = `verbrauch_w` minus
+   `gemeinschaft_w` (zusätzlich aus dem Netz bezogen) -- die Gesamthöhe der gestapelten Fläche
+   entspricht `verbrauch_w`. Genau wie beim Web-Portal-Pendant (`/portal/my/verbrauch`,
+   SwiftUI-Analogon zu dessen Inline-SVG).
+2. **Datums-Navigation:** Vortag-/Folgetag-Pfeile plus Datumsauswahl, Folgetag über dem
+   heutigen Datum deaktiviert. Beim ersten Öffnen kein festes "heute" vorbelegen, sondern
+   sinnvollerweise den letzten Tag mit Daten (`has_data`) versuchen -- ähnlich wie das
+   Web-Portal `MAX(time)` heranzieht, in der App reicht ein simples Rückwärtstasten, bis
+   `has_data: true` kommt, oder ein Hinweistext bei `has_data: false`.
+3. **Kennzahlen darüber:** Gesamtverbrauch (`total_messung_kwh`), davon aus der EEG gedeckt
+   (`total_gemeinschaft_kwh`), sowie der Prozentanteil daraus berechnet.
+4. **Lücken in `intervals`** (`verbrauch_w`/`gemeinschaft_w` = `null`, nicht 0) im Diagramm als
+   Lücke/Unterbrechung darstellen, nicht als Null-Linie -- ein echter Nullverbrauch (z.B. nachts
+   bei manchen Haushalten) ist etwas anderes als "kein Messwert vorhanden".
+
+Wichtig: diese Daten kommen NICHT von der Ausleseeinheit/den Live-Messwerten (die App-eigene
+Live-Anzeige/Energiefluss-Grafik aus Abschnitt 9.5 bleibt unverändert), sondern aus einem
+separaten, vom Obmann manuell alle paar Tage hochgeladenen Netzbetreiber-Export -- kann deshalb
+mit spürbarer Verzögerung (Tage) hinter "jetzt" liegen, das ist normal und kein Bug.
+
+---
+
 *Strom für alle · Diplomarbeit HTL Kärnten 2026/27 · Textreferenz für die iOS-App-Entwicklung.*

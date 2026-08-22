@@ -237,6 +237,18 @@ function onDashboardRangeChange(v) {
 </script>
 <?php endif; ?>
 
+<?php if ($hasConsumer): ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('chart-bar') ?> Viertelstündlicher Verbrauch</h3>
+  <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:.75rem">
+    Sehen Sie für einen einzelnen Tag, wie viel Sie viertelstündlich verbraucht haben und wie
+    viel davon aus der Energiegemeinschaft gedeckt wurde -- hilft dabei, den eigenen Verbrauch
+    gezielt in Zeiten mit hoher gemeinschaftlicher Erzeugung zu verschieben.
+  </p>
+  <a href="/portal/my/verbrauch" class="btn btn-primary" style="font-size:.85rem">Diagramm ansehen</a>
+</div>
+<?php endif; ?>
+
 <?php if ($monthly): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem"><?= icon('chart-bar') ?> Verlauf der letzten Monate</h3>

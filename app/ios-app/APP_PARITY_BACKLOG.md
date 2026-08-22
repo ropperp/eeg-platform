@@ -66,6 +66,13 @@ vor dem Umsetzen abgestimmt.
 
 ## Bereits umgesetzt (zur Referenz, chronologisch)
 
+- **04.09.2026 (PR folgt):** Viertelstunden-Verbrauchsdiagramm (Verbrauch vs. gemeinschaftliche
+  Eigendeckung, ein Tag, 96 Intervalle) -- neuer EDA-Export-Typ ("Energiedaten"-Sheet, echte
+  Viertelstundenwerte statt Monatssummen) über `eda-parser/parser_interval.py` importierbar,
+  eigene Tabelle `eda_interval_data` (nicht abrechnungsrelevant). `GET
+  /api/v1/consumption/interval?date=YYYY-MM-DD` (App) bzw. `/portal/my/verbrauch` (Web).
+  Lücken-Anzeige ("Daten vorhanden bis ..., X Tage fehlen") unter Obmann → "EDA-Daten
+  importieren". Siehe `app.md` Abschnitt 12 für den noch zu bauenden App-Bildschirm.
 - **03.09.2026 (PR folgt):** Push-Benachrichtigungen (APNs) -- Postfach-Element an Obmann/Admin,
   neue Rechnung an Mitglied, Einspeisung-Schwelle mit Hysterese an Mitglied. DB-Trigger
   (`migrate_20260903.sql`) + `Push.php` (ES256-JWT, HTTP/2) + `POST /api/v1/push/register`,
