@@ -3,8 +3,8 @@ $pageTitle = 'Mein Verbrauch';
 $communityId = Auth::activeCommunityId();
 DB::setCommunity($communityId);
 
-$userId = Auth::userId();
-$member = DB::fetchOne('SELECT * FROM members WHERE user_id = ? AND community_id = ? LIMIT 1', [$userId, $communityId]);
+$memberId = activeMemberId($communityId);
+$member = $memberId ? DB::fetchOne('SELECT * FROM members WHERE id = ?', [$memberId]) : null;
 $meteringPoints = $member
     ? DB::fetchAll('SELECT * FROM metering_points WHERE member_id = ? AND active = true ORDER BY registered_at', [$member['id']])
     : [];

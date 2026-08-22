@@ -96,11 +96,15 @@ class Billing
             // beigetreten sind, bleiben erfasst -- ihr Mitgliedsbeitrag wird weiterhin unten über
             // mitgliedsbeitragAnteilig() anteilig berechnet, ihre Energie-Positionen unten über
             // GREATEST(period_from, member_since) auf die Zeit ab ihrem Beitritt begrenzt.
+            // m.is_demo = false: Demo-Mitglied-Identitäten (Präsentation/Diplomarbeit-Review,
+            // siehe migrate_20260905.sql) dürfen NIE in einen echten Abrechnungslauf einfließen --
+            // ihre "Daten" sind zwar strukturell echten Verbrauchswerten nachempfunden, aber
+            // fiktive Identitäten ohne echte Bankverbindung.
             $members = DB::fetchAll(
                 'SELECT m.*, mp.id AS mp_id, mp.type AS mp_type, mp.zaehlpunkt_nr
                  FROM members m
                  JOIN metering_points mp ON mp.member_id = m.id AND mp.community_id = m.community_id
-                 WHERE m.community_id = ? AND m.status = ? AND m.member_since <= ?',
+                 WHERE m.community_id = ? AND m.status = ? AND m.member_since <= ? AND m.is_demo = false',
                 [$run['community_id'], 'active', $run['period_to']]
             );
 

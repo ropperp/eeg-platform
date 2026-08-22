@@ -9,6 +9,45 @@ declare(strict_types=1);
  */
 class Auth
 {
+    /**
+     * user_roles/communities haben KEINE Row-Level Security, ein direkter JOIN ist hier
+     * unproblematisch (gleiches Muster wie resolveAppManagerRoles() in index.php). members
+     * dagegen HAT RLS -- ein JOIN dorthin würde ohne vorher gesetztes app.community_id für
+     * JEDE Zeile NULL liefern (siehe die vielen Warnungen dazu in CLAUDE.md), und die Rollen
+     * hier können mehrere verschiedene Communities betreffen, ein einzelnes
+     * DB::setCommunity() vorher würde also nicht für alle Zeilen passen. Der Mitglied-Name
+     * zur member_id (nur für Demo-Logins mit mehreren 'member'-Rollen relevant, siehe
+     * migrate_20260905.sql) wird deshalb NICHT hier gejoint, sondern von attachMemberNames()
+     * pro Rolle einzeln mit korrekt gesetzter Community nachgeladen.
+     */
+    private const ROLES_QUERY =
+        'SELECT ur.community_id, ur.role, ur.member_id,
+                c.name AS community_name,
+                c.slug AS community_slug,
+                COALESCE(LOWER(c.marktpartner_id), c.slug) AS community_mqtt_id
+         FROM user_roles ur
+         LEFT JOIN communities c ON c.id = ur.community_id
+         WHERE ur.user_id = ?';
+
+    /**
+     * Reichert Rollen mit member_id (Demo-Logins, mehrere Mitglied-Identitäten in derselben
+     * Community) um den Anzeigenamen der jeweiligen Mitglied-Identität an -- fürs
+     * Rollen-Dropdown ("Verbraucher 1" statt nur "EEG XY (member)" zweimal identisch). RLS-sicher
+     * durch einzelnes DB::setCommunity() je betroffener Rolle (siehe Kommentar an ROLES_QUERY).
+     */
+    private static function attachMemberNames(array $roles): array
+    {
+        foreach ($roles as &$r) {
+            if (empty($r['member_id'])) continue;
+            DB::setCommunity($r['community_id']);
+            $m = DB::fetchOne('SELECT first_name, last_name FROM members WHERE id = ?', [$r['member_id']]);
+            $r['member_first_name'] = $m['first_name'] ?? null;
+            $r['member_last_name']  = $m['last_name'] ?? null;
+        }
+        unset($r);
+        return $roles;
+    }
+
     public static function start(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
@@ -74,23 +113,25 @@ class Auth
      */
     public static function establishSession(string $userId): void
     {
-        $user = DB::fetchOne('SELECT id, first_name, last_name, email FROM users WHERE id = ?', [$userId]);
+        $user = DB::fetchOne('SELECT id, first_name, last_name, email, is_demo FROM users WHERE id = ?', [$userId]);
         if (!$user) return;
-        $roles = DB::fetchAll(
-            'SELECT ur.community_id, ur.role,
-                    c.name AS community_name,
-                    c.slug AS community_slug,
-                    COALESCE(LOWER(c.marktpartner_id), c.slug) AS community_mqtt_id
-             FROM user_roles ur
-             LEFT JOIN communities c ON c.id = ur.community_id
-             WHERE ur.user_id = ?',
-            [$user['id']]
-        );
+        $roles = DB::fetchAll(self::ROLES_QUERY, [$user['id']]);
+        if (array_filter($roles, fn($r) => !empty($r['member_id']))) {
+            $roles = self::attachMemberNames($roles);
+        }
         $_SESSION['user_id']     = $user['id'];
         $_SESSION['user_name']   = $user['first_name'] . ' ' . $user['last_name'];
         $_SESSION['user_email']  = $user['email'];
+        $_SESSION['is_demo']     = (bool)$user['is_demo'];
         $_SESSION['roles']       = $roles;
         $_SESSION['active_role'] = self::pickDefaultRole($roles);
+        // attachMemberNames() kann DB::setCommunity() auf die zuletzt geprüfte Rolle stehen
+        // lassen (RLS-Lookup je Rolle einzeln, siehe dortiger Kommentar) -- auf die tatsächlich
+        // aktive Rolle zurücksetzen, sonst würde die allererste Abfrage nach dem Login
+        // (community-gebunden) versehentlich im falschen Community-Kontext laufen.
+        if ($_SESSION['active_role']['community_id'] ?? null) {
+            DB::setCommunity($_SESSION['active_role']['community_id']);
+        }
         // Pre-Launch-Hinweis-Popup (Mitglieder-Ansicht) soll bei JEDEM Login erneut erscheinen,
         // nicht nur beim ersten Login der Browser-Session (Patrick, 30.07.2026) -- explizit
         // zurücksetzen statt auf session_regenerate_id() zu verlassen, das den Session-Inhalt
@@ -190,38 +231,49 @@ class Auth
     public static function refreshRoles(): void
     {
         if (!self::check()) { return; }
-        $roles = DB::fetchAll(
-            'SELECT ur.community_id, ur.role,
-                    c.name AS community_name,
-                    c.slug AS community_slug,
-                    COALESCE(LOWER(c.marktpartner_id), c.slug) AS community_mqtt_id
-             FROM user_roles ur
-             LEFT JOIN communities c ON c.id = ur.community_id
-             WHERE ur.user_id = ?',
-            [self::userId()]
-        );
+        $roles = DB::fetchAll(self::ROLES_QUERY, [self::userId()]);
+        if (array_filter($roles, fn($r) => !empty($r['member_id']))) {
+            $roles = self::attachMemberNames($roles);
+            if (self::activeCommunityId()) { DB::setCommunity(self::activeCommunityId()); }
+        }
         $_SESSION['roles'] = $roles;
 
         $active = $_SESSION['active_role'] ?? null;
         $stillValid = $active && !empty(array_filter(
             $roles,
             fn($r) => $r['community_id'] === $active['community_id'] && $r['role'] === $active['role']
+                && ($r['member_id'] ?? null) === ($active['member_id'] ?? null)
         ));
         if (!$stillValid) {
             $_SESSION['active_role'] = self::pickDefaultRole($roles);
         }
     }
 
-    /** Wechselt aktive Community/Rolle */
-    public static function switchRole(string $communityId, string $role): bool
+    /**
+     * Wechselt aktive Community/Rolle. $memberId disambiguiert bei role='member', falls ein
+     * Login mehrere Mitglied-Identitäten in derselben Community hat (Demo-Logins, siehe
+     * migrate_20260905.sql) -- für alle anderen Accounts bleibt es null und spielt keine Rolle,
+     * da deren Rollen ebenfalls member_id=null haben.
+     */
+    public static function switchRole(string $communityId, string $role, ?string $memberId = null): bool
     {
         foreach ($_SESSION['roles'] ?? [] as $r) {
-            if ($r['community_id'] === $communityId && $r['role'] === $role) {
+            if ($r['community_id'] === $communityId && $r['role'] === $role
+                && ($r['member_id'] ?? null) === $memberId) {
                 $_SESSION['active_role'] = $r;
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Demo-Login (Präsentation/Diplomarbeit-Review, Patrick 05.09.2026) -- komplett
+     * schreibgeschützt über ALLE Rollen hinweg, siehe Router.php/AppApiAuth::requireAppAuth().
+     */
+    public static function isDemo(): bool
+    {
+        return !empty($_SESSION['is_demo']);
     }
 
     /** Wählt sinnvolle Standardrolle: platform_admin > manager > member */

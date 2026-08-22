@@ -4,8 +4,10 @@ $communityId = Auth::activeCommunityId();
 DB::setCommunity($communityId);
 
 $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
-$memberCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ?', [$communityId, 'active'])['cnt'];
-$pendingCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ?', [$communityId, 'pending'])['cnt'];
+// is_demo = false: fiktive Demo-Mitglied-Identitäten (Präsentation/Diplomarbeit-Review, siehe
+// migrate_20260905.sql) nicht in der echten Mitgliederstatistik mitzählen.
+$memberCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ? AND is_demo = false', [$communityId, 'active'])['cnt'];
+$pendingCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ? AND is_demo = false', [$communityId, 'pending'])['cnt'];
 $mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND active = true', [$communityId])['cnt'];
 
 $lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = ? ORDER BY imported_at DESC LIMIT 1', [$communityId]);
