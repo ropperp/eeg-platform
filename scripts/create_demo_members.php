@@ -35,6 +35,14 @@ declare(strict_types=1);
  * synchron" auch ohne manuelles Nachtriggern gilt -- unabhängig davon, ob die Vorlage-Daten
  * gerade per Auto-Import oder manuellem Upload aktualisiert wurden.
  *
+ * Zusätzlich (migrate_20260906.sql, Patrick 05./06.09.2026: "in Echtzeit"): jeder fiktive
+ * Zählpunkt bekommt hier `mirror_source_metering_point_id` auf seinen echten Vorlage-Zählpunkt
+ * gesetzt -- ein DB-Trigger spiegelt danach JEDE neue Live-ESP-Messung (mqtt-subscriber, alle
+ * ~5s) sofort auch hierher. Das ist KEINE Simulation, sondern eine echte Live-Spiegelung der
+ * tatsächlichen ESP-Messwerte von Stefanie/Daniel -- läuft unabhängig von diesem Skript
+ * fortlaufend, dieses Skript muss dafür nicht als Cron laufen (die EDA-Synchronisation weiter
+ * oben aber schon).
+ *
  * Aufruf (im Repo-Root, auf dem Server):
  *   docker compose exec -T webapp php < scripts/create_demo_members.php
  */
@@ -170,16 +178,22 @@ foreach ($DEMO_DEFINITIONS as $def) {
         if ($existingMp) {
             $newMpId = $existingMp['id'];
             // Typ/Registrierdatum können sich am Vorlage-Zählpunkt geändert haben -- mitziehen.
+            // mirror_source_metering_point_id wird bei jedem Lauf neu gesetzt (nicht nur bei der
+            // Erstanlage), falls sich der zugeordnete Vorlage-Zählpunkt je ändern sollte.
             DB::execute(
-                'UPDATE metering_points SET type = ?, registered_at = ?, active = true WHERE id = ?',
-                [$mp['type'], $mp['registered_at'], $newMpId]
+                'UPDATE metering_points SET type = ?, registered_at = ?, active = true, mirror_source_metering_point_id = ? WHERE id = ?',
+                [$mp['type'], $mp['registered_at'], $mp['id'], $newMpId]
             );
         } else {
+            // mirror_source_metering_point_id (migrate_20260906.sql): der Trigger
+            // trg_mirror_esp_measurement spiegelt danach JEDE neue Live-ESP-Messung des echten
+            // Vorlage-Zählpunkts sofort auch hierher -- echtes Echtzeit-Spiegeln (Patrick,
+            // 05./06.09.2026: "in Echtzeit"), keine periodische Kopie.
             $newMp = DB::fetchOne(
-                "INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, meter_code, type, active, registered_at)
-                 VALUES (?, ?, ?, ?, ?, true, ?)
+                "INSERT INTO metering_points (community_id, member_id, zaehlpunkt_nr, meter_code, type, active, registered_at, mirror_source_metering_point_id)
+                 VALUES (?, ?, ?, ?, ?, true, ?, ?)
                  RETURNING id",
-                [$source['community_id'], $newMemberId, $fakeZaehlpunkt, $fakeMeterCode, $mp['type'], $mp['registered_at']]
+                [$source['community_id'], $newMemberId, $fakeZaehlpunkt, $fakeMeterCode, $mp['type'], $mp['registered_at'], $mp['id']]
             );
             $newMpId = $newMp['id'];
         }

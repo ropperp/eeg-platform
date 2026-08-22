@@ -776,6 +776,32 @@ docker compose up -d --build
 > Obmann-Account (nicht den Demo-Login, der ist read-only) für "Verbraucher 1"/"Einspeiser 1"
 > einen Vertrag erzeugen/signieren -- der Demo-Login kann ihn danach ganz normal ansehen.
 
+> **Einmalig nach dem Update vom 06.09.2026** (Live-ESP-Spiegelung für die Demo-Mitglieder --
+> Patrick, 05./06.09.2026: "du sollst bitte die Echtzeit-Werte zum Einspeisen von Daniel Ropper
+> synchronisieren und die Echtzeit-Daten von Stefanie Schwaiger für den Verbraucher verwenden.
+> Aber bitte in Echtzeit."): "Verbraucher 1"/"Einspeiser 1" haben keine eigene ESP32-Hardware --
+> statt einer synthetischen Simulation (bewusst abgelehnt, siehe Konversation) spiegelt ein
+> DB-Trigger auf `esp_measurements` jetzt JEDE neue Live-Messung des jeweiligen echten
+> Vorlage-Zählpunkts sofort (kein Polling, keine Verzögerung) auch auf den zugehörigen
+> Demo-Zählpunkt -- echte Live-Daten, nur unter fiktiver Identität. `mqtt-subscriber` schreibt
+> ca. alle 5s eine neue Zeile (siehe `migrate_20260903.sql`), die Demo-Kachel "Aktuelle Leistung"
+> bewegt sich dadurch im selben Takt wie beim echten Vorlage-Mitglied. Der Trigger zieht dabei
+> auch `esp_online`/`esp_last_seen_at`/`meter_reachable` am Demo-Zählpunkt mit, wodurch er auch
+> in der "ESP online: X von Y"-Zählung normal mitzählt (bisher blieb er dort unsichtbar, weil
+> `esp_last_seen_at` nie gesetzt wurde -- kein Fehler, aber jetzt eben ein "online" wirkender
+> Zählpunkt statt einem, der wie "noch nie installiert" aussieht).
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260906.sql
+> docker compose exec -T webapp php < scripts/create_demo_members.php
+> ```
+> Kein `docker compose up -d --build` nötig (reine DB-Änderung, kein Code in `webapp`/
+> `mqtt-subscriber` geändert). Der zweite Befehl trägt bei den beiden Demo-Zählpunkten
+> `mirror_source_metering_point_id` auf den jeweiligen echten Vorlage-Zählpunkt ein -- ohne das
+> hätte der neue Trigger nichts zu spiegeln. Ab dann läuft die Spiegelung von selbst weiter,
+> unabhängig vom täglichen Sync-Cron oben (der ist nur für die EDA-/Abrechnungsdaten nötig).
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

@@ -8,6 +8,30 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (73) — Claude Code — Claude Sonnet 5
+**Prompt:** "Wie sieht es mit den ESP Daten aus? werden die auch in Echtzeit bitte angezeigt"
+-- danach auf Rückfrage (synthetische Simulation vs. Verzicht) explizit: "Nein, du sollst bitte
+die Echtzeit-Werte zum Einspeisen von Daniel Ropper synchroniseren und die Echtzeit-Daten von
+Stefanie Schwaiger für den Verbraucher verwenden. Aber bitte in Echtzeit."
+**Auftrag:** Klären, ob/wie die Live-ESP-Leistungsanzeige für die beiden Demo-Mitglieder
+funktioniert, und -- nach expliziter Ablehnung einer synthetischen Simulation -- eine echte
+Echtzeit-Spiegelung der tatsächlichen ESP-Live-Messwerte der beiden Vorlage-Mitglieder auf die
+fiktiven Identitäten bauen.
+**Ergebnis:** Geprüft und bestätigt, dass fehlende ESP-Daten bei den Demo-Mitgliedern keine
+echten Statistiken verfälschen (sowohl "ESP online: X von Y" als auch die Live-Leistungssummen
+zählen nur Zählpunkte mit `esp_last_seen_at IS NOT NULL` -- ein Demo-Zählpunkt ohne Messwerte
+bleibt dort unsichtbar statt "offline" zu zählen). `migrate_20260906.sql`: neue Spalte
+`metering_points.mirror_source_metering_point_id` + Trigger `trg_mirror_esp_measurement` auf
+`esp_measurements` -- spiegelt jede neue Live-Messung (mqtt-subscriber schreibt alle ~5s) sofort
+1:1 auf den zugeordneten Demo-Zählpunkt, inkl. `esp_online`/`esp_last_seen_at`/
+`meter_reachable`. Rekursionssicher durch Konstruktion (nichts zeigt auf den Demo-Zählpunkt als
+Spiegelquelle, die zweite Trigger-Runde findet keine Treffer). `create_demo_members.php` trägt
+die Zuordnung jetzt bei jedem Lauf ein. Live an einer Scratch-DB verifiziert: ein simulierter
+echter Messwert erzeugt exakt eine gespiegelte Zeile (keine Endlosschleife) und setzt
+`esp_online`/`esp_last_seen_at` am Demo-Zählpunkt korrekt. Alle 106 Tests weiterhin grün.
+
+---
+
 ## 2026-09-05 (72) — Claude Code — Claude Sonnet 5
 **Prompt:** "Meiner Mutter heißt Stefanie Schwaiger. Die Daten sollen immer gleich sein mit den
 aktuell gülutigen Daten. Also Danie synchronisiert mit Einspoeiser 1 und Stefanie mit
