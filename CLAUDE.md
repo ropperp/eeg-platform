@@ -732,17 +732,34 @@ docker compose up -d --build
 > docker compose exec -T webapp php < scripts/create_demo_members.php   # legt "Verbraucher 1"/
 >                                                                        # "Einspeiser 1" an
 > ```
-> `create_demo_members.php` sucht die echten Mitglieder Stephanie Schweiger und Daniel Ropper,
+> `create_demo_members.php` sucht die echten Mitglieder Stefanie Schwaiger und Daniel Ropper,
 > kopiert deren aktive Zählpunkte samt kompletter EDA-Messreihen (`eda_measurements`,
-> `eda_interval_data`) auf zwei neue, komplett fiktive Mitglied-Datensätze in derselben EEG --
-> gleiche Verbrauchszahlen fürs Diagramm, aber neuer Name, neue (mit "DEMO-" statt "AT"
-> beginnende, garantiert nie mit einem echten EDA-Import kollidierende) Zählpunktnummer, keine
-> echte Adresse/Telefonnummer/Geburtsdatum (alles frei erfunden, nicht von den echten
+> `eda_interval_data`) auf zwei fiktive Mitglied-Datensätze in derselben EEG -- gleiche
+> Verbrauchszahlen fürs Diagramm, aber neuer Name, neue (mit "DEMO-" statt "AT" beginnende,
+> garantiert nie mit einem echten EDA-Import kollidierende) Zählpunktnummer, keine echte
+> Adresse/Telefonnummer/Geburtsdatum (alles frei erfunden, nicht von den echten
 > Vorlage-Mitgliedern abgeleitet -- Patrick, 05.09.2026: "damit was personenbezogen sein kann,
 > unkennbar oder unlesbar ist"). Danach im Platform-Admin-Backoffice ("Benutzer verwalten") den
 > neu angelegten Demo-Login öffnen und unter "Rolle hinzufügen" alle vier Rollen zuweisen (bei
 > `member` jeweils die passende Mitglied-Identität im neuen Feld "Mitglied-Identität" wählen).
-> Sicher erneut ausführbar: beide Skripte überspringen/aktualisieren nur, legen nichts doppelt an.
+> `create_demo_login.sh` legt den Login nur einmalig an (E-Mail bereits vergeben -> Passwort wird
+> aktualisiert, Rollen bleiben unangetastet).
+>
+> **`create_demo_members.php` ist ein SYNC, kein Einmal-Skript** (Patrick, 05.09.2026: "Die
+> Daten sollen immer gleich sein mit den aktuell gültigen Daten"): der Mitglied-Datensatz selbst
+> (Name/Adresse/Kundennummer/member_id) wird nur beim allerersten Lauf angelegt und danach
+> unverändert wiederverwendet (sonst würden Rollenzuweisungen im Admin-Backoffice, die auf die
+> member_id zeigen, bei jedem Lauf ungültig). Die Zählpunkte + ALLE Messdaten
+> (`eda_measurements`, `eda_interval_data`) werden dagegen bei JEDEM Lauf komplett gelöscht und
+> frisch aus dem aktuellen Stand des jeweiligen Vorlage-Mitglieds neu kopiert -- damit "Verbraucher
+> 1"/"Einspeiser 1" nach jedem neuen EDA-Import automatisch aktuell bleiben. Damit das ohne
+> manuelles Nachtriggern gilt (unabhängig davon, ob die Vorlage-Daten per Auto-Import oder
+> manuellem Upload aktualisiert wurden), als täglichen Cron-Job einrichten:
+> ```bash
+> ( crontab -l 2>/dev/null; echo "30 7 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/create_demo_members.php >> /var/log/eeg-demo-sync.log 2>&1" ) | crontab -
+> ```
+> (bewusst 7:30 Uhr, kurz NACH dem täglichen EDA-Auto-Import-Cron um 7:00 Uhr, siehe oben --
+> damit ein frisch importierter Tag noch am selben Morgen in die Demo-Daten übernommen wird).
 >
 > **Wichtig -- "richtiger DEMO-Acc" (Patrick, 05.09.2026):** in ALLEN vier Rollen sind
 > ausnahmslos alle Funktionen, Felder und Buttons sichtbar, nichts ist ausgeblendet -- die
