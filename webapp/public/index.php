@@ -4712,6 +4712,10 @@ $router->get('/portal/members', function () {
          GROUP BY m.id ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name",
         [$espOfflineMinutes, $communityId]
     );
+    // Demo-Login (siehe migrate_20260905.sql): echte Mitgliederdaten hier NIE unmaskiert zeigen
+    // (Patrick, 05.09.2026: "Bei Plattform, Admin und Obmann auch keine personenbezogenen
+    // Daten") -- die beiden fiktiven Demo-Mitglieder selbst bleiben unverändert.
+    $members = demoMaskMembers($members, Auth::isDemo());
     $contractsEnabled = contractsEnabled($communityId);
     require ROOT . '/src/views/pages/member_list.php';
 });
@@ -5164,6 +5168,10 @@ $router->get('/portal/members/:id', function ($params) {
         ? (DB::fetchOne('SELECT last_login_at FROM users WHERE id = ?', [$member['user_id']])['last_login_at'] ?? null)
         : null;
     $latestFirmwareVersion = latestFirmwareVersion();
+    // Demo-Login: echte Mitgliederdaten (inkl. Zählpunkte) maskieren, siehe /portal/members oben.
+    $isDemo = Auth::isDemo();
+    $member = demoMaskMember($member, $isDemo);
+    $metering_points = demoMaskMeteringPoints($metering_points, $isDemo);
     require ROOT . '/src/views/pages/member_detail.php';
 });
 
@@ -7892,10 +7900,12 @@ $router->get('/admin', function () {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $communities = DB::fetchAll('SELECT * FROM communities ORDER BY name');
     $userCount   = DB::fetchOne('SELECT COUNT(*) AS cnt FROM users')['cnt'];
-    $rawUsers    = DB::fetchAll('SELECT id, email, first_name, last_name, active FROM users ORDER BY last_name, first_name');
+    $rawUsers    = DB::fetchAll('SELECT id, email, first_name, last_name, active, is_demo FROM users ORDER BY last_name, first_name');
     $allRoles    = DB::fetchAll('SELECT ur.user_id, ur.role, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id');
     $roleMap = [];
     foreach ($allRoles as $r) { $roleMap[$r['user_id']][] = $r; }
+    // Demo-Login: echte Login-Accounts hier NIE unmaskiert zeigen (siehe demoMaskUser()).
+    $rawUsers = demoMaskUsers($rawUsers, Auth::isDemo());
     $users = array_map(fn($u) => array_merge($u, ['roles' => $roleMap[$u['id']] ?? []]), $rawUsers);
     require ROOT . '/src/views/pages/admin.php';
 });
@@ -7934,12 +7944,23 @@ $router->get('/admin/communities/:id', function ($params) {
     DB::setCommunity($params['id']);
     $members = DB::fetchAll(
         'SELECT m.id, m.kundennummer, m.first_name, m.last_name, m.company_name, m.email, m.status,
-                m.user_id, u.email AS login_email
+                m.user_id, m.is_demo, u.email AS login_email
          FROM members m LEFT JOIN users u ON u.id = m.user_id
          WHERE m.community_id = ?
          ORDER BY m.kundennummer NULLS LAST, m.last_name, m.first_name',
         [$params['id']]
     );
+    // Demo-Login: echte Mitgliederdaten hier NIE unmaskiert zeigen (siehe /portal/members).
+    // login_email (echter Login-Account, falls vorhanden) separat maskieren -- demoMaskMember()
+    // kennt nur die members-eigenen Spalten.
+    $isDemo = Auth::isDemo();
+    $members = demoMaskMembers($members, $isDemo);
+    if ($isDemo) {
+        foreach ($members as &$m) {
+            if (empty($m['is_demo']) && !empty($m['login_email'])) { $m['login_email'] = demoMaskFull((string)$m['login_email']); }
+        }
+        unset($m);
+    }
     require ROOT . '/src/views/pages/admin_community.php';
 });
 
@@ -7955,14 +7976,16 @@ $router->get('/admin/users/:id', function ($params) {
     // (Demo-Logins mit mehreren Mitglied-Identitäten, siehe migrate_20260905.sql) der Name der
     // jeweiligen Identität in der Rollen-Tabelle angezeigt werden kann. Ebenso werden ALLE
     // Mitglieder jeder EEG geladen fürs Auswahlfeld beim Hinzufügen einer 'member'-Rolle.
+    $isDemo = Auth::isDemo();
     $membersByCommunity = [];
     foreach ($communities as $c) {
         DB::setCommunity($c['id']);
-        $membersByCommunity[$c['id']] = DB::fetchAll(
-            "SELECT id, first_name, last_name FROM members WHERE community_id = ? ORDER BY last_name, first_name",
+        $membersByCommunity[$c['id']] = demoMaskMembers(DB::fetchAll(
+            "SELECT id, first_name, last_name, is_demo FROM members WHERE community_id = ? ORDER BY last_name, first_name",
             [$c['id']]
-        );
+        ), $isDemo);
     }
+    $user = demoMaskUser($user, $isDemo);
     foreach ($roles as &$r) {
         if (empty($r['member_id']) || empty($r['community_id'])) continue;
         foreach ($membersByCommunity[$r['community_id']] ?? [] as $m) {

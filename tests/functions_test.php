@@ -173,3 +173,62 @@ test('filenameWithExtension() erkennt die Endung unabhängig von Groß-/Kleinsch
 test('filenameWithExtension() lässt den Namen unverändert, wenn der gespeicherte Pfad selbst keine Endung hat', function () {
     assertSame('Unbenannt', filenameWithExtension('Unbenannt', '/storage/uploads/abc123'));
 });
+
+// ─── Demo-Login PII-Maskierung (demoMask*, siehe migrate_20260905.sql) ───────────────────────
+test('demoMaskKeepStart() zeigt die ersten 4 Zeichen, Rest wird durch Punkte ersetzt', function () {
+    assertSame('Step•••••', demoMaskKeepStart('Stephanie'));
+});
+test('demoMaskKeepStart() füllt auch bei kurzen Werten auf (Länge kein Hinweis auf den echten Wert)', function () {
+    assertSame('Eva•••', demoMaskKeepStart('Eva'));
+});
+test('demoMaskKeepEnd() zeigt nur die letzten 4 Zeichen', function () {
+    assertSame('•••••••••••••••• 3201', demoMaskKeepEnd('AT611904300234573201'));
+});
+test('demoMaskFull() macht den Wert komplett unkenntlich, deckelt aber die angezeigte Länge', function () {
+    assertSame('••••••••••', demoMaskFull(str_repeat('x', 40)));
+    assertSame('•••', demoMaskFull('ab'));
+});
+
+test('demoMaskMember() maskiert personenbezogene Felder eines echten Mitglieds im Demo-Modus', function () {
+    $row = [
+        'first_name' => 'Stefanie', 'last_name' => 'Schwaiger', 'email' => 'stefanie@example.at',
+        'phone' => '+43 660 1234567', 'geburtsdatum' => '1975-03-01', 'zip' => '9500',
+        'address' => 'Musterstraße 1', 'city' => 'Villach', 'znr_bezug' => 'AT0070000000000000000000000000001',
+        'photo_path' => '/storage/member.jpg', 'kundennummer' => 10042, 'is_demo' => false,
+    ];
+    $masked = demoMaskMember($row, true);
+    assertSame('Stef••••', $masked['first_name']);
+    assertSame('•••••••••', $masked['last_name']);
+    assertTrue(str_ends_with($masked['phone'], '4567'), 'Telefonnummer behält die letzten 4 Stellen sichtbar');
+    assertSame('••.••.••••', $masked['geburtsdatum']);
+    assertSame(null, $masked['photo_path']);
+    assertSame(10042, $masked['kundennummer'], 'Kundennummer ist bewusst kein maskiertes Feld');
+});
+test('demoMaskMember() lässt Daten unverändert, wenn nicht im Demo-Modus', function () {
+    $row = ['first_name' => 'Stefanie', 'last_name' => 'Schwaiger'];
+    assertSame($row, demoMaskMember($row, false));
+});
+test('demoMaskMember() maskiert NIE ein fiktives Demo-Mitglied selbst (is_demo=true)', function () {
+    $row = ['first_name' => 'Verbraucher', 'last_name' => '1', 'is_demo' => true];
+    assertSame($row, demoMaskMember($row, true));
+});
+test('demoMaskMember() lässt null unverändert', function () {
+    assertSame(null, demoMaskMember(null, true));
+});
+test('demoMaskMembers() maskiert nur echte, keine fiktiven Mitglieder', function () {
+    $rows = [
+        ['first_name' => 'Stefanie', 'last_name' => 'Schwaiger', 'is_demo' => false],
+        ['first_name' => 'Verbraucher', 'last_name' => '1', 'is_demo' => true],
+    ];
+    $masked = demoMaskMembers($rows, true);
+    assertSame('Stef••••', $masked[0]['first_name']);
+    assertSame('Verbraucher', $masked[1]['first_name']);
+});
+
+test('demoMaskMeteringPoint() maskiert Zählpunktnummer und WLAN-Daten im Demo-Modus', function () {
+    $row = ['zaehlpunkt_nr' => 'AT0070000000000000000000000000001', 'wifi_ssid' => 'FritzBox123', 'type' => 'consumer'];
+    $masked = demoMaskMeteringPoint($row, true);
+    assertSame('••••••••••', $masked['zaehlpunkt_nr']);
+    assertSame('••••••••••', $masked['wifi_ssid']);
+    assertSame('consumer', $masked['type'], 'nicht-personenbezogene Felder bleiben unverändert');
+});

@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (75) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ja und wie sieht es mit dem read only mit ***-verpixelten/unkennbar gemachten
+Daten bei Obmann und Admin-Acc aus? Die rollen finde ich nicht. ich möchte das die verwaltung
+als obmann und admi auch herzeigen können. das sind ja die 3. und 4. Rollen neben Einspeisen1
+und Verbraucher 1."
+**Auftrag:** Die ursprünglich schon zu Beginn geforderte, aber bisher nicht umgesetzte
+PII-Maskierung für ECHTE Mitglieder-/Nutzerdaten in den Obmann-/Admin-Ansichten des Demo-Logins
+nachrüsten ("Bei Plattform, Admin und Obmann auch keine personenbezogenen Daten [...] mit
+Sternchen ausgegraut"), damit auch die Obmann- und Admin-Rolle (3./4. Rolle) gefahrlos
+vorgeführt werden können.
+**Ergebnis:** Neue, isoliert testbare Hilfsfunktionen in `functions.php`
+(`demoMaskKeepStart`/`demoMaskKeepEnd`/`demoMaskFull` + `demoMaskMember(s)`/`demoMaskUser(s)`/
+`demoMaskMeteringPoint(s)`) -- maskieren Vorname (4 Buchstaben + Punkte), Nachname/Firma/E-Mail/
+Adresse/IBAN/Kontoinhaber/Zählpunktnummer/WLAN-Daten (komplett), Telefonnummer (nur letzte 4
+Stellen sichtbar) und Geburtsdatum, setzen `photo_path` auf null (Default-Avatar statt echtem
+Foto) -- wirken NIE auf die beiden fiktiven Demo-Mitglieder selbst (`is_demo=true`) und NIE
+außerhalb einer aktiven Demo-Session. Eingebaut in die Kernseiten der Mitglieder-/
+Nutzerverwaltung: `/portal/members`, `/portal/members/:id`, `/admin`, `/admin/users/:id`
+(inkl. Mitglied-Identität-Auswahlfeld), `/admin/communities/:id`. 10 neue Unit-Tests, alle 116
+Tests grün. Bewusst noch offen (Konversation + CLAUDE.md dokumentiert): Aktivitätslog,
+Beitrittsanträge, Postfach, Support-Tickets, Rechnungsliste, Bearbeiten-Formulare -- diese
+Seiten zeigen bei einer Vorführung des Demo-Accounts vorerst weiterhin echte Daten.
+
+---
+
 ## 2026-09-06 (74) — Claude Code — Claude Sonnet 5
 **Prompt:** [Screenshot von /admin/users/:id, "Demo Zugang"] "Was das problem ist, es gibt keine
 DEMO Rollen. DIe Admin und Obamann Rolle, die ich ihm mla hinzugefügt habe, damit hat der Acc

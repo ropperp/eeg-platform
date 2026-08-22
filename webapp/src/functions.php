@@ -117,6 +117,128 @@ function monatsLabel(string $dateStr): string
     return $monate[(int)date('n', $ts)] . ' ' . date('Y', $ts);
 }
 
+// ─── Demo-Login: PII-Maskierung für ECHTE Mitglieder/Nutzer (Patrick, 05.09.2026: "Bei
+// Plattform, Admin und Obmann auch keine personenbezogenen Daten [...] Die anderen müssen auch
+// mit Sternchen ausgegraut sein, damit was personenbezogen sein kann, unkennbar oder unlesbar
+// ist"). Nimmt $isDemo als expliziten Parameter statt selbst Auth::isDemo() abzufragen, damit
+// diese Funktionen wie der Rest dieser Datei ohne Router/Session-Kontext testbar bleiben --
+// Aufrufer übergeben Auth::isDemo(). Wirkt NIE auf fiktive Demo-Mitglieder selbst (is_demo=true
+// in der Zeile) -- deren Daten sind schon komplett erfunden. Nur tatsächlich vorhandene
+// Array-Schlüssel werden verändert, damit dieselbe Funktion zu unterschiedlichen
+// SELECT-Spaltenlisten passt.
+
+/** Erste $keep Zeichen sichtbar, Rest durch Punkte ersetzt (Vorname) -- Patrick: "die ersten
+ *  vier Buchstaben vom Vornamen [...] Rest mit Sternchen ausfüllen". */
+function demoMaskKeepStart(string $value, int $keep = 4): string
+{
+    if ($value === '') return $value;
+    $start = mb_substr($value, 0, $keep);
+    $restLen = max(3, mb_strlen($value) - mb_strlen($start));
+    return $start . str_repeat('•', $restLen);
+}
+
+/** Nur die letzten $keep Zeichen sichtbar (Telefonnummer) -- Patrick: "die letzten vier Stellen
+ *  von der Telefonnummer sichtbar". */
+function demoMaskKeepEnd(string $value, int $keep = 4): string
+{
+    if ($value === '') return $value;
+    $end = mb_substr($value, -$keep);
+    $restLen = max(3, mb_strlen($value) - mb_strlen($end));
+    return str_repeat('•', $restLen) . ' ' . $end;
+}
+
+/** Komplett unkenntlich, Länge nur grob angedeutet (max. 10 Punkte, sonst wäre die tatsächliche
+ *  Länge selbst schon ein Hinweis auf den echten Wert). */
+function demoMaskFull(string $value): string
+{
+    return str_repeat('•', min(10, max(3, mb_strlen($value))));
+}
+
+/** Maskiert die üblichen personenbezogenen Spalten eines Mitglieds-Arrays (members-Tabelle,
+ *  inkl. der abgeleiteten Spalten znr_bezug/znr_einspeisung aus der Mitgliederliste). */
+function demoMaskMember(?array $row, bool $isDemo): ?array
+{
+    if (!$row || !$isDemo || !empty($row['is_demo'])) return $row;
+    if (array_key_exists('first_name', $row) && $row['first_name'] !== '') {
+        $row['first_name'] = demoMaskKeepStart((string)$row['first_name']);
+    }
+    foreach ([
+        'last_name', 'company_name', 'email', 'address', 'city', 'invoice_name', 'invoice_uid',
+        'member_iban', 'member_bic', 'kontoinhaber', 'konto_adresse', 'mandatsreferenz',
+        'znr_bezug', 'znr_einspeisung',
+    ] as $f) {
+        if (array_key_exists($f, $row) && $row[$f] !== null && $row[$f] !== '') {
+            $row[$f] = demoMaskFull((string)$row[$f]);
+        }
+    }
+    if (array_key_exists('phone', $row) && $row['phone']) {
+        $row['phone'] = demoMaskKeepEnd((string)$row['phone']);
+    }
+    if (array_key_exists('geburtsdatum', $row) && $row['geburtsdatum']) {
+        $row['geburtsdatum'] = '••.••.••••';
+    }
+    if (array_key_exists('zip', $row) && $row['zip']) {
+        $row['zip'] = '••••';
+    }
+    if (array_key_exists('photo_path', $row)) {
+        $row['photo_path'] = null; // Foto zeigt das Gesicht der echten Person -- Default-Avatar statt Maskierung.
+    }
+    return $row;
+}
+
+/** @param array<int,array> $rows */
+function demoMaskMembers(array $rows, bool $isDemo): array
+{
+    return array_map(fn($r) => demoMaskMember($r, $isDemo), $rows);
+}
+
+/** Maskiert die üblichen personenbezogenen Spalten eines Login-Accounts (users-Tabelle) --
+ *  fürs Platform-Admin-Nutzerverzeichnis. */
+function demoMaskUser(?array $row, bool $isDemo): ?array
+{
+    if (!$row || !$isDemo || !empty($row['is_demo'])) return $row;
+    if (array_key_exists('first_name', $row) && $row['first_name'] !== '') {
+        $row['first_name'] = demoMaskKeepStart((string)$row['first_name']);
+    }
+    if (array_key_exists('last_name', $row) && $row['last_name'] !== '') {
+        $row['last_name'] = demoMaskFull((string)$row['last_name']);
+    }
+    if (array_key_exists('email', $row) && $row['email'] !== '') {
+        $row['email'] = demoMaskFull((string)$row['email']);
+    }
+    if (array_key_exists('phone', $row) && $row['phone']) {
+        $row['phone'] = demoMaskKeepEnd((string)$row['phone']);
+    }
+    if (array_key_exists('photo_path', $row)) {
+        $row['photo_path'] = null;
+    }
+    return $row;
+}
+
+/** @param array<int,array> $rows */
+function demoMaskUsers(array $rows, bool $isDemo): array
+{
+    return array_map(fn($r) => demoMaskUser($r, $isDemo), $rows);
+}
+
+/** Maskiert die identifizierenden Spalten eines Zählpunkts (metering_points-Tabelle). */
+function demoMaskMeteringPoint(?array $row, bool $isDemo): ?array
+{
+    if (!$row || !$isDemo) return $row;
+    foreach (['zaehlpunkt_nr', 'meter_code', 'wifi_ssid', 'wifi_ip'] as $f) {
+        if (array_key_exists($f, $row) && $row[$f] !== null && $row[$f] !== '') {
+            $row[$f] = demoMaskFull((string)$row[$f]);
+        }
+    }
+    return $row;
+}
+
+/** @param array<int,array> $rows */
+function demoMaskMeteringPoints(array $rows, bool $isDemo): array
+{
+    return array_map(fn($r) => demoMaskMeteringPoint($r, $isDemo), $rows);
+}
+
 /**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
