@@ -50,6 +50,11 @@
           <option value="member">member (EEG-Mitglied)</option>
           <option value="platform_admin">platform_admin (Plattform-Admin)</option>
         </select>
+        <p style="font-size:.75rem;color:var(--gray-600);margin-top:.35rem">
+          Bei "member" erscheint darunter ein zusätzliches Feld "Mitglied-Identität" -- für
+          Demo-/Testlogins mit mehreren Mitglied-Identitäten unbedingt ausfüllen, sonst führt
+          die Rolle ins Leere (kein anzeigbares Mitgliedskonto).
+        </p>
       </div>
       <div class="form-group" id="community-field">
         <label>EEG</label>

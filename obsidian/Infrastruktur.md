@@ -313,6 +313,12 @@ docker compose up -d --build
 > ```
 > Kein Rebuild nötig (reine DB-Änderung). Details: siehe `CLAUDE.md` im Repo.
 
+> **Stolperstein Rollenzuweisung Demo-Login:** im Platform-Admin-Backoffice erscheint das Feld
+> "Mitglied-Identität" beim Rolle-Hinzufügen erst NACH Auswahl von "member" -- wird das
+> übersehen, landet die Rolle mit `member_id = NULL` und führt ins Leere. Reparatur (sicher
+> erneut ausführbar): `docker compose exec -T webapp php < scripts/assign_demo_member_roles.php`.
+> Details: siehe `CLAUDE.md` im Repo.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
