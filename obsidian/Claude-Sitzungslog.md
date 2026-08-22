@@ -8,6 +8,37 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-04 (69) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich hätte bitte gerne noch eine Zusatzfunktion auf unserer Webseite. [...] vielleicht
+kannst du mir ja für die Mitglieder, die dabei sind, für diesen Zeitraum die Daten einlesen und
+den Mitgliedern als Diagramm in der App oder auf der Webseite darstellen lassen, damit sie ein
+bisschen sehen, wie viel sie zu sehen ist: wie viel sie viertelstündlich verbrauchen und wie viel
+davon energiegemeinschaftlich genutzt wird. [...] Ich möchte gerne auch eine Funktion hinein,
+dass ich [sehe], ab welchem Datum es noch keine Werte gibt, ab welchem Datum gehe ich die Daten
+exportieren muss." Anschließend eine echte EDA-Exportdatei (Viertelstundenwerte,
+RC108175_20260701T00_0020260731T23_45.xlsx) sowie den Vertrag mit KNG zur Prüfung übergeben,
+und präzisiert: "wenn ich jetzt den juli importier und dann von 01.08. bis 21.08. ich sehe, dass
+ab 22.08. die Daten fehlen [...] möchte immer alle paar Tage die Daten hochladen".
+**Auftrag:** Viertelstunden-Verbrauchsdiagramm für Mitglieder (Verbrauch vs. gemeinschaftliche
+Eigendeckung) aus einem zweiten, bisher nicht genutzten EDA-Export-Typ einlesen, dem Obmann eine
+Lücken-Anzeige zeigen ("Daten vorhanden bis ..., X Tage fehlen"), sowie den KNG-Vertrag auf die
+Zulässigkeit der Netzregion-Änderung und eine Verständigungspflicht prüfen.
+**Ergebnis:** `database/migrate_20260904.sql` (eigene Tabelle `eda_interval_data`, getrennt von
+`eda_measurements` wegen sonst doppelt gezählter Abrechnungssummen), `eda-parser/
+parser_interval.py` (Format anhand der echten Datei verifiziert, dabei einen
+Performance-Bug gefunden und behoben: `ws.max_row` in einer Schleifenbedingung wiederholt
+abgefragt verlangsamte den Import von <1s auf >90s). Neue Upload-Karte samt Lücken-Anzeige unter
+Obmann → "EDA-Daten importieren", Mitglied-Diagramm unter `/portal/my/verbrauch` (Web,
+Inline-SVG) und `GET /api/v1/consumption/interval` (App, Bau-Anweisung in `app.md` §12). PDF-
+Vertragsprüfung (8 Seiten, per Bild gelesen, keine Textebene): KNG darf die Netzkonfiguration
+vertraglich ohne EEG-Zustimmung ändern, bestehende Mitglieder sind ausdrücklich davor geschützt;
+eine Pflicht zur Vorab-Information der EEG existiert im Vertrag dagegen nicht (nur umgekehrt,
+EEG→KNG) -- als Chat-Antwort mitgeteilt, keine Doku-Änderung ausgelöst. Live gegen PostgreSQL
+und die echte Exportdatei getestet (23.040 Datensätze, Re-Import ohne Duplikate). `php -l`
+sauber, 106/106 Tests grün. PR #117, sofort gemergt.
+
+---
+
 ## 2026-09-03 (68) — Claude Code — Claude Sonnet 5
 **Prompt:** "Bitte erwähne auch so, dass Kärnten, also jetzt haben wir vor ein paar Tagen
 irgendwie das mit den Schaltanlagen abgeändert [...] Ich weiß das später auch mal, und in der
