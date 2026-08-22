@@ -328,6 +328,13 @@ docker compose up -d --build
 > (Platform-Admin). Noch nicht abgedeckt: Aktivitätslog, Anträge, Postfach, Support-Tickets,
 > Rechnungsliste, Bearbeiten-Formulare -- beim Vorführen vorerst meiden. Details: `CLAUDE.md`.
 
+> **Stolperstein Pre-Launch-Popup Demo-Login:** ein Demo-Login saß beim allerersten Aufruf der
+> Mitglied-Ansicht hinter dem Pre-Launch-Hinweis-Popup fest -- der "Gelesen"-Button dahinter ist
+> ein POST und wurde von der Read-only-Sperre blockiert, der gesperrte Seiteninhalt dahinter
+> ließ sich so nicht mehr erreichen. Behoben: Popup wird für Demo-Logins gar nicht mehr gezeigt,
+> zusätzlich `/portal/ack-prelaunch` als folgenlose Ausnahme in `Router.php` erlaubt. Reine
+> Code-Änderung. Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

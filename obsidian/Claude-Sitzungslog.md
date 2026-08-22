@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (76) — Claude Code — Claude Sonnet 5
+**Prompt:** [zwei Screenshots: Pre-Launch-Popup nach Demo-Login als "Verbraucher 1", danach die
+"Nur Lesezugriff"-Seite] "Ein weiters Problem ist, dass wenn ich mich als Demo einlogge, ich mit
+dem Willkommensbanner und der Info, dass laufen sich die Website ändert, begrüßt werde. Da aber
+nur Read-Only ist, kann ich gar nicht auf den grünen gelesen Button klicken und komm dann auf
+die Seite mit nur Lesezugriff"
+**Auftrag:** Diagnose, warum ein Demo-Login beim allerersten Aufruf der Mitglied-Ansicht hinter
+dem Pre-Launch-Hinweis-Popup feststeckt, und beheben.
+**Ergebnis:** Ursache: das Popup zeigt einen "Gelesen, weiter zur Plattform"-Button, der einen
+POST an `/portal/ack-prelaunch` auslöst -- von der globalen Read-only-Sperre für Demo-Logins
+blockiert (landete auf der "Nur Lesezugriff"-Seite), während der dahinterliegende Seiteninhalt
+bewusst per `pointer-events:none` gesperrt bleibt, bis das Popup geschlossen wird -- ein
+klassischer Deadlock. Behoben auf zwei Ebenen: (1) `portal.php` zeigt das Popup für Demo-Logins
+grundsätzlich gar nicht mehr an (der Hinweistext richtet sich an echte neue Mitglieder, für eine
+Präsentation irrelevant), (2) `/portal/ack-prelaunch` zusätzlich als zweite, folgenlose Ausnahme
+neben `/portal/switch-role` auf die Demo-Erlaubnisliste in `Router.php` gesetzt (reiner
+Session-Flag, keine Datenänderung) als Absicherung, falls das Popup doch je erscheint. Alle 116
+Tests weiterhin grün.
+
+---
+
 ## 2026-09-06 (75) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ja und wie sieht es mit dem read only mit ***-verpixelten/unkennbar gemachten
 Daten bei Obmann und Admin-Acc aus? Die rollen finde ich nicht. ich möchte das die verwaltung

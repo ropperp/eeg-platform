@@ -43,11 +43,18 @@ class Router
 
         // Demo-Logins (Präsentation/Diplomarbeit-Review, Patrick 05.09.2026) sind über ALLE
         // Rollen hinweg komplett schreibgeschützt -- zentral hier statt in jedem einzelnen
-        // POST-Handler, damit (wie beim CSRF-Schutz oben) keiner vergessen werden kann.
-        // Ausnahme /portal/switch-role: sonst könnte der Demo-Account nicht mal zwischen seinen
-        // vier vorgesehenen Rollen wechseln. /api/* hat seine eigene, gleichwertige Sperre in
-        // AppApiAuth::requireAppAuth() (dort ist der Nutzer erst NACH Token-Prüfung bekannt).
-        if ($method === 'POST' && !$isApiRoute && $uri !== '/portal/switch-role' && Auth::isDemo()) {
+        // POST-Handler, damit (wie beim CSRF-Schutz oben) keiner vergessen werden kann. /api/*
+        // hat seine eigene, gleichwertige Sperre in AppApiAuth::requireAppAuth() (dort ist der
+        // Nutzer erst NACH Token-Prüfung bekannt). Zwei Ausnahmen, beide ohne jede Wirkung auf
+        // Plattform-Daten -- rein session-lokal:
+        //  - /portal/switch-role: sonst könnte der Demo-Account nicht mal zwischen seinen vier
+        //    vorgesehenen Rollen wechseln.
+        //  - /portal/ack-prelaunch: quittiert nur das Pre-Launch-Hinweis-Popup (siehe
+        //    portal.php, dort für Demo-Logins ohnehin schon unterdrückt) -- Patrick, 06.09.2026,
+        //    per Screenshot: ohne diese Ausnahme saß ein Demo-Login beim allerersten Aufruf der
+        //    Mitglied-Ansicht hinter diesem Banner fest, weil der "Gelesen"-Button ein POST ist.
+        $demoWriteAllowlist = ['/portal/switch-role', '/portal/ack-prelaunch'];
+        if ($method === 'POST' && !$isApiRoute && !in_array($uri, $demoWriteAllowlist, true) && Auth::isDemo()) {
             http_response_code(403);
             require __DIR__ . '/views/pages/demo_readonly_error.php';
             return;
