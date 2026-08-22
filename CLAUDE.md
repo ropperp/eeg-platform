@@ -802,6 +802,21 @@ docker compose up -d --build
 > hätte der neue Trigger nichts zu spiegeln. Ab dann läuft die Spiegelung von selbst weiter,
 > unabhängig vom täglichen Sync-Cron oben (der ist nur für die EDA-/Abrechnungsdaten nötig).
 
+> **Stolperstein bei der Rollenzuweisung des Demo-Logins (Patrick, 06.09.2026, per Screenshot):**
+> im Platform-Admin-Backoffice (`/admin/users/:id` -> "Rolle hinzufügen") erscheint das Feld
+> "Mitglied-Identität" erst, NACHDEM in der Rolle-Auswahl "member" ausgewählt wurde -- leicht zu
+> übersehen. Wird eine `member`-Rolle OHNE dieses Feld gespeichert, landet sie in `user_roles`
+> mit `member_id = NULL` und führt für den Demo-Login ins Leere (kein `members`-Datensatz mit
+> `user_id` = Demo-Login, siehe migrate_20260905.sql) -- "Aktuelle Rollen" zeigt dann `member`
+> mit Mitglied "--". Das Formular hat seit diesem Update einen Hinweistext dazu bekommen.
+> Bereits falsch angelegte Rollen reparieren (räumt eine `member`-Rolle ohne Mitglied-Identität
+> auf und trägt stattdessen "Verbraucher 1"/"Einspeiser 1" korrekt ein, sicher erneut ausführbar):
+> ```bash
+> docker compose exec -T webapp php < scripts/assign_demo_member_roles.php
+> ```
+> Danach beim Demo-Login einmal neu anmelden (bzw. neu laden, falls gerade eingeloggt), damit die
+> Session die neuen Rollen sieht.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

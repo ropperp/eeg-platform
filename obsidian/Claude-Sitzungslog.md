@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (74) — Claude Code — Claude Sonnet 5
+**Prompt:** [Screenshot von /admin/users/:id, "Demo Zugang"] "Was das problem ist, es gibt keine
+DEMO Rollen. DIe Admin und Obamann Rolle, die ich ihm mla hinzugefügt habe, damit hat der Acc
+volle rechte. bitte die demo rollen."
+**Auftrag:** Diagnose, warum die 'member'-Rolle des Demo-Logins im Platform-Admin-Backoffice zu
+keiner sichtbaren Mitglied-Identität führt (Screenshot zeigte "Aktuelle Rollen" mit member,
+Mitglied="--"), und die beiden Mitglied-Identitäten ("Verbraucher 1"/"Einspeiser 1") korrekt mit
+dem Demo-Login verknüpfen.
+**Ergebnis:** Ursache: das Formularfeld "Mitglied-Identität" (`/admin/users/:id`, "Rolle
+hinzufügen") erscheint erst NACH Auswahl von "member" in der Rolle-Auswahl -- leicht zu
+übersehen, dadurch wurde die 'member'-Rolle ohne `member_id` gespeichert und führt für den
+Demo-Login (der keinen `members`-Datensatz mit eigener `user_id` hat) ins Leere. Neues Skript
+`scripts/assign_demo_member_roles.php`: räumt eine solche "nackte" member-Rolle auf und trägt
+stattdessen zwei saubere, an `member_id` gebundene Rollen für "Verbraucher 1"/"Einspeiser 1"
+ein -- sicher erneut ausführbar (ON CONFLICT DO NOTHING). Zusätzlich `admin_user.php` um einen
+Hinweistext ergänzt, damit das Feld beim nächsten Mal nicht wieder übersehen wird. DELETE+INSERT-
+Logik live an einer Scratch-DB mit exakt reproduziertem Ausgangszustand verifiziert (inkl.
+zweitem Lauf zur Idempotenz-Prüfung). Alle 106 Tests weiterhin grün.
+
+---
+
 ## 2026-09-06 (73) — Claude Code — Claude Sonnet 5
 **Prompt:** "Wie sieht es mit den ESP Daten aus? werden die auch in Echtzeit bitte angezeigt"
 -- danach auf Rückfrage (synthetische Simulation vs. Verzicht) explizit: "Nein, du sollst bitte
