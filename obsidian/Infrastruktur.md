@@ -288,8 +288,12 @@ docker compose up -d --build
 > ```
 > `create_demo_members.php` kopiert die Verbrauchsdaten von Stephanie Schweiger/Daniel Ropper auf
 > zwei neue, komplett fiktive Mitglied-Datensätze (neuer Name, neue Zählpunktnummer, keine echte
-> Adresse/Telefonnummer/Geburtsdatum). Danach im Platform-Admin-Backoffice den neuen Login öffnen
-> und alle vier Rollen zuweisen. Details: siehe `CLAUDE.md` im Repo.
+> Adresse/Telefonnummer/Geburtsdatum, aber vollständig ausgefüllte Platzhalterfelder wie
+> Kundennummer/IBAN/Zustimmungen, damit die Detailseiten vollständig wirken). Danach im
+> Platform-Admin-Backoffice den neuen Login öffnen und alle vier Rollen zuweisen. In allen vier
+> Rollen sind ausnahmslos alle Funktionen/Felder/Buttons sichtbar (nichts ausgeblendet) -- nur
+> das tatsächliche Absenden eines Formulars ist gesperrt (freundliche Hinweisseite statt Fehler).
+> Details: siehe `CLAUDE.md` im Repo.
 
 Bei neuen DB-Migrations:
 ```bash

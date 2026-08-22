@@ -743,6 +743,21 @@ docker compose up -d --build
 > neu angelegten Demo-Login öffnen und unter "Rolle hinzufügen" alle vier Rollen zuweisen (bei
 > `member` jeweils die passende Mitglied-Identität im neuen Feld "Mitglied-Identität" wählen).
 > Sicher erneut ausführbar: beide Skripte überspringen/aktualisieren nur, legen nichts doppelt an.
+>
+> **Wichtig -- "richtiger DEMO-Acc" (Patrick, 05.09.2026):** in ALLEN vier Rollen sind
+> ausnahmslos alle Funktionen, Felder und Buttons sichtbar, nichts ist ausgeblendet -- die
+> Read-only-Sperre (`Auth::isDemo()`) greift ausschließlich beim tatsächlichen Absenden eines
+> Formulars (POST) und zeigt dann eine freundliche Hinweisseite statt eines rohen Fehlers, sonst
+> verhält sich die Oberfläche wie bei jedem echten Account. `create_demo_members.php` befüllt
+> seither auch Kundennummer, IBAN/BIC/Kontoinhaber (klar erkennbare Platzhatzer-IBAN --
+> unbedenklich, da `is_demo`-Mitglieder nie eine `invoices`-Zeile bekommen), Stromlieferant und
+> alle Beitritts-Zustimmungen, damit Mitglied-Detailseiten vollständig statt leer wirken.
+> Bewusst NICHT vorbelegt: der Vertragsstatus (`contract_bezug_status`/
+> `contract_einspeisung_status` bleiben `'none'`) -- ein "signierter" Vertrag ohne echt erzeugte
+> PDF-Datei würde beim Ansehen nur einen kaputten Download-Link zeigen. Wer für die Präsentation
+> auch einen fertig signierten Beispielvertrag zeigen will: einmalig über den EIGENEN echten
+> Obmann-Account (nicht den Demo-Login, der ist read-only) für "Verbraucher 1"/"Einspeiser 1"
+> einen Vertrag erzeugen/signieren -- der Demo-Login kann ihn danach ganz normal ansehen.
 
 Bei neuen DB-Migrations:
 ```bash
