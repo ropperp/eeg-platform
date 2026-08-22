@@ -286,12 +286,16 @@ docker compose up -d --build
 > ./scripts/create_demo_login.sh
 > docker compose exec -T webapp php < scripts/create_demo_members.php
 > ```
-> `create_demo_members.php` kopiert die Verbrauchsdaten von Stephanie Schweiger/Daniel Ropper auf
-> zwei neue, komplett fiktive Mitglied-Datensätze (neuer Name, neue Zählpunktnummer, keine echte
+> `create_demo_members.php` kopiert die Verbrauchsdaten von Stefanie Schwaiger/Daniel Ropper auf
+> zwei fiktive Mitglied-Datensätze (neuer Name, neue Zählpunktnummer, keine echte
 > Adresse/Telefonnummer/Geburtsdatum, aber vollständig ausgefüllte Platzhalterfelder wie
-> Kundennummer/IBAN/Zustimmungen, damit die Detailseiten vollständig wirken). Danach im
-> Platform-Admin-Backoffice den neuen Login öffnen und alle vier Rollen zuweisen. In allen vier
-> Rollen sind ausnahmslos alle Funktionen/Felder/Buttons sichtbar (nichts ausgeblendet) -- nur
+> Kundennummer/IBAN/Zustimmungen, damit die Detailseiten vollständig wirken) -- ist ein SYNC, kein
+> Einmal-Skript: der Mitglied-Datensatz wird nur beim ersten Lauf angelegt, die Messdaten aber bei
+> JEDEM Lauf komplett neu aus dem aktuellen Stand der Vorlage-Mitglieder kopiert ("Daten sollen
+> immer gleich sein mit den aktuell gültigen Daten") -- als täglicher Cron-Job eingerichtet, kurz
+> nach dem EDA-Auto-Import. Danach im Platform-Admin-Backoffice den neuen Login öffnen und alle
+> vier Rollen zuweisen. In allen vier Rollen sind ausnahmslos alle Funktionen/Felder/Buttons
+> sichtbar (nichts ausgeblendet) -- nur
 > das tatsächliche Absenden eines Formulars ist gesperrt (freundliche Hinweisseite statt Fehler).
 > Details: siehe `CLAUDE.md` im Repo.
 

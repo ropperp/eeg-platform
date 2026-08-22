@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-05 (72) — Claude Code — Claude Sonnet 5
+**Prompt:** "Meiner Mutter heißt Stefanie Schwaiger. Die Daten sollen immer gleich sein mit den
+aktuell gülutigen Daten. Also Danie synchronisiert mit Einspoeiser 1 und Stefanie mit
+Verbraucher 1 synchronisiert."
+**Auftrag:** Namenskorrektur im Demo-Skript (Stefanie Schwaiger statt fälschlich "Stephanie
+Schweiger", wodurch der erste Lauf sie nicht gefunden hatte) sowie Umbau von
+`create_demo_members.php` von einem Einmal-Skript zu einer dauerhaften Synchronisation: die
+Messdaten von "Verbraucher 1"/"Einspeiser 1" sollen jederzeit dem aktuellen Stand der echten
+Vorlage-Mitglieder entsprechen, nicht nur einer einmaligen Momentaufnahme.
+**Ergebnis:** `create_demo_members.php` umgebaut: der Mitglied-Datensatz (member_id,
+Kundennummer) wird weiterhin nur beim allerersten Lauf angelegt und danach stabil
+wiederverwendet (sonst würden Rollenzuweisungen im Admin-Backoffice ungültig), Zählpunkte werden
+über ihre stabile fiktive Zählpunktnummer wiedererkannt statt dupliziert, und ALLE Messdaten
+(`eda_measurements`, `eda_interval_data`) werden bei jedem Lauf komplett gelöscht und frisch aus
+dem aktuellen Stand des jeweiligen Vorlage-Mitglieds neu kopiert. Sync-Verhalten (Erstlauf +
+Datenänderung an der Quelle + Zweitlauf) live an einer Scratch-DB verifiziert. Als täglicher
+Cron-Job dokumentiert (kurz nach dem EDA-Auto-Import-Cron), damit "immer synchron" auch ohne
+manuelles Nachtriggern gilt. Alle 106 Tests weiterhin grün.
+
+---
+
 ## 2026-09-05 (71) — Claude Code — Claude Sonnet 5
 **Prompt:** "Was bitte gerne hätte ist, dass man in den 4 Rollen schon alle Funktionen und
 Felder, sowie Button sieht. Es soll ein richtiger DEMO-Acc sein."
