@@ -176,8 +176,12 @@ Mitglied in mehreren EEGs), muss die App dafür NICHT jedes Mal ausloggen/neu ei
     { "role": "manager", "community_id": "uuid-a", "community_name": "EEG A (Obmann)", "name": "EEG A",           "active": true  }
   ] }
   ```
-- `POST /api/v1/switch-role` -- Body `{"community_id": "...", "role": "member"|"manager", "device_label": "..."}`
-  (aus `GET /api/v1/roles` gewählt). Liefert wie beim Login ein KOMPLETT NEUES
+- `POST /api/v1/switch-role` -- Body `{"community_id": "...", "role": "member"|"manager", "member_id": "...", "device_label": "..."}`
+  (aus `GET /api/v1/roles` gewählt). `member_id` ist bei normalen Accounts überflüssig (leer
+  lassen) -- nur relevant, wenn `GET /api/v1/roles` für dieselbe `community_id` zwei
+  `role="member"`-Einträge mit unterschiedlichem `member_id` liefert (Demo-Logins mit mehreren
+  Mitglied-Identitäten, siehe `migrate_20260905.sql`); dann per `member_id` disambiguieren, sonst
+  wird immer der erste Treffer gewählt. Liefert wie beim Login ein KOMPLETT NEUES
   `access_token`/`refresh_token`-Paar für die gewählte Rolle zurück (gleiche Antwortstruktur
   wie die Login-Erfolgsantwort oben) -- dieses ersetzt das bisherige Token-Paar im Client. 400
   bei ungültiger Kombination.

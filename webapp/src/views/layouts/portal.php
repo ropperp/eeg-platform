@@ -74,14 +74,24 @@
         <div style="position:relative;display:inline-block">
         <select onchange="switchRole(this)" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
           <?php foreach ($roles as $r): ?>
-            <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>"
-              <?= ($r === Auth::activeRole()) ? 'selected' : '' ?>>
+            <?php
+              // member_id nur bei Demo-Logins mit mehreren Mitglied-Identitäten in derselben
+              // Community relevant (siehe migrate_20260905.sql) -- bei allen echten Accounts ist
+              // es leer und der Wert bleibt effektiv "community_id|role".
+              $isActive = $r['community_id'] === (Auth::activeRole()['community_id'] ?? null)
+                       && $r['role'] === (Auth::activeRole()['role'] ?? null)
+                       && ($r['member_id'] ?? null) === (Auth::activeRole()['member_id'] ?? null);
+            ?>
+            <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>|<?= $r['member_id'] ?? '' ?>"
+              <?= $isActive ? 'selected' : '' ?>>
               <?php // Kein Emoji-Präfix hier -- dessen Farbe lässt sich innerhalb einer <option>
                     // nicht per CSS auf ein sattes Rot setzen (Patrick, 05.08.2026: "richtiges
                     // Kirschrot" gewünscht, das 🔴-Emoji wirkte blass/falsch). Der verlässliche,
                     // farblich steuerbare Hinweis ist der kleine Punkt direkt am Dropdown unten. ?>
               <?php if ($r['role'] === 'platform_admin'): ?>
                 Plattform-Admin
+              <?php elseif ($r['role'] === 'member' && !empty($r['member_first_name'])): ?>
+                <?= htmlspecialchars($r['community_name'] ?? '') ?> – <?= htmlspecialchars(trim($r['member_first_name'] . ' ' . $r['member_last_name'])) ?>
               <?php else: ?>
                 <?= htmlspecialchars($r['community_name'] ?? '') ?> (<?= $r['role'] ?>)
               <?php endif; ?>
@@ -96,12 +106,14 @@
         <form id="switch-form" method="post" action="/portal/switch-role" style="display:none">
           <input type="hidden" name="community_id" id="sw-community">
           <input type="hidden" name="role" id="sw-role">
+          <input type="hidden" name="member_id" id="sw-member">
         </form>
         <script>
           function switchRole(sel) {
-            const [cid, role] = sel.value.split('|');
+            const [cid, role, memberId] = sel.value.split('|');
             document.getElementById('sw-community').value = cid;
             document.getElementById('sw-role').value = role;
+            document.getElementById('sw-member').value = memberId;
             document.getElementById('switch-form').submit();
           }
         </script>
@@ -116,10 +128,10 @@
       <?php
         $navMember = null;
         if (Auth::activeCommunityId()) {
-            $navMember = DB::fetchOne(
-                'SELECT id, photo_path, salutation FROM members WHERE user_id = ? AND community_id = ?',
-                [Auth::userId(), Auth::activeCommunityId()]
-            );
+            $navMemberId = activeMemberId(Auth::activeCommunityId());
+            if ($navMemberId) {
+                $navMember = DB::fetchOne('SELECT id, photo_path, salutation FROM members WHERE id = ?', [$navMemberId]);
+            }
         }
         if ($navMember && $navMember['photo_path']) {
             $navAvatarUrl = memberAvatarUrl($navMember['id'], $navMember['photo_path'], $navMember['salutation']);
@@ -299,6 +311,12 @@
   </aside>
 
   <main class="portal-content">
+    <?php if (Auth::isDemo()): ?>
+      <div class="alert alert-warning" style="margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
+        <?= icon('eye') ?>
+        <span>Demo-Zugang -- reine Ansicht zur Präsentation, keine Änderungen möglich, keine echten Mitgliederdaten.</span>
+      </div>
+    <?php endif; ?>
     <?= $content ?>
   </main>
 </div>

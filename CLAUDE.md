@@ -711,6 +711,39 @@ docker compose up -d --build
 > nicht wie beim Monatsimport als Duplikat abgelehnt). Mitglieder sehen das Diagramm unter
 > "Mein Verbrauch" im Portal bzw. in der App (`GET /api/v1/consumption/interval`).
 
+> **Einmalig nach dem Update vom 05.09.2026** (Demo-Login für Präsentation/Diplomarbeit-Review --
+> Patrick, 05.09.2026: "ich möchte schon bitte gerne einen einzigen Login haben ... es sollen
+> bitte schon für einen Login alle 4 Rollen sein"): EIN Login, umschaltbar zwischen
+> Plattform-Admin, Obmann und ZWEI unabhängig wählbaren, komplett fiktiven Mitglied-Identitäten
+> ("Verbraucher 1"/"Einspeiser 1") in derselben EEG -- dafür musste `user_roles` erstmals mehr
+> als eine 'member'-Zeile je (community_id, user_id) erlauben (neue Spalte `member_id`, siehe
+> Kommentar in der Migration). Der Login ist über `users.is_demo` PLATTFORMWEIT UND
+> ROLLENÜBERGREIFEND schreibgeschützt (jeder POST wird zentral in `Router.php` bzw.
+> `AppApiAuth::requireAppAuth()` abgelehnt, außer dem Rollenwechsel selbst) -- unabhängig davon,
+> welche Rollen ihm zugewiesen sind, kann er nirgends etwas verändern. `members.is_demo`
+> schließt die beiden fiktiven Mitglied-Identitäten zusätzlich explizit von echten
+> Abrechnungsläufen (`Billing.php`) und der Mitgliederstatistik im Obmann-Dashboard aus.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260905.sql
+> docker compose up -d --build
+> ./scripts/create_demo_login.sh        # fragt E-Mail + Passwort interaktiv ab, KEINE Rollen
+> docker compose exec -T webapp php < scripts/create_demo_members.php   # legt "Verbraucher 1"/
+>                                                                        # "Einspeiser 1" an
+> ```
+> `create_demo_members.php` sucht die echten Mitglieder Stephanie Schweiger und Daniel Ropper,
+> kopiert deren aktive Zählpunkte samt kompletter EDA-Messreihen (`eda_measurements`,
+> `eda_interval_data`) auf zwei neue, komplett fiktive Mitglied-Datensätze in derselben EEG --
+> gleiche Verbrauchszahlen fürs Diagramm, aber neuer Name, neue (mit "DEMO-" statt "AT"
+> beginnende, garantiert nie mit einem echten EDA-Import kollidierende) Zählpunktnummer, keine
+> echte Adresse/Telefonnummer/Geburtsdatum (alles frei erfunden, nicht von den echten
+> Vorlage-Mitgliedern abgeleitet -- Patrick, 05.09.2026: "damit was personenbezogen sein kann,
+> unkennbar oder unlesbar ist"). Danach im Platform-Admin-Backoffice ("Benutzer verwalten") den
+> neu angelegten Demo-Login öffnen und unter "Rolle hinzufügen" alle vier Rollen zuweisen (bei
+> `member` jeweils die passende Mitglied-Identität im neuen Feld "Mitglied-Identität" wählen).
+> Sicher erneut ausführbar: beide Skripte überspringen/aktualisieren nur, legen nichts doppelt an.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

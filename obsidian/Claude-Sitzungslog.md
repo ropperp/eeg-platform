@@ -8,6 +8,54 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-05 (70) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich hätte noch eine weitere Aufgabe für dich, bitte, für Testzwecke und zur
+Veranschaulichung für andere Accounts. Zum Beispiel möchte ich gerne einen Account für meinen
+Klassenvorstand geben, der auch mein Betreuer ist, um zu sehen, wie weit wir mit unserer
+Diplomate sind [...] Außerdem wäre es auch interessant, einen Benutzer [...] für die Diplomate
+selbst, damit man bei der Präsentation auch ein Mitglied simulieren kann [...] Vielleicht am
+besten einfach einen Account mit allen drei Funktionen: Admin, Obmann und Mitglied, bei dem man
+unter den drei Rollen wechseln kann. [...] Vielleicht machen wir auch zwei Mitglieder: einen
+Einspeiser und einen Produzierer. Am besten nimmst du da einfach Stephanie Schweiger, das ist
+meine Mama, und Daniel Ropper, meinen Vater. Was wichtig ist: Verwende andere Namen [...] Bei
+Plattform, Admin und Obmann auch keine personenbezogenen Daten. [...] Geburtsdatum und
+Telefonnummer müssen auch [...] die letzten vier Stellen von der Telefonnummer sichtbar sein.
+Die anderen müssen auch mit Sternchen ausgegraut sein [...] damit wir vom Datenschutz her nicht
+verstoßen." Auf Nachfrage präzisiert: "Ich möchte schon bitte gerne einen einzigen Login haben
+[...] es sollen bitte schon für einen Login alle 4 Rollen sein [...] Die ganzen Accounts dürfen
+nur Read-only Accounts sein." Auf die Rückfrage, ob Verbraucher 1/Einspeiser 1 eine gemeinsame
+oder zwei getrennte Mitglied-Identitäten sein sollen: "Zwei getrennte Rollen: Verbraucher 1 UND
+Einspeiser 1 separat."
+**Auftrag:** Einen einzigen Demo-Login für Präsentation und Diplomarbeit-Review (u.a. für den
+Klassenvorstand) einrichten, umschaltbar zwischen vier Rollen -- Plattform-Admin, Obmann und
+zwei unabhängig wählbare, komplett fiktive Mitglied-Identitäten ("Verbraucher 1"/"Einspeiser 1")
+in derselben EEG, deren Verbrauchsdaten strukturell den echten Mitgliedern Stephanie
+Schweiger/Daniel Ropper nachempfunden sind. Anforderungen: plattformweit und rollenübergreifend
+schreibgeschützt (reine Ansicht), keine personenbezogenen Echtdaten sichtbar.
+**Ergebnis:** `user_roles` um `member_id` erweitert (neue partielle Unique-Indizes statt der
+bisherigen `UNIQUE(community_id, user_id, role)`), wodurch ein Login erstmals zwei unabhängige
+'member'-Rollen in derselben EEG halten kann -- live an einer Scratch-DB getestet
+(`migrate_20260905.sql`). `Auth.php`/`currentMemberFull()`/`resolveAppMemberships()` und alle
+weiteren Mitglied-Lookup-Stellen (Web + App-API) auf die neue `member_id`-Disambiguierung
+umgestellt, RLS-sicher (members-Lookups einzeln je Community, nicht gejoint). Demo-Logins sind
+über `users.is_demo` zentral in `Router.php` (Web) bzw. `AppApiAuth::requireAppAuth()` (App) für
+JEDEN POST-Request gesperrt, unabhängig von der aktiven Rolle -- Ausnahme nur der Rollenwechsel
+selbst. `members.is_demo` schließt die fiktiven Identitäten von `Billing.php` und der
+Mitgliederstatistik aus. Platform-Admin-Oberfläche (`/admin/users/:id`) um eine
+Mitglied-Identität-Auswahl beim Zuweisen einer 'member'-Rolle erweitert. Neue Skripte
+`scripts/create_demo_login.sh` (fragt E-Mail/Passwort interaktiv ab, legt den Login OHNE Rollen
+an) und `scripts/create_demo_members.php` (kopiert Zählpunkte + komplette EDA-Messreihen von
+Stephanie Schweiger/Daniel Ropper auf zwei neue, komplett fiktive Mitglied-Datensätze mit
+erfundener Adresse/Telefonnummer/Geburtsdatum und garantiert nicht mit echten EDA-Importen
+kollidierender Zählpunktnummer). Alle 106 bestehenden Tests weiterhin grün, `php -l` auf allen
+geänderten Dateien sauber. Offen/bewusst zurückgestellt: individuelles Ausblenden einzelner
+Schaltflächen für Demo-Logins (die globale Schreibsperre verhindert bereits jede tatsächliche
+Änderung; stattdessen ein Hinweisbanner + eine freundliche Fehlerseite statt eines rohen 403).
+Ein separater Klassenvorstand-Account entfällt -- Patrick nutzt für beide Zwecke denselben
+Demo-Login.
+
+---
+
 ## 2026-09-04 (69) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich hätte bitte gerne noch eine Zusatzfunktion auf unserer Webseite. [...] vielleicht
 kannst du mir ja für die Mitglieder, die dabei sind, für diesen Zeitraum die Daten einlesen und

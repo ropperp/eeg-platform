@@ -271,6 +271,26 @@ docker compose up -d --build
 > erzeugen und Team-ID/Key-ID/Bundle-ID/.p8-Inhalt über Platform-Admin → Einstellungen
 > hinterlegen -- danach greift der nächste Cron-Lauf automatisch.
 
+> **Einmalig nach dem Update vom 05.09.2026** (Demo-Login für Präsentation/Diplomarbeit-Review --
+> EIN Login, umschaltbar zwischen Plattform-Admin, Obmann und zwei unabhängig wählbaren, komplett
+> fiktiven Mitglied-Identitäten "Verbraucher 1"/"Einspeiser 1" in derselben EEG): `user_roles`
+> erlaubt jetzt über die neue Spalte `member_id` mehr als eine 'member'-Zeile je Login+EEG. Der
+> Login ist über `users.is_demo` plattform- und rollenübergreifend schreibgeschützt (jeder POST
+> zentral blockiert, außer dem Rollenwechsel selbst); `members.is_demo` schließt die beiden
+> fiktiven Identitäten zusätzlich von echten Abrechnungsläufen aus.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260905.sql
+> docker compose up -d --build
+> ./scripts/create_demo_login.sh
+> docker compose exec -T webapp php < scripts/create_demo_members.php
+> ```
+> `create_demo_members.php` kopiert die Verbrauchsdaten von Stephanie Schweiger/Daniel Ropper auf
+> zwei neue, komplett fiktive Mitglied-Datensätze (neuer Name, neue Zählpunktnummer, keine echte
+> Adresse/Telefonnummer/Geburtsdatum). Danach im Platform-Admin-Backoffice den neuen Login öffnen
+> und alle vier Rollen zuweisen. Details: siehe `CLAUDE.md` im Repo.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

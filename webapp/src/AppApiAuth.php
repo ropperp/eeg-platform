@@ -118,8 +118,16 @@ class AppApiAuth
      * 401-JSON-Antwort gesendet und null zurückgegeben -- Aufrufer macht dann nur
      * `if (!$ctx) return;` (DRY: ohne diese zentrale Funktion hätte jeder der Daten-Endpunkte
      * dieselbe Prüfung dupliziert, siehe ursprünglich /api/v1/me und /api/v1/live).
+     *
+     * $allowDemoWrite=true erlaubt POST auch für Demo-Logins (users.is_demo, siehe
+     * migrate_20260905.sql) -- nur für ungefährliche Aktionen wie den Rollenwechsel gedacht.
+     * Alle anderen POST-Endpunkte (die überwiegende Mehrheit) sind für Demo-Logins hier zentral
+     * gesperrt, damit ein Demo-Zugang (Präsentation/Diplomarbeit-Review) auch über die App
+     * garantiert read-only bleibt -- gleiches Prinzip wie der Router.php-Schutz im Web-Portal,
+     * nur an anderer Stelle, weil der Nutzer im Web schon vor dem Routing (Session) bekannt ist,
+     * hier aber erst nach der Token-Prüfung.
      */
-    public static function requireAppAuth(): ?array
+    public static function requireAppAuth(bool $allowDemoWrite = false): ?array
     {
         $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
         if (!preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
@@ -134,6 +142,15 @@ class AppApiAuth
             http_response_code(401);
             echo json_encode(['error' => 'Zugriffstoken ungültig oder abgelaufen. Bitte mit dem Refresh-Token erneuern (/api/v1/token/refresh).']);
             return null;
+        }
+        if (!$allowDemoWrite && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+            $isDemo = (bool)(DB::fetchOne('SELECT is_demo FROM users WHERE id = ?', [$ctx['user_id']])['is_demo'] ?? false);
+            if ($isDemo) {
+                header('Content-Type: application/json; charset=UTF-8');
+                http_response_code(403);
+                echo json_encode(['error' => 'Demo-Zugang: nur Lesezugriff möglich.']);
+                return null;
+            }
         }
         return $ctx;
     }

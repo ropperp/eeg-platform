@@ -17,12 +17,13 @@
     <p style="color:var(--gray-600);font-size:.875rem">Keine Rollen zugewiesen.</p>
   <?php else: ?>
     <table>
-      <thead><tr><th>Rolle</th><th>EEG</th><th>Aktion</th></tr></thead>
+      <thead><tr><th>Rolle</th><th>EEG</th><th>Mitglied</th><th>Aktion</th></tr></thead>
       <tbody>
       <?php foreach ($roles as $r): ?>
         <tr>
           <td><span class="badge badge-<?= $r['role'] === 'platform_admin' ? 'green' : 'yellow' ?>"><?= htmlspecialchars($r['role']) ?></span></td>
           <td><?= htmlspecialchars($r['community_name'] ?? '—') ?></td>
+          <td><?= isset($r['member_name']) ? htmlspecialchars($r['member_name']) : '—' ?></td>
           <td>
             <form method="post" action="/admin/users/<?= $user['id'] ?>/roles/delete" style="display:inline">
               <input type="hidden" name="role_id" value="<?= $r['id'] ?>">
@@ -44,7 +45,7 @@
     <div class="grid-2">
       <div class="form-group">
         <label>Rolle</label>
-        <select name="role" onchange="document.getElementById('community-field').style.display = this.value === 'platform_admin' ? 'none' : 'block'">
+        <select name="role" id="role-field" onchange="onRoleFieldChange()">
           <option value="manager">manager (EEG-Verwalter)</option>
           <option value="member">member (EEG-Mitglied)</option>
           <option value="platform_admin">platform_admin (Plattform-Admin)</option>
@@ -52,16 +53,45 @@
       </div>
       <div class="form-group" id="community-field">
         <label>EEG</label>
-        <select name="community_id">
+        <select name="community_id" id="community-select" onchange="onCommunityFieldChange()">
           <?php foreach ($communities as $c): ?>
             <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
           <?php endforeach; ?>
         </select>
       </div>
     </div>
+    <div class="form-group" id="member-field" style="display:none">
+      <label>Mitglied-Identität (nur nötig, wenn dieses Login mehr als eine in dieser EEG haben
+        soll, z.B. Demo-Zugänge -- normalerweise leer lassen)</label>
+      <select name="member_id">
+        <option value="">— keine (normaler Fall) —</option>
+        <?php foreach ($membersByCommunity as $cid => $members): ?>
+          <?php foreach ($members as $m): ?>
+            <option value="<?= $m['id'] ?>" data-community="<?= $cid ?>">
+              <?= htmlspecialchars(trim($m['first_name'] . ' ' . $m['last_name'])) ?>
+            </option>
+          <?php endforeach; ?>
+        <?php endforeach; ?>
+      </select>
+    </div>
     <button type="submit" class="btn btn-primary">Rolle zuweisen</button>
   </form>
 </div>
+<script>
+  function onRoleFieldChange() {
+    const role = document.getElementById('role-field').value;
+    document.getElementById('community-field').style.display = role === 'platform_admin' ? 'none' : 'block';
+    document.getElementById('member-field').style.display = role === 'member' ? 'block' : 'none';
+    onCommunityFieldChange();
+  }
+  function onCommunityFieldChange() {
+    const cid = document.getElementById('community-select').value;
+    document.querySelectorAll('#member-field option[data-community]').forEach(function (opt) {
+      opt.hidden = opt.dataset.community !== cid;
+    });
+  }
+  onCommunityFieldChange();
+</script>
 
 <?php if ($user['id'] !== Auth::userId()): ?>
 <div class="card" style="margin-top:1.5rem;border:1px solid #fecaca">

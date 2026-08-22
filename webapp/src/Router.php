@@ -41,6 +41,18 @@ class Router
             return;
         }
 
+        // Demo-Logins (Präsentation/Diplomarbeit-Review, Patrick 05.09.2026) sind über ALLE
+        // Rollen hinweg komplett schreibgeschützt -- zentral hier statt in jedem einzelnen
+        // POST-Handler, damit (wie beim CSRF-Schutz oben) keiner vergessen werden kann.
+        // Ausnahme /portal/switch-role: sonst könnte der Demo-Account nicht mal zwischen seinen
+        // vier vorgesehenen Rollen wechseln. /api/* hat seine eigene, gleichwertige Sperre in
+        // AppApiAuth::requireAppAuth() (dort ist der Nutzer erst NACH Token-Prüfung bekannt).
+        if ($method === 'POST' && !$isApiRoute && $uri !== '/portal/switch-role' && Auth::isDemo()) {
+            http_response_code(403);
+            require __DIR__ . '/views/pages/demo_readonly_error.php';
+            return;
+        }
+
         foreach ($this->routes as [$routeMethod, $path, $handler]) {
             if ($routeMethod !== $method) continue;
 

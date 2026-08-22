@@ -311,12 +311,17 @@ function communityLivePower(string $communityId): array
  * (DB::setCommunity()) und DANACH der zugehörige members-Datensatz nachgeschlagen, damit RLS
  * korrekt greift statt eine Zeile über alle Communities hinweg zu joinen.
  *
+ * ur.member_id wird mitgeladen, weil Demo-Logins (migrate_20260905.sql) mehrere 'member'-Zeilen
+ * in DERSELBEN Community haben können (zwei unabhängig wählbare Mitglied-Identitäten) -- ohne
+ * member_id würde hier nur EIN members-Datensatz je Community aufgelöst (und die zweite
+ * Mitglied-Identität wäre in der App nie wählbar).
+ *
  * @return array<int, array{member_id:string, community_id:string, community_name:string, name:string}>
  */
 function resolveAppMemberships(string $userId): array
 {
     $roles = DB::fetchAll(
-        "SELECT ur.community_id, c.name AS community_name
+        "SELECT ur.community_id, ur.member_id, c.name AS community_name
          FROM user_roles ur JOIN communities c ON c.id = ur.community_id
          WHERE ur.user_id = ? AND ur.role = 'member'
          ORDER BY c.name",
@@ -325,10 +330,15 @@ function resolveAppMemberships(string $userId): array
     $out = [];
     foreach ($roles as $r) {
         DB::setCommunity($r['community_id']);
-        $member = DB::fetchOne(
-            "SELECT id, first_name, last_name FROM members WHERE user_id = ? AND community_id = ? AND status = 'active'",
-            [$userId, $r['community_id']]
-        );
+        $member = $r['member_id']
+            ? DB::fetchOne(
+                "SELECT id, first_name, last_name FROM members WHERE id = ? AND community_id = ? AND status = 'active'",
+                [$r['member_id'], $r['community_id']]
+            )
+            : DB::fetchOne(
+                "SELECT id, first_name, last_name FROM members WHERE user_id = ? AND community_id = ? AND status = 'active'",
+                [$userId, $r['community_id']]
+            );
         if ($member) {
             $out[] = [
                 'member_id'      => $member['id'],
@@ -1598,10 +1608,10 @@ $router->get('/portal/api/current-power', function () {
     $communityId = Auth::activeCommunityId();
     if (!$communityId) { echo json_encode(['net_w' => null]); return; }
     DB::setCommunity($communityId);
-    $member = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [Auth::userId(), $communityId]);
-    if (!$member) { echo json_encode(['net_w' => null]); return; }
+    $memberId = activeMemberId($communityId);
+    if (!$memberId) { echo json_encode(['net_w' => null]); return; }
     $mpIds = array_column(
-        DB::fetchAll('SELECT id FROM metering_points WHERE member_id = ? AND active = true', [$member['id']]),
+        DB::fetchAll('SELECT id FROM metering_points WHERE member_id = ? AND active = true', [$memberId]),
         'id'
     );
     echo json_encode(['net_w' => memberCurrentNetPowerW($communityId, $mpIds)]);
@@ -1628,7 +1638,8 @@ $router->post('/portal/switch-role', function () {
     Auth::requireLogin();
     $communityId = $_POST['community_id'] ?? '';
     $role        = $_POST['role'] ?? '';
-    Auth::switchRole($communityId, $role);
+    $memberId    = !empty($_POST['member_id']) ? (string)$_POST['member_id'] : null;
+    Auth::switchRole($communityId, $role, $memberId);
     header('Location: /portal/dashboard');
     exit;
 });
@@ -1638,13 +1649,12 @@ $router->get('/portal/invoices', function () {
     Auth::requireLogin();
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
-    $userId = Auth::userId();
-    $member = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [$userId, $communityId]);
-    if (!$member) { http_response_code(404); echo 'Mitglied nicht gefunden'; return; }
+    $memberId = activeMemberId($communityId);
+    if (!$memberId) { http_response_code(404); echo 'Mitglied nicht gefunden'; return; }
     $invoices = DB::fetchAll(
         'SELECT i.*, br.quartal FROM invoices i JOIN billing_runs br ON br.id = i.billing_run_id
          WHERE i.member_id = ? ORDER BY i.created_at DESC',
-        [$member['id']]
+        [$memberId]
     );
     require ROOT . '/src/views/pages/invoices.php';
 });
@@ -2583,7 +2593,10 @@ $router->get('/api/v1/roles', function () {
  * zweites paralleles Gerätesitzungs-Paar, siehe app_sessions).
  */
 $router->post('/api/v1/switch-role', function () {
-    $ctx = AppApiAuth::requireAppAuth();
+    // allowDemoWrite=true: sonst könnte ein Demo-Login (siehe migrate_20260905.sql) über die App
+    // nicht mal zwischen seinen vier vorgesehenen Rollen wechseln -- der Rollenwechsel selbst
+    // verändert keine Plattform-Daten, ist also unbedenklich read-only-kompatibel.
+    $ctx = AppApiAuth::requireAppAuth(true);
     if (!$ctx) return;
     header('Content-Type: application/json; charset=UTF-8');
 
@@ -2591,11 +2604,16 @@ $router->post('/api/v1/switch-role', function () {
     // Leerstring wie NULL behandeln (Admin-Option hat community_id=NULL).
     $communityId = !empty($body['community_id']) ? (string)$body['community_id'] : null;
     $role = (string)($body['role'] ?? '');
+    // member_id disambiguiert bei role='member', falls ein Login mehrere Mitglied-Identitäten in
+    // derselben Community hat (Demo-Logins, siehe migrate_20260905.sql) -- bei allen anderen
+    // Accounts leer, dann matcht der Vergleich unten wie bisher rein über community_id+role.
+    $memberId = !empty($body['member_id']) ? (string)$body['member_id'] : null;
     $deviceLabel = isset($body['device_label']) ? mb_substr(trim((string)$body['device_label']), 0, 100) : null;
 
     $chosen = null;
     foreach (resolveAppRoleOptions($ctx['user_id']) as $m) {
-        if ($m['community_id'] === $communityId && $m['role'] === $role) { $chosen = $m; break; }
+        if ($m['community_id'] === $communityId && $m['role'] === $role
+            && ($m['member_id'] ?? null) === $memberId) { $chosen = $m; break; }
     }
     if (!$chosen) {
         http_response_code(400);
@@ -5937,6 +5955,23 @@ $router->post('/portal/members/:id/reset-live-data', function ($params) {
 
 // ─── Portal: Passwort ändern ────────────────────────────
 /**
+ * Löst die members.id des eingeloggten Users in der angegebenen Community auf -- bevorzugt die
+ * member_id der aktuell aktiven Rolle (Demo-Logins mit mehreren Mitglied-Identitäten in
+ * derselben Community, siehe migrate_20260905.sql), fällt sonst auf die bisherige
+ * user_id-Suche zurück (unverändertes Verhalten für alle echten Accounts, die weiterhin
+ * höchstens einen Mitgliedsdatensatz je Community haben).
+ */
+function activeMemberId(string $communityId): ?string
+{
+    $active = Auth::activeRole();
+    if ($active && ($active['community_id'] ?? null) === $communityId && !empty($active['member_id'])) {
+        return $active['member_id'];
+    }
+    $row = DB::fetchOne('SELECT id FROM members WHERE user_id = ? AND community_id = ?', [Auth::userId(), $communityId]);
+    return $row['id'] ?? null;
+}
+
+/**
  * Mitgliedsdatensatz des eingeloggten Users in der aktuell aktiven Community (falls
  * vorhanden) -- für das Profilbild in /portal/profile. Gibt null zurück für Accounts ohne
  * eigenen Mitgliedsdatensatz (reine Manager/Platform-Admins); die haben ihr Profilbild dann
@@ -5947,10 +5982,9 @@ function currentProfileMember(): ?array
     $communityId = Auth::activeCommunityId();
     if (!$communityId) { return null; }
     DB::setCommunity($communityId);
-    return DB::fetchOne(
-        'SELECT id, photo_path, salutation FROM members WHERE user_id = ? AND community_id = ?',
-        [Auth::userId(), $communityId]
-    );
+    $memberId = activeMemberId($communityId);
+    if (!$memberId) { return null; }
+    return DB::fetchOne('SELECT id, photo_path, salutation FROM members WHERE id = ?', [$memberId]);
 }
 
 /**
@@ -5964,10 +5998,9 @@ function currentMemberFull(): ?array
     $communityId = Auth::activeCommunityId();
     if (!$communityId) { return null; }
     DB::setCommunity($communityId);
-    return DB::fetchOne(
-        'SELECT * FROM members WHERE user_id = ? AND community_id = ?',
-        [Auth::userId(), $communityId]
-    );
+    $memberId = activeMemberId($communityId);
+    if (!$memberId) { return null; }
+    return DB::fetchOne('SELECT * FROM members WHERE id = ?', [$memberId]);
 }
 
 /**
@@ -7913,10 +7946,33 @@ $router->get('/admin/communities/:id', function ($params) {
 $router->get('/admin/users/:id', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
-    $user        = DB::fetchOne('SELECT id, email, first_name, last_name, active FROM users WHERE id = ?', [$params['id']]);
+    $user        = DB::fetchOne('SELECT id, email, first_name, last_name, active, is_demo FROM users WHERE id = ?', [$params['id']]);
     if (!$user) { http_response_code(404); return; }
     $roles       = DB::fetchAll('SELECT ur.*, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id WHERE ur.user_id = ?', [$params['id']]);
     $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
+    // members hat RLS -- je Rolle einzeln mit korrekt gesetzter Community nachladen (gleiches
+    // Muster wie Auth::attachMemberNames()), damit bei role='member' mit gesetzter member_id
+    // (Demo-Logins mit mehreren Mitglied-Identitäten, siehe migrate_20260905.sql) der Name der
+    // jeweiligen Identität in der Rollen-Tabelle angezeigt werden kann. Ebenso werden ALLE
+    // Mitglieder jeder EEG geladen fürs Auswahlfeld beim Hinzufügen einer 'member'-Rolle.
+    $membersByCommunity = [];
+    foreach ($communities as $c) {
+        DB::setCommunity($c['id']);
+        $membersByCommunity[$c['id']] = DB::fetchAll(
+            "SELECT id, first_name, last_name FROM members WHERE community_id = ? ORDER BY last_name, first_name",
+            [$c['id']]
+        );
+    }
+    foreach ($roles as &$r) {
+        if (empty($r['member_id']) || empty($r['community_id'])) continue;
+        foreach ($membersByCommunity[$r['community_id']] ?? [] as $m) {
+            if ($m['id'] === $r['member_id']) {
+                $r['member_name'] = trim($m['first_name'] . ' ' . $m['last_name']);
+                break;
+            }
+        }
+    }
+    unset($r);
     require ROOT . '/src/views/pages/admin_user.php';
 });
 
@@ -7926,9 +7982,14 @@ $router->post('/admin/users/:id/roles', function ($params) {
     $communityId = $_POST['community_id'] ?? null;
     $role = $_POST['role'] ?? '';
     if (!in_array($role, ['platform_admin', 'manager', 'member'])) { http_response_code(400); return; }
+    // member_id nur bei role='member' relevant -- disambiguiert mehrere Mitglied-Identitäten
+    // desselben Logins in derselben Community (Demo-Logins, siehe migrate_20260905.sql). Für den
+    // normalen Fall (ein Mitglied hat genau einen members-Datensatz je Community) leer lassen --
+    // currentMemberFull() fällt dann weiterhin auf die alte user_id-Suche zurück.
+    $memberId = ($role === 'member' && !empty($_POST['member_id'])) ? (string)$_POST['member_id'] : null;
     DB::execute(
-        'INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
-        [$communityId, $params['id'], $role]
+        'INSERT INTO user_roles (community_id, user_id, role, member_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        [$communityId, $params['id'], $role, $memberId]
     );
     if ($params['id'] === Auth::userId()) { Auth::refreshRoles(); }
     header('Location: /admin/users/' . $params['id'] . '?success=1');
