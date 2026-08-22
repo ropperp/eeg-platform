@@ -319,6 +319,15 @@ docker compose up -d --build
 > erneut ausführbar): `docker compose exec -T webapp php < scripts/assign_demo_member_roles.php`.
 > Details: siehe `CLAUDE.md` im Repo.
 
+> **PII-Maskierung für Obmann/Admin im Demo-Login:** reine Code-Änderung (`git pull` +
+> `docker compose up -d --build`). `demoMask*()` in `functions.php` maskiert personenbezogene
+> Felder ECHTER Mitglieder/Logins für den Demo-Account (Vorname 4 Buchstaben + Punkte,
+> Nachname/E-Mail/Adresse/IBAN/Zählpunktnummer komplett unkenntlich, Telefon nur letzte 4
+> Stellen, Geburtsdatum maskiert, Profilbild → Default-Avatar) -- eingebaut in
+> Mitgliederliste/-detail (Obmann) sowie Nutzerliste/-detail/EEG-Mitgliederliste
+> (Platform-Admin). Noch nicht abgedeckt: Aktivitätslog, Anträge, Postfach, Support-Tickets,
+> Rechnungsliste, Bearbeiten-Formulare -- beim Vorführen vorerst meiden. Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

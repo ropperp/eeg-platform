@@ -817,6 +817,24 @@ docker compose up -d --build
 > Danach beim Demo-Login einmal neu anmelden (bzw. neu laden, falls gerade eingeloggt), damit die
 > Session die neuen Rollen sieht.
 
+> **PII-Maskierung für Obmann/Admin im Demo-Login (Patrick, 06.09.2026: "wie sieht es mit dem
+> read only mit ***-verpixelten/unkennbar gemachten Daten bei Obmann und Admin-Acc aus? [...]
+> ich möchte das die verwaltung als obmann und admin auch herzeigen können"):** reine
+> Code-Änderung, keine Migration/kein Skript nötig -- mit dem nächsten `git pull && docker
+> compose up -d --build` aktiv. `demoMask*()` in `functions.php` maskiert personenbezogene
+> Felder ECHTER Mitglieder/Logins (NIE die beiden fiktiven Demo-Mitglieder selbst), sobald
+> `Auth::isDemo()` aktiv ist -- Vorname: erste 4 Buchstaben + Punkte, Nachname/E-Mail/Adresse/
+> IBAN/Zählpunktnummer: komplett unkenntlich, Telefonnummer: nur die letzten 4 Stellen sichtbar,
+> Geburtsdatum: komplett maskiert, Profilbild: Default-Avatar statt echtem Foto. Eingebaut in die
+> Kernseiten der "Verwaltung": Obmann-Mitgliederliste (`/portal/members`) + Mitglied-Detailseite
+> (`/portal/members/:id`), Platform-Admin-Nutzerliste (`/admin`) + Nutzerdetailseite
+> (`/admin/users/:id`, inkl. Mitglied-Identität-Auswahlfeld) + EEG-Mitgliederliste
+> (`/admin/communities/:id`). **Noch NICHT abgedeckt** (bewusst zurückgestellt, siehe
+> Konversation): Aktivitätslog (Freitext kann Namen enthalten), Beitrittsanträge, Postfach,
+> Support-Tickets, Rechnungsliste, sowie die Mitglied-BEARBEITEN-Formulare (zeigen echte Werte
+> in Eingabefeldern, auch wenn Speichern ohnehin gesperrt ist) -- diese Seiten beim Vorführen des
+> Demo-Accounts vorerst meiden, bis sie ebenfalls maskiert sind.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
