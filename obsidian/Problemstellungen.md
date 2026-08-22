@@ -9,10 +9,18 @@ die Historie nachvollziehbar bleibt.
 
 ---
 
-## 2026-08 — Kärnten Netz hat die Regionsgrenzen der Schaltanlagen neu gezogen
+## 2026-08 — Kärnten Netz hat die Regionsgrenzen der Schaltanlagen neu gezogen (ohne Vorwarnung)
 
 **Stand (Patrick, 22.–23.08.2026, aus einer Rundmail an ca. 16–17 Mitglieder/Interessenten
 sowie einem Nachtrag im Chat):**
+
+**Für die Diplomarbeit (Patrick, 03.09.2026):** kein klassisches "Problem" im Sinne eines
+Fehlers/Bugs, sondern eine große organisatorische Umstellung von außen, ausgelöst durch den
+Netzbetreiber, nicht durch die Plattform oder den Verein selbst. Passt am ehesten unter einen
+Abschnitt wie "unerwartete Ereignisse" bzw. "externe Rahmenbedingungen" statt unter
+"Probleme/Fehler" -- als Beispiel dafür, dass sich die Diplomarbeit auch mit Änderungen
+auseinandersetzen musste, die außerhalb der eigenen Kontrolle (Plattform-Code, Vereinsführung)
+lagen.
 
 ### Was ist passiert
 
@@ -39,7 +47,17 @@ Prüfbar über <https://kaerntennetz.at/erneuerbare-energiegemeinschaften-eeg.ht
 eingeben, die "Regionale ID" ablesen -- nur bei 23R1 ist ein Beitritt zu DIESER EEG technisch
 möglich).
 
-### Warum das ein Problem ist
+### Keine Vorabinformation durch Kärnten Netz
+
+Patrick wurde von Kärnten Netz **nicht vorab informiert** -- weder per Brief/E-Mail noch auf
+anderem Weg. Die Umstellung der Schaltanlagen-Zuordnung kam ohne jede Ankündigung, Patrick hat
+erst im Nachhinein selbst bemerkt, dass sich die Regionale ID 23R1 auf ein anderes Gebiet
+bezieht. Von einer derart großen Umstellung (Neuzuordnung ganzer Netzregionen, mit direkter
+Auswirkung darauf, wer welcher Energiegemeinschaft überhaupt beitreten kann) hätte man laut
+Patrick eigentlich eine aktive Benachrichtigung der betroffenen Energiegemeinschaften erwartet
+-- das Fehlen davon war "schon ein bisschen eigenartig".
+
+### Auswirkung: Vereinsname passt nicht mehr zur tatsächlichen Lage
 
 Der Vereinsname in **allen** Verträgen mit Kärnten Netz, in den Statuten, beim Bankkonto usw.
 lautet durchgehend **"Erneuerbare-Energie-Gemeinschaft Strompool Feldkirchen Süd-West"**.
