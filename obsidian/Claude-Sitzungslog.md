@@ -8,6 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-03 (68) — Claude Code — Claude Sonnet 5
+**Prompt:** "Bitte erwähne auch so, dass Kärnten, also jetzt haben wir vor ein paar Tagen
+irgendwie das mit den Schaltanlagen abgeändert [...] Ich weiß das später auch mal, und in der
+Diplomarbeit dann unter 'unerwarteten Problemen' oder 'Problem' ist es nicht wirklich eins. Es
+war einfach eine große Umstellung, und ich wurde auch nicht von Kärnten informiert oder
+irgendetwas. Deswegen war es schon ein bisschen eigenartig."
+**Auftrag:** `obsidian/Problemstellungen.md` (PR #113) ergänzen: Kärnten Netz hat vor der
+Schaltanlagen-Umstellung nicht vorab informiert (Patrick hat es selbst bemerkt), sowie
+Einordnung für die Diplomarbeit festhalten (kein klassisches Problem/Fehler, sondern externe
+organisatorische Umstellung).
+**Ergebnis:** Zwei neue Abschnitte in `obsidian/Problemstellungen.md` ("Keine
+Vorabinformation durch Kärnten Netz" und ein Diplomarbeit-Hinweis direkt am Anfang des
+Eintrags), Überschrift des Eintrags entsprechend ergänzt. Reine Dokumentationsänderung. PR
+#115, sofort gemergt.
+
+---
+
 ## 2026-09-03 (67) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich wollte nur mit dir erst gerne abklären bzw. schreib mir das bitte auch sehr
 detailliert in eine Datei, die ich dann bitte auch auf GitHub pushe, damit ich sie dann mit
