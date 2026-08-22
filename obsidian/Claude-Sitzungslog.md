@@ -8,6 +8,29 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-05 (71) — Claude Code — Claude Sonnet 5
+**Prompt:** "Was bitte gerne hätte ist, dass man in den 4 Rollen schon alle Funktionen und
+Felder, sowie Button sieht. Es soll ein richtiger DEMO-Acc sein."
+**Auftrag:** Sicherstellen, dass der Demo-Login (siehe Eintrag 70) in allen vier Rollen wie ein
+vollwertiger, echter Account aussieht -- keine ausgeblendeten Funktionen/Felder/Buttons -- statt
+einer sichtbar eingeschränkten Ansicht.
+**Ergebnis:** Geprüft und bestätigt: `Auth::isDemo()` wird im Code nur an zwei Stellen
+verwendet (zentrale POST-Sperre in `Router.php`/`AppApiAuth::requireAppAuth()` sowie ein reines
+Hinweisbanner) -- es wurde nirgends ein Button, Feld oder Menüpunkt ausgeblendet, die
+Read-only-Sperre greift ausschließlich beim tatsächlichen Absenden eines Formulars. Um die
+Detailseiten der beiden fiktiven Mitglieder vollständiger wirken zu lassen,
+`scripts/create_demo_members.php` erweitert: befüllt jetzt zusätzlich Kundennummer (dynamisch
+per MAX+1, plattformweit eindeutig), IBAN/BIC/Kontoinhaber/Konto-Adresse/Mandatsreferenz (klar
+erkennbare Platzhalter-IBAN, unbedenklich da `is_demo`-Mitglieder nie eine Rechnung bekommen),
+Stromlieferant und alle sechs Beitritts-Zustimmungen. Bewusst weiterhin nicht vorbelegt: der
+Vertragsstatus (bliebe ohne echt erzeugte PDF-Datei ein kaputter Download-Link) -- dafür
+CLAUDE.md um den Hinweis ergänzt, bei Bedarf einen Beispielvertrag einmalig über den eigenen
+echten Obmann-Account zu erzeugen, den der Demo-Login danach nur ansieht. Insert-Logik erneut
+live an einer Scratch-DB verifiziert (Constraint-Konformität, korrekte Platzhalter-Reihenfolge),
+alle 106 Tests weiterhin grün.
+
+---
+
 ## 2026-09-05 (70) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich hätte noch eine weitere Aufgabe für dich, bitte, für Testzwecke und zur
 Veranschaulichung für andere Accounts. Zum Beispiel möchte ich gerne einen Account für meinen

@@ -37,6 +37,12 @@ require '/var/www/html/src/DB.php';
 // Identität heißen/aussehen soll. address/zip/city/email/phone/geburtsdatum sind bewusst
 // komplett erfunden (nicht von den echten Vorlage-Mitgliedern abgeleitet) -- Patrick,
 // 05.09.2026: "damit was personenbezogen sein kann, unkennbar oder unlesbar ist".
+// Zusatzfelder (IBAN/BIC/Kontoinhaber/Zustimmungen/Stromlieferant/Speicher) sind bewusst
+// vollständig ausgefüllt statt leer -- Patrick, 05.09.2026: "dass man in den 4 Rollen schon
+// alle Funktionen und Felder, sowie Button sieht. Es soll ein richtiger DEMO-Acc sein." Die
+// IBAN ist eine erkennbare Platzhalter-IBAN (keine echte Bankverbindung) -- unbedenklich, weil
+// is_demo=true diese Mitglieder ohnehin von JEDEM Abrechnungslauf ausschließt (Billing.php)
+// und dadurch nie eine invoices-Zeile für sie entsteht, an die ein SEPA-Export anknüpfen könnte.
 $DEMO_DEFINITIONS = [
     [
         'source_first_name' => 'Stephanie',
@@ -49,6 +55,9 @@ $DEMO_DEFINITIONS = [
         'address'           => 'Musterweg 1',
         'zip'               => '9999',
         'city'              => 'Musterort',
+        'iban'              => 'AT00 0000 0000 0000 0001',
+        'bic'               => 'DEMOATWW',
+        'stromlieferant'    => 'Demo Energie AG',
         'zaehlpunkt_prefix' => 'DEMO-VERBRAUCHER1',
         'meter_code_prefix' => 'DEMO-V1',
     ],
@@ -63,6 +72,9 @@ $DEMO_DEFINITIONS = [
         'address'           => 'Musterweg 2',
         'zip'               => '9999',
         'city'              => 'Musterort',
+        'iban'              => 'AT00 0000 0000 0000 0002',
+        'bic'               => 'DEMOATWW',
+        'stromlieferant'    => 'Demo Energie AG',
         'zaehlpunkt_prefix' => 'DEMO-EINSPEISER1',
         'meter_code_prefix' => 'DEMO-E1',
     ],
@@ -97,16 +109,30 @@ foreach ($DEMO_DEFINITIONS as $def) {
         continue;
     }
 
+    // kundennummer ist PLATTFORMWEIT eindeutig (uq_members_kundennummer, siehe
+    // migrate_20260723.sql) -- MAX(kundennummer)+1 vergeben, exakt dasselbe Muster wie bei
+    // einer echten Mitglied-Neuanlage in index.php.
+    $kundennummer = (int)DB::fetchOne('SELECT COALESCE(MAX(kundennummer), 10000) + 1 AS next FROM members')['next'];
+    $mandatsreferenz = 'S00000F' . date('Y') . 'A' . $kundennummer;
+    $kontoinhaber = trim($def['first_name'] . ' ' . $def['last_name']);
+
     $newMember = DB::fetchOne(
         "INSERT INTO members (
             community_id, first_name, last_name, address, zip, city, email, phone,
-            geburtsdatum, member_since, status, is_demo
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', true)
+            geburtsdatum, member_since, beitrittsdatum, status, is_demo, kundennummer,
+            member_iban, member_bic, kontoinhaber, konto_adresse, mandatsreferenz,
+            stromlieferant, speicher_status,
+            zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', true, ?, ?, ?, ?, ?, ?, ?, 'nein',
+                   true, true, true, true, true, true)
          RETURNING id",
         [
             $source['community_id'], $def['first_name'], $def['last_name'], $def['address'],
             $def['zip'], $def['city'], $def['email'], $def['phone'], $def['geburtsdatum'],
-            $source['member_since'],
+            $source['member_since'], $source['member_since'], $kundennummer,
+            $def['iban'], $def['bic'], $kontoinhaber, $def['address'], $mandatsreferenz,
+            $def['stromlieferant'],
         ]
     );
     $newMemberId = $newMember['id'];
