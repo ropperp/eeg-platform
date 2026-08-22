@@ -299,6 +299,20 @@ docker compose up -d --build
 > das tatsächliche Absenden eines Formulars ist gesperrt (freundliche Hinweisseite statt Fehler).
 > Details: siehe `CLAUDE.md` im Repo.
 
+> **Einmalig nach dem Update vom 06.09.2026** (Live-ESP-Spiegelung für die Demo-Mitglieder --
+> "in Echtzeit", keine Simulation): ein DB-Trigger auf `esp_measurements` spiegelt jede neue
+> Live-Messung der echten Vorlage-Mitglieder (Stefanie Schwaiger/Daniel Ropper, alle ~5s über
+> `mqtt-subscriber`) sofort auch auf den jeweiligen Demo-Zählpunkt -- echte Live-Daten unter
+> fiktiver Identität, kein Polling. Zieht dabei auch `esp_online`/`esp_last_seen_at` mit, der
+> Demo-Zählpunkt zählt dadurch auch bei "ESP online: X von Y" normal mit.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260906.sql
+> docker compose exec -T webapp php < scripts/create_demo_members.php
+> ```
+> Kein Rebuild nötig (reine DB-Änderung). Details: siehe `CLAUDE.md` im Repo.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
