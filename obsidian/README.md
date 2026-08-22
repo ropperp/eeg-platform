@@ -43,3 +43,8 @@ git push origin main
 
 - [`Infrastruktur.md`](./Infrastruktur.md) — Spiegel von `CLAUDE.md` (Netzwerk-Architektur,
   Docker-Stack, bekannte Probleme & Lösungen) in Obsidian-Notizform.
+- [`Problemstellungen.md`](./Problemstellungen.md) — organisatorische/rechtliche
+  Problemstellungen rund um die EEG(s), die (noch) keine Code-Änderung auslösen (z.B.
+  Netzregion-/Namensfragen), aber als Kontext festgehalten werden sollen.
+- [`Claude-Sitzungslog.md`](./Claude-Sitzungslog.md) — Selbstdokumentation aller
+  Claude-Arbeitssitzungen (Datum, Modell, Auftrag), siehe `CLAUDE.md`.
