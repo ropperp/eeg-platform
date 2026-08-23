@@ -408,6 +408,16 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
+> **Update vom 06.09.2026 -- WLAN-Info-Popup zurückgebaut + für Demo-Zugang komplett ausgeblendet,
+> Rechnungsliste maskiert:** reine Code-Änderung. Die automatische Inline-Anzeige vom Update davor
+> war ein Missverständnis (Patrick wollte "Platz sparen" UND dass der Demo-Zugang nicht einmal
+> sieht, DASS es die Möglichkeit gibt) -- der Button "WLAN-Info anzeigen" mit `alert()`-Popup ist
+> zurück, aber für `Auth::isDemo()` komplett ausgeblendet statt nur maskiert. Zusätzlich:
+> Rechnungsliste (`/portal/billing/invoices` + `.../edit`) maskiert jetzt Mitgliedernamen/E-Mail/
+> IBAN/Mandatsreferenz.
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
