@@ -326,6 +326,72 @@ function demoMaskTaxConfig(?array $row, bool $isDemo): ?array
 }
 
 /**
+ * Maskiert personenbezogene Felder einer Beitrittserklärung (membership_applications) für den
+ * Demo-Zugang -- eigene Spaltennamen (iban/bic statt member_iban/member_bic, bezug_zaehlpunkt
+ * statt znr_bezug, ...), deshalb eine eigene Funktion statt demoMaskMember(). Keine
+ * is_demo-Ausnahme nötig: Beitrittserklärungen gehören ausnahmslos zu echten
+ * Antragsteller:innen, die beiden fiktiven Demo-Mitglieder durchlaufen diesen Workflow nie
+ * (siehe create_demo_members.php). Unterschriftsbilder (Beitritt + SEPA) werden komplett
+ * ausgeblendet statt maskiert, wie beim Profilbild.
+ */
+function demoMaskApplication(?array $row, bool $isDemo): ?array
+{
+    if (!$row || !$isDemo) return $row;
+    if (array_key_exists('first_name', $row) && $row['first_name'] !== '') {
+        $row['first_name'] = demoMaskKeepStart((string)$row['first_name']);
+    }
+    foreach ([
+        'last_name', 'email', 'address', 'city', 'kontoinhaber', 'konto_adresse',
+        'andere_eeg_name', 'iban', 'bic', 'bezug_zaehlpunkt', 'einspeisung_zaehlpunkt', 'signer_ip',
+    ] as $f) {
+        if (array_key_exists($f, $row) && $row[$f] !== null && $row[$f] !== '') {
+            $row[$f] = demoMaskFull((string)$row[$f]);
+        }
+    }
+    if (array_key_exists('phone', $row) && $row['phone']) {
+        $row['phone'] = demoMaskKeepEnd((string)$row['phone']);
+    }
+    if (array_key_exists('geburtsdatum', $row) && $row['geburtsdatum']) {
+        $row['geburtsdatum'] = '••.••.••••';
+    }
+    if (array_key_exists('zip', $row) && $row['zip']) {
+        $row['zip'] = '••••';
+    }
+    foreach (['signature_image', 'sepa_signature_image'] as $f) {
+        if (array_key_exists($f, $row)) { $row[$f] = null; }
+    }
+    return $row;
+}
+
+/** @param array<int,array> $rows */
+function demoMaskApplications(array $rows, bool $isDemo): array
+{
+    return array_map(fn($r) => demoMaskApplication($r, $isDemo), $rows);
+}
+
+/**
+ * Maskiert das Aktivitätslog (audit_log) für den Demo-Zugang. Der/die Handelnde
+ * (first_name/last_name/email, aus users) wird wie überall über demoMaskUser() maskiert.
+ * beschreibung ist dagegen freier Fließtext aus über 50 verschiedenen logAudit()-Aufrufen im
+ * ganzen Code (Mitgliedernamen, E-Mails, IBANs, EEG-Namen, ...) -- ein gezielter
+ * Textbaustein-Ersatz je Aufrufer wie bei demoMaskNotification() wäre hier in dieser
+ * Größenordnung nicht robust zu pflegen. Deshalb bewusst komplett ausgeblendet statt einzeln zu
+ * parsen -- Aktion/Objekttyp/EEG/Zeitpunkt bleiben sichtbar, nur der Freitext-Detail nicht
+ * (Patrick, 23.08.2026: "Aktivitätslog [...] auch noch maskieren").
+ */
+function demoMaskAuditLog(array $rows, bool $isDemo): array
+{
+    if (!$isDemo) return $rows;
+    return array_map(function (array $row) {
+        $row = demoMaskUser($row, true);
+        if (array_key_exists('beschreibung', $row) && $row['beschreibung'] !== null && $row['beschreibung'] !== '') {
+            $row['beschreibung'] = 'Details ausgeblendet (Demo-Zugang).';
+        }
+        return $row;
+    }, $rows);
+}
+
+/**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
  */

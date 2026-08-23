@@ -4466,6 +4466,7 @@ $router->get('/api/v1/admin/log', function () {
          WHERE $where ORDER BY al.created_at DESC LIMIT 500",
         $params
     );
+    $entries = demoMaskAuditLog($entries, $ctx['is_demo'] ?? false);
     echo json_encode(['entries' => array_map(fn($e) => [
         'id'             => $e['id'],
         'created_at'     => appDate($e['created_at']),
@@ -7268,6 +7269,7 @@ $router->get('/portal/applications', function () {
         "SELECT * FROM membership_applications WHERE community_id = ? AND status = 'pending' ORDER BY created_at DESC",
         [$communityId]
     );
+    $applications = demoMaskApplications($applications, Auth::isDemo());
     require ROOT . '/src/views/pages/applications_list.php';
 });
 
@@ -7277,6 +7279,7 @@ $router->get('/portal/applications/:id', function ($params) {
     DB::setCommunity($communityId);
     $application = DB::fetchOne('SELECT * FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$application) { http_response_code(404); echo 'Nicht gefunden'; return; }
+    $application = demoMaskApplication($application, Auth::isDemo());
     require ROOT . '/src/views/pages/application_detail.php';
 });
 
@@ -8345,6 +8348,7 @@ $router->get('/admin/log', function () {
          ORDER BY al.created_at DESC LIMIT 500",
         $params
     );
+    $entries = demoMaskAuditLog($entries, Auth::isDemo());
     $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
     require ROOT . '/src/views/pages/admin_log.php';
 });
@@ -8357,6 +8361,7 @@ $router->get('/admin/log', function () {
 $router->get('/admin/log/export', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    denyDemoFileDownload();
     $filterCommunity = $_GET['community_id'] ?? '';
     $params = []; $where = '1=1';
     if ($filterCommunity !== '') { $where .= ' AND al.community_id = ?'; $params[] = $filterCommunity; }

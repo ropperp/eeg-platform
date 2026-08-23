@@ -270,10 +270,8 @@
                   <span class="badge badge-gray" style="font-size:.68rem;color:var(--gray-600)" title="Zu alte Firmware, um die Version zu melden">FW unbekannt</span>
                 <?php endif; ?>
                 <br>
-                <button type="button" onclick="showWifiInfo('<?= $member['id'] ?>','<?= $mp['id'] ?>')"
-                        style="background:none;border:none;cursor:pointer;color:var(--gray-600);font-size:.72rem;padding:.15rem 0;text-decoration:underline">
-                  WLAN-Info anzeigen
-                </button>
+                <span id="wifi-info-<?= $mp['id'] ?>" data-member-id="<?= $member['id'] ?>" data-mp-id="<?= $mp['id'] ?>"
+                      style="font-size:.7rem;color:var(--gray-600)">Lade WLAN-Info…</span>
               <?php endif; ?>
             </td>
             <td style="font-size:.78rem;white-space:nowrap">
@@ -581,22 +579,31 @@ function openEditMp(id, znr, mc, type, jahresverbrauch, kwp, geplant) {
   document.getElementById('edit-mp-dialog').showModal();
 }
 
-// WLAN-Diagnoseinfos (SSID/IP/Passwort) erst auf Klick abrufen -- landet so nicht unnötig im
-// initialen HTML (siehe docs/ESP_IDEEN.md Punkt 1, Sicherheitshinweis zum WLAN-Passwort).
-async function showWifiInfo(memberId, mpId) {
-  const res = await fetch('/portal/members/' + memberId + '/metering-points/' + mpId + '/wifi-info');
-  const d = await res.json();
-  if (d.error) { alert(d.error); return; }
-  if (!d.ssid && !d.ip && !d.password) {
-    alert('Noch keine WLAN-Diagnosedaten von diesem ESP übermittelt.');
-    return;
-  }
-  let fwLine = 'Firmware: ' + (d.firmware_version || 'unbekannt (zu alte Firmware)');
-  if (d.firmware_version && d.latest_version) {
-    fwLine += d.firmware_version === d.latest_version ? ' (aktuell)' : ' (Update auf ' + d.latest_version + ' verfügbar)';
-  }
-  alert('WLAN-Diagnose\n\nSSID: ' + (d.ssid || '—') + '\nIP-Adresse: ' + (d.ip || '—') + '\nWLAN-Passwort: ' + (d.password || '—') + '\n' + fwLine);
+// WLAN-Diagnoseinfos (SSID/IP/Passwort) werden weiterhin per AJAX nachgeladen statt direkt vom
+// Server ins initiale HTML gerendert (landen so nicht unnötig in Seiten-Cache/Logs, siehe
+// docs/ESP_IDEEN.md Punkt 1) -- laufen aber seit Patrick, 23.08.2026 ("das kann auch bleiben,
+// aber nicht darunter den kleinen Schriftzug 'WLAN-Info anzeigen'") automatisch beim Laden der
+// Seite statt erst nach einem Klick, und werden inline statt in einem alert() angezeigt.
+function loadWifiInfo(memberId, mpId) {
+  const el = document.getElementById('wifi-info-' + mpId);
+  if (!el) return;
+  fetch('/portal/members/' + memberId + '/metering-points/' + mpId + '/wifi-info')
+    .then(function (res) { return res.json(); })
+    .then(function (d) {
+      if (d.error) { el.textContent = d.error; return; }
+      if (!d.ssid && !d.ip && !d.password) {
+        el.textContent = 'Noch keine WLAN-Diagnosedaten übermittelt.';
+        return;
+      }
+      el.textContent = 'SSID: ' + (d.ssid || '—') + ' · IP: ' + (d.ip || '—') + ' · WLAN-Passwort: ' + (d.password || '—');
+    })
+    .catch(function () { el.textContent = 'WLAN-Info konnte nicht geladen werden.'; });
 }
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('[id^="wifi-info-"]').forEach(function (el) {
+    loadWifiInfo(el.dataset.memberId, el.dataset.mpId);
+  });
+});
 </script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';
