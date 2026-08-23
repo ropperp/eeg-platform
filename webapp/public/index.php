@@ -6593,7 +6593,7 @@ $router->get('/portal/billing/invoices', function () {
     DB::setCommunity($communityId);
     $invoices = DB::fetchAll(
         'SELECT i.*, br.quartal, br.status AS run_status, m.kundennummer, m.first_name, m.last_name,
-                m.company_name, m.email, m.member_iban, m.mandatsreferenz,
+                m.company_name, m.email, m.member_iban, m.mandatsreferenz, m.is_demo,
                 tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
          FROM invoices i
          JOIN billing_runs br ON br.id = i.billing_run_id
@@ -6607,6 +6607,7 @@ $router->get('/portal/billing/invoices', function () {
          ORDER BY i.created_at DESC',
         [$communityId]
     );
+    $invoices = demoMaskMembers($invoices, Auth::isDemo());
     // Anzeige immer in Brutto: bei Kleinunternehmer identisch mit netto, bei Standard inkl. USt.
     foreach ($invoices as &$inv) {
         $inv['brutto_eur'] = taxBreakdown((float)$inv['saldo_eur'], $inv['eeg_tax_model'] ?? null, $inv['eeg_tax_rate'] ?? null)['brutto'];
@@ -7062,7 +7063,7 @@ $router->get('/portal/billing/invoices/:id/edit', function ($params) {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $invoice = DB::fetchOne(
-        'SELECT i.*, br.status AS run_status, br.quartal, m.first_name, m.last_name, m.kundennummer
+        'SELECT i.*, br.status AS run_status, br.quartal, m.first_name, m.last_name, m.kundennummer, m.is_demo
          FROM invoices i
          JOIN billing_runs br ON br.id = i.billing_run_id
          JOIN members m ON m.id = i.member_id
@@ -7070,6 +7071,7 @@ $router->get('/portal/billing/invoices/:id/edit', function ($params) {
         [$params['id'], $communityId]
     );
     if (!$invoice) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
+    $invoice = demoMaskMember($invoice, Auth::isDemo());
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$params['id']]);
     require ROOT . '/src/views/pages/invoice_edit.php';
 });

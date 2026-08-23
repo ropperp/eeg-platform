@@ -8,6 +8,33 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (81) — Claude Code — Claude Sonnet 5
+**Prompt:** "SSID: •••• · IP: •••••••••• · WLAN-Passwort: •••••••• Da hat etwas falsch verstanden.
+Die WLAN-Info-Anzeigen sollen schon bleiben für einen Admin oder für den Obermann-Bereich, aber der
+Demo-Account soll gar nicht sehen, dass es die Möglichkeit gibt, WLAN-Infos anzuzeigen, weil das
+dann schon rechtlich jetzt nicht okay ist, dass ein Demo-Account das sieht. Bitte baue das wieder
+zurück: Baue die WLAN-Info-Anzeigen wieder her, sodass das Pop-up-Fenster wieder herkommt. In dem
+Account soll einfach das ganze ausgeblendet werden, sodass man es gar nicht sieht, dass man es
+nachsehen könnte. Bitte aber wieder hinbauen für den Admin. Weil ich nämlich Platz sparen muss:
+Wenn jetzt die SSID, die IP-Adresse und das WLAN-Passwort alles da in dieser Zeile oder in diesem
+Feld stehen, ist das viel zu viel. Bitte wieder das Pop-up, in dem man hineinkommt, wenn man auf
+„WLAN Info anzeigen" klickt, aber nur für: Obmann-Anzeigen, Admin. Demo-Admin soll es ausgeblendet
+sein. Sowie bitte für zukünftige Rechnungen. Noch gibt es keine Rechnungen in der Rechnungsliste,
+aber bitte diese auch wieder maskieren."
+**Auftrag:** Die WLAN-Info-Änderung der letzten Runde war ein Missverständnis -- Patrick wollte
+keine automatische Inline-Anzeige (zu viel Text, "Platz sparen"), sondern das ursprüngliche
+Popup zurück, dafür aber für den Demo-Zugang komplett unsichtbar (nicht nur maskiert, sondern gar
+kein Button mehr -- schon das Vorhandensein der Möglichkeit ist ihm rechtlich zu heikel). Zusätzlich
+soll die Rechnungsliste (aktuell noch leer, aber vorsorglich) maskiert werden.
+**Ergebnis:** `member_detail.php` zurückgebaut auf den Button+`alert()`-Popup wie ursprünglich,
+aber `<?php if (!Auth::isDemo()): ?>` blendet den kompletten Button für den Demo-Zugang aus
+(Obmann/Platform-Admin sehen ihn weiterhin normal). Der zugrundeliegende
+`/portal/members/:id/metering-points/:mpid/wifi-info`-Endpunkt bleibt zusätzlich wie gehabt
+maskiert. `/portal/billing/invoices` + `/portal/billing/invoices/:id/edit` maskieren jetzt über
+`demoMaskMembers()`/`demoMaskMember()` Mitgliedernamen/E-Mail/IBAN/Mandatsreferenz (beide Queries
+um `is_demo` ergänzt). 130/130 Tests weiterhin grün, Queries gegen eine Scratch-DB verifiziert.
+CLAUDE.md + Infrastruktur.md aktualisiert, Commit/Push/PR/Merge nach main.
+
 ## 2026-09-06 (80) — Claude Code — Claude Sonnet 5
 **Prompt:** "Aktivitätslog und Beitragsanträge auch noch maskieren. Und eine Sache hätte ich noch
 bitte gern: Kannst du mir bitte bei jedem Mitglied das WLAN-Info-Feld verlinken, sodass dieses

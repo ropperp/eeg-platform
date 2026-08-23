@@ -1005,6 +1005,28 @@ docker compose up -d --build
 > einem Klick. Die dortige Demo-Maskierung (echte Mitglieder maskiert, fiktive Demo-Mitglieder
 > unmaskiert, siehe Update vom 06.09.2026 weiter oben) ist davon unberührt und greift unverändert.
 
+> **Einmalig nach dem Update vom 06.09.2026** (WLAN-Info-Popup zurückgebaut + für Demo-Zugang
+> komplett ausgeblendet, Rechnungsliste maskiert -- reine Code-Änderung, kein Migrations-/
+> Setup-Skript nötig):
+>
+> **1. WLAN-Info wieder Popup, für Demo-Zugang aber komplett unsichtbar** (Patrick, 23.08.2026:
+> "das dann schon rechtlich jetzt nicht okay ist, dass ein Demo-Account das sieht [...] soll gar
+> nicht sehen, dass es die Möglichkeit gibt" + "ich nämlich Platz sparen muss" -- die automatisch
+> geladene Inline-Variante vom Update davor war ein Missverständnis): `member_detail.php` zeigt
+> den Button "WLAN-Info anzeigen" (mit `alert()`-Popup wie ursprünglich) jetzt nur noch für
+> Obmann/Platform-Admin -- `Auth::isDemo()` blendet den Button komplett aus, nicht nur den Inhalt,
+> damit im Demo-Zugang nicht einmal erkennbar ist, dass WLAN-Zugangsdaten grundsätzlich
+> nachsehbar wären. Der zugrundeliegende Endpunkt
+> `/portal/members/:id/metering-points/:mpid/wifi-info` bleibt zusätzlich wie gehabt maskiert
+> (Verteidigung in der Tiefe, falls er doch direkt aufgerufen wird).
+>
+> **2. Rechnungsliste (`/portal/billing/invoices`, `/portal/billing/invoices/:id/edit`):**
+> Mitgliedernamen/E-Mail/IBAN/Mandatsreferenz jetzt über `demoMaskMembers()`/`demoMaskMember()`
+> maskiert (Patrick, 23.08.2026: "bitte für zukünftige Rechnungen [...] auch wieder maskieren").
+> Rechnungs-PDFs selbst waren bereits über die Datei-Download-Sperre vom vorletzten Update
+> abgedeckt, SEPA-Sammellastschrift-Vorschau ebenso -- hier ging es nur um die bislang
+> ungemaskte Listen-/Bearbeiten-Ansicht.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
