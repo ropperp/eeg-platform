@@ -240,6 +240,92 @@ function demoMaskMeteringPoints(array $rows, bool $isDemo): array
 }
 
 /**
+ * Maskiert PII in Postfach-Benachrichtigungen (notifications-Tabelle) für den Demo-Zugang
+ * (Patrick, 23.08.2026: "bitte auch bei Online-Beitragserklärungen die Namen unkenntlich
+ * machen [...] die Zählernummer bitte unkenntlich machen, wenn eine Nachricht reinkommt, dass
+ * ein neues ESP [...] Daten schickt und das ESP noch keinem Mitglied zugeordnet worden ist").
+ * titel/text sind hier freier Fließtext statt eigener Spalten (siehe INSERT INTO notifications
+ * in index.php bzw. notify_unknown_meter() in mqtt-subscriber/main.py) -- deshalb ein gezielter
+ * Textbaustein-Ersatz je bekanntem Benachrichtigungstyp statt einer generischen Spaltenliste wie
+ * bei demoMaskMember(). Unbekannte Typen bleiben unverändert (kein PII-Muster bekannt).
+ */
+function demoMaskNotification(array $row, bool $isDemo): array
+{
+    if (!$isDemo) return $row;
+    if (($row['typ'] ?? null) === 'beitrittserklaerung' && !empty($row['titel'])) {
+        // Format: "Neue Beitrittserklärung: Max Mustermann" -- Präfix behalten, Namen maskieren.
+        $row['titel'] = preg_replace_callback(
+            '/^(Neue Beitrittserklärung:\s*)(.+)$/u',
+            fn($m) => $m[1] . demoMaskFull($m[2]),
+            (string)$row['titel']
+        );
+    }
+    if (($row['typ'] ?? null) === 'unbekannter_zaehler' && !empty($row['text'])) {
+        // Format: "<zaehlernummer>: Ein Gerät sendet Daten für die Zählernummer ..." -- die
+        // Zählernummer steht als führendes Token vor dem ersten ": " (Dedup-Muster von
+        // notify_unknown_meter()), Rest des Satzes bleibt lesbar.
+        $row['text'] = preg_replace_callback(
+            '/^(\S+)(:\s*)/u',
+            fn($m) => demoMaskFull($m[1]) . $m[2],
+            (string)$row['text']
+        );
+    }
+    return $row;
+}
+
+/** @param array<int,array> $rows */
+function demoMaskNotifications(array $rows, bool $isDemo): array
+{
+    return array_map(fn($r) => demoMaskNotification($r, $isDemo), $rows);
+}
+
+/**
+ * Maskiert personenbezogene/sensible Felder der EEG-Einstellungen (/portal/settings) für den
+ * Demo-Zugang -- ZVR-Nummer und EEG-Name bleiben bewusst sichtbar (Patrick, 23.08.2026: "die
+ * ZVR-Nummer darf bestehen bleiben, so wie auch der Name", Vereins-Stammdaten statt
+ * personenbezogener Daten). Gläubiger-ID/Marktpartner-ID nur die ersten Zeichen sichtbar
+ * (technische Kennungen), Kontoinhaber/Kontakt-E-Mail komplett unkenntlich.
+ */
+function demoMaskCommunitySettings(array $community, bool $isDemo): array
+{
+    if (!$isDemo) return $community;
+    if (!empty($community['contact_email'])) {
+        $community['contact_email'] = demoMaskFull((string)$community['contact_email']);
+    }
+    if (!empty($community['account_holder'])) {
+        $community['account_holder'] = demoMaskFull((string)$community['account_holder']);
+    }
+    if (!empty($community['creditor_id'])) {
+        $community['creditor_id'] = demoMaskKeepStart((string)$community['creditor_id'], 4);
+    }
+    if (!empty($community['marktpartner_id'])) {
+        $community['marktpartner_id'] = demoMaskKeepStart((string)$community['marktpartner_id'], 4);
+    }
+    return $community;
+}
+
+/** Maskiert den Namen des eingeloggten Obmann/Kontos auf /portal/settings (Unterschrift-Bereich)
+ *  für den Demo-Zugang -- bewusst nur 3 sichtbare Anfangsbuchstaben (Patrick, 23.08.2026: "mein
+ *  Name: nur die ersten drei Buchstaben", abweichend vom sonst üblichen 4er-Standard). */
+function demoMaskSettingsUser(?array $row, bool $isDemo): ?array
+{
+    if (!$row || !$isDemo) return $row;
+    if (!empty($row['first_name'])) { $row['first_name'] = demoMaskKeepStart((string)$row['first_name'], 3); }
+    if (!empty($row['last_name'])) { $row['last_name'] = demoMaskFull((string)$row['last_name']); }
+    return $row;
+}
+
+/** Maskiert die UID-Nummer der Steuerkonfiguration auf /portal/settings für den Demo-Zugang --
+ *  nur die ersten paar Zeichen sichtbar (Patrick, 23.08.2026: "Steuerkonfigurationen bitte ganz
+ *  unkenntlich machen, auch nur die ersten 2, 3 Zeichen"). */
+function demoMaskTaxConfig(?array $row, bool $isDemo): ?array
+{
+    if (!$row || !$isDemo) return $row;
+    if (!empty($row['uid_number'])) { $row['uid_number'] = demoMaskKeepStart((string)$row['uid_number'], 3); }
+    return $row;
+}
+
+/**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
  */

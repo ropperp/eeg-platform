@@ -371,6 +371,28 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
+> **Update vom 06.09.2026 -- Datei-Downloads für den Demo-Account komplett gesperrt + weitere
+> PII-Lücken geschlossen** (Patrick: "Die Dateien dürfen nie, in gar keinem Fall [...]
+> heruntergeladen werden [...] Ich würde da voll gegen das Datenschutzrecht verstoßen."): reine
+> Code-Änderung, kein Migrations-/Setup-Skript nötig.
+> 1. **Datei-Downloads:** die POST-only Read-only-Sperre erfasste Datei-/PDF-Downloads (alles
+>    GET-Routen) bisher nicht. Neue zentrale Helper `denyDemoFileDownload()` (Web) /
+>    `denyDemoApiFileDownload()` (App-API) blocken jetzt ausnahmslos jede Datei -- Mitglieder-
+>    Uploads, Beitrittserklärungen, Verträge, Rechnungen, SEPA-Sammellastschrift, LaTeX-Vorlagen/
+>    Logos, Avatare, DSGVO-Export. Bloßes Browsen in Datei-LISTEN bleibt erlaubt.
+> 2. **`/portal/files`:** eigene, bisher ungemaskte Mitgliederliste jetzt maskiert
+>    (Screenshot-bestätigte Lücke).
+> 3. **Postfach:** Name in "Neue Beitrittserklärung"-Meldungen + Zählernummer in "Unbekannte
+>    Zählernummer"-Meldungen maskiert (neue Funktion `demoMaskNotification()`, da hier freier
+>    Fließtext statt eigener Spalten).
+> 4. **Support-Tickets:** Namen echter Mitglieder in Liste/Detail maskiert, eigene Demo-Tickets
+>    bleiben sichtbar/anlegbar.
+> 5. **Obmann-Einstellungen (`/portal/settings`):** ZVR-Nummer + EEG-Name bleiben sichtbar,
+>    Kontakt-E-Mail/Kontoinhaber komplett maskiert, Gläubiger-ID/Marktpartner-ID/UID-Nummer nur
+>    die ersten paar Zeichen sichtbar.
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
