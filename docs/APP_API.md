@@ -310,6 +310,29 @@ Durchschnittsleistung des Viertelstunden-Intervalls in Watt (kWh × 4000), direk
 mit `current_power_w` aus `/api/v1/current-power`. `gemeinschaft_w` ist der Anteil davon, der
 aus der Energiegemeinschaft gedeckt wurde -- die Differenz kam aus dem öffentlichen Netz.
 
+### GET /api/v1/production/interval?date=YYYY-MM-DD
+
+Spiegelbild von `/api/v1/consumption/interval`, für die eigene Einspeisung -- Grundlage für ein
+Tages-Diagramm für Einspeiser/Prosumer, analog `/portal/my/einspeisung` im Web-Portal.
+Implementiert seit 06.09.2026 (Patrick: "warum haben die Einspeiser nicht die Möglichkeit, ihre
+eingespeiste Leistung in einem Diagramm einzusehen?"). Nur relevant für Mitglieder mit
+mindestens einem aktiven Einspeise-/Prosumer-Zählpunkt.
+
+```json
+{ "date": "2026-07-26", "has_data": true,
+  "total_messung_kwh": 812.4, "total_gemeinschaft_kwh": 4.92,
+  "intervals": [
+    { "zeit": "00:00", "einspeisung_w": null },
+    { "zeit": "12:00", "einspeisung_w": 340 }
+  ] }
+```
+`total_messung_kwh` ist die GESAMTE gemeinschaftliche Erzeugung der EEG an diesem Tag (nicht
+mitgliedsspezifisch -- nur als grober Kontext mitgeliefert, in der Regel nicht anzeigen).
+`total_gemeinschaft_kwh`/`einspeisung_w` sind dagegen die eigene, individuell zugerechnete
+Einspeisung (nach Teilnahmefaktor) -- das ist die für das Diagramm relevante Zahl. `intervals`
+hat wie bei `/consumption/interval` immer 96 Einträge, `einspeisung_w` ist `null` ohne Wert für
+diesen Zeitpunkt.
+
 ### GET /api/v1/invoices
 
 ```json

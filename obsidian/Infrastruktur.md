@@ -335,6 +335,23 @@ docker compose up -d --build
 > zusätzlich `/portal/ack-prelaunch` als folgenlose Ausnahme in `Router.php` erlaubt. Reine
 > Code-Änderung. Details: `CLAUDE.md`.
 
+> **Drei Nachbesserungen vom 06.09.2026:**
+> 1. **Energiefluss doppelt gezählt**: die Live-ESP-Spiegelung hatte einen Community-weiten
+>    Zähl-Bug ausgelöst -- `communityLivePower()` UND die öffentliche `/api/live/:slug`
+>    (`live.stromfueralle.at`, für jeden Besucher sichtbar) summierten Leistung über ALLE
+>    Zählpunkte, ohne gespiegelte Demo-Zählpunkte auszuschließen (echte Messung + Spiegelung
+>    zählten doppelt). Behoben durch `mirror_source_metering_point_id IS NULL` in allen
+>    betroffenen Summen. Live an einer Scratch-DB verifiziert. Reine Code-Änderung.
+> 2. **platform_admin/manager im Demo-Login fehlten trotz manueller Zuweisung**:
+>    `scripts/assign_demo_member_roles.php` legt sie jetzt selbst an, falls sie fehlen, und gibt
+>    den tatsächlichen Rollenstand aus der DB aus -- `docker compose exec -T webapp php <
+>    scripts/assign_demo_member_roles.php`.
+> 3. **Einspeiser hatten kein Diagramm für ihre Einspeisung**: neue Seite
+>    `/portal/my/einspeisung` (App: `GET /api/v1/production/interval`), Spiegelbild des
+>    Verbrauchsdiagramms mit `energy_direction='GENERATION'`. Reine Code-Änderung.
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

@@ -8,6 +8,39 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (77) — Claude Code — Claude Sonnet 5
+**Prompt:** "Die live Echtzeit-Daten sollen zwar bei den Demo Acc angezeigt werden, aber es
+dürfen die Daten nicht doppelt in dem Energiefluss angezeigt werden. Admin und Obmann gibt es
+noch immer nicht als Demo Rolle. Das wäre noch sehr wichtig. Außerdem, warum haben die
+Einspeicher nicht die Möglichkeit, ihre eingesepiste Leistungen n einem Diagramm einzusehen?
+Und noch einmal, ICH BRAUCH BITTE DEN ADMIN und OBMANN DEMO ACCOUNT:"
+**Auftrag:** Drei Punkte: (1) einen durch die Live-ESP-Spiegelung entstandenen Doppelzählungs-
+Bug im Energiefluss beheben, (2) sicherstellen, dass platform_admin und manager im Demo-Login
+zuverlässig funktionieren, (3) Einspeisern ein Diagramm für ihre eigene Einspeisung analog zum
+bestehenden Verbrauchsdiagramm bereitstellen.
+**Ergebnis:** (1) `communityLivePower()` sowie die öffentliche `/api/live/:slug`
+(`live.stromfueralle.at`) summierten Leistung/Energie community-weit über ALLE Zählpunkte, ohne
+gespiegelte Demo-Zählpunkte auszuschließen -- echte Messung und ihre Spiegelung zählten doppelt,
+sichtbar für JEDEN Besucher der öffentlichen Live-Seite. Behoben durch
+`mirror_source_metering_point_id IS NULL` in allen betroffenen Summen/Zählungen, live an einer
+Scratch-DB verifiziert (500 W echt blieben 500 W, nicht 1000 W). (2) `scripts/
+assign_demo_member_roles.php` erweitert: legt platform_admin/manager jetzt selbst an, falls sie
+fehlen sollten (statt sich nur auf die manuelle Zuweisung zu verlassen), prüft vor jedem Insert
+per SELECT (keine doppelten Rollenzeilen bei bereits abweichender community_id), und gibt am
+Ende den tatsächlichen, aus der DB gelesenen Rollenstand aus -- dreifach an einer Scratch-DB
+verifiziert (Patricks exakter Ausgangszustand, zweiter Lauf zur Idempotenz, kompletter
+Neustart ohne jede Rolle). (3) Neue Seite `/portal/my/einspeisung` (App: `GET
+/api/v1/production/interval`) für Mitglieder mit Einspeise-/Prosumer-Zählpunkten --
+`memberIntervalDayData()` um einen `$energyDirection`-Parameter erweitert
+(`'GENERATION'` statt `'CONSUMPTION'`), Card auf dem Mitglied-Dashboard ergänzt. Wichtige
+Erkenntnis dabei: bei GENERATION ist `kwh_messung` die GESAMTE gemeinschaftliche Erzeugung
+(community-weit, nicht mitgliedsspezifisch) -- die für das eigene Diagramm relevante Größe ist
+`kwh_gemeinschaft` ("Erzeugung lt. Messung entsprechend dem Teilnahmefaktor"), das Diagramm
+zeigt deshalb bewusst nur eine einzelne Fläche statt der gestapelten Verbrauch/Eigendeckung-
+Darstellung. Alle 116 Tests weiterhin grün.
+
+---
+
 ## 2026-09-06 (76) — Claude Code — Claude Sonnet 5
 **Prompt:** [zwei Screenshots: Pre-Launch-Popup nach Demo-Login als "Verbraucher 1", danach die
 "Nur Lesezugriff"-Seite] "Ein weiters Problem ist, dass wenn ich mich als Demo einlogge, ich mit
