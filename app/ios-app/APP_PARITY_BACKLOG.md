@@ -66,6 +66,12 @@ vor dem Umsetzen abgestimmt.
 
 ## Bereits umgesetzt (zur Referenz, chronologisch)
 
+- **06.09.2026 (PR folgt):** Viertelstunden-Einspeisungsdiagramm für Einspeiser/Prosumer --
+  Spiegelbild des Verbrauchsdiagramms vom 04.09.2026, diesmal `energy_direction='GENERATION'`
+  aus derselben `eda_interval_data`-Tabelle. `GET /api/v1/production/interval?date=YYYY-MM-DD`
+  (App) bzw. `/portal/my/einspeisung` (Web). Noch zu bauen: App-Bildschirm (analog Abschnitt 12
+  in `app.md`, aber ein einzelner Wert `einspeisung_w` statt der gestapelten
+  Verbrauch/Eigendeckung-Fläche).
 - **04.09.2026 (PR folgt):** Viertelstunden-Verbrauchsdiagramm (Verbrauch vs. gemeinschaftliche
   Eigendeckung, ein Tag, 96 Intervalle) -- neuer EDA-Export-Typ ("Energiedaten"-Sheet, echte
   Viertelstundenwerte statt Monatssummen) über `eda-parser/parser_interval.py` importierbar,

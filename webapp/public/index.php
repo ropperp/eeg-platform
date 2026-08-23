@@ -274,24 +274,32 @@ function memberCurrentNetPowerW(string $communityId, array $meteringPointIds): ?
  */
 function communityLivePower(string $communityId): array
 {
+    // mirror_source_metering_point_id IS NULL: Demo-Zählpunkte (siehe migrate_20260906.sql)
+    // bewusst aus JEDER Community-weiten Summe ausschließen -- ihre Live-Werte sind ja nur eine
+    // Live-Spiegelung eines ANDEREN, bereits selbst in dieser Summe enthaltenen Zählpunkts
+    // (Patrick, 06.09.2026: "es dürfen die Daten nicht doppelt in dem Energiefluss angezeigt
+    // werden"). Die eigene "Aktuelle Leistung"-Kachel des Demo-Mitglieds bleibt davon unberührt,
+    // die fragt gezielt nur die eigenen Zählpunkte ab (memberCurrentNetPowerW()).
     $row = DB::fetchOne(
         "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
                 COUNT(*) AS active_meters
          FROM (
-            SELECT DISTINCT ON (metering_point_id) power_einspeisung_w, power_bezug_w
-            FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
-            ORDER BY metering_point_id, time DESC
+            SELECT DISTINCT ON (em.metering_point_id) em.power_einspeisung_w, em.power_bezug_w
+            FROM esp_measurements em
+            JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+            WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 minutes'
+            ORDER BY em.metering_point_id, em.time DESC
          ) latest",
         [$communityId]
     );
     // total_meters: alle aktiven Zählpunkte, die schon mindestens einmal gemeldet haben (nicht
     // "noch nie installiert") -- Grundlage fürs Disclaimer unten (aktive_meters < total_meters
     // bedeutet: mindestens ein bekannter ESP ist gerade offline, die Summenwerte sind dann
-    // unvollständig, siehe Patrick 30.07.2026).
+    // unvollständig, siehe Patrick 30.07.2026). Demo-Zählpunkte auch hier ausgeschlossen.
     $total = DB::fetchOne(
         "SELECT COUNT(*) AS cnt FROM metering_points
-         WHERE community_id = ? AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL",
+         WHERE community_id = ? AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL
+           AND mirror_source_metering_point_id IS NULL",
         [$communityId]
     );
     return [
@@ -1330,6 +1338,14 @@ $router->get('/api/live/:slug', function ($params) {
 
     DB::setCommunity($community['id']);
 
+    // mirror_source_metering_point_id IS NULL: Demo-Zählpunkte (siehe migrate_20260906.sql) aus
+    // JEDER Community-weiten Summe ausschließen -- ihre Live-Werte sind nur eine Live-Spiegelung
+    // eines ANDEREN, bereits selbst enthaltenen Zählpunkts, würden also doppelt zählen (Patrick,
+    // 06.09.2026: "es dürfen die Daten nicht doppelt in dem Energiefluss angezeigt werden").
+    // Diese Seite ist zudem öffentlich (live.stromfueralle.at), eine verdoppelte Zahl wäre also
+    // nicht nur intern falsch, sondern für jeden Besucher sichtbar falsch.
+    $demoExclusion = 'metering_point_id NOT IN (SELECT id FROM metering_points WHERE mirror_source_metering_point_id IS NOT NULL)';
+
     // Aktuelle Leistung: pro Zählpunkt nur den jeweils NEUESTEN Messwert im Fenster nehmen,
     // nicht alle Zeilen aufsummieren (bei 5s-Sende-Intervall wären das bis zu ~24 Zeilen/Zähler
     // in 2 Minuten -> Werte um ein Vielfaches zu hoch, siehe CLAUDE.md/Sitzungslog).
@@ -1341,7 +1357,7 @@ $router->get('/api/live/:slug', function ($params) {
          FROM (
             SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
             FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes' AND $demoExclusion
             ORDER BY metering_point_id, time DESC
          ) latest",
         [$community['id']]
@@ -1359,13 +1375,13 @@ $router->get('/api/live/:slug', function ($params) {
         "WITH jetzt AS (
             SELECT DISTINCT ON (metering_point_id) metering_point_id, energy_einspeisung_wh AS jetzt_wh
             FROM esp_measurements
-            WHERE community_id = ?
+            WHERE community_id = ? AND $demoExclusion
             ORDER BY metering_point_id, time DESC
          ),
          basis AS (
             SELECT DISTINCT ON (metering_point_id) metering_point_id, energy_einspeisung_wh AS basis_wh
             FROM esp_measurements
-            WHERE community_id = ? AND time < CURRENT_DATE
+            WHERE community_id = ? AND time < CURRENT_DATE AND $demoExclusion
             ORDER BY metering_point_id, time DESC
          )
          SELECT COALESCE(SUM(GREATEST(j.jetzt_wh - COALESCE(b.basis_wh, j.jetzt_wh), 0)), 0) AS today_wh
@@ -1386,7 +1402,7 @@ $router->get('/api/live/:slug', function ($params) {
                 AVG(power_bezug_w)             AS bezug_w,
                 AVG(power_einspeisung_w)       AS einspeisung_w
             FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 hours'
+            WHERE community_id = ? AND time >= now() - INTERVAL '2 hours' AND $demoExclusion
             GROUP BY bucket, metering_point_id
          ) per_meter_bucket
          GROUP BY bucket ORDER BY bucket",
@@ -1401,7 +1417,8 @@ $router->get('/api/live/:slug', function ($params) {
     // Zählpunkte vs. die gerade aktiven -- siehe communityLivePower() (Patrick, 30.07.2026).
     $totalMeters = DB::fetchOne(
         "SELECT COUNT(*) AS cnt FROM metering_points
-         WHERE community_id = ? AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL",
+         WHERE community_id = ? AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL
+           AND mirror_source_metering_point_id IS NULL",
         [$community['id']]
     );
 
@@ -2003,18 +2020,29 @@ $router->post('/portal/my/contract/:type/sign', function ($params) {
  * Beitrittsformular.
  */
 /**
- * Viertelstündlicher Verbrauch vs. gemeinschaftliche Eigendeckung für EINEN Tag, summiert über
- * alle aktiven Bezugs-/Prosumer-Zählpunkte eines Mitglieds -- Grundlage für /portal/my/verbrauch
- * und GET /api/v1/consumption/interval (App). Patrick, 03.09.2026: "wie viel sie viertelstündlich
- * verbrauchen und wie viel davon energiegemeinschaftlich genutzt wird [...] damit wissen die
- * Mitglieder auch, wie sie ihren Verbrauch optimieren können".
+ * Viertelstündliche Werte für EINEN Tag, summiert über eine Menge von Zählpunkten eines
+ * Mitglieds -- gemeinsame Grundlage für zwei spiegelbildliche Diagramme:
+ *  - $energyDirection='CONSUMPTION' (Default): Verbrauch vs. gemeinschaftliche Eigendeckung,
+ *    für Bezugs-/Prosumer-Zählpunkte -- /portal/my/verbrauch, GET /api/v1/consumption/interval.
+ *    kwh_gemeinschaft ist hier der Anteil von kwh_messung, der aus der EEG gedeckt wurde (siehe
+ *    Spaltenkommentar in database/migrate_20260904.sql) -- die Differenz kam aus dem
+ *    öffentlichen Netz. Patrick, 03.09.2026: "wie viel sie viertelstündlich verbrauchen und wie
+ *    viel davon energiegemeinschaftlich genutzt wird [...] damit wissen die Mitglieder auch, wie
+ *    sie ihren Verbrauch optimieren können".
+ *  - $energyDirection='GENERATION': eigene Einspeisung, für Einspeise-/Prosumer-Zählpunkte --
+ *    /portal/my/einspeisung, GET /api/v1/production/interval. Patrick, 06.09.2026: "warum haben
+ *    die Einspeiser nicht die Möglichkeit, ihre eingespeiste Leistung in einem Diagramm
+ *    einzusehen?". WICHTIG: bei GENERATION ist kwh_messung die GESAMTE gemeinschaftliche
+ *    Erzeugung (community-weit, NICHT mitgliedsspezifisch) -- die fürs eigene Diagramm relevante
+ *    Größe ist deshalb kwh_gemeinschaft ("Erzeugung lt. Messung entsprechend dem
+ *    Teilnahmefaktor und EC-ID", siehe migrate_20260904.sql) = die eigene, individuell
+ *    zugerechnete Einspeisung. Aufrufer für GENERATION verwenden deshalb bewusst nur
+ *    'gemeinschaft_w' aus der Rückgabe, nicht 'verbrauch_w'.
  *
- * kwh_gemeinschaft ist der Anteil von kwh_messung, der aus der EEG gedeckt wurde (siehe
- * Spaltenkommentar in database/migrate_20260904.sql) -- die Differenz kam aus dem öffentlichen
- * Netz. Rückgabe in DURCHSCHNITTS-WATT je Viertelstunde (kWh * 4000), nicht kWh, damit die
- * Werte direkt mit der Live-Leistungsanzeige (current-power, ebenfalls in W) vergleichbar sind.
+ * Rückgabe in DURCHSCHNITTS-WATT je Viertelstunde (kWh * 4000), nicht kWh, damit die Werte
+ * direkt mit der Live-Leistungsanzeige (current-power, ebenfalls in W) vergleichbar sind.
  */
-function memberIntervalDayData(string $communityId, array $meteringPointIds, string $date): array
+function memberIntervalDayData(string $communityId, array $meteringPointIds, string $date, string $energyDirection = 'CONSUMPTION'): array
 {
     if (!$meteringPointIds) {
         return ['intervals' => [], 'total_messung_kwh' => 0.0, 'total_gemeinschaft_kwh' => 0.0, 'has_data' => false];
@@ -2025,9 +2053,9 @@ function memberIntervalDayData(string $communityId, array $meteringPointIds, str
         "SELECT time, SUM(kwh_messung) AS kwh_messung, SUM(kwh_gemeinschaft) AS kwh_gemeinschaft
          FROM eda_interval_data
          WHERE community_id = ? AND metering_point_id IN ($placeholders)
-           AND energy_direction = 'CONSUMPTION' AND time >= ?::date AND time < ?::date + INTERVAL '1 day'
+           AND energy_direction = ? AND time >= ?::date AND time < ?::date + INTERVAL '1 day'
          GROUP BY time ORDER BY time",
-        array_merge([$communityId], $meteringPointIds, [$date, $date])
+        array_merge([$communityId], $meteringPointIds, [$energyDirection, $date, $date])
     );
     $byTime = [];
     foreach ($rows as $r) {
@@ -2081,6 +2109,37 @@ $router->get('/portal/my/verbrauch', function () {
 
     $data = memberIntervalDayData($member['community_id'], $mpIds, $date);
     require ROOT . '/src/views/pages/my_verbrauch.php';
+});
+
+/**
+ * Spiegelbild von /portal/my/verbrauch, für Einspeise-/Prosumer-Zählpunkte -- Patrick,
+ * 06.09.2026: "warum haben die Einspeiser nicht die Möglichkeit, ihre eingespeiste Leistung in
+ * einem Diagramm einzusehen?". Nutzt dieselbe memberIntervalDayData(), aber mit
+ * energy_direction='GENERATION' -- siehe dortiger Kommentar zur kwh_gemeinschaft-Semantik bei
+ * Erzeugung.
+ */
+$router->get('/portal/my/einspeisung', function () {
+    Auth::requireLogin();
+    $member = currentMemberFull();
+    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
+
+    $mpIds = array_column(
+        DB::fetchAll("SELECT id FROM metering_points WHERE member_id = ? AND active = true AND type IN ('producer', 'prosumer')", [$member['id']]),
+        'id'
+    );
+
+    $date = $_GET['date'] ?? null;
+    if (!$date) {
+        $latest = $mpIds ? DB::fetchOne(
+            "SELECT MAX(time) AS letzter FROM eda_interval_data WHERE community_id = ? AND metering_point_id IN ("
+            . implode(',', array_fill(0, count($mpIds), '?')) . ") AND energy_direction = 'GENERATION'",
+            array_merge([$member['community_id']], $mpIds)
+        ) : null;
+        $date = !empty($latest['letzter']) ? date('Y-m-d', strtotime($latest['letzter'])) : date('Y-m-d');
+    }
+
+    $data = memberIntervalDayData($member['community_id'], $mpIds, $date, 'GENERATION');
+    require ROOT . '/src/views/pages/my_einspeisung.php';
 });
 
 $router->get('/portal/my/documents', function () {
@@ -2955,6 +3014,45 @@ $router->get('/api/v1/consumption/interval', function () {
             'zeit'           => $iv['zeit'],
             'verbrauch_w'    => $iv['verbrauch_w'],
             'gemeinschaft_w' => $iv['gemeinschaft_w'],
+        ], $data['intervals']),
+    ]);
+});
+
+/**
+ * Spiegelbild von GET /api/v1/consumption/interval, für die eigene Einspeisung (App-Äquivalent
+ * von /portal/my/einspeisung) -- Patrick, 06.09.2026: "warum haben die Einspeiser nicht die
+ * Möglichkeit, ihre eingespeiste Leistung in einem Diagramm einzusehen?". 'total_messung_kwh'
+ * ist bei GENERATION die gemeinschaftsweite Gesamterzeugung (NICHT mitgliedsspezifisch, siehe
+ * memberIntervalDayData()) -- bewusst trotzdem mitgeliefert (falls die App sie mal als
+ * Kontext-Info zeigen will), die für das eigene Diagramm relevante Zahl ist
+ * 'total_gemeinschaft_kwh'/'gemeinschaft_w'.
+ */
+$router->get('/api/v1/production/interval', function () {
+    $ctx = AppApiAuth::requireAppAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    DB::setCommunity($ctx['community_id']);
+
+    $date = $_GET['date'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültiges Datum, erwartet YYYY-MM-DD.']);
+        return;
+    }
+    $mpIds = array_column(
+        DB::fetchAll("SELECT id FROM metering_points WHERE member_id = ? AND active = true AND type IN ('producer', 'prosumer')", [$ctx['member_id']]),
+        'id'
+    );
+    $data = memberIntervalDayData($ctx['community_id'], $mpIds, $date, 'GENERATION');
+
+    echo json_encode([
+        'date'                   => $date,
+        'has_data'               => $data['has_data'],
+        'total_messung_kwh'      => $data['total_messung_kwh'],
+        'total_gemeinschaft_kwh' => $data['total_gemeinschaft_kwh'],
+        'intervals'              => array_map(fn($iv) => [
+            'zeit'           => $iv['zeit'],
+            'einspeisung_w'  => $iv['gemeinschaft_w'],
         ], $data['intervals']),
     ]);
 });

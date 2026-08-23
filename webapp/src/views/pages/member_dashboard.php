@@ -249,6 +249,16 @@ function onDashboardRangeChange(v) {
 </div>
 <?php endif; ?>
 
+<?php if ($hasProducer): ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('lightning') ?> Viertelstündliche Einspeisung</h3>
+  <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:.75rem">
+    Sehen Sie für einen einzelnen Tag, wie viel Sie viertelstündlich eingespeist haben.
+  </p>
+  <a href="/portal/my/einspeisung" class="btn btn-primary" style="font-size:.85rem">Diagramm ansehen</a>
+</div>
+<?php endif; ?>
+
 <?php if ($monthly): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem"><?= icon('chart-bar') ?> Verlauf der letzten Monate</h3>

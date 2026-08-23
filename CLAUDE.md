@@ -848,6 +848,40 @@ docker compose up -d --build
 > Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten `git pull &&
 > docker compose up -d --build` aktiv.
 
+> **Drei Nachbesserungen vom 06.09.2026:**
+>
+> **1. Energiefluss doppelt gezählt (Patrick: "es dürfen die Daten nicht doppelt in dem
+> Energiefluss angezeigt werden"):** die Live-ESP-Spiegelung vom selben Tag (siehe oben) hat
+> einen Community-weiten Zähl-Bug ausgelöst -- `communityLivePower()` (Obmann-/Mitglied-Dashboard,
+> `/portal/api/live-power`, `/api/v1/live`) UND die öffentliche `/api/live/:slug` (Grundlage von
+> `live.stromfueralle.at`, für JEDEN Besucher sichtbar!) summierten Leistung/Energie über ALLE
+> Zählpunkte der Community, ohne gespiegelte Demo-Zählpunkte auszuschließen -- die echte Messung
+> UND ihre Spiegelung zählten doppelt. Behoben durch `mirror_source_metering_point_id IS NULL`
+> in allen betroffenen Summen/Zählungen. Live an einer Scratch-DB verifiziert (500 W echt blieb
+> 500 W in der Summe, nicht 1000 W). Reine Code-Änderung.
+>
+> **2. platform_admin/manager im Demo-Login fehlten trotz manueller Zuweisung:** `scripts/
+> assign_demo_member_roles.php` (siehe oben) legt jetzt zusätzlich platform_admin + manager
+> selbst an, falls sie fehlen sollten (statt sich nur auf die manuelle Zuweisung über die
+> Admin-Oberfläche zu verlassen), UND gibt am Ende den tatsächlichen Rollenstand aus der DB aus:
+> ```bash
+> docker compose exec -T webapp php < scripts/assign_demo_member_roles.php
+> ```
+> Sicher erneut ausführbar (prüft vor jedem Insert per SELECT, legt nie eine zweite/doppelte
+> Rolle an). Bei Unklarheit über den tatsächlichen Rollenstand: die Ausgabe dieses Skripts ist
+> die verlässliche Quelle, nicht die Vermutung über die Admin-Oberfläche.
+>
+> **3. Einspeiser hatten kein Verbrauchs-Äquivalent-Diagramm (Patrick: "warum haben die
+> Einspeiser nicht die Möglichkeit, ihre eingespeiste Leistung in einem Diagramm einzusehen?"):**
+> neue, spiegelbildliche Seite `/portal/my/einspeisung` (bzw. `GET
+> /api/v1/production/interval` für die App) für Mitglieder mit Einspeise-/Prosumer-Zählpunkten --
+> nutzt dieselbe `eda_interval_data`-Tabelle, aber `energy_direction='GENERATION'`. Card dafür
+> auf dem Mitglied-Dashboard, analog zur bestehenden Verbrauchs-Karte. Reine Code-Änderung.
+>
+> Alle drei Punkte reine Code-Änderungen, kein Migrations-/Setup-Skript nötig außer Punkt 2 (das
+> bereits bekannte Rollen-Skript) -- mit dem nächsten `git pull && docker compose up -d --build`
+> aktiv.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
