@@ -91,15 +91,28 @@ foreach ($targets as $t) {
 // angelegt) eine ANDERE community_id tragen, was sonst zu einer zweiten, funktional
 // überflüssigen Rollenzeile führen würde (der Unique-Index erlaubt platform_admin/manager
 // grundsätzlich je EEG, nicht plattformweit nur einmal).
+//
+// community_id für platform_admin bewusst NICHT NULL: rein funktional bräuchte
+// Auth::isPlatformAdmin() das nicht (prüft nur die Rolle, keine Community), ABER
+// manager_dashboard.php (dorthin führt /portal/dashboard für JEDEN platform_admin, weil
+// Auth::isManager() auch für platform_admin true ist) braucht zwingend eine aktive Community
+// und stürzt sonst mit einem Fatal Error ab (Patrick, 06.09.2026, per Screenshot -- exakt dieser
+// Fall, weil ein früherer Lauf dieses Skripts community_id=NULL gesetzt hatte). Genau wie beim
+// manuellen Anlegen über die Admin-Oberfläche deshalb dieselbe Community wie die
+// Mitglied-Identitäten verwenden.
 $managerCommunityId = $demoCommunityId ?? ($communities[0]['id'] ?? null);
 if (!$managerCommunityId) {
     fwrite(STDERR, "[assign_demo_member_roles] Keine EEG in der Datenbank gefunden -- platform_admin/manager können ohne mindestens eine EEG nicht sinnvoll geprüft werden.\n");
 } else {
-    $hasAdmin = DB::fetchOne("SELECT 1 AS x FROM user_roles WHERE user_id = ? AND role = 'platform_admin'", [$demoUser['id']]);
-    if ($hasAdmin) {
+    $adminRole = DB::fetchOne("SELECT id, community_id FROM user_roles WHERE user_id = ? AND role = 'platform_admin' LIMIT 1", [$demoUser['id']]);
+    if ($adminRole && $adminRole['community_id'] === null) {
+        // Reparatur eines früheren, fehlerhaften Laufs (community_id=NULL -> Absturz).
+        DB::execute('UPDATE user_roles SET community_id = ? WHERE id = ?', [$managerCommunityId, $adminRole['id']]);
+        fwrite(STDERR, "[assign_demo_member_roles] Rolle \"platform_admin\" hatte keine EEG zugewiesen (führte zum Absturz von /portal/dashboard) -- repariert.\n");
+    } elseif ($adminRole) {
         fwrite(STDERR, "[assign_demo_member_roles] Rolle \"platform_admin\" war bereits vorhanden.\n");
     } else {
-        DB::execute('INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?)', [null, $demoUser['id'], 'platform_admin']);
+        DB::execute('INSERT INTO user_roles (community_id, user_id, role) VALUES (?, ?, ?)', [$managerCommunityId, $demoUser['id'], 'platform_admin']);
         fwrite(STDERR, "[assign_demo_member_roles] Rolle \"platform_admin\" angelegt.\n");
     }
 

@@ -1608,6 +1608,15 @@ $router->post('/portal/reset-password', function () {
 $router->get('/portal/dashboard', function () {
     Auth::requireLogin();
     if (Auth::isManager()) {
+        // manager_dashboard.php braucht eine konkrete aktive EEG (DB::setCommunity() dort ganz
+        // oben) -- ein platform_admin ohne community-gebundene Rolle (community_id NULL, siehe
+        // Auth::isPlatformAdmin()) hat aber keine, das würde sonst mit einem Fatal Error
+        // abstürzen (Patrick, 06.09.2026, per Screenshot). In dem Fall auf die
+        // EEG-unabhängige Plattform-Übersicht ausweichen.
+        if (!Auth::activeCommunityId()) {
+            header('Location: /admin');
+            exit;
+        }
         require ROOT . '/src/views/pages/manager_dashboard.php';
     } else {
         require ROOT . '/src/views/pages/member_dashboard.php';
@@ -5311,6 +5320,22 @@ $router->get('/portal/members/:id/metering-points/:mpid/wifi-info', function ($p
     if (!Auth::isPlatformAdmin() && Auth::activeCommunityId() !== $mp['community_id']) {
         http_response_code(403); echo json_encode(['error' => 'Kein Zugriff']); return;
     }
+    // Demo-Login: das entschlüsselte WLAN-Passwort ist das ECHTE Heim-WLAN-Passwort des
+    // Mitglieds -- niemals im Klartext zeigen, außer beim fiktiven Demo-Mitglied selbst
+    // (Patrick, 06.09.2026). GET-Endpunkt, also von der POST-only Read-only-Sperre NICHT erfasst.
+    if (Auth::isDemo()) {
+        $isDemoMember = (bool)DB::fetchOne('SELECT is_demo FROM members WHERE id = ?', [$params['id']])['is_demo'];
+        if (!$isDemoMember) {
+            echo json_encode([
+                'ssid'             => !empty($mp['wifi_ssid']) ? demoMaskFull((string)$mp['wifi_ssid']) : '',
+                'ip'               => !empty($mp['wifi_ip']) ? demoMaskFull((string)$mp['wifi_ip']) : '',
+                'password'         => !empty($mp['wifi_password_enc']) ? '••••••••' : '',
+                'firmware_version' => $mp['esp_firmware_version'] ?? '',
+                'latest_version'   => latestFirmwareVersion() ?? '',
+            ]);
+            return;
+        }
+    }
     echo json_encode([
         'ssid'             => $mp['wifi_ssid'] ?? '',
         'ip'               => $mp['wifi_ip'] ?? '',
@@ -8030,6 +8055,12 @@ $router->get('/admin/communities/:id', function ($params) {
     // ablesen können (z.B. um sich selbst einzuloggen), anders als z.B. das Graph-Client-Secret,
     // das nur die App selbst braucht -- siehe encryptSecret()/decryptSecret() in functions.php.
     $community['eda_login_password'] = decryptSecret($community['eda_login_password_enc'] ?? null);
+    // Demo-Login: das entschlüsselte EDA-Portal-Passwort ist ein ECHTES Zugangsdatum zum
+    // Netzbetreiber-Portal -- niemals im Klartext zeigen (Patrick, 06.09.2026).
+    if (Auth::isDemo()) {
+        if (!empty($community['eda_login_password'])) { $community['eda_login_password'] = demoMaskFull((string)$community['eda_login_password']); }
+        if (!empty($community['eda_login_email'])) { $community['eda_login_email'] = demoMaskFull((string)$community['eda_login_email']); }
+    }
     // members hat Row-Level Security (migrate_20260822.sql) -- OHNE DB::setCommunity() liefert
     // die eingeschränkte Laufzeit-Rolle grundsätzlich GAR KEINE Zeile, auch bei korrektem WHERE
     // (Patrick, 19.08.2026 beim App-API-Nachbau entdeckt: diese Seite zeigte seit dem RLS-Fix
@@ -8299,6 +8330,23 @@ $router->get('/admin/mail-settings', function () {
     // gebraucht, siehe admin_mail_settings.php ("MQTT-Fernkonfiguration (Geräte)").
     if ($mqttConfig && !empty($mqttConfig['device_reconfig_payload'])) {
         $mqttConfig['device_reconfig_payload'] = json_decode($mqttConfig['device_reconfig_payload'], true) ?: [];
+    }
+    // Demo-Login: diese Seite zeigt normalerweise mehrere ECHTE Zugangsdaten im Klartext (MQTT-
+    // Passwort, Microsoft-Graph Tenant-/Client-ID) -- die Read-only-Sperre verhindert zwar jede
+    // Änderung, aber NICHT das bloße Ansehen. Patrick, 06.09.2026: "die ganzen E-Mail-
+    // Einstellungen, Sachen wie die Graph API von Microsoft [...] verpixelt oder mit Sternchen".
+    // Das Client-Secret selbst wird ohnehin nie im Klartext angezeigt (siehe admin_mail_settings.php).
+    if (Auth::isDemo()) {
+        if ($mqttConfig) {
+            if (!empty($mqttConfig['mqtt_password'])) { $mqttConfig['mqtt_password'] = demoMaskFull((string)$mqttConfig['mqtt_password']); }
+            if (!empty($mqttConfig['device_reconfig_payload']['mqtt_pass'])) {
+                $mqttConfig['device_reconfig_payload']['mqtt_pass'] = demoMaskFull((string)$mqttConfig['device_reconfig_payload']['mqtt_pass']);
+            }
+        }
+        if ($mailConfig) {
+            if (!empty($mailConfig['tenant_id'])) { $mailConfig['tenant_id'] = demoMaskFull((string)$mailConfig['tenant_id']); }
+            if (!empty($mailConfig['client_id'])) { $mailConfig['client_id'] = demoMaskFull((string)$mailConfig['client_id']); }
+        }
     }
     require ROOT . '/src/views/pages/admin_mail_settings.php';
 });
