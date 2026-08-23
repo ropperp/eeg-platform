@@ -304,3 +304,46 @@ test('demoMaskTaxConfig() lässt null und den Nicht-Demo-Modus unverändert', fu
     $row = ['uid_number' => 'ATU12345678'];
     assertSame($row, demoMaskTaxConfig($row, false));
 });
+
+// ─── Demo-Login: Beitrittserklärungen + Aktivitätslog (Patrick, 23.08.2026) ──────────────────
+test('demoMaskApplication() maskiert eigene Spaltennamen und blendet Unterschriften aus', function () {
+    $row = [
+        'first_name' => 'Max', 'last_name' => 'Mustermann', 'email' => 'max@example.at',
+        'iban' => 'AT611904300234573201', 'bezug_zaehlpunkt' => 'AT0030000000000000000000000000001',
+        'signature_image' => 'data:image/png;base64,xxx', 'sepa_signature_image' => 'data:image/png;base64,yyy',
+        'stromlieferant' => 'Kelag',
+    ];
+    $masked = demoMaskApplication($row, true);
+    assertSame('Max•••', $masked['first_name']);
+    assertSame('••••••••••', $masked['iban']);
+    assertSame('••••••••••', $masked['bezug_zaehlpunkt']);
+    assertSame(null, $masked['signature_image']);
+    assertSame(null, $masked['sepa_signature_image']);
+    assertSame('Kelag', $masked['stromlieferant'], 'Stromlieferant ist keine PII');
+});
+test('demoMaskApplication() lässt null und den Nicht-Demo-Modus unverändert', function () {
+    assertSame(null, demoMaskApplication(null, true));
+    $row = ['first_name' => 'Max', 'last_name' => 'Mustermann'];
+    assertSame($row, demoMaskApplication($row, false));
+});
+test('demoMaskApplications() maskiert eine Liste', function () {
+    $rows = [['first_name' => 'Max', 'last_name' => 'Mustermann']];
+    $masked = demoMaskApplications($rows, true);
+    assertSame('Max•••', $masked[0]['first_name']);
+});
+
+test('demoMaskAuditLog() maskiert den/die Handelnde und blendet den Freitext aus', function () {
+    $rows = [[
+        'first_name' => 'Patrick', 'last_name' => 'Ropper', 'email' => 'patrick@example.at',
+        'aktion' => 'dsgvo.export.manager', 'beschreibung' => 'DSGVO-Auskunft für Stefanie Schwaiger exportiert',
+    ]];
+    $masked = demoMaskAuditLog($rows, true);
+    assertSame('Patr•••', $masked[0]['first_name']);
+    assertSame('••••••', $masked[0]['last_name']);
+    assertSame('Details ausgeblendet (Demo-Zugang).', $masked[0]['beschreibung']);
+    assertSame('dsgvo.export.manager', $masked[0]['aktion'], 'Aktionstyp bleibt sichtbar');
+});
+test('demoMaskAuditLog() lässt Daten unverändert, wenn nicht im Demo-Modus', function () {
+    $rows = [['first_name' => 'Patrick', 'beschreibung' => 'irrelevant']];
+    assertSame($rows, demoMaskAuditLog($rows, false));
+});

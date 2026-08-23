@@ -972,6 +972,39 @@ docker compose up -d --build
 > EEG-Stammdaten live verifiziert (u.a. `Stefanie Schwaiger` -> `Stef•••• •••••••••`, `Verbraucher
 > 1` bleibt unmaskiert, ZVR-Nummer bleibt sichtbar).
 
+> **Einmalig nach dem Update vom 06.09.2026** (Aktivitätslog + Beitrittsanträge maskiert, WLAN-Info
+> ohne Klick sichtbar -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):
+>
+> **1. Aktivitätslog (`/admin/log`, `/admin/log/export`, `/api/v1/admin/log`):** die/der
+> Handelnde (aus `users`) wird wie überall über `demoMaskUser()` maskiert. `beschreibung` ist
+> dagegen freier Fließtext aus über 50 verschiedenen `logAudit()`-Aufrufstellen im ganzen Code
+> (Mitgliedernamen, E-Mails, IBANs, ...) -- ein gezielter Textbaustein-Ersatz je Aufrufer wie bei
+> `demoMaskNotification()` wäre hier nicht robust pflegbar, deshalb neue Funktion
+> `demoMaskAuditLog()`: `beschreibung` wird für den Demo-Zugang komplett durch "Details
+> ausgeblendet (Demo-Zugang)." ersetzt, Aktion/Objekttyp/EEG/Zeitpunkt bleiben sichtbar. Der
+> Markdown-Export (`/admin/log/export`) fällt zusätzlich unter die generelle
+> Datei-Download-Sperre (`denyDemoFileDownload()`, siehe oben).
+>
+> **2. Beitrittsanträge (`/portal/applications`, `/portal/applications/:id`):** eigene Tabelle
+> `membership_applications` mit eigenen Spaltennamen (`iban`/`bic` statt `member_iban`/
+> `member_bic`, `bezug_zaehlpunkt` statt `znr_bezug`, ...), deshalb neue Funktion
+> `demoMaskApplication()` statt `demoMaskMember()`. Unterschriftsbilder (Beitritt + SEPA-Mandat)
+> werden komplett ausgeblendet statt maskiert. Das PDF-Formular selbst
+> (`/portal/applications/:id/formular`) war bereits über die Datei-Download-Sperre vom letzten
+> Update abgedeckt.
+>
+> **3. WLAN-Info ohne Klick sichtbar** (Patrick, 23.08.2026, per Screenshot: "nicht darunter den
+> kleinen Schriftzug 'WLAN-Info anzeigen'"): auf der Mitglied-Detailseite (`/portal/members/:id`)
+> zeigte ein Klick auf "WLAN-Info anzeigen" bisher SSID/IP/WLAN-Passwort in einem `alert()`-Popup.
+> Jetzt lädt `member_detail.php` diese Info für jeden Zählpunkt mit Zähler automatisch beim
+> Öffnen der Seite per AJAX nach und zeigt sie direkt in der Tabelle an -- kein Klick, kein
+> Popup mehr nötig. Die bestehende Sicherheitsvorkehrung bleibt dabei erhalten: das
+> WLAN-Passwort landet weiterhin NICHT im initial vom Server gerenderten HTML, sondern kommt
+> weiterhin über den separaten, authentifizierten Endpunkt
+> `/portal/members/:id/metering-points/:mpid/wifi-info` -- nur eben automatisch statt erst nach
+> einem Klick. Die dortige Demo-Maskierung (echte Mitglieder maskiert, fiktive Demo-Mitglieder
+> unmaskiert, siehe Update vom 06.09.2026 weiter oben) ist davon unberührt und greift unverändert.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (80) — Claude Code — Claude Sonnet 5
+**Prompt:** "Aktivitätslog und Beitragsanträge auch noch maskieren. Und eine Sache hätte ich noch
+bitte gern: Kannst du mir bitte bei jedem Mitglied das WLAN-Info-Feld verlinken, sodass dieses
+WLAN-Info anzeigen-Feld erscheint und man es nicht sieht? Dann sieht man die Zielpunktnummer, die
+Zählernummer, die Pixelanzahl, die Firmwareversion und Online. Das kann auch bleiben, aber nicht
+darunter den kleinen Schriftzug „WLAN-Info anzeigen". Man sieht dann die SSID, das Passwort und
+die IP-Adresse, weil das ja auch noch nichts anbauen geht." (mit Screenshot der
+Mitglied-Detailseite im Demo-Account).
+**Auftrag:** Die beiden letzten offenen Masking-Lücken aus der bekannten Liste schließen
+(Aktivitätslog, Beitrittsanträge) sowie eine UX-Vereinfachung: die WLAN-Diagnoseinfos
+(SSID/IP/Passwort) sollen beim Öffnen der Mitglied-Detailseite automatisch inline erscheinen statt
+erst nach Klick auf einen kleinen Link in einem alert()-Popup.
+**Ergebnis:** Neue Funktionen `demoMaskAuditLog()` (Handelnde(r) maskiert, freier
+`beschreibung`-Fließtext komplett durch Platzhalter ersetzt, da über 50 verschiedene
+`logAudit()`-Vorlagen im Code nicht einzeln robust parsbar sind) und `demoMaskApplication(s)()`
+(eigene Spaltennamen von `membership_applications`, Unterschriftsbilder komplett ausgeblendet) in
+`functions.php`, angewendet auf `/admin/log`, `/admin/log/export` (zusätzlich per
+`denyDemoFileDownload()` gesperrt), `/api/v1/admin/log`, `/portal/applications` und
+`/portal/applications/:id`. `member_detail.php`: der "WLAN-Info anzeigen"-Button samt
+`alert()`-Popup wurde durch ein automatisch beim Laden per AJAX befülltes Inline-Feld ersetzt --
+die bestehende Sicherheitsvorkehrung (Passwort landet nicht im initialen Server-HTML, sondern kommt
+weiterhin über den separaten authentifizierten Endpunkt) bleibt dabei erhalten, ebenso die
+bestehende Demo-Maskierung an diesem Endpunkt. Neue Unit-Tests (130/130 grün) sowie Verifikation
+gegen eine Scratch-DB. CLAUDE.md + Infrastruktur.md aktualisiert, Commit/Push/PR/Merge nach main.
+
 ## 2026-09-06 (79) — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich verstehe aber nicht, warum jetzt ein Admin einer EG zugewiesen werden muss [...]
 aber ja, okay. Ein Fall, der auf jeden Fall noch gibt, ist: Mit dem Demo-Account darf man keine

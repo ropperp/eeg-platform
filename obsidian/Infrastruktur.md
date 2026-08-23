@@ -393,6 +393,21 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
+> **Update vom 06.09.2026 -- Aktivitätslog + Beitrittsanträge maskiert, WLAN-Info ohne Klick
+> sichtbar:** reine Code-Änderung.
+> 1. **Aktivitätslog:** Handelnde(r) maskiert, freier Fließtext (`beschreibung`, über 50
+>    verschiedene Vorlagen im Code) komplett durch Platzhalter ersetzt statt einzeln geparst --
+>    Aktion/Objekttyp/EEG/Zeitpunkt bleiben sichtbar. Markdown-Export fällt zusätzlich unter die
+>    Datei-Download-Sperre.
+> 2. **Beitrittsanträge:** eigene Maskierungsfunktion (eigene Spaltennamen), Unterschriftsbilder
+>    komplett ausgeblendet.
+> 3. **WLAN-Info:** zeigt SSID/IP/Passwort jetzt automatisch beim Öffnen der Mitglied-Detailseite
+>    inline an statt erst nach einem Klick im `alert()`-Popup -- weiterhin per separatem,
+>    authentifiziertem Endpunkt nachgeladen (nicht im initialen HTML), Demo-Maskierung dort
+>    unverändert aktiv.
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
