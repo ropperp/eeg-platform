@@ -143,14 +143,16 @@ class AppApiAuth
             echo json_encode(['error' => 'Zugriffstoken ungültig oder abgelaufen. Bitte mit dem Refresh-Token erneuern (/api/v1/token/refresh).']);
             return null;
         }
-        if (!$allowDemoWrite && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-            $isDemo = (bool)(DB::fetchOne('SELECT is_demo FROM users WHERE id = ?', [$ctx['user_id']])['is_demo'] ?? false);
-            if ($isDemo) {
-                header('Content-Type: application/json; charset=UTF-8');
-                http_response_code(403);
-                echo json_encode(['error' => 'Demo-Zugang: nur Lesezugriff möglich.']);
-                return null;
-            }
+        // is_demo IMMER ermitteln (nicht nur bei POST) -- Datei-Download-Routen (GET) brauchen
+        // dieselbe Information, um für den Demo-Zugang zusätzlich zum reinen Schreibschutz auch
+        // jeden Dateitransfer zu blocken (siehe denyDemoFileDownload() in index.php, Patrick,
+        // 23.08.2026: "Die Dateien dürfen nie, in gar keinem Fall [...] heruntergeladen werden").
+        $ctx['is_demo'] = (bool)(DB::fetchOne('SELECT is_demo FROM users WHERE id = ?', [$ctx['user_id']])['is_demo'] ?? false);
+        if (!$allowDemoWrite && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $ctx['is_demo']) {
+            header('Content-Type: application/json; charset=UTF-8');
+            http_response_code(403);
+            echo json_encode(['error' => 'Demo-Zugang: nur Lesezugriff möglich.']);
+            return null;
         }
         return $ctx;
     }

@@ -8,6 +8,50 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (79) — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich verstehe aber nicht, warum jetzt ein Admin einer EG zugewiesen werden muss [...]
+aber ja, okay. Ein Fall, der auf jeden Fall noch gibt, ist: Mit dem Demo-Account darf man keine
+Dateien von der Plattform runterladen. Das Problem ist zum Beispiel, was ich gerade gemerkt habe:
+Was sowieso nicht passieren darf, ist, dass man eine Beitrittserklärung runterladen kann, weil in
+der Beitrittserklärung die Unterschrift drinnen ist und auch wieder alle personenbezogenen Daten.
+Deswegen das auf jeden Fall ausschalten und bitte auch generell den Download verbieten:
+Bezugsvereinbarungen, die Vorlage oder Logos, Rechnungsvorlagen, die Rechnung, LaTeX-Dateien. Das
+darf bitte alles nicht runtergeladen werden können. [...] Die Dateien dürfen nie, in gar keinem
+Fall, irgendwie installiert oder heruntergeladen werden können. Ich würde da voll gegen das
+Datenschutzrecht verstoßen. Postfach: Bitte auch bei Online-Beitragserklärungen die Namen
+unkenntlich machen. [...] Die Zählernummer bitte unkenntlich machen, wenn eine Nachricht
+reinkommt, dass ein neues ESP ihre Daten schickt und das ESP noch keinem Mitglied zugeordnet
+worden ist [...] Nächstes Thema ist der Supportbereich. Bitte den Namen unbedingt löschen. Die
+Nachrichten, das Ticketsystem selber mal durchzusehen, das kann man machen, aber Namen bitte
+löschen. Auch als Testzwecken darf man den Demo-Account und die Einspeisung und als Verbraucher
+Tickets erstellen, aber der Admin oder der Obmann darf den Namen nicht sehen, wenn nämlich andere
+auch Support-Tickets schicken. Zum Schluss noch bitte die Einstellungen von einem Obmann zur
+Energiegemeinschaft unkenntlich machen [...] die ZVR-Nummer darf bestehen bleiben, so wie auch der
+Name, aber bitte personenbezogene Daten wie mein Name: nur die ersten drei Buchstaben, und die
+E-Mail machen wir ganz unkenntlich, sowie die Gläubiger-ID und dem PIC [...] auch nur die ersten
+paar Zeichen, Kontoinhaber, E-Mail-Adressen sowie Steuerkonfigurationen bitte ganz unkenntlich
+machen. Auch nur die ersten 2, 3 Zeichen."
+**Auftrag:** Nach einem weiteren Rundgang durch den Demo-Account (u.a. per Screenshot von
+`/portal/files`) fünf neue Lücken schließen: Datei-Downloads jeder Art ausnahmslos sperren
+(Beitrittserklärung/Verträge/Rechnungen/LaTeX-Vorlagen/Logos/SEPA-Export), Namen auf der
+Dateien-Seite maskieren, Postfach-Benachrichtigungen (Online-Beitrittserklärung, unbekannte
+Zählernummer) maskieren, Namen im Support-Ticketsystem maskieren, und die Obmann-EEG-
+Einstellungen feldweise maskieren (ZVR/Name sichtbar, Rest je nach Feld voll- oder
+teilmaskiert).
+**Ergebnis:** Neue zentrale Helper `denyDemoFileDownload()`/`denyDemoApiFileDownload()` in
+`index.php`, angewendet auf alle 20 Datei-/PDF-Download-Routen (Web + App-API) inkl.
+SEPA-Sammellastschrift-Export -- Browsen in Datei-LISTEN bleibt erlaubt, nur der Transfer wird
+geblockt. `AppApiAuth::requireAppAuth()` liefert jetzt immer `is_demo` im Kontext. Neue Funktionen
+in `functions.php`: `demoMaskNotification(s)()` (Postfach-Freitext), `demoMaskCommunitySettings()`,
+`demoMaskSettingsUser()`, `demoMaskTaxConfig()` (EEG-Einstellungen) -- alle unit-getestet
+(`tests/functions_test.php`, 125/125 grün) und zusätzlich gegen eine Scratch-DB mit echten und
+fiktiven Mitgliedern/Tickets/Postfach-Meldungen live verifiziert. `/portal/files`,
+`/portal/files/:id`, `/portal/support`, `/portal/support/:id` maskieren jetzt Namen echter
+Mitglieder; `/portal/settings` + `/admin/communities/:id` maskieren Kontakt-E-Mail/Kontoinhaber
+(voll) sowie Gläubiger-ID/Marktpartner-ID/UID-Nummer (nur Anfang) -- "PIC" mangels eindeutigem
+Feldnamen auf `marktpartner_id` gemappt, ggf. Rückmeldung nötig falls etwas anderes gemeint war.
+CLAUDE.md + Infrastruktur.md aktualisiert, Commit/Push/PR/Merge nach main.
+
 ## 2026-09-06 (78) — Claude Code — Claude Sonnet 5
 **Prompt:** "Es ist ein unerwarteter Fehler aufgetreten. Technische Details: DB::setCommunity():
 Argument #1 ($communityId) must be of type string, null given, called in

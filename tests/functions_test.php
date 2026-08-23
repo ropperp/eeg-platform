@@ -232,3 +232,75 @@ test('demoMaskMeteringPoint() maskiert Zählpunktnummer und WLAN-Daten im Demo-M
     assertSame('••••••••••', $masked['wifi_ssid']);
     assertSame('consumer', $masked['type'], 'nicht-personenbezogene Felder bleiben unverändert');
 });
+
+// ─── Demo-Login: Postfach/Settings-Maskierung (Patrick, 23.08.2026) ──────────────────────────
+test('demoMaskNotification() maskiert den Namen in einer Online-Beitrittserklärung-Meldung', function () {
+    $row = [
+        'typ' => 'beitrittserklaerung',
+        'titel' => 'Neue Beitrittserklärung: Max Mustermann',
+        'text' => 'Online-Beitrittserklärung wurde übermittelt und wartet auf Freigabe.',
+    ];
+    $masked = demoMaskNotification($row, true);
+    assertSame('Neue Beitrittserklärung: ••••••••••', $masked['titel']);
+    assertSame($row['text'], $masked['text'], 'Freitext ohne PII bleibt unverändert');
+});
+test('demoMaskNotification() maskiert die Zählernummer in einer "unbekannter Zähler"-Meldung', function () {
+    $row = [
+        'typ' => 'unbekannter_zaehler',
+        'titel' => 'Unbekannte Zählernummer gemeldet',
+        'text' => 'AT0030000000000000000000000000099: Ein Gerät sendet Daten für die Zählernummer AT0030000000000000000000000000099.',
+    ];
+    $masked = demoMaskNotification($row, true);
+    assertSame('Unbekannte Zählernummer gemeldet', $masked['titel'], 'Titel enthält hier keine PII');
+    assertTrue(str_starts_with($masked['text'], '••••••••••: '), 'Führende Zählernummer wird maskiert');
+});
+test('demoMaskNotification() lässt unbekannte Typen und den Nicht-Demo-Modus unverändert', function () {
+    $row = ['typ' => 'zaehlernummer_geteilt', 'titel' => 'Zählernummer doppelt vergeben', 'text' => 'irrelevant'];
+    assertSame($row, demoMaskNotification($row, true));
+    $row2 = ['typ' => 'beitrittserklaerung', 'titel' => 'Neue Beitrittserklärung: Max Mustermann'];
+    assertSame($row2, demoMaskNotification($row2, false));
+});
+
+test('demoMaskCommunitySettings() lässt ZVR-Nummer und Namen sichtbar, maskiert den Rest', function () {
+    $row = [
+        'name' => 'Strompool Feldkirchen', 'zvr_number' => '1778816746',
+        'contact_email' => 'obmann@example.at', 'account_holder' => 'Max Musterhalter',
+        'creditor_id' => 'AT12ZZZ00000000000', 'marktpartner_id' => 'RC108175',
+    ];
+    $masked = demoMaskCommunitySettings($row, true);
+    assertSame('Strompool Feldkirchen', $masked['name']);
+    assertSame('1778816746', $masked['zvr_number']);
+    assertSame('••••••••••', $masked['contact_email']);
+    assertSame('••••••••••', $masked['account_holder']);
+    assertSame('AT12••••••••••••••', $masked['creditor_id']);
+    assertSame('RC10••••', $masked['marktpartner_id']);
+});
+test('demoMaskCommunitySettings() lässt Daten unverändert, wenn nicht im Demo-Modus', function () {
+    $row = ['name' => 'Strompool Feldkirchen', 'contact_email' => 'obmann@example.at'];
+    assertSame($row, demoMaskCommunitySettings($row, false));
+});
+
+test('demoMaskSettingsUser() zeigt nur die ersten 3 Buchstaben des Vornamens', function () {
+    $row = ['first_name' => 'Patrick', 'last_name' => 'Ropper', 'signature_image' => 'data:...'];
+    $masked = demoMaskSettingsUser($row, true);
+    assertSame('Pat••••', $masked['first_name']);
+    assertSame('••••••', $masked['last_name']);
+    assertSame('data:...', $masked['signature_image'], 'nicht-personenbezogene Felder bleiben unverändert');
+});
+test('demoMaskSettingsUser() lässt null und den Nicht-Demo-Modus unverändert', function () {
+    assertSame(null, demoMaskSettingsUser(null, true));
+    $row = ['first_name' => 'Patrick', 'last_name' => 'Ropper'];
+    assertSame($row, demoMaskSettingsUser($row, false));
+});
+
+test('demoMaskTaxConfig() zeigt nur die ersten 3 Zeichen der UID-Nummer', function () {
+    $row = ['uid_number' => 'ATU12345678', 'tax_model' => 'standard'];
+    $masked = demoMaskTaxConfig($row, true);
+    assertSame('ATU••••••••', $masked['uid_number']);
+    assertSame('standard', $masked['tax_model']);
+});
+test('demoMaskTaxConfig() lässt null und den Nicht-Demo-Modus unverändert', function () {
+    assertSame(null, demoMaskTaxConfig(null, true));
+    $row = ['uid_number' => 'ATU12345678'];
+    assertSame($row, demoMaskTaxConfig($row, false));
+});

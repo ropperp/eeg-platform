@@ -920,6 +920,58 @@ docker compose up -d --build
 > WLAN-Endpunkt zusätzlich geprüft, ob das betroffene Mitglied ECHT ist (fiktive Demo-Mitglieder
 > selbst bleiben unmaskiert, wie überall sonst auch). Reine Code-Änderung.
 
+> **Einmalig nach dem Update vom 06.09.2026** (Datei-Downloads für den Demo-Account komplett
+> gesperrt + weitere PII-Lücken geschlossen -- Patrick, 06.09.2026: "Die Dateien dürfen nie, in
+> gar keinem Fall, irgendwie installiert oder heruntergeladen werden können. Ich würde da voll
+> gegen das Datenschutzrecht verstoßen."): reine Code-Änderung, kein Migrations-/Setup-Skript
+> nötig -- mit dem nächsten `git pull && docker compose up -d --build` aktiv.
+>
+> **1. Datei-Downloads:** die bisherige Read-only-Sperre (`Router.php`/`AppApiAuth.php`) blockt
+> nur POST -- alle Datei-/PDF-Download-Routen sind aber GET und liefen deshalb weiterhin durch
+> (gleiches Lückenmuster wie schon beim WLAN-/MQTT-/EDA-Passwort). Neue zentrale Helper
+> `denyDemoFileDownload()` (Web, zeigt die "Nur Lesezugriff"-Seite) bzw.
+> `denyDemoApiFileDownload($ctx)` (App-API, JSON-403) in `index.php`, jeweils ganz am Anfang der
+> Route aufgerufen -- bei den Vertrags-PDF-Routen (`/portal/members/:id/contract/bezug` u.ä.)
+> verhindert der frühe `return` dabei auch gleich einen Status-Update-Nebeneffekt, den das bloße
+> Ansehen sonst auslöst. Betrifft ausnahmslos JEDE Datei, egal ob sie technisch zu einem echten
+> oder einem fiktiven Demo-Mitglied gehört: Mitglieder-Uploads (`/portal/files/...`,
+> `/portal/my/documents/...`), Beitrittserklärungen (`/portal/applications/:id/formular`),
+> Bezugs-/Einspeisevereinbarungen, Rechnungen (inkl. `/portal/billing/preview`-Vorlage), die
+> SEPA-Sammellastschrift-XML eines Abrechnungslaufs, LaTeX-Vorlagen/Logos
+> (`/admin/templates/:name/download`, `/portal/settings/logo/preview`), Profilbilder/Avatare und
+> der DSGVO-Selbstauskunft-Export -- jeweils jedes GET-Pendant im Web-Portal UND in der App-API.
+> Bloßes Browsen/Hineinklicken in Datei-LISTEN bleibt erlaubt ("Hineinklicken wäre nämlich schon
+> cool zu können") -- nur der eigentliche Dateitransfer wird geblockt.
+>
+> **2. `/portal/files` + `/portal/files/:id`:** die Mitgliederliste dieser Seite hatte eine
+> eigene, bisher ungemaskte Abfrage (Screenshot-bestätigt: Namen/E-Mails vollständig im Klartext
+> sichtbar) -- jetzt wie überall sonst über `demoMaskMembers()`/`demoMaskMember()` maskiert.
+>
+> **3. Postfach:** Name in "Neue Beitrittserklärung: ..."-Meldungen sowie die Zählernummer in
+> "Unbekannte Zählernummer gemeldet"-Meldungen (noch keinem Mitglied zugeordnetes ESP) sind hier
+> freier Fließtext statt eigener Spalten (siehe `notify_unknown_meter()` in
+> `mqtt-subscriber/main.py`) -- neue Funktion `demoMaskNotification()` ersetzt gezielt das
+> bekannte Textmuster je Benachrichtigungstyp.
+>
+> **4. Support-Tickets:** Namen echter Mitglieder in Ticketliste (`/portal/support`) und
+> -detail (`/portal/support/:id`) maskiert (`demoMaskMembers()`/`demoMaskMember()`, dafür `m.is_demo`
+> in beide Abfragen mit aufgenommen) -- eigene Tickets der beiden fiktiven Demo-Mitglieder
+> (Verbraucher 1/Einspeiser 1) bleiben unmaskiert und lassen sich weiterhin ganz normal anlegen.
+>
+> **5. Obmann-Einstellungen (`/portal/settings`, gleiche Felder auch auf
+> `/admin/communities/:id`):** ZVR-Nummer und EEG-Name bleiben bewusst sichtbar (Vereins-
+> Stammdaten, keine PII). Neue Funktionen `demoMaskCommunitySettings()` (Kontakt-E-Mail/
+> Kontoinhaber komplett unkenntlich, Gläubiger-ID/Marktpartner-ID nur die ersten paar Zeichen --
+> Patrick nannte Letzteres "PIC"; mangels eines Felds mit diesem Namen auf `marktpartner_id`
+> gemappt, ggf. korrigieren falls etwas anderes gemeint war), `demoMaskSettingsUser()` (Name des
+> eingeloggten Obmann-Kontos im Unterschrift-Bereich, nur 3 Anfangsbuchstaben statt der sonst
+> üblichen 4) und `demoMaskTaxConfig()` (UID-Nummer, nur die ersten 3 Zeichen).
+>
+> Alle neuen `demoMask*`-Funktionen unit-getestet (`tests/functions_test.php`) und zusätzlich
+> gegen eine Scratch-DB mit echten und fiktiven Mitgliedern/Tickets/Postfach-Meldungen/
+> EEG-Stammdaten live verifiziert (u.a. `Stefanie Schwaiger` -> `Stef•••• •••••••••`, `Verbraucher
+> 1` bleibt unmaskiert, ZVR-Nummer bleibt sichtbar).
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

@@ -827,6 +827,41 @@ function streamLatexPdf(string $template, array $vars, string $filename, array $
 }
 
 /**
+ * Demo-Login: Datei-Downloads sind ausnahmslos verboten (Patrick, 23.08.2026: "Die Dateien
+ * dürfen nie, in gar keinem Fall, irgendwie installiert oder heruntergeladen werden können. Ich
+ * würde da voll gegen das Datenschutzrecht verstoßen."). Gilt für JEDE Datei -- Mitglieder-
+ * Uploads, Beitrittserklärungen, Bezugs-/Einspeisevereinbarungen, Rechnungen, LaTeX-Vorlagen/
+ * Logos --, unabhängig davon, ob die konkrete Datei technisch zu einem echten oder einem
+ * fiktiven Demo-Mitglied gehört (letzteres wäre zwar unbedenklich, aber eine Ausnahme dafür
+ * würde die Regel unnötig verkomplizieren). Browsen/Hineinklicken in Datei-LISTEN bleibt erlaubt
+ * ("Hineinklicken wäre nämlich schon cool zu können") -- nur der eigentliche Dateitransfer wird
+ * hier zentral geblockt, direkt am Anfang jeder Download-Route, bevor eine Datei gelesen oder
+ * ein PDF erzeugt wird (manche Routen aktualisieren dabei sonst auch noch einen Status, siehe
+ * /portal/members/:id/contract/bezug -- der frühe return verhindert auch das).
+ */
+function denyDemoFileDownload(): void
+{
+    if (!Auth::isDemo()) return;
+    http_response_code(403);
+    $demoErrorMessage = 'Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können '
+        . 'über diesen Zugang keine Dateien heruntergeladen werden (Verträge, '
+        . 'Beitrittserklärungen, Rechnungen, Vorlagen, Fotos, ...).';
+    require ROOT . '/src/views/pages/demo_readonly_error.php';
+    exit;
+}
+
+/** JSON-Äquivalent von denyDemoFileDownload() für die App-API (Bearer-Token statt Session) --
+ *  $ctx kommt von AppApiAuth::requireAppAuth(), das seit demselben Update immer 'is_demo' liefert. */
+function denyDemoApiFileDownload(array $ctx): bool
+{
+    if (empty($ctx['is_demo'])) return false;
+    header('Content-Type: application/json; charset=UTF-8');
+    http_response_code(403);
+    echo json_encode(['error' => 'Demo-Zugang: Datei-Downloads sind aus Datenschutzgründen nicht möglich.']);
+    return true;
+}
+
+/**
  * Legt ein Mitglied inkl. Login-User und Rolle an. Wird sowohl von der manuellen
  * Mitglieder-Anlage (/portal/members) als auch von der Freigabe einer Online-
  * Beitrittserklärung (/portal/applications/:id/approve) verwendet, damit KdNr-
@@ -1851,6 +1886,7 @@ function renderInvoicePdf(array $invoice): void
 
 $router->get('/portal/invoices/:id/pdf', function ($params) {
     Auth::requireLogin();
+    denyDemoFileDownload();
     $communityId = Auth::activeCommunityId();
     if ($communityId) DB::setCommunity($communityId);
 
@@ -1880,6 +1916,7 @@ $router->get('/portal/invoices/:id/pdf', function ($params) {
 $router->get('/api/v1/invoices/:id/pdf', function ($params) {
     $ctx = AppApiAuth::requireAppAuth();
     if (!$ctx) return;
+    if (denyDemoApiFileDownload($ctx)) return;
     DB::setCommunity($ctx['community_id']);
 
     $invoice = loadInvoiceForPdf($params['id']);
@@ -1906,6 +1943,7 @@ $router->get('/api/v1/invoices/:id/pdf', function ($params) {
 // bloßen Ansehen NICHT verändert -- das bleibt allein den Manager-Aktionen vorbehalten.
 $router->get('/portal/my/contract/bezug', function () {
     Auth::requireLogin();
+    denyDemoFileDownload();
     $member = currentMemberFull();
     if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
     if (!contractsEnabled($member['community_id'])) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
@@ -1923,6 +1961,7 @@ $router->get('/portal/my/contract/bezug', function () {
 
 $router->get('/portal/my/contract/einspeisung', function () {
     Auth::requireLogin();
+    denyDemoFileDownload();
     $member = currentMemberFull();
     if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
     if (!contractsEnabled($member['community_id'])) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
@@ -2250,6 +2289,7 @@ $router->get('/portal/my/jahresuebersicht', function () {
 
 $router->get('/portal/my/documents/:fileid/download', function ($params) {
     Auth::requireLogin();
+    denyDemoFileDownload();
     $member = currentMemberFull();
     if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
     $file = DB::fetchOne(
@@ -3167,6 +3207,7 @@ $router->get('/api/v1/contracts/status', function () {
 $router->get('/api/v1/contracts/:type/pdf', function ($params) {
     $ctx = AppApiAuth::requireAppAuth();
     if (!$ctx) return;
+    if (denyDemoApiFileDownload($ctx)) return;
     $type = $params['type'];
     if (!in_array($type, ['bezug', 'einspeisung'], true)) {
         header('Content-Type: application/json; charset=UTF-8');
@@ -3303,6 +3344,7 @@ $router->get('/api/v1/documents', function () {
 $router->get('/api/v1/documents/:fileid/download', function ($params) {
     $ctx = AppApiAuth::requireAppAuth();
     if (!$ctx) return;
+    if (denyDemoApiFileDownload($ctx)) return;
     if (!$ctx['member_id']) {
         header('Content-Type: application/json; charset=UTF-8');
         http_response_code(403);
@@ -3328,6 +3370,7 @@ $router->get('/api/v1/documents/:fileid/download', function ($params) {
 $router->get('/api/v1/dsgvo-export', function () {
     $ctx = AppApiAuth::requireAppAuth();
     if (!$ctx) return;
+    if (denyDemoApiFileDownload($ctx)) return;
     if (!$ctx['member_id']) {
         header('Content-Type: application/json; charset=UTF-8');
         http_response_code(403);
@@ -4092,6 +4135,7 @@ $router->post('/api/v1/manager/members/:id/files', function ($params) {
 $router->get('/api/v1/manager/members/:id/files/:fileid/download', function ($params) {
     $ctx = AppApiAuth::requireManagerAuth();
     if (!$ctx) return;
+    if (denyDemoApiFileDownload($ctx)) return;
     $member = requireAppManagedMember($ctx['community_id'], $params['id']);
     if (!$member) return;
 
@@ -4832,10 +4876,11 @@ $router->get('/portal/files', function () {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $members = DB::fetchAll(
-        "SELECT id, first_name, last_name, company_name, email, kundennummer
+        "SELECT id, first_name, last_name, company_name, email, kundennummer, is_demo
          FROM members WHERE community_id = ? ORDER BY kundennummer NULLS LAST, last_name, first_name",
         [$communityId]
     );
+    $members = demoMaskMembers($members, Auth::isDemo());
     require ROOT . '/src/views/pages/files_search.php';
 });
 
@@ -4844,6 +4889,7 @@ $router->get('/portal/files/:id', function ($params) {
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
     $communityId = $member['community_id'];
+    $member = demoMaskMember($member, Auth::isDemo());
 
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$params['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -5405,6 +5451,7 @@ $router->post('/portal/members/:id/files', function ($params) {
 
 $router->get('/portal/members/:id/files/:fileid/download', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
     $file = DB::fetchOne(
@@ -5424,6 +5471,7 @@ $router->get('/portal/members/:id/files/:fileid/download', function ($params) {
 // gleichen Community (keine Community-Prüfung nötig, wenn es das eigene Konto ist).
 $router->get('/portal/members/:id/avatar', function ($params) {
     Auth::requireLogin();
+    denyDemoFileDownload();
     // members hat Row-Level Security -- die Community ist hier wie in requireMemberAccess()
     // erst NACH dem Laden bekannt (Henne-Ei-Problem), deshalb dasselbe Muster: Platform-Admin
     // versucht jede Community einzeln, alle anderen nutzen direkt ihre aktive Rolle (reicht
@@ -5459,6 +5507,7 @@ $router->get('/portal/members/:id/avatar', function ($params) {
 // nur der Account selbst oder ein Platform-Admin darf es sehen.
 $router->get('/portal/users/:id/avatar', function ($params) {
     Auth::requireLogin();
+    denyDemoFileDownload();
     if ($params['id'] !== Auth::userId() && !Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $user = DB::fetchOne('SELECT photo_path FROM users WHERE id = ?', [$params['id']]);
     if (!$user || !$user['photo_path'] || !is_file($user['photo_path'])) { http_response_code(404); return; }
@@ -5609,6 +5658,7 @@ function bezugsvereinbarungVars(array $member, array $community, ?array $tariff,
 
 $router->get('/portal/members/:id/contract/bezug', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
     if (!contractsEnabled(Auth::activeCommunityId())) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
@@ -5796,6 +5846,7 @@ function einspeisevereinbarungVars(array $member, array $community, ?array $tari
 
 $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
     if (!contractsEnabled(Auth::activeCommunityId())) { http_response_code(404); echo 'Verträge sind in dieser EEG deaktiviert.'; return; }
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
@@ -6194,6 +6245,7 @@ function sendDsgvoExport(array $data, string $filename): void
 // Mitglied exportiert seine eigenen Daten (Selbstauskunft).
 $router->get('/portal/my/dsgvo-export', function () {
     Auth::requireLogin();
+    denyDemoFileDownload();
     $member = currentMemberFull();
     if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
     logAudit($member['community_id'], 'dsgvo.export.self', 'member', $member['id'], 'Mitglied hat DSGVO-Selbstauskunft exportiert');
@@ -6203,6 +6255,7 @@ $router->get('/portal/my/dsgvo-export', function () {
 // Manager/Platform-Admin exportiert die Daten eines bestimmten Mitglieds (Auskunftsersuchen).
 $router->get('/portal/members/:id/dsgvo-export', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -6373,6 +6426,7 @@ $router->get('/portal/billing', function () {
  */
 $router->get('/portal/billing/preview', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
@@ -6769,6 +6823,10 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
  */
 $router->get('/portal/billing/:id/sepa-xml', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    // SEPA-Sammellastschrift enthält IBAN/Name/Mandatsreferenz ALLER Mitglieder eines
+    // Abrechnungslaufs auf einmal -- mindestens so sensibel wie eine einzelne Rechnung, siehe
+    // denyDemoFileDownload().
+    denyDemoFileDownload();
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -7109,6 +7167,7 @@ $router->get('/portal/postfach', function () {
         "SELECT * FROM notifications WHERE community_id = ? ORDER BY (status = 'offen') DESC, created_at DESC",
         [$communityId]
     );
+    $notifications = demoMaskNotifications($notifications, Auth::isDemo());
     require ROOT . '/src/views/pages/postfach.php';
 });
 
@@ -7137,7 +7196,7 @@ $router->get('/portal/support', function () {
         $params[] = $statusFilter;
     }
     $tickets = DB::fetchAll(
-        "SELECT t.*, m.first_name, m.last_name,
+        "SELECT t.*, m.first_name, m.last_name, m.is_demo,
                 EXISTS(
                     SELECT 1 FROM support_ticket_messages sm
                     WHERE sm.ticket_id = t.id AND sm.is_staff = false
@@ -7147,6 +7206,11 @@ $router->get('/portal/support', function () {
          WHERE $where ORDER BY (t.status = 'offen') DESC, t.updated_at DESC",
         $params
     );
+    // Namen echter Mitglieder maskieren, damit der Demo-Account das Ticketsystem herzeigen kann,
+    // ohne fremde Namen preiszugeben (Patrick, 23.08.2026: "der Admin oder der Obmann darf den
+    // Namen nicht sehen, wenn nämlich andere auch Support-Tickets schicken") -- eigene
+    // Demo-Tickets (Verbraucher 1/Einspeiser 1, is_demo=true) bleiben unmaskiert.
+    $tickets = demoMaskMembers($tickets, Auth::isDemo());
     require ROOT . '/src/views/pages/support_tickets.php';
 });
 
@@ -7155,12 +7219,13 @@ $router->get('/portal/support/:id', function ($params) {
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $ticket = DB::fetchOne(
-        'SELECT t.*, m.first_name, m.last_name, m.email
+        'SELECT t.*, m.first_name, m.last_name, m.email, m.is_demo
          FROM support_tickets t JOIN members m ON m.id = t.member_id
          WHERE t.id = ? AND t.community_id = ?',
         [$params['id'], $communityId]
     );
     if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
+    $ticket = demoMaskMember($ticket, Auth::isDemo());
     $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
     // Öffnen der Detailseite gilt als "gelesen" -- alle bisherigen Mitglieder-Nachrichten dieses
     // Tickets zählen ab jetzt nicht mehr zum Ungelesen-Badge in der Sidebar.
@@ -7217,6 +7282,7 @@ $router->get('/portal/applications/:id', function ($params) {
 
 $router->get('/portal/applications/:id/formular', function ($params) {
     Auth::requireLogin();
+    denyDemoFileDownload();
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
     $a = DB::fetchOne('SELECT * FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -7789,6 +7855,11 @@ $router->get('/portal/settings', function () {
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
     $tax       = DB::fetchOne('SELECT * FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
     $myUser    = DB::fetchOne('SELECT first_name, last_name, signature_image FROM users WHERE id = ?', [Auth::userId()]);
+    // EEG-Einstellungen für den Demo-Zugang maskieren (ZVR/Name bleiben sichtbar, siehe
+    // demoMaskCommunitySettings()) -- Patrick, 23.08.2026.
+    $community = demoMaskCommunitySettings($community, Auth::isDemo());
+    $myUser = demoMaskSettingsUser($myUser, Auth::isDemo());
+    $tax = demoMaskTaxConfig($tax, Auth::isDemo());
     $hasCustomLogo = communityLogoPath($communityId) !== null;
     // Community-weite Smart-Home-API-Keys (member_id NULL, seit migrate_20260901.sql) -- nicht
     // personengebunden wie ein Mitglied-Key unter /portal/my/api-keys, sondern eine
@@ -7875,6 +7946,7 @@ $router->post('/portal/settings/logo', function () {
 
 $router->get('/portal/settings/logo/preview', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
     $path = communityLogoPath(Auth::activeCommunityId());
     if (!$path) { http_response_code(404); return; }
     header('Content-Type: image/png');
@@ -8061,6 +8133,9 @@ $router->get('/admin/communities/:id', function ($params) {
         if (!empty($community['eda_login_password'])) { $community['eda_login_password'] = demoMaskFull((string)$community['eda_login_password']); }
         if (!empty($community['eda_login_email'])) { $community['eda_login_email'] = demoMaskFull((string)$community['eda_login_email']); }
     }
+    // Gleiche Stammdaten-Maskierung wie auf /portal/settings (Marktpartner-ID etc. sind hier
+    // ebenfalls editierbar) -- ZVR/Name bleiben bewusst sichtbar, siehe dort.
+    $community = demoMaskCommunitySettings($community, Auth::isDemo());
     // members hat Row-Level Security (migrate_20260822.sql) -- OHNE DB::setCommunity() liefert
     // die eingeschränkte Laufzeit-Rolle grundsätzlich GAR KEINE Zeile, auch bei korrektem WHERE
     // (Patrick, 19.08.2026 beim App-API-Nachbau entdeckt: diese Seite zeigte seit dem RLS-Fix
@@ -9020,6 +9095,7 @@ $router->get('/admin/templates/variablen.csv', function () {
 
 $router->get('/admin/templates/:name/download', function ($params) {
     Auth::requireLogin();
+    denyDemoFileDownload();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $registry = adminFileRegistry();
     if (!array_key_exists($params['name'], $registry)) { http_response_code(404); echo 'Unbekannte Datei'; return; }
