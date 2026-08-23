@@ -8,6 +8,40 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-06 (78) — Claude Code — Claude Sonnet 5
+**Prompt:** "Es ist ein unerwarteter Fehler aufgetreten. Technische Details: DB::setCommunity():
+Argument #1 ($communityId) must be of type string, null given, called in
+/var/www/html/src/views/pages/manager_dashboard.php on line 4 [...] Ich hoffe aber, dass dieser
+Admin und dieser Obmann dann für diesen Demo-Account wirklich keine Rechte haben. Sie sollen
+alles sehen, aber die ganzen personenbezogenen Daten mit Sternchen und auch die ganzen
+E-Mail-Einstellungen, Sachen wie die Graph API von Microsoft und weitere Sachen, all das sehen,
+aber halt verpixelt oder mit Sternchen." Danach, mit drei Screenshots: "Was auch noch ist: Bei
+den ESP steht noch immer 3 von 4, obwohl nur maximal 2 sind. [...] Ich sehe ganz genau: Beide
+sind online."
+**Auftrag:** Den Absturz beim ersten echten Login-Versuch als Demo-Admin beheben, eine zweite
+übersehene Doppelzählungsstelle für ESP-Online-Status finden und fixen, und eine gründliche
+Prüfung, ob im Admin-/Obmann-Bereich irgendwo ECHTE Zugangsdaten im Klartext sichtbar sind statt
+maskiert.
+**Ergebnis:** (1) Ursache des Absturzes: `assign_demo_member_roles.php` hatte platform_admin mit
+`community_id=NULL` angelegt (für `Auth::isPlatformAdmin()` korrekt, aber `/portal/dashboard`
+leitet jeden mit `Auth::isManager()`, auch platform_admin, auf `manager_dashboard.php` weiter,
+das zwingend eine aktive Community braucht). Doppelt behoben: `/portal/dashboard` weicht bei
+fehlender Community auf `/admin` aus (schützt auch echte platform_admin-Accounts vor demselben
+Absturz), das Rollen-Skript repariert einen bestehenden kaputten Zustand jetzt automatisch beim
+nächsten Lauf. Live an einer Scratch-DB mit exakt Patricks Fehlerzustand verifiziert. (2) Eine
+zweite, von `communityLivePower()` unabhängige Zählstelle in `manager_dashboard.php`
+("ESP online"-Kachel, "Registrierte Zählpunkte") hatte denselben Doppelzählungs-Bug wie beim
+letzten Fix übersehen -- ergänzt um dieselbe `mirror_source_metering_point_id IS NULL`-Bedingung.
+(3) Sicherheitsaudit ergab drei echte Klartext-Leaks (Read-only-Sperre verhindert nur Ändern,
+nicht Ansehen): MQTT-Passwort + Geräte-Fernkonfigurationspasswort (`/admin/mail-settings`),
+EDA-Portal-Passwort je EEG (`/admin/communities/:id`), Mitglied-Heim-WLAN-Passwort (GET-Endpunkt
+`/portal/members/:id/metering-points/:mpid/wifi-info`, von der POST-only Sperre nicht erfasst).
+Alle drei jetzt maskiert; Microsoft-Graph-Client-Secret war bereits sicher (nur Passwort-Feld mit
+Platzhalter), Tenant-/Client-ID zusätzlich maskiert auf Patricks Wunsch. Alle 116 Tests weiterhin
+grün.
+
+---
+
 ## 2026-09-06 (77) — Claude Code — Claude Sonnet 5
 **Prompt:** "Die live Echtzeit-Daten sollen zwar bei den Demo Acc angezeigt werden, aber es
 dürfen die Daten nicht doppelt in dem Energiefluss angezeigt werden. Admin und Obmann gibt es

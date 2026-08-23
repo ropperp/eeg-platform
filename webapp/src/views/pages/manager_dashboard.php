@@ -8,7 +8,7 @@ $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityI
 // migrate_20260905.sql) nicht in der echten Mitgliederstatistik mitzählen.
 $memberCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ? AND is_demo = false', [$communityId, 'active'])['cnt'];
 $pendingCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = ? AND is_demo = false', [$communityId, 'pending'])['cnt'];
-$mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND active = true', [$communityId])['cnt'];
+$mpCount = DB::fetchOne('SELECT COUNT(*) AS cnt FROM metering_points WHERE community_id = ? AND active = true AND mirror_source_metering_point_id IS NULL', [$communityId])['cnt'];
 
 $lastImport = DB::fetchOne('SELECT * FROM eda_imports WHERE community_id = ? ORDER BY imported_at DESC LIMIT 1', [$communityId]);
 $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? AND status IN ('pending','ready') ORDER BY quartal DESC LIMIT 1", [$communityId]);
@@ -19,12 +19,16 @@ $openBilling = DB::fetchOne("SELECT * FROM billing_runs WHERE community_id = ? A
 // Offline-Schwelle (espOfflineAfterMinutes(), Platform-Admin -> Einstellungen) --
 // Sicherheitsnetz gegen ein hängengebliebenes Gerät, dessen MQTT-LWT nie auslöst.
 $espOfflineMinutes = espOfflineAfterMinutes();
+// mirror_source_metering_point_id IS NULL: Demo-Zählpunkte (migrate_20260906.sql) ausschließen
+// -- sie bekommen über den Live-Spiegelungs-Trigger ebenfalls esp_online/esp_last_seen_at
+// gesetzt und würden hier sonst als eigene, zusätzliche "bekannte" ESPs mitgezählt (Patrick,
+// 06.09.2026, per Screenshot: "ESP online 3 von 4", obwohl nur 2 echte ESPs existieren).
 $espStats = DB::fetchOne(
     "SELECT COUNT(*) FILTER (WHERE esp_last_seen_at IS NOT NULL) AS bekannt,
             COUNT(*) FILTER (WHERE esp_online AND esp_last_seen_at > now() - (? || ' minutes')::interval) AS online,
             COUNT(*) FILTER (WHERE meter_last_seen_at IS NOT NULL) AS meter_bekannt,
             COUNT(*) FILTER (WHERE esp_online AND esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT meter_reachable) AS meter_unreachable
-     FROM metering_points WHERE community_id = ? AND active = true",
+     FROM metering_points WHERE community_id = ? AND active = true AND mirror_source_metering_point_id IS NULL",
     [$espOfflineMinutes, $espOfflineMinutes, $communityId]
 );
 $openInvoices = DB::fetchOne(

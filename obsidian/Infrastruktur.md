@@ -352,6 +352,25 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
+> **Weitere Nachbesserungen vom 06.09.2026, nach dem ersten echten Login als Demo-Admin:**
+> 1. **Absturz beim Öffnen von /portal/dashboard als Demo-Admin**: `assign_demo_member_roles.php`
+>    hatte platform_admin mit `community_id=NULL` angelegt, `manager_dashboard.php` braucht aber
+>    zwingend eine aktive Community. Doppelt behoben: `/portal/dashboard` weicht bei fehlender
+>    Community auf `/admin` aus (schützt auch echte platform_admin-Accounts), und das
+>    Rollen-Skript setzt/repariert jetzt immer eine echte Community. Erneut ausführen:
+>    `docker compose exec -T webapp php < scripts/assign_demo_member_roles.php`.
+> 2. **"ESP online: 3 von 4" statt korrekt**: eine zweite, unabhängige Zählstelle in
+>    `manager_dashboard.php` hatte denselben Doppelzählungs-Bug wie zuvor `communityLivePower()`
+>    -- ergänzt um dieselbe `mirror_source_metering_point_id IS NULL`-Bedingung.
+> 3. **Echte Zugangsdaten im Klartext für Demo-Admin sichtbar**: MQTT-Passwort +
+>    Geräte-Fernkonfigurationspasswort (`/admin/mail-settings`), EDA-Portal-Passwort je EEG
+>    (`/admin/communities/:id`), Mitglied-WLAN-Passwort (GET-Endpunkt, von der POST-only Sperre
+>    nicht erfasst) -- alle jetzt für Demo-Logins maskiert. Microsoft-Graph-Client-Secret war
+>    bereits sicher, Tenant-/Client-ID zusätzlich maskiert (keine echten Geheimnisse, aber auf
+>    Patricks Wunsch).
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

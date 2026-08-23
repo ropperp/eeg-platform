@@ -882,6 +882,44 @@ docker compose up -d --build
 > bereits bekannte Rollen-Skript) -- mit dem nächsten `git pull && docker compose up -d --build`
 > aktiv.
 
+> **Weitere Nachbesserungen vom 06.09.2026, nach dem ersten echten Login-Versuch als Demo-Admin:**
+>
+> **1. Absturz beim Öffnen von /portal/dashboard als Demo-Admin** ("DB::setCommunity():
+> Argument #1 ($communityId) must be of type string, null given"): `scripts/
+> assign_demo_member_roles.php` hatte platform_admin mit `community_id=NULL` angelegt (rein
+> funktional korrekt, `Auth::isPlatformAdmin()` braucht keine Community) -- `/portal/dashboard`
+> leitet aber JEDEN mit `Auth::isManager()` (das gilt auch für platform_admin) auf
+> `manager_dashboard.php` weiter, das zwingend eine aktive Community braucht und sonst abstürzt.
+> Doppelt behoben: `/portal/dashboard` weicht jetzt auf `/admin` aus, wenn keine Community aktiv
+> ist (schützt auch echte platform_admin-Accounts vor demselben Absturz), UND das Rollen-Skript
+> setzt für neu angelegte/reparierte platform_admin-Rollen dieselbe Community wie die
+> Mitglied-Identitäten (genau wie beim manuellen Anlegen über die Admin-Oberfläche). Ein
+> bestehender kaputter Zustand wird beim nächsten Lauf automatisch repariert:
+> ```bash
+> docker compose exec -T webapp php < scripts/assign_demo_member_roles.php
+> ```
+>
+> **2. "ESP online: 3 von 4" statt korrekt "X von 2"** (Patrick, per Screenshot, obwohl nur 2
+> echte ESPs existieren): eine ZWEITE, von `communityLivePower()` unabhängige Zähl-Stelle in
+> `manager_dashboard.php` (Status-Kachel "ESP online" + "Registrierte Zählpunkte") hatte
+> denselben, beim ersten Fix übersehenen Doppelzählungs-Bug -- gespiegelte Demo-Zählpunkte
+> (`mirror_source_metering_point_id`) wurden auch hier mitgezählt. Ergänzt um dieselbe
+> `mirror_source_metering_point_id IS NULL`-Bedingung. Reine Code-Änderung.
+>
+> **3. Echte Zugangsdaten im Klartext für Demo-Admin sichtbar** (Patrick: "die ganzen
+> E-Mail-Einstellungen, Sachen wie die Graph API von Microsoft [...] verpixelt oder mit
+> Sternchen"): die Read-only-Sperre verhindert zwar jede Änderung, aber NICHT das bloße Ansehen
+> -- drei Stellen zeigten echte, entschlüsselte Zugangsdaten im Klartext-Formularfeld:
+> MQTT-Passwort + Geräte-Fernkonfigurationspasswort (`/admin/mail-settings`), EDA-Portal-Passwort
+> je EEG (`/admin/communities/:id`), und das Heim-WLAN-Passwort eines Mitglieds (Endpunkt
+> `/portal/members/:id/metering-points/:mpid/wifi-info`, per GET abrufbar -- von der POST-only
+> Sperre nicht erfasst). Das Microsoft-Graph-Client-Secret selbst war bereits vorher sicher (nie
+> im Klartext, nur ein Passwort-Feld mit Platzhalter) -- Tenant-/Client-ID zusätzlich maskiert,
+> obwohl technisch keine Geheimnisse (Azure-Identifikatoren, kein Client-Secret), auf Patricks
+> ausdrücklichen Wunsch. Alle vier jetzt für Demo-Logins maskiert (`demoMaskFull()`), beim
+> WLAN-Endpunkt zusätzlich geprüft, ob das betroffene Mitglied ECHT ist (fiktive Demo-Mitglieder
+> selbst bleiben unmaskiert, wie überall sonst auch). Reine Code-Änderung.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
