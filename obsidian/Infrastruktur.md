@@ -547,23 +547,60 @@ Vollständige Diagnose + Selbstheilung per Hardware-Watchdog (Pi rebootet sich b
 selbst): `docs/RASPBERRY_STABILITAET.md`. Bereits abgesichert: `restart: always` auf allen
 Containern + Docker-Log-Rotation (`x-logging` in `docker-compose.yml`).
 
-### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- ZWEI Ursachen)
-Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Zwei unabhängige Ursachen
+### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- DREI Ursachen)
+Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Drei unabhängige Ursachen
 nacheinander gefunden:
 1. Eingeschränkte DB-Laufzeit-Rolle `eeg_app` hatte veraltete GRANTs -- Fix:
    ```bash
    cd /opt/eeg-platform && ./scripts/db_runtime_role_setup.sh
    ```
-2. **Eigentliche Ursache**, blieb nach Fix 1 bestehen: TimescaleDB-SkipScan-Bug
-   (`unsupported subplan type for SkipScan: Result`, siehe `docker compose logs webapp`) --
-   `/api/live/:slug` schloss gespiegelte Demo-Zählpunkte über `NOT IN (SELECT ...)` aus,
-   TimescaleDBs SkipScan-Optimierung für `DISTINCT ON` auf dem Hypertable `esp_measurements`
-   verträgt diesen Subplan-Typ nicht. Fix: auf JOIN umgestellt (wie bereits in
-   `communityLivePower()`, die deshalb nie betroffen war). Reine Code-Änderung.
+2. TimescaleDB-SkipScan-Bug (`unsupported subplan type for SkipScan: Result`, siehe
+   `docker compose logs webapp`) -- `/api/live/:slug` schloss gespiegelte Demo-Zählpunkte über
+   `NOT IN (SELECT ...)` aus, TimescaleDBs SkipScan-Optimierung für `DISTINCT ON` auf dem
+   Hypertable `esp_measurements` verträgt diesen Subplan-Typ nicht. Fix: auf JOIN umgestellt
+   (wie bereits in `communityLivePower()`, die deshalb nie betroffen war). Reine Code-Änderung.
+3. **Dritte, eigentliche Ursache für den weiterhin leeren Browser**, obwohl `curl` nach Fix 1+2
+   bereits korrektes JSON zeigte: die eigene CSP (`webapp/docker/nginx.conf`,
+   `script-src 'self' 'unsafe-inline'`) blockierte `live.php`s externes
+   `<script src="https://cdn.jsdelivr.net/...chart.umd.min.js">` -- `Chart` blieb undefiniert,
+   `drawChart()` warf eine Exception, die eigene `catch`-Behandlung zeigte fälschlich
+   "Verbindung fehlgeschlagen" statt des eigentlichen CSP-Problems. Fix: Chart.js lokal
+   eingebunden (`npm pack chart.js@4`, `dist/chart.umd.min.js` nach
+   `webapp/public/assets/js/vendor/`, gleiches Muster wie `gsap.min.js`), `live.php` lädt jetzt
+   `/assets/js/vendor/chart.umd.min.js` statt vom CDN. Reine Code-/Datei-Änderung. **Merksatz:**
+   "Backend laut curl korrekt, Browser zeigt trotzdem nichts" -> immer auch an CSP denken,
+   besonders bei `<script src="https://...">` auf eine fremde Domain.
 
 Wichtig: die generische Fehlerseite zeigt den Fehlertext nur eingeloggten Nutzern -- ein anonymer
 `curl`-Test bringt nur "Es ist ein unerwarteter Fehler aufgetreten". Bei ähnlichem Symptom immer
 `docker compose logs webapp | grep -i unhandled` (aus `/opt/eeg-platform`) prüfen.
+
+### Energiefluss-Grafik: Kreis-Ausrichtung + synchronisierte Impuls-Phasen (24.08.2026)
+`webapp/src/views/partials/energy_flow.php`, zwei weitere Nachbesserungen zur SVG-Neufassung
+vom selben Tag:
+- **Kreis-Mittelpunkte korrekt ausgerichtet:** `.eflow-middle` zentrierte bisher die komplette
+  Kreis+Wert+Label-Säule als Ganzes, wodurch bei Netz/Verbrauch (Text unter dem Kreis) die
+  Kreis-Mitte spürbar über der Linie lag. Fix: Wert+Label (`.eflow-text`) per
+  `position:absolute` aus dem Höhen-Fluss genommen, `.eflow-node` besteht layouttechnisch
+  dadurch nur noch aus dem Kreis (wie `.eflow-hub`) -- `align-items:center` zentriert jetzt
+  wirklich die Kreis-Mittelpunkte. Geometrisch per Playwright verifiziert (0,00px Differenz).
+- **Zwei synchronisierte Impuls-Phasen** statt unabhängiger Einzel-Verbindungen: alle "rein"
+  in die EEG fließenden Verbindungen (PV immer, Netz bei Bezug) pulsen gemeinsam, dann nach der
+  0,5s-Pause alle "raus" fließenden (Verbrauch immer, Netz bei Einspeisung). Jede Verbindung
+  kettet weiterhin per SMIL an ihre EIGENE id, nur mit unterschiedlichem Start-Offset (0s bzw.
+  1,5s) -- ein erster Versuch mit einem gemeinsamen, separat erzeugten "Zeitgeber-Element"
+  (Querverweis über `id.begin` zwischen zwei unabhängig per JS erzeugten Elementen) blieb in
+  Chromium wirkungslos, per Playwright-Polling bestätigt. **Merksatz:** SMIL-Selbstreferenz
+  (eigenes `.end`-Ereignis) ist in Chromium robust, Querverweise zwischen zwei unabhängig
+  dynamisch erzeugten Elementen nicht. Timing per `page.evaluate()`-Polling verifiziert.
+
+### Logo im Dark-Mode zeigte scheinbar Light-Mode-Logo (24.08.2026, gelöst)
+CSS-Umschaltung und PHP-Route (`/logo-:variant.png`) waren beide korrekt -- Ursache war
+fehlendes Cache-Busting: die Route setzt `Cache-Control: public, max-age=3600`, `<img
+src="/logo-dark.png">` blieb aber bei jedem Upload dieselbe URL, wodurch der Browser bis zu
+eine Stunde lang die alte, gecachte Datei zeigte. Fix: neue Funktion `logoAssetUrl()`
+(`webapp/public/index.php`) hängt `?v=<filemtime>` an -- gleiches Muster wie `app.css` schon
+für sich selbst nutzt. `base.php`/`portal.php` binden das Logo jetzt darüber ein.
 
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte

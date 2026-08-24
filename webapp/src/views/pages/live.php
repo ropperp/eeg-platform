@@ -77,7 +77,7 @@ ob_start();
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="/assets/js/vendor/chart.umd.min.js"></script>
 <script>
 let currentSlug = null;
 let chart = null;

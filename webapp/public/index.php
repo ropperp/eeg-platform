@@ -9012,6 +9012,24 @@ function adminFilePath(string $filename): ?string
 }
 
 /**
+ * URL für /logo-light.png bzw. /logo-dark.png inkl. Cache-Busting-Parameter. Die Route dahinter
+ * setzt "Cache-Control: public, max-age=3600" -- ohne einen sich ändernden Query-Parameter
+ * bleibt nach einem Logo-Upload über /admin/templates bis zu eine Stunde lang (oder je nach
+ * Browser/Proxy auch länger) weiterhin die ALTE Datei unter derselben URL im Cache, das neue
+ * Logo erscheint dann scheinbar gar nicht bzw. es sieht so aus, als würde z.B. im Dark-Mode
+ * weiterhin das Light-Mode-Logo angezeigt. filemtime() der tatsächlich wirksamen Datei (Upload
+ * oder mitgelieferter Standard) als Version -- ändert sich garantiert bei jedem neuen Upload,
+ * bleibt sonst stabil (kein Cache-Bust ohne echte Änderung). Gleiches Muster wie app.css oben
+ * in base.php/portal.php.
+ */
+function logoAssetUrl(string $variant): string
+{
+    $path = adminFilePath('logo-' . $variant . '.png');
+    $v = $path ? filemtime($path) : time();
+    return '/logo-' . $variant . '.png?v=' . $v;
+}
+
+/**
  * Pfad zum individuellen Logo einer einzelnen EEG für Rechnungen/Verträge (anders als
  * logo-light.png/logo-dark.png in adminFileRegistry(), die für die ganze Website gelten --
  * jede Community kann hier ein eigenes Logo hinterlegen). Kein DB-Feld nötig, reine
