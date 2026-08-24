@@ -20,13 +20,17 @@
  * keine feste Pixel-Positionierung) werden per JS als SVG gezeichnet, NICHT mehr serverseitig
  * als starre CSS-Connector-Divs: renderEflow() misst die tatsächlichen Kreis-Positionen/-Radien
  * per getBoundingClientRect() und berechnet die Linien daraus -- bleibt dadurch auch bei
- * geänderter Größe/Position der Kreise korrekt, ohne Anpassung im Code. Die PV-Verbindung
- * bekommt bewusst KEINE gerade Linie, sondern eine Bezier-Kurve, die um die Breite des
- * PV-Knotens (Kreis + Text darunter) herum ausweicht -- eine gerade Linie vom PV-Kreis direkt
- * zum EEG-Knoten würde sonst mitten durch den Text "676 W" / "PV-Erzeugung" laufen (Patrick:
- * "Die Verbindung darf sich optisch nicht mit dem Text überschneiden", Text bleibt aber an
- * seiner bisherigen Position -- Netz/Verbrauch brauchen das nicht, deren Text steht unterhalb
- * des Kreises, während die Verbindung seitlich auf Kreis-Mitte-Höhe verläuft).
+ * geänderter Größe/Position der Kreise korrekt, ohne Anpassung im Code.
+ *
+ * Ausschließlich GERADE Linien (Patrick, 24.08.2026, zweite Fassung: "ABSOLUT KEINE KURVEN [...]
+ * Die Verbindung soll immer die direkte kürzeste gerade Strecke [...] sein" -- die erste Fassung
+ * hatte die PV-Verbindung noch als Bezier-Kurve um den Text herumgeführt, das wurde bewusst
+ * wieder verworfen: die Linie darf jetzt direkt durch den Text "676 W"/"PV-Erzeugung" laufen,
+ * der Text bleibt unverändert an seiner Position, nur unter der Linie). Genau EIN Energie-Impuls
+ * je aktiver Verbindung statt mehrerer gleichzeitig -- bewegt sich einmal von Kreisrand zu
+ * Kreisrand, verschwindet vollständig, macht 0,5s Pause, startet neu (SMIL-Kettung über
+ * begin="0s;<eigene-id>.end+0.5s", ein Standard-Idiom für sich selbst wiederholende
+ * Animationen mit Pause dazwischen -- gegen echtes Chromium getestet, siehe Sitzungslog).
  */
 $netzW        = ($live['einsp_w'] ?? 0) - ($live['bezug_w'] ?? 0);
 $netzDirClass = $netzW > 0 ? 'eflow-out' : ($netzW < 0 ? 'eflow-in' : '');
@@ -109,73 +113,67 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
       radius: r.width / 2,
     };
   }
-  function nodeBox(container, containerRect, name) {
-    const r = container.querySelector('[data-eflow-node="' + name + '"]').getBoundingClientRect();
-    return { width: r.width, height: r.height };
-  }
   // Gerade Linie zwischen zwei Kreisen, exakt am jeweiligen Kreisrand beginnend/endend (nicht
-  // am Mittelpunkt) -- Patrick: "Keine sichtbare Lücke zwischen Kreis und animiertem Energiefluss."
+  // am Mittelpunkt) -- Patrick: "Keine sichtbare Lücke zwischen Kreis und animiertem
+  // Energiefluss" bzw. "die direkte kürzeste gerade Strecke". Einzige Verbindungsform -- keine
+  // Kurven/Bögen, auch nicht bei PV (läuft bewusst durch den Text, siehe Kommentar oben).
   function trimStraight(a, b) {
     const dx = b.cx - a.cx, dy = b.cy - a.cy, dist = Math.hypot(dx, dy) || 1;
     const ux = dx / dist, uy = dy / dist;
     return { x1: a.cx + ux * a.radius, y1: a.cy + uy * a.radius, x2: b.cx - ux * b.radius, y2: b.cy - uy * b.radius };
   }
-  // PV->EEG als Bezier-Kurve, die seitlich um die volle Breite des PV-Knotens (Kreis + Wert +
-  // Beschriftung darunter) ausweicht, statt gerade durch den Text zu laufen.
-  function pvCurve(pv, pvBox, hub) {
-    const x0 = pv.cx, y0 = pv.cy + pv.radius;
-    const x1 = hub.cx, y1 = hub.cy - hub.radius;
-    const bulge = pvBox.width / 2 + 14;
-    const midY = (y0 + y1) / 2;
-    const c1x = x0 + bulge, c1y = y0 + (midY - y0) * 0.55;
-    const c2x = x1 + bulge * 0.3, c2y = y1 - (y1 - midY) * 0.55;
-    return 'M ' + x0 + ' ' + y0 + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + x1 + ' ' + y1;
-  }
-  // Anzahl/Tempo der Energie-Impulse hängt von der tatsächlichen Leistung ab (Patrick: "höhere
-  // Leistung -> mehrere bzw. etwas schnellere Energieimpulse [...] 0 W -> keine animierten
-  // Impulse") -- rein dekorativ bei 0 nichts anzeigen, sonst 1-3 Impulse je Leistungsstufe.
-  function pulseCount(w) {
-    const a = Math.abs(w);
-    if (a <= 0) return 0;
-    if (a < 500) return 1;
-    if (a < 2000) return 2;
-    return 3;
-  }
-  function pulseDuration(w) {
-    const a = Math.min(Math.abs(w), 5000);
-    return Math.max(0.7, 2.2 - (a / 5000) * 1.5);
-  }
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
   function svgEl(tag) { return document.createElementNS(SVG_NS, tag); }
 
-  // Zeichnet eine Basislinie (dezent, immer sichtbar) + 0-3 animierte Impuls-Punkte, die exakt
-  // entlang dieser Linie/Kurve vom Anfang zum Ende laufen (SVG <animateMotion> mit <mpath>,
-  // damit der Impuls physisch auf dem Pfad bleibt statt frei zu schweben).
-  function buildConnector(svg, id, pathD, color, power) {
+  // Bewegungsdauer + Pause eines Impulses (Patrick: "Bewegung: ca. 0,8-1,2 Sekunden, Pause nach
+  // Ankunft: exakt ca. 0,5 Sekunden").
+  const PULSE_MOVE_S = 1;
+  const PULSE_PAUSE_S = 0.5;
+
+  // Zeichnet eine Basislinie (dezent, immer sichtbar) + EIN einzelner animierter Impuls (statt
+  // mehrerer gleichzeitig): startet am Ausgangskreis, läuft zum Zielkreis, verschwindet
+  // vollständig, macht 0,5s Pause, startet neu. animateMotion mit begin="0s;<id>.end+0.5s"
+  // referenziert dabei bewusst die EIGENE id -- Standard-SMIL-Idiom für eine sich selbst
+  // wiederholende Animation mit Pause zwischen den Durchläufen (repeatCount kennt keine Pause
+  // zwischen Wiederholungen, deshalb diese Kettung statt repeatCount="indefinite").
+  function buildConnector(svg, id, pathD, color, active) {
     const path = svgEl('path');
     path.setAttribute('id', id);
     path.setAttribute('class', 'eflow-baseline');
     path.setAttribute('d', pathD);
     svg.appendChild(path);
+    if (!active) return;
 
-    const count = pulseCount(power);
-    const dur = pulseDuration(power);
-    for (let i = 0; i < count; i++) {
-      const dot = svgEl('circle');
-      dot.setAttribute('r', 4);
-      dot.setAttribute('class', 'eflow-pulse');
-      dot.setAttribute('fill', color);
-      const anim = svgEl('animateMotion');
-      anim.setAttribute('dur', dur + 's');
-      anim.setAttribute('repeatCount', 'indefinite');
-      anim.setAttribute('begin', (-(i * dur / count)) + 's');
-      const mpath = svgEl('mpath');
-      mpath.setAttributeNS(XLINK_NS, 'href', '#' + id);
-      anim.appendChild(mpath);
-      dot.appendChild(anim);
-      svg.appendChild(dot);
-    }
+    const motionId = id + '-motion';
+    const dot = svgEl('circle');
+    dot.setAttribute('r', 4);
+    dot.setAttribute('class', 'eflow-pulse');
+    dot.setAttribute('fill', color);
+    dot.setAttribute('opacity', 0);
+
+    const motion = svgEl('animateMotion');
+    motion.setAttribute('id', motionId);
+    motion.setAttribute('dur', PULSE_MOVE_S + 's');
+    motion.setAttribute('begin', '0s;' + motionId + '.end+' + PULSE_PAUSE_S + 's');
+    motion.setAttribute('fill', 'freeze');
+    const mpath = svgEl('mpath');
+    mpath.setAttributeNS(XLINK_NS, 'href', '#' + id);
+    motion.appendChild(mpath);
+    dot.appendChild(motion);
+
+    // Sichtbarkeit synchron zur selben Kette: kurz einblenden, unterwegs sichtbar, kurz vor
+    // Ankunft ausblenden -- "friert" bei 0 ein, bis der nächste Durchlauf (0.5s später) beginnt.
+    const fade = svgEl('animate');
+    fade.setAttribute('attributeName', 'opacity');
+    fade.setAttribute('values', '0;1;1;0');
+    fade.setAttribute('keyTimes', '0;0.15;0.85;1');
+    fade.setAttribute('dur', PULSE_MOVE_S + 's');
+    fade.setAttribute('begin', '0s;' + motionId + '.end+' + PULSE_PAUSE_S + 's');
+    fade.setAttribute('fill', 'freeze');
+    dot.appendChild(fade);
+
+    svg.appendChild(dot);
   }
 
   function renderEflow(einspW, bezugW) {
@@ -187,23 +185,23 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     svg.innerHTML = '';
 
     const pv = nodeCircle(container, containerRect, 'pv');
-    const pvBox = nodeBox(container, containerRect, 'pv');
     const netz = nodeCircle(container, containerRect, 'netz');
     const verbrauch = nodeCircle(container, containerRect, 'verbrauch');
     const hub = nodeCircle(container, containerRect, 'hub');
     const netzW = einspW - bezugW;
 
     // PV -> EEG: ein Verbraucher speist nie in die Gemeinschaft ein, deshalb immer diese Richtung.
-    buildConnector(svg, 'eflow-path-pv', pvCurve(pv, pvBox, hub), '#eab308', einspW);
+    const pvLine = trimStraight(pv, hub);
+    buildConnector(svg, 'eflow-path-pv', 'M ' + pvLine.x1 + ' ' + pvLine.y1 + ' L ' + pvLine.x2 + ' ' + pvLine.y2, '#eab308', einspW > 0);
 
     // EEG -> Verbrauch: ein Mitglied bezieht nur, speist nie zurück in die Gemeinschaft.
     const verbLine = trimStraight(hub, verbrauch);
-    buildConnector(svg, 'eflow-path-verbrauch', 'M ' + verbLine.x1 + ' ' + verbLine.y1 + ' L ' + verbLine.x2 + ' ' + verbLine.y2, '#3b82f6', bezugW);
+    buildConnector(svg, 'eflow-path-verbrauch', 'M ' + verbLine.x1 + ' ' + verbLine.y1 + ' L ' + verbLine.x2 + ' ' + verbLine.y2, '#3b82f6', bezugW > 0);
 
     // Netz <-> EEG: Richtung hängt vom Vorzeichen ab (Bezug: Netz -> EEG, Einspeisung: EEG -> Netz)
     // -- dafür schlicht die passende Linie wählen, statt denselben Pfad nachträglich umzukehren.
     const netzLine = netzW < 0 ? trimStraight(netz, hub) : trimStraight(hub, netz);
-    buildConnector(svg, 'eflow-path-netz', 'M ' + netzLine.x1 + ' ' + netzLine.y1 + ' L ' + netzLine.x2 + ' ' + netzLine.y2, netzW < 0 ? '#dc2626' : '#16a34a', netzW);
+    buildConnector(svg, 'eflow-path-netz', 'M ' + netzLine.x1 + ' ' + netzLine.y1 + ' L ' + netzLine.x2 + ' ' + netzLine.y2, netzW < 0 ? '#dc2626' : '#16a34a', netzW !== 0);
   }
 
   function updateValues(d) {
