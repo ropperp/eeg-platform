@@ -594,13 +594,19 @@ vom selben Tag:
   (eigenes `.end`-Ereignis) ist in Chromium robust, Querverweise zwischen zwei unabhängig
   dynamisch erzeugten Elementen nicht. Timing per `page.evaluate()`-Polling verifiziert.
 
-### Logo im Dark-Mode zeigte scheinbar Light-Mode-Logo (24.08.2026, gelöst)
-CSS-Umschaltung und PHP-Route (`/logo-:variant.png`) waren beide korrekt -- Ursache war
-fehlendes Cache-Busting: die Route setzt `Cache-Control: public, max-age=3600`, `<img
-src="/logo-dark.png">` blieb aber bei jedem Upload dieselbe URL, wodurch der Browser bis zu
-eine Stunde lang die alte, gecachte Datei zeigte. Fix: neue Funktion `logoAssetUrl()`
-(`webapp/public/index.php`) hängt `?v=<filemtime>` an -- gleiches Muster wie `app.css` schon
-für sich selbst nutzt. `base.php`/`portal.php` binden das Logo jetzt darüber ein.
+### Logo im Dark-Mode zeigte scheinbar Light-Mode-Logo (24.08.2026, gelöst -- ZWEI Ursachen)
+CSS-Umschaltung und PHP-Route (`/logo-:variant.png`) waren beide korrekt.
+1. Fehlendes Cache-Busting (real, aber nicht die eigentliche Ursache für Patricks Symptom): die
+   Route setzt `Cache-Control: public, max-age=3600`, `<img src="/logo-dark.png">` blieb aber
+   bei jedem Upload dieselbe URL. Fix: neue Funktion `logoAssetUrl()` hängt `?v=<filemtime>` an.
+2. **Eigentliche Ursache:** der erneute Logo-Upload selbst schlug in Safari fehl --
+   "request body stream exhausted" (NSURLErrorDomain:-1021), ein bekannter WebKit-Bug bei
+   großen `multipart/form-data`-Uploads, deren Server-Antwort ein klassischer 3xx-Redirect ist
+   (`header('Location: ...')`) -- die neue Datei kam dadurch nie beim Server an. Fix: neue
+   Funktion `uploadRedirect()` (`webapp/public/index.php`) gibt 200 OK + eine kleine
+   HTML-Seite mit Meta-Refresh/JS-Redirect zurück statt eines 3xx-Status, angewendet auf
+   `/admin/templates/:name/upload` und `/portal/settings/logo`. Details: `CLAUDE.md`,
+   Abschnitt "Datei-Upload in Safari schlägt mit 'request body stream exhausted' fehl".
 
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte

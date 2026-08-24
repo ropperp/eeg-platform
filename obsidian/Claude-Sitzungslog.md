@@ -8,6 +8,37 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-24 (87) — Claude Code — Claude Sonnet 5
+**Prompt:** "Hey, das mit der Grafik und der Live-Anzeige sieht jetzt gut aus. Nur, was nicht
+passt, ist das mit dem Logo und dem Dark-Mode. Ich habe noch mal das Bild hochgeladen. Es ist
+transparent und sollte im Dark-Mode keinen weißen Hintergrund haben. Es wird aber das Bild, was
+im Light-Mode ist, verwendet. Bitte schau das noch mal an." -- gefolgt (nach Rückfrage) von einem
+Screenshot: "Safari kann die Seite nicht öffnen [...] Fehler: 'request body stream exhausted'
+(NSURLErrorDomain:-1021)" beim Öffnen von `/admin/templates/logo-dark.png/upload`, und: "Also,
+wenn ich diese URL im Browser ausführe, komme ich auf das helle Logo. Jetzt habe ich noch mal ein
+dunkles hochgeladen, aber ich glaube, da muss mit der Route etwas falsch sein. Auf jeden Fall:
+Auch wenn ich jetzt ein neues transparentes für den Dunkelmod hochlade, kommt dieser Fehler."
+**Auftrag:** Der im vorigen Durchgang implementierte Cache-Busting-Fix für das Dark-Mode-Logo
+hatte das eigentliche Problem nicht gelöst -- Patrick sollte das noch mal überprüfen, weil das
+Dark-Mode-Logo weiterhin wie das Light-Mode-Logo aussah.
+**Ergebnis:** Der Screenshot zeigte die tatsächliche Ursache: ein bekannter WebKit-Bug lässt
+größere Datei-Uploads in Safari mit "request body stream exhausted" fehlschlagen, sobald der
+Server mit einem klassischen 3xx-Redirect antwortet (`header('Location: ...')`, das
+"POST/Redirect/GET"-Muster, das praktisch jeder Upload-Handler im Repo bisher verwendet hat) --
+die neue Logo-Datei kam dadurch nie beim Server an, weshalb jeder erneute Upload-Versuch
+wirkungslos blieb (kein Cache-/Serving-Bug, wie zunächst vermutet). Fix: neue Hilfsfunktion
+`uploadRedirect()` (`webapp/public/index.php`) ersetzt den 3xx-Redirect nach einem Datei-Upload
+durch eine 200-OK-Antwort mit einer kleinen HTML-Seite (Meta-Refresh + JS-Fallback) -- kein
+Stream-Nachsenden mehr nötig, funktioniert in jedem Browser identisch. Angewendet auf
+`/admin/templates/:name/upload` (Logos, LaTeX-Vorlagen, Infoblatt, Hero-Banner) und
+`/portal/settings/logo` (EEG-eigenes Logo), bewusst nicht auf die übrigen kleineren
+Upload-Routen ohne bestätigten Fehlerbericht. Vorherige `logoAssetUrl()`-Cache-Bust-Änderung
+blieb als sinnvolle Absicherung bestehen, war aber nicht die eigentliche Lösung -- CLAUDE.md
+entsprechend korrigiert/ergänzt statt nur angehängt. Alle 134 Tests weiterhin grün, `php -l`
+sauber. Commit/Push/PR/Merge nach dem üblichen Workflow.
+
+---
+
 ## 2026-08-24 (86) — Claude Code — Claude Sonnet 5
 **Prompt:** [Zwei Screenshots: leere Live-Anzeige mit Fehlermeldung, Demo-Portal-Dashboard]
 "es kommt noch keine Anzeige. Hab es auf einem anderen Gerät auch schon probiert. Das Problem

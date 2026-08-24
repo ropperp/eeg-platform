@@ -464,6 +464,38 @@ docker compose exec webapp ls -la /var/lib/nginx/
 # sollten jetzt alle www-data:www-data gehören
 ```
 
+### Datei-Upload in Safari schlägt mit "request body stream exhausted" fehl (JavaScript-Fehlermeldung im Browser, kein Server-Fehler)
+Vorfall 24.08.2026 (Logo-Upload unter `/admin/templates`), Patrick per Screenshot: Safari zeigt
+statt der Upload-Seite eine eigene Fehlerseite "Safari kann die Seite nicht öffnen [...] Fehler:
+'request body stream exhausted' (NSURLErrorDomain:-1021)". Die Datei kommt dabei NIE beim Server
+an -- kein Eintrag in `docker compose logs webapp`, `move_uploaded_file()` läuft nie, die alte
+Datei bleibt einfach liegen. Wirkt dadurch leicht wie ein Cache-/Serving-Bug (genau so zuerst
+missverstanden -- die alte Datei "kommt einfach nicht weg"), ist aber ein reiner
+Browser-/Netzwerk-Fehler, kein PHP-/nginx-Problem.
+
+**Ursache:** ein seit Jahren bekannter, dokumentierter WebKit-Bug. Antwortet der Server auf einen
+größeren `multipart/form-data`-POST (Datei-Upload) mit einem klassischen HTTP-3xx-Redirect
+(`header('Location: ...')` -- das "POST/Redirect/GET"-Muster, das praktisch jeder Upload-Handler
+in diesem Repo bisher verwendet hat), versucht Safari intern, den ursprünglichen Request
+nachzuvollziehen -- der dafür nötige Datei-Stream aus `<input type="file">` wurde beim ersten
+Senden aber bereits vollständig verbraucht und lässt sich nicht zurückspulen. Andere Browser
+(Chrome, Firefox) sind davon nicht betroffen, weshalb es sich isoliert unter Safari zeigt.
+
+**Fix:** neue Hilfsfunktion `uploadRedirect()` (`webapp/public/index.php`, direkt nach
+`marketingUrl()`) ersetzt `header('Location: ...'); exit;` in Upload-Handlern durch eine echte
+200-OK-Antwort mit einer winzigen HTML-Seite (Meta-Refresh + JS-`location.replace()` als
+Fallback) -- kein 3xx-Status mehr, den Safari nachsenden müsste, funktioniert aber in jedem
+Browser identisch. Angewendet auf `/admin/templates/:name/upload` (Logos, LaTeX-Vorlagen,
+Infoblatt, Hero-Banner -- alle über denselben Handler) und `/portal/settings/logo`
+(EEG-eigenes Logo für Rechnungen/Verträge, strukturell derselbe große-Datei-plus-Redirect-Fall).
+**Bewusst NICHT** auf die übrigen ~15 kleineren `$_FILES`-Handler im Repo (Profilbilder,
+EDA-Excel-Importe, Beitritts-Unterschriften) ausgeweitet -- dort bisher kein Fehlerbericht, und
+eine Blanket-Änderung an allen Upload-Routen wäre ein unnötig großer Diff ohne bestätigten
+Nutzen; bei einem ähnlichen Fehlerbild dort (Safari, "request body stream exhausted") dasselbe
+Muster (`uploadRedirect()` statt `header('Location: ...')`) übertragen.
+Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten
+`git pull && docker compose up -d --build` aktiv.
+
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
 ```bash
@@ -1215,19 +1247,26 @@ docker compose up -d --build
 > gleichzeitig (identische Opacity-Werte bei jeder Stichprobe), Netz+Verbrauch entsprechend in
 > der Überschuss-Szene, beide Phasen exakt alle 3s (0s/3s/6s bzw. 1,5s/4,5s/7,5s).
 >
-> **Siebte Nachbesserung (selbes Update): Logo im Dark-Mode zeigte scheinbar weiterhin das
-> Light-Mode-Logo** (Patrick, 24.08.2026: "Kann es sein, dass im Darkmode auch das Logo vom light
-> mode genommen wird. Wir haben aber ein eigens."). CSS-Umschaltung (`[data-theme="dark"]`) und
-> die PHP-Route `/logo-:variant.png` waren beide bereits korrekt -- die eigentliche Ursache war
-> fehlendes Cache-Busting: die Route setzt `Cache-Control: public, max-age=3600`, aber `<img
-> src="/logo-dark.png">` blieb bei jedem Upload eines neuen Logos über `/admin/templates`
-> dieselbe URL, wodurch der Browser bis zu eine Stunde (oder je nach Browser/Proxy auch länger)
-> weiterhin die ALTE, bereits gecachte Datei anzeigte. Fix: neue Helper-Funktion `logoAssetUrl()`
-> (`webapp/public/index.php`) hängt `?v=<filemtime der wirksamen Datei>` an -- ändert sich
-> garantiert bei jedem neuen Upload, bleibt sonst stabil (kein unnötiger Cache-Bust). Genau das
-> gleiche Muster, das `app.css` in `base.php`/`portal.php` schon für sich selbst nutzt. Betrifft
-> `webapp/src/views/layouts/base.php` (öffentliche Seiten) und `.../layouts/portal.php`
-> (Portal/Backoffice) -- beide binden das Logo jetzt über `logoAssetUrl('light'/'dark')` ein.
+> **Siebte Nachbesserung (selbes Update, danach korrigiert -- siehe Achte Nachbesserung): Logo im
+> Dark-Mode zeigte scheinbar weiterhin das Light-Mode-Logo** (Patrick, 24.08.2026: "Kann es sein,
+> dass im Darkmode auch das Logo vom light mode genommen wird. Wir haben aber ein eigens.").
+> CSS-Umschaltung (`[data-theme="dark"]`) und die PHP-Route `/logo-:variant.png` waren beide
+> bereits korrekt. Erste Vermutung -- fehlendes Cache-Busting bei `<img src="/logo-dark.png">`
+> (Route setzt `Cache-Control: public, max-age=3600`, URL blieb bei jedem Upload gleich) -- war
+> real und sinnvoll (Fix: neue Helper-Funktion `logoAssetUrl()` hängt seither `?v=<filemtime>`
+> an, `base.php`/`portal.php` binden das Logo jetzt darüber ein), löste Patricks eigentliches
+> Symptom aber NICHT: der Cache-Bust griff nie, weil der erneute Logo-UPLOAD selbst in Safari
+> fehlschlug (Fehlermeldung nie beim Server angekommen) -- siehe Achte Nachbesserung für die
+> tatsächliche Ursache und den Fix.
+>
+> **Achte Nachbesserung (24.08.2026, nach erneutem Test): tatsächliche Ursache war ein
+> Safari-spezifischer Upload-Fehler, keine Serving-/Cache-Frage.** Patrick, per Screenshot: Safari
+> zeigt beim erneuten Logo-Upload "Safari kann die Seite nicht öffnen [...] request body stream
+> exhausted (NSURLErrorDomain:-1021)" -- die neue Datei kommt dadurch NIE beim Server an, die
+> alte bleibt liegen, was wie ein hartnäckiger Cache-/Serving-Bug aussieht, aber keiner ist.
+> Volle Diagnose + Fix (`uploadRedirect()`-Helper statt `header('Location: ...')` in
+> Upload-Handlern) siehe "Bekannte Probleme" oben ("Datei-Upload in Safari schlägt mit 'request
+> body stream exhausted' fehl").
 
 Bei neuen DB-Migrations:
 ```bash
