@@ -8,6 +8,42 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-07 (83) — Claude Code — Claude Sonnet 5
+**Prompt:** [Terminal-Screenshot: `db_runtime_role_setup.sh` auf dem Server ausgeführt, GRANTs
+aktualisiert, webapp neu gestartet -- Diagnose aus Runde 82 bestätigte sich.] "Energiefluss-Grafik
+– Animation und Verbindungen überarbeiten. Bitte überarbeite die Energiefluss-Grafik grundlegend
+nach dem Vorbild der Fronius-Energiefluss-Darstellung. 1. Hauptproblem: Animation muss direkt aus
+den Kreisen kommen [...] Die Animation darf nicht erst mehrere Pixel/Abstände außerhalb des Kreises
+beginnen. Keine sichtbare Lücke zwischen Kreis und animiertem Energiefluss. 2. PV-Erzeugung konkret
+korrigieren [...] Die Verbindung muss stattdessen direkt am unteren Rand des PV-Kreises beginnen
+[...] Der Text „676 W" und „PV-Erzeugung" bleibt an seiner bisherigen Position. [...] Die
+Verbindung darf sich optisch nicht mit dem Text überschneiden. 3. Bessere Animationslogik [...]
+ein kleiner animierter Energie-Impuls [...] 6. Noch bessere Lösung: dynamische Geometrie [...]
+sollen die Start- und Endpunkte dynamisch aus den Positionen und Radien der Kreise berechnet
+werden. 7. Animation abhängig von der tatsächlichen Leistung [...] Bitte die bestehende Grafik
+ansonsten möglichst unverändert lassen: Farben beibehalten, Typografie beibehalten, Größen der
+Kreise beibehalten, Positionierung grundsätzlich beibehalten."
+**Auftrag:** Zwei Themen: (1) Bestätigung, dass die vermutete DB-Rollen-Ursache für die leere
+öffentliche Live-Anzeige stimmte (Patrick hat `db_runtime_role_setup.sh` selbst erneut ausgeführt);
+(2) die Energiefluss-Grafik (Obmann-/Mitglied-Dashboard) grundlegend überarbeiten -- Verbindungen
+sollen geometrisch exakt am Kreisrand beginnen/enden statt mit sichtbarer Lücke, die PV-Verbindung
+darf den Text darunter nicht überlagern, ein einzelner animierter Impuls statt ein-/ausblendender
+Striche, Anzahl/Tempo abhängig von der tatsächlichen Leistung, Geometrie dynamisch aus den
+Kreis-Positionen berechnet statt fixer Pixelwerte -- Farben/Typografie/Größen/Layout unverändert.
+**Ergebnis:** `docs/CLAUDE.md`/`Infrastruktur.md` um einen "Bekannte Probleme"-Eintrag zur
+Live-Anzeige-Ursache (`eeg_app`-Rolle hatte veraltete GRANTs, Fix: Skript erneut ausführen)
+ergänzt. `partials/energy_flow.php` komplett neu gebaut: die starren CSS-Connector-Divs sind
+durch eine per JS aus `getBoundingClientRect()` berechnete SVG-Geometrie ersetzt -- Basislinien
+beginnen/enden exakt am Kreisrand, die PV-Verbindung ist eine Bezier-Kurve, die um die volle
+Breite des PV-Knotens (Kreis + Text) seitlich ausweicht, animierte Punkte laufen per SVG
+`<animateMotion>`/`<mpath>` entlang jeder Verbindung, Anzahl (1-3) und Tempo skalieren mit der
+Leistung, bei 0 W keine Punkte. Vor dem Commit mit Playwright gegen das echte `app.css` (Light +
+Dark, drei Leistungsszenarien: Bezug, hohe Einspeisung, 0 W) gerendert und per Screenshot
+verifiziert -- dabei einen reinen Test-Artefakt-Bug (doppelte IDs bei mehreren Instanzen auf
+einer Vorschauseite) erkannt und die Testseite entsprechend korrigiert, kein Produktionsbug.
+134/134 Tests weiterhin grün (keine PHP-Logik geändert, nur Markup/CSS/JS des Partials).
+CLAUDE.md + Infrastruktur.md aktualisiert, Commit/Push/PR/Merge nach main.
+
 ## 2026-09-07 (82) — Claude Code — Claude Sonnet 5
 **Prompt:** "Eine Sache, die auch in jedem Fall nicht funktionieren darf, ist, ein Mitglied zu
 bearbeiten, weil man, wenn man auf „Mitglied bearbeiten" klickt, wieder alle Daten in Klartext

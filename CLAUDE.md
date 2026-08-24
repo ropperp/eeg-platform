@@ -495,6 +495,27 @@ Containern (Autostart nach Reboot) und Docker-Log-Rotation (`x-logging` in
 `docker-compose.yml`, max. 3 × 10 MB/Container), damit die Logs die Platte nicht volllaufen
 lassen.
 
+### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten -- RLS blockt trotz korrektem Code
+Symptom (Vorfall 24.08.2026): `stromfueralle.at/api/live/<slug>` liefert für einen konkreten
+Slug einen unerwarteten Fehler (generische Fehlerseite statt JSON), obwohl `DB::setCommunity()`
+in der Route korrekt aufgerufen wird und der Code selbst unverändert ist. Ursache: die
+eingeschränkte Laufzeit-Rolle `eeg_app` (siehe `scripts/db_runtime_role_setup.sh`) hatte keine
+aktuellen GRANTs mehr -- vermutlich, weil das Skript nach einer neueren Migration nicht erneut
+gelaufen ist (`ALTER DEFAULT PRIVILEGES` deckt zwar automatisch neue Tabellen ab, aber nur wenn
+das Skript nach der letzten Rechte-Änderung tatsächlich einmal durchgelaufen ist). **Fix:**
+einfach erneut ausführen, sicher wiederholbar:
+```bash
+cd /opt/eeg-platform && ./scripts/db_runtime_role_setup.sh
+```
+Aktualisiert die GRANTs für `eeg_app` und startet `webapp` automatisch neu. Diagnose davor:
+```bash
+grep APP_DB_USER /opt/eeg-platform/.env               # läuft die Webapp überhaupt als eeg_app?
+docker compose logs webapp --tail 100 | grep -i "permission denied\|PDOException"
+docker compose exec timescaledb psql -U eeg -d eeg_platform -c "\dp esp_measurements"
+```
+(`docker compose ...` immer im Repo-Root `/opt/eeg-platform` ausführen, sonst "no configuration
+file provided: not found".)
+
 ---
 
 ## Update (laufendes System)
@@ -1049,6 +1070,25 @@ docker compose up -d --build
 > Name". Neue Funktion `demoMaskSupportMessages()` maskiert sowohl Mitglied- als auch
 > Verwaltungs-Nachrichten (`author_label = Auth::userName()`, ebenfalls ein echter Name) --
 > eigene Nachrichten der beiden fiktiven Demo-Mitglieder bleiben unmaskiert.
+
+> **Einmalig nach dem Update vom 24.08.2026** (Energiefluss-Grafik neu gezeichnet, geometrisch
+> statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):
+> `webapp/src/views/partials/energy_flow.php` (gemeinsam genutzt von `manager_dashboard.php` und
+> `member_dashboard.php`) zeichnet die Verbindungslinien + animierten Energie-Impulse zwischen
+> PV-/Netz-/Verbrauch-Kreisen und dem EEG-Knoten jetzt als SVG, per JS aus den tatsächlichen
+> Kreis-Positionen/-Radien berechnet (`getBoundingClientRect()`), statt fixer CSS-Connector-Divs
+> mit Lücke zum Kreisrand (Patrick, 24.08.2026, nach Vorbild der Fronius-Energiefluss-Darstellung:
+> "Die Animation darf nicht erst mehrere Pixel/Abstände außerhalb des Kreises beginnen"). Die
+> PV-Verbindung bekommt bewusst eine Bezier-Kurve statt einer geraden Linie -- sie weicht seitlich
+> um die volle Breite des PV-Knotens (Kreis + Wert + Beschriftung darunter) aus, sonst würde eine
+> gerade Linie mitten durch den Text "676 W"/"PV-Erzeugung" laufen (Text bleibt an seiner Position,
+> nur die Linie weicht aus). Ein animierter Punkt läuft per SVG `<animateMotion>`/`<mpath>` entlang
+> jeder Verbindung von Kreisrand zu Kreisrand (nicht mehr nur ein/ausblendende Striche);
+> Anzahl (1-3) und Tempo der Punkte skalieren mit der tatsächlichen Leistung, bei 0 W keine
+> Punkte. Physikalische Flussrichtung (PV->EEG, EEG->Verbrauch, Netz<->EEG je nach Vorzeichen)
+> unverändert wie zuvor. Farben/Typografie/Kreisgrößen/Layout bewusst unangetastet gelassen.
+> Vor dem Commit mit Playwright gegen die echten Fonts/Farben/das echte `app.css` (Light + Dark)
+> in drei Szenarien (Bezug, hohe Einspeisung, 0 W) gerendert und als Screenshot verifiziert.
 
 Bei neuen DB-Migrations:
 ```bash

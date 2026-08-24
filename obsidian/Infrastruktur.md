@@ -429,6 +429,17 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
+> **Update vom 24.08.2026 -- Energiefluss-Grafik neu gezeichnet:** reine Code-Änderung.
+> `partials/energy_flow.php` zeichnet die Verbindungslinien + animierten Energie-Impulse
+> (PV/Netz/Verbrauch <-> EEG-Knoten) jetzt als SVG, geometrisch per JS aus den echten
+> Kreis-Positionen/-Radien berechnet -- keine Lücke mehr zum Kreisrand, nach Vorbild der
+> Fronius-Energiefluss-Darstellung. Die PV-Verbindung weicht als Bezier-Kurve seitlich um den
+> Text ("676 W"/"PV-Erzeugung") aus statt ihn zu überlagern. Anzahl/Tempo der animierten Punkte
+> skalieren mit der tatsächlichen Leistung, bei 0 W keine Punkte. Farben/Typografie/Layout
+> unverändert. Mit Playwright gegen echtes CSS (Light+Dark, drei Leistungs-Szenarien) verifiziert.
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
@@ -522,6 +533,15 @@ Klassischer I/O-Stall — meist SD-Karte am Ende, RAM/Swap voll, Unterspannung o
 Vollständige Diagnose + Selbstheilung per Hardware-Watchdog (Pi rebootet sich bei Einfrieren
 selbst): `docs/RASPBERRY_STABILITAET.md`. Bereits abgesichert: `restart: always` auf allen
 Containern + Docker-Log-Rotation (`x-logging` in `docker-compose.yml`).
+
+### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst)
+Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten, obwohl der Code korrekt
+war. Ursache: die eingeschränkte DB-Laufzeit-Rolle `eeg_app` hatte veraltete GRANTs (Skript nach
+einer neueren Migration nicht erneut gelaufen). Fix: einfach erneut ausführen --
+```bash
+cd /opt/eeg-platform && ./scripts/db_runtime_role_setup.sh
+```
+sicher wiederholbar, aktualisiert GRANTs + startet `webapp` neu.
 
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte
