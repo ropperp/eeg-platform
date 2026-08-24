@@ -1075,20 +1075,40 @@ docker compose up -d --build
 > statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):
 > `webapp/src/views/partials/energy_flow.php` (gemeinsam genutzt von `manager_dashboard.php` und
 > `member_dashboard.php`) zeichnet die Verbindungslinien + animierten Energie-Impulse zwischen
-> PV-/Netz-/Verbrauch-Kreisen und dem EEG-Knoten jetzt als SVG, per JS aus den tatsächlichen
+> PV-/Netz-/Verbrauch-Kreisen und dem EEG-Knoten als SVG, per JS aus den tatsächlichen
 > Kreis-Positionen/-Radien berechnet (`getBoundingClientRect()`), statt fixer CSS-Connector-Divs
 > mit Lücke zum Kreisrand (Patrick, 24.08.2026, nach Vorbild der Fronius-Energiefluss-Darstellung:
-> "Die Animation darf nicht erst mehrere Pixel/Abstände außerhalb des Kreises beginnen"). Die
-> PV-Verbindung bekommt bewusst eine Bezier-Kurve statt einer geraden Linie -- sie weicht seitlich
-> um die volle Breite des PV-Knotens (Kreis + Wert + Beschriftung darunter) aus, sonst würde eine
-> gerade Linie mitten durch den Text "676 W"/"PV-Erzeugung" laufen (Text bleibt an seiner Position,
-> nur die Linie weicht aus). Ein animierter Punkt läuft per SVG `<animateMotion>`/`<mpath>` entlang
-> jeder Verbindung von Kreisrand zu Kreisrand (nicht mehr nur ein/ausblendende Striche);
-> Anzahl (1-3) und Tempo der Punkte skalieren mit der tatsächlichen Leistung, bei 0 W keine
-> Punkte. Physikalische Flussrichtung (PV->EEG, EEG->Verbrauch, Netz<->EEG je nach Vorzeichen)
-> unverändert wie zuvor. Farben/Typografie/Kreisgrößen/Layout bewusst unangetastet gelassen.
-> Vor dem Commit mit Playwright gegen die echten Fonts/Farben/das echte `app.css` (Light + Dark)
-> in drei Szenarien (Bezug, hohe Einspeisung, 0 W) gerendert und als Screenshot verifiziert.
+> "Die Animation darf nicht erst mehrere Pixel/Abstände außerhalb des Kreises beginnen").
+> **Ausschließlich gerade Linien** -- eine erste Fassung hatte die PV-Verbindung noch als
+> Bezier-Kurve um den Text "676 W"/"PV-Erzeugung" herumgeführt, das wurde von Patrick im selben
+> Update wieder verworfen ("ABSOLUT KEINE KURVEN [...] Die Verbindung soll immer die direkte
+> kürzeste gerade Strecke [...] sein"): die Linie läuft jetzt bewusst gerade durch den Text
+> hindurch, der Text bleibt unverändert an seiner Position, nur unter der Linie (z-index).
+> **Genau EIN Energie-Impuls je aktiver Verbindung** (nicht mehrere gleichzeitig) -- bewegt sich
+> von Kreisrand zu Kreisrand (~1s), verschwindet vollständig, macht exakt 0,5s Pause, startet neu
+> ("Impuls → Ziel → verschwinden → 0,5 s Pause → Impuls → ..."). Technisch über SVG
+> `<animateMotion>`/`<mpath>` mit `begin="0s;<eigene-id>.end+0.5s"` gelöst -- ein
+> Standard-SMIL-Idiom für eine sich selbst wiederholende Animation mit Pause zwischen den
+> Durchläufen (`repeatCount="indefinite"` kennt keine Pause zwischen Wiederholungen). Richtung
+> aus den tatsächlichen Leistungswerten abgeleitet (PV->EEG, EEG->Verbrauch, Netz<->EEG je nach
+> Vorzeichen), keine Animation bei 0 W. Farben/Typografie/Kreisgrößen/Layout unangetastet.
+> Beide Fassungen vor dem jeweiligen Commit mit Playwright gegen das echte `app.css` gerendert
+> und verifiziert -- bei der zweiten Fassung zusätzlich das SMIL-Timing selbst per
+> `page.evaluate()`-Polling (nicht nur Screenshots) auf exakt 1s Bewegung + 0,5s Pause geprüft.
+>
+> **Zusätzlich (selbes Update): Live-Anzeige zeigt bei einem Fehler jetzt eine sichtbare
+> Meldung statt stillschweigend nichts zu tun.** `webapp/src/views/pages/live.php` (öffentliche
+> `/live`-Suchseite) ließ den Nutzer bisher ohne jeden Hinweis im Unklaren, wenn `/api/live/:slug`
+> fehlschlug (Patrick, 24.08.2026: Namen eingetippt, aber Anzeige blieb einfach leer). Zwei Fixes:
+> (1) Enter im Suchfeld lädt jetzt direkt bei genau einem Treffer oder exakter
+> Namensübereinstimmung, auch ohne auf einen Dropdown-Eintrag zu klicken; (2) ein fehlgeschlagener
+> Abruf zeigt jetzt eine Fehlermeldung an (den Fehlertext der Route, falls JSON, sonst
+> "Fehler `<Statuscode>`") statt nichts anzuzeigen. Das deckt aber NICHT jeden Fall ab: bei einer
+> unbehandelten PHP-Exception in der Route liefert `index.php`s globaler `set_exception_handler`
+> eine generische HTML-Fehlerseite statt JSON zurück (deren "Technische Details"-Zeile zusätzlich
+> nur für eingeloggte Nutzer sichtbar ist) -- die Live-Seite zeigt in diesem Fall nur "Fehler 500",
+> der tatsächliche Exception-Text steht dann ausschließlich in `docker compose logs webapp`
+> (`error_log()`-Zeile mit Präfix `[unhandled]`/`[fatal]`).
 
 Bei neuen DB-Migrations:
 ```bash

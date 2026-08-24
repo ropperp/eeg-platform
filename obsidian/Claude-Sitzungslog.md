@@ -8,6 +8,46 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-07 (84) — Claude Code — Claude Sonnet 5
+**Prompt:** "Energiefluss-Animation – finale Anpassung. Die aktuelle Umsetzung ist grundsätzlich
+besser, aber die Energiefluss-Linien sind noch zu stark geschwungen. Bitte die Animation jetzt
+konsequent geradlinig umsetzen. 1. ABSOLUT KEINE KURVEN [...] Die Verbindung soll immer die
+direkte kürzeste gerade Strecke zwischen Ausgangs- und Zielkreis sein. [...] 2. PV-ERZEUGUNG [...]
+Die Linie darf dabei direkt durch den Bereich des Textes „PV-Erzeugung" laufen. [...] Der Text
+soll NICHT verschoben werden. [...] 4. WICHTIG: EIN EINZELNER ENERGIE-IMPULS [...] Ein einzelner
+animierter Energieimpuls startet am Ausgangskreis [...] Er erreicht den Zielkreis. Der Impuls
+verschwindet vollständig. Danach 0,5 Sekunden Pause. Erst danach startet der nächste Impuls. [...]
+7. Timing [...] Bewegung: ca. 0,8-1,2 Sekunden, Pause nach Ankunft: exakt ca. 0,5 Sekunden [...]
+9. Technische Umsetzung [...] Keine festen Pixelpositionen für die Animation verwenden. [...]
+wenn findet die Live Anzeige auf der Website ohne Anmeldung die EEG nicht, oder die Daten werden
+einfach nicht angezeigt." (mit zwei Screenshots der Live-Anzeige, weiterhin ohne Daten trotz
+bereits ausgeführtem `db_runtime_role_setup.sh`).
+**Auftrag:** Die Bezier-Kurven-Lösung der letzten Runde war ein Missverständnis -- Patrick wollte
+ausschließlich gerade Linien (auch für PV, bewusst durch den Text hindurch) und genau EINEN
+Energie-Impuls pro Verbindung mit klarem Rhythmus (Bewegung -> Ziel -> verschwinden -> 0,5s Pause
+-> nächster Impuls) statt mehrerer gleichzeitiger Punkte. Außerdem weiterhin keine Live-Daten auf
+der öffentlichen Anzeige, obwohl die vermutete DB-Rollen-Ursache aus Runde 83 bereits behoben
+wurde -- also entweder ein zweites, unabhängiges Problem oder ein reiner UX-Fall (Name eingetippt,
+aber kein Dropdown-Eintrag angeklickt).
+**Ergebnis:** `energy_flow.php` überarbeitet: Bezier-Kurve entfernt, alle drei Verbindungen jetzt
+gerade Linien (weiterhin geometrisch aus den echten Kreis-Positionen berechnet, keine festen
+Pixelwerte). Ein einzelner Impuls je aktiver Verbindung über SVG `<animateMotion>` mit
+`begin="0s;<eigene-id>.end+0.5s"` (Standard-SMIL-Idiom für Selbstwiederholung mit Pause,
+`repeatCount` allein kann das nicht) plus eine synchron gekoppelte `<animate>` auf `opacity` für
+sauberes Ein-/Ausblenden. Vor dem Einbau in einer isolierten Testdatei gegen echtes Chromium per
+präzisem `page.evaluate()`-Zeitstempel-Polling verifiziert (nicht nur Screenshots, da
+Screenshot-Timing durch Seiten-Ladezeit zu ungenau für 0,5s-Fenster ist) -- Ergebnis exakt wie
+gefordert: 1s Bewegung, dann 0,5s bei Opacity 0 eingefroren, dann Neustart. Für die Live-Anzeige:
+`live.php` zeigt jetzt eine sichtbare Fehlermeldung statt stillschweigend nichts zu tun, plus
+Enter im Suchfeld lädt direkt bei genau einem/exaktem Treffer (auch ohne Dropdown-Klick) -- gegen
+eine eigens gebaute Mock-Umgebung (echtes `live.php` + gefälschte API-Antworten) mit Playwright
+verifiziert. Ehrlich eingeordnet: das behebt nicht zwingend die eigentliche Ursache -- bei einer
+unbehandelten PHP-Exception zeigt die Route nur "Fehler 500", der tatsächliche Exception-Text
+steht weiterhin ausschließlich in `docker compose logs webapp` (aus `/opt/eeg-platform` heraus,
+Patricks letzter Versuch lief aus dem Home-Verzeichnis und scheiterte deshalb an "no configuration
+file provided"). CLAUDE.md + Infrastruktur.md aktualisiert (bestehenden Eintrag aus Runde 83
+korrigiert statt widersprüchlich stehen zu lassen), Commit/Push/PR/Merge nach main.
+
 ## 2026-09-07 (83) — Claude Code — Claude Sonnet 5
 **Prompt:** [Terminal-Screenshot: `db_runtime_role_setup.sh` auf dem Server ausgeführt, GRANTs
 aktualisiert, webapp neu gestartet -- Diagnose aus Runde 82 bestätigte sich.] "Energiefluss-Grafik

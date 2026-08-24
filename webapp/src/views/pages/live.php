@@ -70,6 +70,11 @@ ob_start();
     <div style="font-size:3rem;margin-bottom:1rem"><?= icon('magnifying-glass') ?></div>
     <p>Geben Sie den Namen einer Energiegemeinschaft ein um die Echtzeit-Daten zu sehen.</p>
   </div>
+
+  <div id="live-error" style="display:none;text-align:center;padding:4rem;color:#dc2626">
+    <div style="font-size:3rem;margin-bottom:1rem"><?= icon('warning-circle') ?></div>
+    <p id="live-error-text"></p>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -106,6 +111,29 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.search-wrap')) resultsList.style.display = 'none';
 });
 
+// Enter im Suchfeld lädt direkt (Patrick, 24.08.2026: Name eingetippt, aber keinen
+// Dropdown-Eintrag angeklickt -- Dashboard blieb leer, ohne jeden Hinweis warum). Sucht
+// unabhängig vom "input"-Handler noch einmal frisch nach, damit kein Race mit dessen eigenem
+// Fetch entsteht -- bei genau einem Treffer oder einer exakten Namensübereinstimmung direkt
+// laden, sonst eine klare Fehlermeldung statt stillschweigend nichts zu tun.
+searchInput.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = searchInput.value.trim();
+  if (q.length < 2) return;
+  const res = await fetch('/api/communities/search?q=' + encodeURIComponent(q));
+  const data = await res.json();
+  resultsList.style.display = 'none';
+  if (data.length === 0) {
+    showLiveError('Keine Energiegemeinschaft mit diesem Namen gefunden.');
+    return;
+  }
+  const exact = data.find(c => c.name.toLowerCase() === q.toLowerCase());
+  const target = exact || data[0];
+  searchInput.value = target.name;
+  loadDashboard(target.slug);
+});
+
 // ─── Dashboard ────────────────────────────────────────────
 async function loadDashboard(slug) {
   currentSlug = slug;
@@ -114,22 +142,42 @@ async function loadDashboard(slug) {
   refreshTimer = setInterval(refresh, 5000);
 }
 
+// Zeigt eine sichtbare Fehlermeldung statt stillschweigend nichts zu tun (Patrick, 24.08.2026:
+// Name eingetippt/ausgewählt, aber die Anzeige blieb einfach leer, ohne jeden Hinweis, ob die
+// EEG nicht gefunden wurde, ein Server-Fehler auftrat oder einfach noch nichts eingegeben war).
+function showLiveError(msg) {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('no-selection').style.display = 'none';
+  document.getElementById('live-error-text').textContent = msg;
+  document.getElementById('live-error').style.display = 'block';
+}
+
 async function refresh() {
   if (!currentSlug) return;
-  const res = await fetch('/api/live/' + currentSlug);
-  if (!res.ok) return;
-  const d = await res.json();
+  try {
+    const res = await fetch('/api/live/' + currentSlug);
+    if (!res.ok) {
+      let msg = 'Diese Energiegemeinschaft konnte nicht geladen werden (Fehler ' + res.status + ').';
+      try { const err = await res.json(); if (err.error) msg = err.error; } catch (e) { /* keine JSON-Antwort */ }
+      showLiveError(msg);
+      return;
+    }
+    const d = await res.json();
 
-  document.getElementById('dashboard').style.display = 'block';
-  document.getElementById('no-selection').style.display = 'none';
-  document.getElementById('bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
-  document.getElementById('einsp-w').textContent = d.einspeisung_w.toLocaleString('de-AT') + ' W';
-  document.getElementById('today-kwh').textContent = d.today_kwh.toLocaleString('de-AT') + ' kWh';
-  document.getElementById('autarkie-pct').textContent = d.autarkie_pct + '%';
-  document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
+    document.getElementById('live-error').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('no-selection').style.display = 'none';
+    document.getElementById('bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
+    document.getElementById('einsp-w').textContent = d.einspeisung_w.toLocaleString('de-AT') + ' W';
+    document.getElementById('today-kwh').textContent = d.today_kwh.toLocaleString('de-AT') + ' kWh';
+    document.getElementById('autarkie-pct').textContent = d.autarkie_pct + '%';
+    document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
 
-  drawGauge(d.autarkie_pct);
-  drawChart(d.series);
+    drawGauge(d.autarkie_pct);
+    drawChart(d.series);
+  } catch (e) {
+    showLiveError('Verbindung zu den Live-Daten fehlgeschlagen. Bitte Seite neu laden.');
+  }
 }
 
 // ─── Gauge ────────────────────────────────────────────────

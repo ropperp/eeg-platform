@@ -429,14 +429,22 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
-> **Update vom 24.08.2026 -- Energiefluss-Grafik neu gezeichnet:** reine Code-Änderung.
-> `partials/energy_flow.php` zeichnet die Verbindungslinien + animierten Energie-Impulse
-> (PV/Netz/Verbrauch <-> EEG-Knoten) jetzt als SVG, geometrisch per JS aus den echten
-> Kreis-Positionen/-Radien berechnet -- keine Lücke mehr zum Kreisrand, nach Vorbild der
-> Fronius-Energiefluss-Darstellung. Die PV-Verbindung weicht als Bezier-Kurve seitlich um den
-> Text ("676 W"/"PV-Erzeugung") aus statt ihn zu überlagern. Anzahl/Tempo der animierten Punkte
-> skalieren mit der tatsächlichen Leistung, bei 0 W keine Punkte. Farben/Typografie/Layout
-> unverändert. Mit Playwright gegen echtes CSS (Light+Dark, drei Leistungs-Szenarien) verifiziert.
+> **Update vom 24.08.2026 -- Energiefluss-Grafik neu gezeichnet + Live-Anzeige zeigt Fehler an:**
+> reine Code-Änderung. `partials/energy_flow.php` zeichnet die Verbindungslinien + animierten
+> Energie-Impulse (PV/Netz/Verbrauch <-> EEG-Knoten) als SVG, geometrisch per JS aus den echten
+> Kreis-Positionen/-Radien berechnet -- keine Lücke mehr zum Kreisrand. Nach einer Zwischenfassung
+> mit Bezier-Kurve um den PV-Text hat Patrick das verworfen: **ausschließlich gerade Linien**, die
+> Linie läuft jetzt bewusst durch den Text "676 W"/"PV-Erzeugung" (Text bleibt an seiner Position).
+> **Genau EIN Energie-Impuls je aktiver Verbindung** (nicht mehrere gleichzeitig) -- ~1s Bewegung,
+> verschwindet vollständig, exakt 0,5s Pause, dann neuer Impuls (SMIL-Kettung via
+> `begin="0s;<id>.end+0.5s"`, gegen echtes Chromium mit `page.evaluate()`-Polling auf die exakte
+> Zeitschiene verifiziert). Farben/Typografie/Layout unverändert.
+>
+> Zusätzlich: `live.php` (öffentliche `/live`-Suche) zeigt jetzt eine sichtbare Fehlermeldung
+> statt stillschweigend nichts zu tun, wenn `/api/live/:slug` fehlschlägt -- plus Enter im
+> Suchfeld lädt direkt bei genau einem/exaktem Treffer, auch ohne Dropdown-Klick. Deckt aber NICHT
+> jeden Fall ab: bei einer unbehandelten PHP-Exception zeigt die Route nur "Fehler 500", der echte
+> Text steht weiterhin nur in `docker compose logs webapp` (siehe Bekannte Probleme oben).
 >
 > Details: `CLAUDE.md`.
 
