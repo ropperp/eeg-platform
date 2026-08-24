@@ -15,8 +15,8 @@
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
               style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;color:var(--gray-600);line-height:1"><?= icon('list') ?></button>
       <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">
-        <img src="/logo-light.png" alt="Strom für alle" class="logo-img logo-img-light">
-        <img src="/logo-dark.png" alt="Strom für alle" class="logo-img logo-img-dark">
+        <img src="<?= htmlspecialchars(logoAssetUrl('light')) ?>" alt="Strom für alle" class="logo-img logo-img-light">
+        <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle" class="logo-img logo-img-dark">
       </a>
     </div>
 

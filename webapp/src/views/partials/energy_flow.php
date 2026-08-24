@@ -26,11 +26,38 @@
  * Die Verbindung soll immer die direkte kürzeste gerade Strecke [...] sein" -- die erste Fassung
  * hatte die PV-Verbindung noch als Bezier-Kurve um den Text herumgeführt, das wurde bewusst
  * wieder verworfen: die Linie darf jetzt direkt durch den Text "676 W"/"PV-Erzeugung" laufen,
- * der Text bleibt unverändert an seiner Position, nur unter der Linie). Genau EIN Energie-Impuls
- * je aktiver Verbindung statt mehrerer gleichzeitig -- bewegt sich einmal von Kreisrand zu
- * Kreisrand, verschwindet vollständig, macht 0,5s Pause, startet neu (SMIL-Kettung über
- * begin="0s;<eigene-id>.end+0.5s", ein Standard-Idiom für sich selbst wiederholende
- * Animationen mit Pause dazwischen -- gegen echtes Chromium getestet, siehe Sitzungslog).
+ * der Text bleibt unverändert an seiner Position, nur unter der Linie).
+ *
+ * Zwei synchronisierte Impuls-Phasen statt unabhängiger Einzel-Verbindungen (Patrick,
+ * 24.08.2026, dritte Fassung: "zuerst alle Energieflüsse rein in die EEG [...] und dann nach
+ * den 0,5 sec. alle Flüsse raus" -- mit zwei Beispielen: Einspeisung ins Netz = PV->EEG
+ * zuerst, dann gemeinsam EEG->Netz UND EEG->Verbrauch; zu wenig Eigendeckung = PV->EEG UND
+ * Netz->EEG gemeinsam zuerst, dann EEG->Verbrauch). Jede Verbindung kettet ihren eigenen
+ * Impuls per SMIL an ihre EIGENE id (begin="<startOffset>s;<eigene-id>.end+<Pause>s", das
+ * bewährte Selbstreferenz-Idiom aus der vorherigen Fassung) -- "rein"-Verbindungen bekommen
+ * startOffset=0, "raus"-Verbindungen startOffset=OUT_START_S (1,5s). Da ALLE Verbindungen
+ * gegen dieselbe Dokument-Zeitachse starten, laufen gleich-phasige Verbindungen zwangsläufig
+ * exakt synchron, ohne dass eine Verbindung auf eine andere verweisen müsste. Ein erster Versuch
+ * mit einem gemeinsamen, separat erzeugten unsichtbaren "Zeitgeber-Element", an das sich alle
+ * Impulse per id.begin anhängen, blieb in Chromium wirkungslos (die referenzierenden Impulse
+ * feuerten nie) -- vermutlich eine Einschränkung von Chromiums SMIL-Sync-Base-Auflösung
+ * zwischen zwei zur Laufzeit per JS neu eingefügten Elementen; mit Playwright-Zeitstempel-
+ * Polling verifiziert (siehe Sitzungslog), deshalb bewusst NICHT so umgesetzt.
+ * Phase "rein" feuert bei 0s/3s/6s/..., Phase "raus" bei 1,5s/4,5s/... (0,5s Pause nach 1s
+ * Bewegung, siehe PULSE_MOVE_S/PULSE_PAUSE_S/CYCLE_S/OUT_START_S).
+ *
+ * Kreis-Mittelpunkte von Netz/Verbrauch auf Höhe des EEG-Knotens (Patrick, 24.08.2026: "Bitte
+ * die Kreise so weit runter, dass sie mit dem Mittelpunkt auf Höhe der Linie sind"): Ursache war,
+ * dass .eflow-middle die Kreis+Wert+Label-SÄULE als Ganzes zentriert hat (align-items:center),
+ * nicht den Kreis allein -- bei Netz/Verbrauch (Kreis + Wert + Label darunter) liegt der
+ * Kreis-Mittelpunkt dadurch spürbar ÜBER der Säulen-Mitte, beim EEG-Hub (nur ein Kreis, kein
+ * Text darunter) fallen beide zusammen. Behoben, indem Wert+Label (.eflow-text) aus dem
+ * Höhen-Fluss herausgenommen werden (position:absolute unterhalb des Kreises) -- .eflow-node
+ * besteht dadurch layouttechnisch nur noch aus dem Kreis selbst, exakt wie .eflow-hub, wodurch
+ * align-items:center jetzt wirklich die Kreis-MITTELPUNKTE zueinander ausrichtet statt der
+ * unterschiedlich hohen Gesamt-Säulen. Kein fixer Pixel-Wert nötig -- reserviert wird der
+ * darunter frei werdende Platz stattdessen pauschal per margin/padding in rem (siehe CSS), wie
+ * jeder normale Karten-Abstand auch.
  */
 $netzW        = ($live['einsp_w'] ?? 0) - ($live['bezug_w'] ?? 0);
 $netzDirClass = $netzW > 0 ? 'eflow-out' : ($netzW < 0 ? 'eflow-in' : '');
@@ -42,20 +69,26 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     <svg class="eflow-svg" id="eflow-svg"></svg>
     <div class="eflow-node" data-eflow-node="pv">
       <div class="eflow-circle eflow-circle-pv"><?= icon('sun') ?></div>
-      <div class="eflow-value" id="ef-pv"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
-      <div class="eflow-label">PV-Erzeugung</div>
+      <div class="eflow-text">
+        <div class="eflow-value" id="ef-pv"><?= number_format($live['einsp_w'] ?? 0, 0, ',', '.') ?> W</div>
+        <div class="eflow-label">PV-Erzeugung</div>
+      </div>
     </div>
     <div class="eflow-middle">
       <div class="eflow-node" data-eflow-node="netz">
         <div class="eflow-circle eflow-circle-netz <?= $netzDirClass ?>" id="ef-netz-circle"><?= icon('plug') ?></div>
-        <div class="eflow-value" id="ef-netz"><?= number_format(abs($netzW), 0, ',', '.') ?> W</div>
-        <div class="eflow-label" id="ef-netz-label"><?= $netzLabel ?></div>
+        <div class="eflow-text">
+          <div class="eflow-value" id="ef-netz"><?= number_format(abs($netzW), 0, ',', '.') ?> W</div>
+          <div class="eflow-label" id="ef-netz-label"><?= $netzLabel ?></div>
+        </div>
       </div>
       <div class="eflow-hub" data-eflow-node="hub"><span>EEG</span></div>
       <div class="eflow-node" data-eflow-node="verbrauch">
         <div class="eflow-circle eflow-circle-verbrauch"><?= icon('buildings') ?></div>
-        <div class="eflow-value" id="ef-verbrauch"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
-        <div class="eflow-label">Verbrauch</div>
+        <div class="eflow-text">
+          <div class="eflow-value" id="ef-verbrauch"><?= number_format($live['bezug_w'] ?? 0, 0, ',', '.') ?> W</div>
+          <div class="eflow-label">Verbrauch</div>
+        </div>
       </div>
     </div>
   </div>
@@ -76,7 +109,12 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
 .eflow-svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:0; }
 .eflow-baseline { stroke:var(--gray-200); stroke-width:2; fill:none; }
 .eflow-pulse { filter:drop-shadow(0 0 3px currentColor); }
-.eflow-node { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:.3rem; width:100px; }
+/* .eflow-node besteht layouttechnisch NUR aus dem Kreis (Breite/Höhe = Kreisgröße) -- Wert/Label
+   sitzen in .eflow-text darunter per position:absolute, tragen also nicht zur Höhe des Knotens
+   bei. Wichtig für die Kreis-Ausrichtung: dadurch zentriert align-items:center in .eflow-middle
+   die KREIS-Mittelpunkte von Netz/Hub/Verbrauch exakt zueinander, statt wie zuvor die
+   unterschiedlich hohen Kreis+Text-Säulen als Ganzes (siehe Kommentar oben am Dateianfang). */
+.eflow-node { position:relative; z-index:1; display:flex; justify-content:center; width:100px; }
 .eflow-circle {
   width:64px; height:64px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
@@ -89,9 +127,15 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
 .eflow-circle-netz { border-color:var(--gray-200); color:var(--gray-600); }
 .eflow-circle-netz.eflow-in  { border-color:#dc2626; color:#dc2626; }
 .eflow-circle-netz.eflow-out { border-color:#16a34a; color:#16a34a; }
-.eflow-value { font-weight:700; font-size:.95rem; color:var(--gray-800); }
+.eflow-text { position:absolute; top:100%; left:0; width:100%; margin-top:.3rem; }
+.eflow-value { font-weight:700; font-size:.95rem; color:var(--gray-800); text-align:center; }
 .eflow-label { font-size:.72rem; color:var(--gray-600); text-align:center; }
-.eflow-middle { position:relative; z-index:1; display:flex; align-items:center; gap:1.75rem; margin-top:.25rem; }
+/* Platz für .eflow-text, die seit obigem Fix nicht mehr in der Fluss-Höhe mitzählt -- ohne das
+   würde der PV-Text mit der Netz/Hub/Verbrauch-Reihe überlappen bzw. deren eigener Text mit den
+   nachfolgenden Karten-Absätzen. Reichlich bemessen (zwei kurze Textzeilen + Abstand passen bei
+   Weitem hinein), kein Bezug zu den festen Pixelwerten der Animation weiter unten. */
+.eflow-node[data-eflow-node="pv"] { margin-bottom: 2.6rem; }
+.eflow-middle { position:relative; z-index:1; display:flex; align-items:center; gap:1.75rem; margin-top:.25rem; margin-bottom: 2.6rem; }
 .eflow-hub {
   position:relative; z-index:1;
   width:42px; height:42px; border-radius:50%; flex-shrink:0;
@@ -140,14 +184,26 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
   // Ankunft: exakt ca. 0,5 Sekunden").
   const PULSE_MOVE_S = 1;
   const PULSE_PAUSE_S = 0.5;
+  // Voller Takt: Phase "rein" (1s) + Pause (0.5s) + Phase "raus" (1s) + Pause (0.5s) = 3s.
+  const CYCLE_S = 2 * (PULSE_MOVE_S + PULSE_PAUSE_S);
+  const OUT_START_S = PULSE_MOVE_S + PULSE_PAUSE_S;
 
   // Zeichnet eine Basislinie (dezent, immer sichtbar) + EIN einzelner animierter Impuls (statt
   // mehrerer gleichzeitig): startet am Ausgangskreis, läuft zum Zielkreis, verschwindet
-  // vollständig, macht 0,5s Pause, startet neu. animateMotion mit begin="0s;<id>.end+0.5s"
-  // referenziert dabei bewusst die EIGENE id -- Standard-SMIL-Idiom für eine sich selbst
-  // wiederholende Animation mit Pause zwischen den Durchläufen (repeatCount kennt keine Pause
-  // zwischen Wiederholungen, deshalb diese Kettung statt repeatCount="indefinite").
-  function buildConnector(svg, id, pathD, color, active) {
+  // vollständig, macht Pause bis zum nächsten Takt derselben Phase. "startOffsetS" ist entweder
+  // 0 (Phase "rein") oder OUT_START_S (Phase "raus") -- ALLE Verbindungen derselben Phase
+  // bekommen exakt denselben startOffsetS und laufen dadurch zwangsläufig synchron, ohne dass
+  // eine Verbindung auf eine andere verweisen müsste (Patrick: "zuerst alle Energieflüsse rein
+  // in die EEG [...] dann [...] alle Flüsse raus"). Kettet sich danach selbst weiter über
+  // begin="<startOffset>s;<eigene-id>.end+<Pause bis zum naechsten Takt>s" -- dasselbe
+  // Selbstreferenz-Idiom wie in der vorherigen Fassung (siehe Sitzungslog), nur mit variablem
+  // Start. Bewusst KEINE Querverweise zwischen zwei dynamisch per JS erzeugten Elementen (etwa
+  // ein gemeinsamer unsichtbarer "Zeitgeber", an den sich alle Impulse per id.begin anhängen) --
+  // ein erster Versuch in genau dieser Form blieb in Chromium wirkungslos (die referenzierenden
+  // Impulse feuerten nie, vermutlich weil Chromiums SMIL-Sync-Base-Auflösung bei zur Laufzeit per
+  // appendChild() eingefügten Elementen nicht zuverlässig zwischen zwei brandneuen Elementen
+  // auflöst) -- mit Playwright-Zeitstempel-Polling verifiziert, siehe Sitzungslog.
+  function buildConnector(svg, id, pathD, color, active, startOffsetS) {
     const path = svgEl('path');
     path.setAttribute('id', id);
     path.setAttribute('class', 'eflow-baseline');
@@ -156,6 +212,8 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     if (!active) return;
 
     const motionId = id + '-motion';
+    const begin = startOffsetS + 's;' + motionId + '.end+' + (CYCLE_S - PULSE_MOVE_S) + 's';
+
     const dot = svgEl('circle');
     dot.setAttribute('r', 4);
     dot.setAttribute('class', 'eflow-pulse');
@@ -165,21 +223,21 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     const motion = svgEl('animateMotion');
     motion.setAttribute('id', motionId);
     motion.setAttribute('dur', PULSE_MOVE_S + 's');
-    motion.setAttribute('begin', '0s;' + motionId + '.end+' + PULSE_PAUSE_S + 's');
+    motion.setAttribute('begin', begin);
     motion.setAttribute('fill', 'freeze');
     const mpath = svgEl('mpath');
     mpath.setAttributeNS(XLINK_NS, 'href', '#' + id);
     motion.appendChild(mpath);
     dot.appendChild(motion);
 
-    // Sichtbarkeit synchron zur selben Kette: kurz einblenden, unterwegs sichtbar, kurz vor
-    // Ankunft ausblenden -- "friert" bei 0 ein, bis der nächste Durchlauf (0.5s später) beginnt.
+    // Sichtbarkeit synchron zur selben Phase: kurz einblenden, unterwegs sichtbar, kurz vor
+    // Ankunft ausblenden -- "friert" bei 0 ein, bis der nächste Takt derselben Phase beginnt.
     const fade = svgEl('animate');
     fade.setAttribute('attributeName', 'opacity');
     fade.setAttribute('values', '0;1;1;0');
     fade.setAttribute('keyTimes', '0;0.15;0.85;1');
     fade.setAttribute('dur', PULSE_MOVE_S + 's');
-    fade.setAttribute('begin', '0s;' + motionId + '.end+' + PULSE_PAUSE_S + 's');
+    fade.setAttribute('begin', begin);
     fade.setAttribute('fill', 'freeze');
     dot.appendChild(fade);
 
@@ -200,20 +258,23 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     const hub = nodeCircle(container, containerRect, 'hub');
     const netzW = einspW - bezugW;
 
-    // PV -> EEG: ein Verbraucher speist nie in die Gemeinschaft ein, deshalb immer diese Richtung.
+    // PV -> EEG: ein Verbraucher speist nie in die Gemeinschaft ein, deshalb immer diese Richtung
+    // und immer Phase "rein" (speist in den EEG-Pool ein, startet bei 0s).
     const pvLine = trimStraight(pv, hub);
-    buildConnector(svg, 'eflow-path-pv', 'M ' + pvLine.x1 + ' ' + pvLine.y1 + ' L ' + pvLine.x2 + ' ' + pvLine.y2, '#eab308', einspW > 0);
+    buildConnector(svg, 'eflow-path-pv', 'M ' + pvLine.x1 + ' ' + pvLine.y1 + ' L ' + pvLine.x2 + ' ' + pvLine.y2, '#eab308', einspW > 0, 0);
 
-    // EEG -> Verbrauch: ein Mitglied bezieht nur, speist nie zurück in die Gemeinschaft. Waagrecht
-    // auf Höhe des EEG-Knotens erzwungen (siehe trimHorizontal()).
+    // EEG -> Verbrauch: ein Mitglied bezieht nur, speist nie zurück in die Gemeinschaft -- immer
+    // Phase "raus" (startet bei OUT_START_S). Waagrecht auf Höhe des EEG-Knotens erzwungen
+    // (siehe trimHorizontal()).
     const verbLine = trimHorizontal(hub, verbrauch, hub.cy);
-    buildConnector(svg, 'eflow-path-verbrauch', 'M ' + verbLine.x1 + ' ' + verbLine.y1 + ' L ' + verbLine.x2 + ' ' + verbLine.y2, '#3b82f6', bezugW > 0);
+    buildConnector(svg, 'eflow-path-verbrauch', 'M ' + verbLine.x1 + ' ' + verbLine.y1 + ' L ' + verbLine.x2 + ' ' + verbLine.y2, '#3b82f6', bezugW > 0, OUT_START_S);
 
-    // Netz <-> EEG: Richtung hängt vom Vorzeichen ab (Bezug: Netz -> EEG, Einspeisung: EEG -> Netz)
-    // -- dafür schlicht die passende Linie wählen, statt denselben Pfad nachträglich umzukehren.
-    // Ebenfalls waagrecht auf Höhe des EEG-Knotens erzwungen.
+    // Netz <-> EEG: Richtung hängt vom Vorzeichen ab (Bezug: Netz -> EEG = Phase "rein",
+    // Einspeisung: EEG -> Netz = Phase "raus") -- dafür schlicht die passende Linie UND Phase
+    // wählen, statt denselben Pfad nachträglich umzukehren. Ebenfalls waagrecht auf Höhe des
+    // EEG-Knotens erzwungen.
     const netzLine = netzW < 0 ? trimHorizontal(netz, hub, hub.cy) : trimHorizontal(hub, netz, hub.cy);
-    buildConnector(svg, 'eflow-path-netz', 'M ' + netzLine.x1 + ' ' + netzLine.y1 + ' L ' + netzLine.x2 + ' ' + netzLine.y2, netzW < 0 ? '#dc2626' : '#16a34a', netzW !== 0);
+    buildConnector(svg, 'eflow-path-netz', 'M ' + netzLine.x1 + ' ' + netzLine.y1 + ' L ' + netzLine.x2 + ' ' + netzLine.y2, netzW < 0 ? '#dc2626' : '#16a34a', netzW !== 0, netzW < 0 ? 0 : OUT_START_S);
   }
 
   function updateValues(d) {

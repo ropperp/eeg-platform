@@ -8,6 +8,43 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-24 (86) — Claude Code — Claude Sonnet 5
+**Prompt:** [Zwei Screenshots: leere Live-Anzeige mit Fehlermeldung, Demo-Portal-Dashboard]
+"es kommt noch keine Anzeige. Hab es auf einem anderen Gerät auch schon probiert. Das Problem
+noch zur Live-Anzeige, die Linie von Netzt und Verbraucher soll schon auf Höhe des Mittelpunktes
+sein. so sieht es ja gar nicht gleich aus. Bitte die Kreise so weit runter, dass sie mit dem
+Mittelpunkt auf Höhe der Linie sind. Und was noch cool wäre ist, dass zuerst alle Energieflüsse
+rein in die EEG gehen, und dann nach den 0,5 sec. alle Flüsse raus gehen. Als bei einsoieung ins
+Netz: PV zur EEG und dann von EEG ins Netz und Verbraucher. zu wenig Einspeisung für voll
+abdeckung vom Verbrauch: PV und Netz rein und Verbraucher raus. außerdem passt das Logo noch
+nicht. Kann es sein, dass im Darkmode auch das Logo vom light mode genommen wird. Wir haben
+aber ein eigens."
+**Auftrag:** Drei Anliegen in einer Nachricht: (1) die öffentliche Live-Anzeige zeigte trotz
+bereits laut `curl` korrekt liefernder API weiterhin nichts im Browser; (2) die Netz-/
+Verbrauch-Kreise sollten optisch exakt auf der horizontalen Verbindungslinie zentriert sein statt
+sichtbar darüber, zusätzlich sollten Impulse phasenweise synchron laufen (erst alle "rein",
+dann alle "raus"); (3) im Dark-Mode erschien weiterhin das Light-Mode-Logo statt des eigens
+hochgeladenen Dark-Mode-Logos.
+**Ergebnis:** (1) Ursache gefunden und behoben: die eigene Content-Security-Policy blockierte
+Chart.js, das `live.php` bisher von `cdn.jsdelivr.net` nachlud -- `Chart` blieb undefiniert, die
+eigene Fehlerbehandlung zeigte fälschlich "Verbindung fehlgeschlagen". Fix: Chart.js per
+`npm pack chart.js@4` lokal besorgt und nach `webapp/public/assets/js/vendor/chart.umd.min.js`
+vendored (gleiches Muster wie `gsap.min.js`), `live.php` lädt jetzt lokal statt vom CDN.
+(2) `energy_flow.php`: Wert/Label per `position:absolute` aus dem Höhen-Fluss der Kreis-Knoten
+genommen, wodurch `align-items:center` jetzt wirklich die Kreis-Mittelpunkte statt der
+unterschiedlich hohen Gesamt-Säulen zentriert -- per Playwright geometrisch verifiziert (0,00px
+Differenz). Zwei-Phasen-Impuls-Synchronisation umgesetzt (Start-Offset 0s bzw. 1,5s je
+Verbindung, gegen dieselbe Dokument-Zeitachse) -- ein erster Versuch mit einem gemeinsamen
+Zeitgeber-Element scheiterte an einer Chromium-SMIL-Einschränkung (per Playwright-Zeitstempel-
+Polling entdeckt und dokumentiert), die finale Fassung mit parametrisiertem Selbstreferenz-Start
+funktioniert nachweislich synchron in beiden Szenarien (Einspeisung/Defizit). (3) Ursache war
+fehlendes Cache-Busting bei `/logo-light.png`/`/logo-dark.png` (`Cache-Control: max-age=3600`,
+aber statische URL nach jedem Upload) -- neue Funktion `logoAssetUrl()` hängt `?v=<filemtime>`
+an, gleiches Muster wie bei `app.css`. Alle 134 Tests weiterhin grün, `php -l` sauber,
+`CLAUDE.md`/`Infrastruktur.md` aktualisiert. Commit/Push/PR/Merge nach dem üblichen Workflow.
+
+---
+
 ## 2026-09-07 (85) — Claude Code — Claude Sonnet 5
 **Prompt:** [Terminal-Ausgabe] "docker compose logs webapp --tail 200 | grep -i \"unhandled|fatal\"
 webapp | NOTICE: PHP message: [unhandled] PDOException: SQLSTATE[XX000]: Internal error: 7 ERROR:

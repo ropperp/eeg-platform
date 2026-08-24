@@ -496,8 +496,8 @@ Containern (Autostart nach Reboot) und Docker-Log-Rotation (`x-logging` in
 lassen.
 
 ### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
-Vorfall 24.08.2026, zwei UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
-auftritt, beide Diagnosewege der Reihe nach prüfen, nicht nur den ersten:
+Vorfall 24.08.2026, DREI UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
+auftritt, alle drei Diagnosewege der Reihe nach prüfen, nicht nur den ersten:
 
 **1. Veraltete GRANTs der eingeschränkten Laufzeit-Rolle (behoben, aber war nicht die ganze
 Ursache).** Die Rolle `eeg_app` (siehe `scripts/db_runtime_role_setup.sh`) hatte keine aktuellen
@@ -539,6 +539,30 @@ eingeloggte Nutzer (`Auth::check()`-Gate in `renderFatalErrorPage()`) -- ein ano
 liefert deshalb nur "Es ist ein unerwarteter Fehler aufgetreten" ohne jedes Detail. Der einzige
 Weg zum tatsächlichen Fehlertext ist `docker compose logs webapp | grep -i unhandled` (aus dem
 Repo-Root, siehe oben).
+
+**3. Chart.js-CDN-Skript von der eigenen Content-Security-Policy blockiert (dritte, eigentliche
+Ursache für den weiterhin leeren Browser -- Fix 1+2 behoben bereits den Server, per `curl`
+bestätigt vollständig korrektes JSON, aber im Browser blieb die Anzeige leer bzw. zeigte
+"Verbindung zu den Live-Daten fehlgeschlagen").** `live.php` lud Chart.js bisher extern über
+`<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js">`. Die
+CSP aus dem OWASP-Audit (`webapp/docker/nginx.conf`, 14.08.2026) setzt aber bewusst
+`script-src 'self' 'unsafe-inline'` OHNE jede fremde Domain -- genau um das Nachladen fremder
+Skripte zu verbieten. Der Browser blockierte das Skript deshalb lautlos (kein Netzwerkfehler,
+einfach eine CSP-Verletzung in der Browser-Konsole), `Chart` blieb undefiniert, `drawChart()`
+warf eine Exception, die vom eigenen `catch`-Block in `refresh()` als generische
+"Verbindung fehlgeschlagen"-Meldung angezeigt wurde -- obwohl der Datenabruf selbst erfolgreich
+war. **Fix:** Chart.js lokal eingebunden statt von einem fremden CDN geladen (passend zur
+CSP-Absicht, ohne sie aufzuweichen) -- `npm pack chart.js@4` (registry.npmjs.org, im Gegensatz
+zu `cdn.jsdelivr.net` von diesem Sandbox-Proxy direkt erreichbar), `dist/chart.umd.min.js`
+daraus nach `webapp/public/assets/js/vendor/chart.umd.min.js` kopiert (gleiches Vendor-Muster
+wie die bereits vorhandenen `gsap.min.js`/`ScrollTrigger.min.js` dort), `live.php`s
+`<script src="...">` auf `/assets/js/vendor/chart.umd.min.js` umgestellt. Kein
+Migrations-/Setup-Skript nötig, reine Code-/Datei-Änderung -- mit dem nächsten
+`git pull && docker compose up -d --build` aktiv. **Merksatz bei "Backend liefert laut curl
+korrekte Daten, Browser zeigt trotzdem nichts/einen Fehler":** immer auch an die
+Content-Security-Policy denken, besonders wenn irgendwo ein `<script src="https://...">` auf
+eine fremde Domain zeigt -- `grep -rn "https://.*\.js\"" webapp/src` findet solche Stellen,
+sollte im gesamten Code eigentlich nie wieder vorkommen.
 
 ---
 
@@ -1143,6 +1167,67 @@ docker compose up -d --build
 > nur für eingeloggte Nutzer sichtbar ist) -- die Live-Seite zeigt in diesem Fall nur "Fehler 500",
 > der tatsächliche Exception-Text steht dann ausschließlich in `docker compose logs webapp`
 > (`error_log()`-Zeile mit Präfix `[unhandled]`/`[fatal]`).
+>
+> **Vierte Nachbesserung (selbes Update): Chart.js lokal eingebunden statt vom CDN.** War die
+> eigentliche, dritte Ursache für die weiterhin leere Live-Anzeige im Browser (Backend laut
+> `curl` bereits korrekt) -- die eigene CSP blockierte das externe `<script>`-Tag. Volle
+> Diagnose + Fix siehe "Bekannte Probleme" oben ("Live-Anzeige [...] zeigt keine Daten", Punkt 3).
+>
+> **Fünfte Nachbesserung (selbes Update): Kreis-Mittelpunkte von Netz/Verbrauch korrekt auf Höhe
+> der EEG-Linie ausgerichtet** (Patrick, 24.08.2026: "Bitte die Kreise so weit runter, dass sie
+> mit dem Mittelpunkt auf Höhe der Linie sind. [...] so sieht es ja gar nicht gleich aus"). Bisher
+> zentrierte `.eflow-middle` (`align-items:center`) die komplette Kreis+Wert+Label-Säule als
+> Ganzes -- beim EEG-Hub (nur ein Kreis, kein Text darunter) fällt Kreis-Mitte und Säulen-Mitte
+> zusammen, bei Netz/Verbrauch (Kreis + Wert + Label darunter) liegt die Kreis-Mitte dadurch
+> spürbar über der Säulen-Mitte, sichtbar als Linie, die nicht durch die Kreis-Mitte lief. Fix:
+> Wert+Label (neuer Wrapper `.eflow-text`) per `position:absolute` unterhalb des Kreises aus dem
+> Höhen-Fluss herausgenommen -- `.eflow-node` besteht layouttechnisch dadurch nur noch aus dem
+> Kreis selbst, exakt wie `.eflow-hub`, wodurch `align-items:center` jetzt wirklich die
+> Kreis-MITTELPUNKTE zueinander ausrichtet. Der frei werdende Platz darunter wird über
+> `margin-bottom` in rem reserviert (kein Bezug zu den Pixelwerten der Animation). Per Playwright
+> geometrisch verifiziert: `getBoundingClientRect()`-Mittelpunkte von Netz-/Hub-/Verbrauch-Kreis
+> exakt deckungsgleich (Differenz 0,00px) in beiden getesteten Szenarien.
+>
+> **Sechste Nachbesserung (selbes Update): synchronisierte Zwei-Phasen-Impulse statt
+> unabhängiger Einzel-Verbindungen** (Patrick, 24.08.2026: "was noch cool wäre ist, dass zuerst
+> alle Energieflüsse rein in die EEG gehen, und dann nach den 0,5 sec. alle Flüsse raus gehen" --
+> mit zwei Beispielen: Einspeisung ins Netz = PV→EEG zuerst, dann gemeinsam EEG→Netz UND
+> EEG→Verbrauch; zu wenig Eigendeckung = PV→EEG UND Netz→EEG gemeinsam zuerst, dann
+> EEG→Verbrauch). Jede Verbindung kettet ihren Impuls weiterhin per SMIL an ihre EIGENE id
+> (`begin="<startOffset>s;<eigene-id>.end+2s"`, dasselbe bewährte Selbstreferenz-Idiom wie zuvor)
+> -- "rein"-Verbindungen (PV immer, Netz bei Bezug) bekommen `startOffset=0`,
+> "raus"-Verbindungen (Verbrauch immer, Netz bei Einspeisung) `startOffset=1.5`. Da ALLE
+> Verbindungen gegen dieselbe Dokument-Zeitachse starten, laufen gleich-phasige Verbindungen
+> zwangsläufig exakt synchron, ohne dass eine Verbindung auf eine andere verweisen müsste.
+> **Stolperstein dabei:** ein erster Versuch mit einem gemeinsamen, separat per JS erzeugten
+> unsichtbaren "Zeitgeber-Element" (ein `<animate>` auf einem verborgenen r=0-Kreis), an das sich
+> alle Impulse einer Phase per `begin="zeitgeber-id.begin"` anhängen, blieb in Chromium komplett
+> wirkungslos -- die referenzierenden Impulse feuerten nie, mit Playwright-Zeitstempel-Polling
+> zweifelsfrei bestätigt (Opacity blieb über 6,5s durchgehend 0). Vermutlich eine Einschränkung
+> von Chromiums SMIL-Sync-Base-Auflösung bei Querverweisen zwischen zwei zur Laufzeit per
+> `appendChild()` neu eingefügten Elementen. Bewusst NICHT so umgesetzt, stattdessen der oben
+> beschriebene Ansatz mit parametrisiertem Start-Offset -- **Merksatz:** SMIL-Selbstreferenz
+> (Element verweist auf sein EIGENES `.end`-Ereignis) ist in Chromium robust, Querverweise
+> zwischen zwei UNABHÄNGIG erzeugten dynamischen Elementen (`id.begin`/`id.end` eines ANDEREN
+> Elements) dagegen nicht verlässlich -- im Zweifel lieber mehrere synchron startende
+> Selbstreferenz-Ketten mit identischem Start-Offset statt einer gemeinsamen Zeitgeber-Referenz.
+> Per Playwright-`page.evaluate()`-Polling verifiziert: PV+Netz feuern in der Defizit-Szene exakt
+> gleichzeitig (identische Opacity-Werte bei jeder Stichprobe), Netz+Verbrauch entsprechend in
+> der Überschuss-Szene, beide Phasen exakt alle 3s (0s/3s/6s bzw. 1,5s/4,5s/7,5s).
+>
+> **Siebte Nachbesserung (selbes Update): Logo im Dark-Mode zeigte scheinbar weiterhin das
+> Light-Mode-Logo** (Patrick, 24.08.2026: "Kann es sein, dass im Darkmode auch das Logo vom light
+> mode genommen wird. Wir haben aber ein eigens."). CSS-Umschaltung (`[data-theme="dark"]`) und
+> die PHP-Route `/logo-:variant.png` waren beide bereits korrekt -- die eigentliche Ursache war
+> fehlendes Cache-Busting: die Route setzt `Cache-Control: public, max-age=3600`, aber `<img
+> src="/logo-dark.png">` blieb bei jedem Upload eines neuen Logos über `/admin/templates`
+> dieselbe URL, wodurch der Browser bis zu eine Stunde (oder je nach Browser/Proxy auch länger)
+> weiterhin die ALTE, bereits gecachte Datei anzeigte. Fix: neue Helper-Funktion `logoAssetUrl()`
+> (`webapp/public/index.php`) hängt `?v=<filemtime der wirksamen Datei>` an -- ändert sich
+> garantiert bei jedem neuen Upload, bleibt sonst stabil (kein unnötiger Cache-Bust). Genau das
+> gleiche Muster, das `app.css` in `base.php`/`portal.php` schon für sich selbst nutzt. Betrifft
+> `webapp/src/views/layouts/base.php` (öffentliche Seiten) und `.../layouts/portal.php`
+> (Portal/Backoffice) -- beide binden das Logo jetzt über `logoAssetUrl('light'/'dark')` ein.
 
 Bei neuen DB-Migrations:
 ```bash

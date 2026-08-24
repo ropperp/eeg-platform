@@ -16,8 +16,8 @@
 <header class="navbar">
   <div class="container inner">
     <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">
-      <img src="/logo-light.png" alt="Strom für alle" class="logo-img logo-img-light">
-      <img src="/logo-dark.png" alt="Strom für alle" class="logo-img logo-img-dark">
+      <img src="<?= htmlspecialchars(logoAssetUrl('light')) ?>" alt="Strom für alle" class="logo-img logo-img-light">
+      <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle" class="logo-img logo-img-dark">
     </a>
     <nav>
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
