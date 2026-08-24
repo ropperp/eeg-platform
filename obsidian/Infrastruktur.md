@@ -418,6 +418,17 @@ docker compose up -d --build
 >
 > Details: `CLAUDE.md`.
 
+> **Update vom 07.09.2026 -- Mitglied-Bearbeiten-Formular für Demo-Zugang gesperrt, Namen in
+> Support-Ticket-Nachrichten maskiert:** reine Code-Änderung. `/portal/members/:id/edit` zeigt
+> echte Werte vorbefüllt in Eingabefeldern -- neuer genereller Helper `denyDemoPage()` zeigt dort
+> für den Demo-Zugang direkt die "Nur Lesezugriff"-Seite statt das Formular. Der
+> "Bearbeiten"-Button selbst bleibt sichtbar (führt nur zur Sperr-Seite). Zusätzlich: `author_label`
+> in Support-Ticket-Nachrichten (freier Text, keine Fremdschlüssel-Spalte) war bisher trotz
+> maskiertem Ticket-Header unmaskiert -- neue Funktion `demoMaskSupportMessages()` behebt das,
+> eigene Nachrichten der fiktiven Demo-Mitglieder bleiben unmaskiert.
+>
+> Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
