@@ -392,6 +392,29 @@ function demoMaskAuditLog(array $rows, bool $isDemo): array
 }
 
 /**
+ * Maskiert author_label in support_ticket_messages für den Demo-Zugang (Patrick, 24.08.2026:
+ * "wenn man als Admin ein Ticket [...] aufmacht, steht drinnen trotzdem immer der volle Name").
+ * author_label ist freier Text (der volle Name zum Zeitpunkt des Absendens, siehe die
+ * INSERT-Stellen in index.php) statt einer members-Fremdschlüssel-Spalte -- die bereits
+ * bestehende Maskierung des Ticket-Headers (demoMaskMember() auf $ticket) griff deshalb nicht
+ * auf die einzelnen Nachrichten im Thread durch. Alle Mitglied-Nachrichten (is_staff=false)
+ * eines Tickets gehören zum selben Ticket-Mitglied, deshalb reicht ein einziges
+ * $memberIsDemo-Flag (vom Ticket, nicht pro Nachricht) statt eines member_id-Lookups je
+ * Nachricht. Verwaltungs-Antworten (is_staff=true, author_label = Auth::userName()) sind
+ * ebenfalls ein echter Name und werden immer maskiert.
+ */
+function demoMaskSupportMessages(array $messages, bool $isDemo, bool $memberIsDemo): array
+{
+    if (!$isDemo) return $messages;
+    return array_map(function (array $m) use ($memberIsDemo) {
+        if ((!empty($m['is_staff']) || !$memberIsDemo) && !empty($m['author_label'])) {
+            $m['author_label'] = demoMaskFull((string)$m['author_label']);
+        }
+        return $m;
+    }, $messages);
+}
+
+/**
  * Prüft eine IBAN per Mod-97-Verfahren (ISO 7064). Erwartet die IBAN ohne
  * Leerzeichen/Kleinbuchstaben-Normalisierung durch den Aufrufer.
  */

@@ -347,3 +347,28 @@ test('demoMaskAuditLog() lässt Daten unverändert, wenn nicht im Demo-Modus', f
     $rows = [['first_name' => 'Patrick', 'beschreibung' => 'irrelevant']];
     assertSame($rows, demoMaskAuditLog($rows, false));
 });
+
+test('demoMaskSupportMessages() maskiert Mitglied- und Verwaltungs-Nachrichten eines echten Tickets', function () {
+    $messages = [
+        ['author_label' => 'Stefanie Schwaiger', 'is_staff' => false, 'message' => 'Zählerstand falsch'],
+        ['author_label' => 'Patrick Ropper', 'is_staff' => true, 'message' => 'Wird geprüft'],
+    ];
+    $masked = demoMaskSupportMessages($messages, true, false);
+    assertSame('••••••••••', $masked[0]['author_label']);
+    assertSame('••••••••••', $masked[1]['author_label']);
+    assertSame('Zählerstand falsch', $masked[0]['message'], 'Nachrichtentext bleibt unverändert');
+});
+test('demoMaskSupportMessages() lässt eigene Nachrichten eines fiktiven Demo-Mitglieds unmaskiert', function () {
+    $messages = [['author_label' => 'Verbraucher 1', 'is_staff' => false, 'message' => 'Testticket']];
+    $masked = demoMaskSupportMessages($messages, true, true);
+    assertSame('Verbraucher 1', $masked[0]['author_label']);
+});
+test('demoMaskSupportMessages() maskiert Verwaltungs-Antworten auch bei einem Demo-Mitglied-Ticket', function () {
+    $messages = [['author_label' => 'Patrick Ropper', 'is_staff' => true, 'message' => 'Antwort']];
+    $masked = demoMaskSupportMessages($messages, true, true);
+    assertSame('••••••••••', $masked[0]['author_label']);
+});
+test('demoMaskSupportMessages() lässt Daten unverändert, wenn nicht im Demo-Modus', function () {
+    $messages = [['author_label' => 'Stefanie Schwaiger', 'is_staff' => false]];
+    assertSame($messages, demoMaskSupportMessages($messages, false, false));
+});

@@ -1027,6 +1027,29 @@ docker compose up -d --build
 > abgedeckt, SEPA-Sammellastschrift-Vorschau ebenso -- hier ging es nur um die bislang
 > ungemaskte Listen-/Bearbeiten-Ansicht.
 
+> **Einmalig nach dem Update vom 07.09.2026** (Mitglied-Bearbeiten-Formular für Demo-Zugang
+> gesperrt, Namen in Support-Ticket-Nachrichten maskiert -- reine Code-Änderung, kein
+> Migrations-/Setup-Skript nötig):
+>
+> **1. `/portal/members/:id/edit`:** dieses Formular zeigt echte Werte vorbefüllt in
+> Eingabefeldern (IBAN, Adresse, Geburtsdatum, ...) -- eine spaltenweise Maskierung wie bei den
+> reinen Anzeige-Seiten wäre hier nicht sinnvoll (verfälscht ein Formular, in dem ohnehin nicht
+> gespeichert werden kann). Neuer genereller Helper `denyDemoPage(string $message)` (Refactor von
+> `denyDemoFileDownload()`, das jetzt nur noch einen festen Text an ihn weiterreicht) zeigt
+> stattdessen direkt die "Nur Lesezugriff"-Seite (Patrick, 24.08.2026: "/members/<id>/edit darf
+> nicht verfügbar sein"). Der "Bearbeiten"-Button auf der Mitglied-Detailseite bleibt bewusst
+> sichtbar (führt nur zur Sperr-Seite) -- Patricks Grundprinzip "alle Funktionen und Buttons
+> sichtbar" gilt weiterhin, anders als beim WLAN-Info-Button (dort sollte nicht einmal die
+> Möglichkeit erkennbar sein).
+>
+> **2. Support-Ticket-Nachrichten:** die bereits bestehende Maskierung des Ticket-Headers
+> (`/portal/support/:id`) griff nicht auf die einzelnen Nachrichten im Thread durch -- `author_label`
+> in `support_ticket_messages` ist freier Text (voller Name zum Zeitpunkt des Absendens, keine
+> members-Fremdschlüssel-Spalte), Patrick per Screenshot: "steht drinnen trotzdem immer der volle
+> Name". Neue Funktion `demoMaskSupportMessages()` maskiert sowohl Mitglied- als auch
+> Verwaltungs-Nachrichten (`author_label = Auth::userName()`, ebenfalls ein echter Name) --
+> eigene Nachrichten der beiden fiktiven Demo-Mitglieder bleiben unmaskiert.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

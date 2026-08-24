@@ -8,6 +8,36 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-07 (82) — Claude Code — Claude Sonnet 5
+**Prompt:** "Eine Sache, die auch in jedem Fall nicht funktionieren darf, ist, ein Mitglied zu
+bearbeiten, weil man, wenn man auf „Mitglied bearbeiten" klickt, wieder alle Daten in Klartext
+sieht und alles wirklich. also /members/<id>/edit darf nicht verfügbar sein. Zwei kleine Sachen
+noch: Bitte kannst du mir mal sagen, warum diese Echtzeitdaten auf den normalen Webseiten nicht
+angezeigt werden? Vielleicht liegt es ja noch mal an einer DB-Rolle, Datenbankrolle oder User, aber
+auf jeden Fall werden keine Daten mehr auf der normalen Plattform angezeigt, wenn man sich nicht
+angemeldet hat. So wie, wenn man als Admin ein Ticket bekommt und es aufmacht, steht drinnen
+trotzdem immer der volle Name. Bitte im Demo-Account das verschleiern." (mit Screenshot der
+öffentlichen /live-Seite).
+**Auftrag:** Drei Punkte: (1) das Mitglied-Bearbeiten-Formular (zeigt unmaskierte Werte in
+Eingabefeldern) für den Demo-Zugang komplett sperren statt maskieren; (2) erklären, warum die
+öffentliche Live-Anzeige für abgemeldete Besucher keine Daten zeigt -- vermutet selbst einen
+DB-Rollen-Zusammenhang; (3) Namen in Support-Ticket-Nachrichten (nicht nur im Ticket-Header)
+für den Demo-Zugang maskieren.
+**Ergebnis:** Neuer genereller Helper `denyDemoPage()` (Refactor von `denyDemoFileDownload()`)
+blockt `/portal/members/:id/edit` komplett für den Demo-Zugang, der "Bearbeiten"-Button selbst
+bleibt sichtbar. Neue Funktion `demoMaskSupportMessages()` maskiert `author_label` in
+`support_ticket_messages` (freier Text, bisher trotz maskiertem Ticket-Header unmaskiert) für
+Mitglied- UND Verwaltungs-Nachrichten, eigene Nachrichten fiktiver Demo-Mitglieder bleiben
+unmaskiert. 134/134 Tests grün, beide Fixes zusätzlich gegen eine Scratch-DB verifiziert (inkl.
+Bestätigung, dass PDO_PGSQL Booleans hier korrekt nativ liefert, kein 't'/'f'-String-Fallstrick).
+Für die Live-Daten-Frage: Recherche im Code ergab, dass `/api/live/:slug` und
+`/api/communities/search` unverändert seit den letzten Runden sind (kein eigener Regressions-Fund),
+`esp_measurements` hat FORCE ROW LEVEL SECURITY seit dem OWASP-Audit und die Route setzt
+`DB::setCommunity()` korrekt vor der Abfrage -- ohne Zugriff auf den Produktivserver keine
+abschließende Diagnose möglich, stattdessen konkrete Prüfschritte (APP_DB_USER-Grants,
+webapp-Logs auf PDO-Fehler) an Patrick zurückgegeben statt spekulativ Code zu ändern.
+CLAUDE.md + Infrastruktur.md aktualisiert, Commit/Push/PR/Merge nach main.
+
 ## 2026-09-06 (81) — Claude Code — Claude Sonnet 5
 **Prompt:** "SSID: •••• · IP: •••••••••• · WLAN-Passwort: •••••••• Da hat etwas falsch verstanden.
 Die WLAN-Info-Anzeigen sollen schon bleiben für einen Admin oder für den Obermann-Bereich, aber der

@@ -841,11 +841,25 @@ function streamLatexPdf(string $template, array $vars, string $filename, array $
  */
 function denyDemoFileDownload(): void
 {
+    denyDemoPage(
+        'Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können '
+        . 'über diesen Zugang keine Dateien heruntergeladen werden (Verträge, '
+        . 'Beitrittserklärungen, Rechnungen, Vorlagen, Fotos, ...).'
+    );
+}
+
+/**
+ * Generischer Seiten-Block für den Demo-Zugang -- zeigt die "Nur Lesezugriff"-Seite mit
+ * $message statt der Zielseite. Für Seiten, bei denen Maskieren nicht reicht/nicht sinnvoll
+ * ist (z.B. ein Bearbeiten-Formular, das echte Werte in vorbefüllte Eingabefelder schreibt --
+ * Patrick, 24.08.2026: "/members/<id>/edit darf nicht verfügbar sein"), statt einer
+ * spaltenweisen demoMask*()-Funktion.
+ */
+function denyDemoPage(string $message): void
+{
     if (!Auth::isDemo()) return;
     http_response_code(403);
-    $demoErrorMessage = 'Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können '
-        . 'über diesen Zugang keine Dateien heruntergeladen werden (Verträge, '
-        . 'Beitrittserklärungen, Rechnungen, Vorlagen, Fotos, ...).';
+    $demoErrorMessage = $message;
     require ROOT . '/src/views/pages/demo_readonly_error.php';
     exit;
 }
@@ -5046,6 +5060,7 @@ $router->post('/portal/members', function () {
 
 $router->get('/portal/members/:id/edit', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoPage('Dieser Demo-Zugang dient nur zur Ansicht. Mitgliederdaten können hier nicht bearbeitet werden.');
     $member = requireMemberAccess($params['id']);
     if (!$member) { return; }
     require ROOT . '/src/views/pages/member_form.php';
@@ -7228,8 +7243,10 @@ $router->get('/portal/support/:id', function ($params) {
         [$params['id'], $communityId]
     );
     if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
+    $ticketMemberIsDemo = (bool)($ticket['is_demo'] ?? false);
     $ticket = demoMaskMember($ticket, Auth::isDemo());
     $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
+    $messages = demoMaskSupportMessages($messages, Auth::isDemo(), $ticketMemberIsDemo);
     // Öffnen der Detailseite gilt als "gelesen" -- alle bisherigen Mitglieder-Nachrichten dieses
     // Tickets zählen ab jetzt nicht mehr zum Ungelesen-Badge in der Sidebar.
     DB::execute('UPDATE support_tickets SET manager_read_at = now() WHERE id = ?', [$ticket['id']]);
