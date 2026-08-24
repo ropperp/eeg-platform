@@ -84,6 +84,33 @@ function passwordResetLink(string $token): string
 }
 
 /**
+ * Redirect NACH einem Datei-Upload (multipart/form-data-POST), bewusst OHNE HTTP-3xx-Status --
+ * Safari/WebKit bricht einen größeren Datei-Upload sonst manchmal mit
+ * "NSURLErrorDomain -1021: request body stream exhausted" ab (Patrick, 24.08.2026: reproduzierbar
+ * beim Logo-Upload unter /admin/templates). Ein bekannter, seit Jahren dokumentierter WebKit-Bug:
+ * bekommt Safari als Antwort auf einen großen multipart-POST einen klassischen 3xx-Redirect
+ * (`header('Location: ...')`), versucht es intern den ursprünglichen Request erneut zu stellen --
+ * der dafür nötige Datei-Stream aus dem <input type="file"> wurde beim ersten Senden aber bereits
+ * vollständig verbraucht und lässt sich nicht zurückspulen, der Upload schlägt fehl BEVOR die
+ * Datei überhaupt beim Server ankommt (in `move_uploaded_file()` bereits geschriebene Dateien
+ * sind davon nicht betroffen -- das Problem tritt schon auf Netzwerkebene auf, nicht in PHP).
+ * Fix: 200 OK statt 3xx zurückgeben (kein "Redirect", den der Browser nachvollziehen müsste),
+ * die eigentliche Weiterleitung übernimmt eine bereits vollständig ausgelieferte, winzige
+ * HTML-Seite selbst (Meta-Refresh + JS als Fallback) -- funktioniert in jedem Browser identisch,
+ * behebt aber gezielt das Safari-spezifische Nachsende-Problem. Nur für POST-Handler mit
+ * Datei-Upload gedacht, nicht als genereller Ersatz für normale 302-Redirects nach POST.
+ */
+function uploadRedirect(string $location): void
+{
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+        . '<meta http-equiv="refresh" content="0;url=' . htmlspecialchars($location) . '">'
+        . '<script>location.replace(' . json_encode($location) . ');</script></head>'
+        . '<body>Wird weitergeleitet …</body></html>';
+    exit;
+}
+
+/**
  * Sind Verträge (Bezugsvereinbarung/Einspeisevertrag) für diese EEG aktiviert? Ist der Schalter
  * aus (communities.contracts_enabled = false), werden alle Vertragsfunktionen in Portal und
  * Obmann-Ansicht ausgeblendet und die Vertragsrouten gesperrt (die Beitrittserklärung genügt als
@@ -7955,25 +7982,20 @@ $router->post('/portal/settings/logo', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     if (empty($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
-        header('Location: /portal/settings?error=' . urlencode('Logo-Upload fehlgeschlagen.'));
-        exit;
+        uploadRedirect('/portal/settings?error=' . urlencode('Logo-Upload fehlgeschlagen.'));
     }
     if ($_FILES['logo']['size'] > 5 * 1024 * 1024) {
-        header('Location: /portal/settings?error=' . urlencode('Datei zu groß (max. 5 MB).'));
-        exit;
+        uploadRedirect('/portal/settings?error=' . urlencode('Datei zu groß (max. 5 MB).'));
     }
     if (@getimagesize($_FILES['logo']['tmp_name']) === false) {
-        header('Location: /portal/settings?error=' . urlencode('Datei ist kein gültiges Bild.'));
-        exit;
+        uploadRedirect('/portal/settings?error=' . urlencode('Datei ist kein gültiges Bild.'));
     }
     @mkdir('/var/www/html/latex-templates/community-logos', 0775, true);
     if (!move_uploaded_file($_FILES['logo']['tmp_name'], '/var/www/html/latex-templates/community-logos/' . $communityId . '.png')) {
-        header('Location: /portal/settings?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
-        exit;
+        uploadRedirect('/portal/settings?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
     }
     logAudit($communityId, 'community.logo.upload', 'community', $communityId, 'EEG-Logo für Rechnungen/Verträge aktualisiert');
-    header('Location: /portal/settings?success=1');
-    exit;
+    uploadRedirect('/portal/settings?success=1');
 });
 
 $router->get('/portal/settings/logo/preview', function () {
@@ -9169,36 +9191,31 @@ $router->post('/admin/templates/:name/upload', function ($params) {
     if (!array_key_exists($params['name'], $registry)) { http_response_code(404); echo 'Unbekannte Datei'; return; }
 
     if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-        header('Location: /admin/templates?error=' . urlencode('Datei-Upload fehlgeschlagen.'));
-        exit;
+        uploadRedirect('/admin/templates?error=' . urlencode('Datei-Upload fehlgeschlagen.'));
     }
     // Grobe Plausibilitätsprüfung -- keine strikte LaTeX-/PDF-Validierung, ein Fehler zeigt
     // sich ohnehin sofort beim nächsten Aufruf (streamLatexPdf() liefert dann die
     // pdflatex-Fehlermeldung statt eines PDFs; ein kaputtes Infoblatt-PDF zeigt der Browser an).
     if ($_FILES['file']['size'] > 10 * 1024 * 1024) {
-        header('Location: /admin/templates?error=' . urlencode('Datei zu groß (max. 10 MB).'));
-        exit;
+        uploadRedirect('/admin/templates?error=' . urlencode('Datei zu groß (max. 10 MB).'));
     }
     // Logos werden direkt (ohne pdflatex/PDF-Viewer als "Fehler zeigt sich später von selbst")
     // in jede Seiten-Kopfzeile eingebettet -- hier lohnt sich eine echte Bildvalidierung, damit
     // keine beliebige Datei mit .png-Namen ausgeliefert wird.
     if ($registry[$params['name']]['type'] === 'image' && @getimagesize($_FILES['file']['tmp_name']) === false) {
-        header('Location: /admin/templates?error=' . urlencode('Datei ist kein gültiges Bild.'));
-        exit;
+        uploadRedirect('/admin/templates?error=' . urlencode('Datei ist kein gültiges Bild.'));
     }
 
     @mkdir('/var/www/html/latex-templates', 0775, true);
     $target = '/var/www/html/latex-templates/' . $params['name'];
     if (!move_uploaded_file($_FILES['file']['tmp_name'], $target)) {
-        header('Location: /admin/templates?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
-        exit;
+        uploadRedirect('/admin/templates?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
     }
     // entity_id ist in audit_log als UUID typisiert -- der Dateiname passt dort nicht rein,
     // steht stattdessen in der Beschreibung.
     logAudit(null, 'template.upload', 'admin_file', null,
         'Datei "' . $registry[$params['name']]['label'] . '" (' . $params['name'] . ') hochgeladen/ersetzt');
-    header('Location: /admin/templates?success=' . urlencode($registry[$params['name']]['label'] . ' wurde aktualisiert.'));
-    exit;
+    uploadRedirect('/admin/templates?success=' . urlencode($registry[$params['name']]['label'] . ' wurde aktualisiert.'));
 });
 
 /**
