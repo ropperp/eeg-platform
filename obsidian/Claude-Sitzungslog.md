@@ -8,6 +8,35 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-07 (85) — Claude Code — Claude Sonnet 5
+**Prompt:** [Terminal-Ausgabe] "docker compose logs webapp --tail 200 | grep -i \"unhandled|fatal\"
+webapp | NOTICE: PHP message: [unhandled] PDOException: SQLSTATE[XX000]: Internal error: 7 ERROR:
+unsupported subplan type for SkipScan: Result in /var/www/html/src/DB.php:66 [...] Dateien hast
+du eh alle auf GitHub. Bitte mach die Linien bei Netz und Verbrauch waagrecht. das schiefe gefällt
+mir nicht. Also Links rechts oben unten."
+**Auftrag:** Die korrekte Log-Ausgabe (diesmal aus dem richtigen Verzeichnis geholt) liefert den
+eigentlichen Fehler: ein TimescaleDB-interner PDOException-Fehler, der bei jedem Aufruf von
+`/api/live/:slug` auftritt -- die vorherige DB-Rollen-Diagnose war zwar ein echtes, aber nicht das
+einzige Problem. Zusätzlich: die Netz-/Verbrauch-Verbindungslinien in der Energiefluss-Grafik
+sehen leicht schräg statt exakt waagrecht aus.
+**Ergebnis:** Fehler identifiziert als TimescaleDB-SkipScan-Inkompatibilität mit
+`metering_point_id NOT IN (SELECT ...)` auf dem Hypertable `esp_measurements` -- exakt die
+Demo-Zählpunkt-Ausschlussregel, die in einer früheren Runde (06.09.2026) eingebaut wurde, aber
+nur in `/api/live/:slug` als NOT-IN-Subquery statt als JOIN. `communityLivePower()` (dieselbe
+Regel, für die eingeloggte Dashboard-Ansicht) hatte von Anfang an das richtige JOIN-Muster
+verwendet und war deshalb nie betroffen -- `/api/live/:slug` jetzt auf dasselbe, bereits bewährte
+Muster umgestellt (alle drei betroffenen Queries: aktuelle Leistung, Energie heute, Zeitreihe).
+Mit einer lokalen Scratch-Datenbank (echte Mitglieder + gespiegelter Demo-Zählpunkt mit
+identischen Messwerten) verifiziert: korrekte Summe ohne Doppelzählung, keine SQL-Fehler. Die
+tatsächliche TimescaleDB-SkipScan-Inkompatibilität selbst ließ sich lokal nicht reproduzieren
+(keine TimescaleDB-Erweiterung in der Scratch-Umgebung), aber die Umstellung auf das identische,
+bereits produktiv bewährte JOIN-Muster ist die naheliegende und in der Sache korrekte Lösung.
+`energy_flow.php`: neue Funktion `trimHorizontal()` erzwingt für Netz/Verbrauch dieselbe
+Y-Koordinate (die des EEG-Knotens) statt der individuell gemessenen Kreis-Mitte -- per
+`getAttribute('d')`-Vergleich verifiziert (y1 === y2 exakt). CLAUDE.md + Infrastruktur.md
+aktualisiert (bestehenden "Bekannte Probleme"-Eintrag um die eigentliche Ursache ergänzt statt
+nur den Teil-Fix stehen zu lassen), Commit/Push/PR/Merge nach main.
+
 ## 2026-09-07 (84) — Claude Code — Claude Sonnet 5
 **Prompt:** "Energiefluss-Animation – finale Anpassung. Die aktuelle Umsetzung ist grundsätzlich
 besser, aber die Energiefluss-Linien sind noch zu stark geschwungen. Bitte die Animation jetzt

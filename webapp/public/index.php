@@ -1393,21 +1393,28 @@ $router->get('/api/live/:slug', function ($params) {
     // 06.09.2026: "es dürfen die Daten nicht doppelt in dem Energiefluss angezeigt werden").
     // Diese Seite ist zudem öffentlich (live.stromfueralle.at), eine verdoppelte Zahl wäre also
     // nicht nur intern falsch, sondern für jeden Besucher sichtbar falsch.
-    $demoExclusion = 'metering_point_id NOT IN (SELECT id FROM metering_points WHERE mirror_source_metering_point_id IS NOT NULL)';
-
-    // Aktuelle Leistung: pro Zählpunkt nur den jeweils NEUESTEN Messwert im Fenster nehmen,
-    // nicht alle Zeilen aufsummieren (bei 5s-Sende-Intervall wären das bis zu ~24 Zeilen/Zähler
-    // in 2 Minuten -> Werte um ein Vielfaches zu hoch, siehe CLAUDE.md/Sitzungslog).
+    //
+    // Bewusst als JOIN auf metering_points umgesetzt, NICHT als "metering_point_id NOT IN
+    // (SELECT ...)" -- die erste Fassung (Vorfall 24.08.2026) crashte auf dem echten Server mit
+    // PDOException "unsupported subplan type for SkipScan: Result" (DB.php:66), sobald ein
+    // NOT-IN-Subplan mit TimescaleDBs SkipScan-Optimierung für DISTINCT ON auf esp_measurements
+    // (einem Hypertable) zusammentraf -- reproduzierbar bei jedem Aufruf dieser Route, aber ohne
+    // technische Fehlerdetails für anonyme Besucher sichtbar (nur "Es ist ein unerwarteter
+    // Fehler aufgetreten"), deshalb erst über `docker compose logs webapp` gefunden. Dieselbe
+    // Community-weite Ausschluss-Logik läuft in communityLivePower() (für die eingeloggte
+    // Dashboard-Ansicht) bereits seit demselben Update als JOIN und crashte dort nie -- jetzt auf
+    // exakt dasselbe, erprobte Muster vereinheitlicht.
     $agg = DB::fetchOne(
         "SELECT
             COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
             COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
             COUNT(*)                                AS active_meters
          FROM (
-            SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
-            FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes' AND $demoExclusion
-            ORDER BY metering_point_id, time DESC
+            SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w
+            FROM esp_measurements em
+            JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+            WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 minutes'
+            ORDER BY em.metering_point_id, em.time DESC
          ) latest",
         [$community['id']]
     );
@@ -1422,16 +1429,18 @@ $router->get('/api/live/:slug', function ($params) {
     // Zahl (kompletter historischer Zählerstand als "heute" ausgegeben).
     $today = DB::fetchOne(
         "WITH jetzt AS (
-            SELECT DISTINCT ON (metering_point_id) metering_point_id, energy_einspeisung_wh AS jetzt_wh
-            FROM esp_measurements
-            WHERE community_id = ? AND $demoExclusion
-            ORDER BY metering_point_id, time DESC
+            SELECT DISTINCT ON (em.metering_point_id) em.metering_point_id, em.energy_einspeisung_wh AS jetzt_wh
+            FROM esp_measurements em
+            JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+            WHERE em.community_id = ?
+            ORDER BY em.metering_point_id, em.time DESC
          ),
          basis AS (
-            SELECT DISTINCT ON (metering_point_id) metering_point_id, energy_einspeisung_wh AS basis_wh
-            FROM esp_measurements
-            WHERE community_id = ? AND time < CURRENT_DATE AND $demoExclusion
-            ORDER BY metering_point_id, time DESC
+            SELECT DISTINCT ON (em.metering_point_id) em.metering_point_id, em.energy_einspeisung_wh AS basis_wh
+            FROM esp_measurements em
+            JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+            WHERE em.community_id = ? AND em.time < CURRENT_DATE
+            ORDER BY em.metering_point_id, em.time DESC
          )
          SELECT COALESCE(SUM(GREATEST(j.jetzt_wh - COALESCE(b.basis_wh, j.jetzt_wh), 0)), 0) AS today_wh
          FROM jetzt j LEFT JOIN basis b ON b.metering_point_id = j.metering_point_id",
@@ -1446,13 +1455,14 @@ $router->get('/api/live/:slug', function ($params) {
             SUM(einspeisung_w) AS einspeisung_w
          FROM (
             SELECT
-                time_bucket('5 minutes', time) AS bucket,
-                metering_point_id,
-                AVG(power_bezug_w)             AS bezug_w,
-                AVG(power_einspeisung_w)       AS einspeisung_w
-            FROM esp_measurements
-            WHERE community_id = ? AND time >= now() - INTERVAL '2 hours' AND $demoExclusion
-            GROUP BY bucket, metering_point_id
+                time_bucket('5 minutes', em.time) AS bucket,
+                em.metering_point_id,
+                AVG(em.power_bezug_w)             AS bezug_w,
+                AVG(em.power_einspeisung_w)       AS einspeisung_w
+            FROM esp_measurements em
+            JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+            WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 hours'
+            GROUP BY bucket, em.metering_point_id
          ) per_meter_bucket
          GROUP BY bucket ORDER BY bucket",
         [$community['id']]

@@ -122,6 +122,16 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     const ux = dx / dist, uy = dy / dist;
     return { x1: a.cx + ux * a.radius, y1: a.cy + uy * a.radius, x2: b.cx - ux * b.radius, y2: b.cy - uy * b.radius };
   }
+  // Erzwingt eine exakt waagrechte Linie (Patrick, 24.08.2026: "Bitte mach die Linien bei Netz
+  // und Verbrauch waagrecht. das schiefe gefällt mir nicht.") -- Netz/Verbrauch und der EEG-Knoten
+  // liegen zwar alle in derselben Flex-Reihe, aber leicht unterschiedlich hohe Beschriftungen
+  // darunter können die gemessene Kreis-Mitte um ein, zwei Pixel verschieben und die Linie dadurch
+  // sichtbar schräg wirken lassen. Nimmt deshalb bewusst NUR die Y-Koordinate des EEG-Knotens als
+  // gemeinsame Höhe für beide Seiten, nicht den Mittelwert der gemessenen Mitten.
+  function trimHorizontal(a, b, y) {
+    const dir = b.cx >= a.cx ? 1 : -1;
+    return { x1: a.cx + dir * a.radius, y1: y, x2: b.cx - dir * b.radius, y2: y };
+  }
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
   function svgEl(tag) { return document.createElementNS(SVG_NS, tag); }
@@ -194,13 +204,15 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
     const pvLine = trimStraight(pv, hub);
     buildConnector(svg, 'eflow-path-pv', 'M ' + pvLine.x1 + ' ' + pvLine.y1 + ' L ' + pvLine.x2 + ' ' + pvLine.y2, '#eab308', einspW > 0);
 
-    // EEG -> Verbrauch: ein Mitglied bezieht nur, speist nie zurück in die Gemeinschaft.
-    const verbLine = trimStraight(hub, verbrauch);
+    // EEG -> Verbrauch: ein Mitglied bezieht nur, speist nie zurück in die Gemeinschaft. Waagrecht
+    // auf Höhe des EEG-Knotens erzwungen (siehe trimHorizontal()).
+    const verbLine = trimHorizontal(hub, verbrauch, hub.cy);
     buildConnector(svg, 'eflow-path-verbrauch', 'M ' + verbLine.x1 + ' ' + verbLine.y1 + ' L ' + verbLine.x2 + ' ' + verbLine.y2, '#3b82f6', bezugW > 0);
 
     // Netz <-> EEG: Richtung hängt vom Vorzeichen ab (Bezug: Netz -> EEG, Einspeisung: EEG -> Netz)
     // -- dafür schlicht die passende Linie wählen, statt denselben Pfad nachträglich umzukehren.
-    const netzLine = netzW < 0 ? trimStraight(netz, hub) : trimStraight(hub, netz);
+    // Ebenfalls waagrecht auf Höhe des EEG-Knotens erzwungen.
+    const netzLine = netzW < 0 ? trimHorizontal(netz, hub, hub.cy) : trimHorizontal(hub, netz, hub.cy);
     buildConnector(svg, 'eflow-path-netz', 'M ' + netzLine.x1 + ' ' + netzLine.y1 + ' L ' + netzLine.x2 + ' ' + netzLine.y2, netzW < 0 ? '#dc2626' : '#16a34a', netzW !== 0);
   }
 
