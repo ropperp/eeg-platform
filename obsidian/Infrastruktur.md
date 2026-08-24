@@ -438,7 +438,12 @@ docker compose up -d --build
 > **Genau EIN Energie-Impuls je aktiver Verbindung** (nicht mehrere gleichzeitig) -- ~1s Bewegung,
 > verschwindet vollständig, exakt 0,5s Pause, dann neuer Impuls (SMIL-Kettung via
 > `begin="0s;<id>.end+0.5s"`, gegen echtes Chromium mit `page.evaluate()`-Polling auf die exakte
-> Zeitschiene verifiziert). Farben/Typografie/Layout unverändert.
+> Zeitschiene verifiziert). Netz/Verbrauch zusätzlich strikt waagrecht erzwungen (gemeinsame
+> Y-Koordinate = EEG-Knoten, statt individuell gemessener Kreis-Mitte). Farben/Typografie/Layout
+> unverändert.
+>
+> **Wichtigster Fund: die eigentliche Ursache der leeren Live-Anzeige war ein
+> TimescaleDB-SkipScan-Bug**, nicht nur die DB-Rolle -- siehe Bekannte Probleme weiter unten.
 >
 > Zusätzlich: `live.php` (öffentliche `/live`-Suche) zeigt jetzt eine sichtbare Fehlermeldung
 > statt stillschweigend nichts zu tun, wenn `/api/live/:slug` fehlschlägt -- plus Enter im
@@ -542,14 +547,23 @@ Vollständige Diagnose + Selbstheilung per Hardware-Watchdog (Pi rebootet sich b
 selbst): `docs/RASPBERRY_STABILITAET.md`. Bereits abgesichert: `restart: always` auf allen
 Containern + Docker-Log-Rotation (`x-logging` in `docker-compose.yml`).
 
-### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst)
-Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten, obwohl der Code korrekt
-war. Ursache: die eingeschränkte DB-Laufzeit-Rolle `eeg_app` hatte veraltete GRANTs (Skript nach
-einer neueren Migration nicht erneut gelaufen). Fix: einfach erneut ausführen --
-```bash
-cd /opt/eeg-platform && ./scripts/db_runtime_role_setup.sh
-```
-sicher wiederholbar, aktualisiert GRANTs + startet `webapp` neu.
+### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- ZWEI Ursachen)
+Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Zwei unabhängige Ursachen
+nacheinander gefunden:
+1. Eingeschränkte DB-Laufzeit-Rolle `eeg_app` hatte veraltete GRANTs -- Fix:
+   ```bash
+   cd /opt/eeg-platform && ./scripts/db_runtime_role_setup.sh
+   ```
+2. **Eigentliche Ursache**, blieb nach Fix 1 bestehen: TimescaleDB-SkipScan-Bug
+   (`unsupported subplan type for SkipScan: Result`, siehe `docker compose logs webapp`) --
+   `/api/live/:slug` schloss gespiegelte Demo-Zählpunkte über `NOT IN (SELECT ...)` aus,
+   TimescaleDBs SkipScan-Optimierung für `DISTINCT ON` auf dem Hypertable `esp_measurements`
+   verträgt diesen Subplan-Typ nicht. Fix: auf JOIN umgestellt (wie bereits in
+   `communityLivePower()`, die deshalb nie betroffen war). Reine Code-Änderung.
+
+Wichtig: die generische Fehlerseite zeigt den Fehlertext nur eingeloggten Nutzern -- ein anonymer
+`curl`-Test bringt nur "Es ist ein unerwarteter Fehler aufgetreten". Bei ähnlichem Symptom immer
+`docker compose logs webapp | grep -i unhandled` (aus `/opt/eeg-platform`) prüfen.
 
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte

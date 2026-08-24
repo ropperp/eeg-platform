@@ -495,19 +495,18 @@ Containern (Autostart nach Reboot) und Docker-Log-Rotation (`x-logging` in
 `docker-compose.yml`, max. 3 × 10 MB/Container), damit die Logs die Platte nicht volllaufen
 lassen.
 
-### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten -- RLS blockt trotz korrektem Code
-Symptom (Vorfall 24.08.2026): `stromfueralle.at/api/live/<slug>` liefert für einen konkreten
-Slug einen unerwarteten Fehler (generische Fehlerseite statt JSON), obwohl `DB::setCommunity()`
-in der Route korrekt aufgerufen wird und der Code selbst unverändert ist. Ursache: die
-eingeschränkte Laufzeit-Rolle `eeg_app` (siehe `scripts/db_runtime_role_setup.sh`) hatte keine
-aktuellen GRANTs mehr -- vermutlich, weil das Skript nach einer neueren Migration nicht erneut
-gelaufen ist (`ALTER DEFAULT PRIVILEGES` deckt zwar automatisch neue Tabellen ab, aber nur wenn
-das Skript nach der letzten Rechte-Änderung tatsächlich einmal durchgelaufen ist). **Fix:**
-einfach erneut ausführen, sicher wiederholbar:
+### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
+Vorfall 24.08.2026, zwei UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
+auftritt, beide Diagnosewege der Reihe nach prüfen, nicht nur den ersten:
+
+**1. Veraltete GRANTs der eingeschränkten Laufzeit-Rolle (behoben, aber war nicht die ganze
+Ursache).** Die Rolle `eeg_app` (siehe `scripts/db_runtime_role_setup.sh`) hatte keine aktuellen
+GRANTs mehr -- vermutlich, weil das Skript nach einer neueren Migration nicht erneut gelaufen
+ist. Fix, sicher wiederholbar:
 ```bash
 cd /opt/eeg-platform && ./scripts/db_runtime_role_setup.sh
 ```
-Aktualisiert die GRANTs für `eeg_app` und startet `webapp` automatisch neu. Diagnose davor:
+Diagnose davor:
 ```bash
 grep APP_DB_USER /opt/eeg-platform/.env               # läuft die Webapp überhaupt als eeg_app?
 docker compose logs webapp --tail 100 | grep -i "permission denied\|PDOException"
@@ -515,6 +514,31 @@ docker compose exec timescaledb psql -U eeg -d eeg_platform -c "\dp esp_measurem
 ```
 (`docker compose ...` immer im Repo-Root `/opt/eeg-platform` ausführen, sonst "no configuration
 file provided: not found".)
+
+**2. TimescaleDB-SkipScan-Bug bei `NOT IN (SELECT ...)` auf einem Hypertable (eigentliche
+Ursache, seit demselben Update behoben).** Nach Fix 1 blieb das Symptom bestehen. Das eigentliche
+Log zeigte:
+```
+[unhandled] PDOException: SQLSTATE[XX000]: Internal error: 7 ERROR: unsupported subplan type
+for SkipScan: Result in /var/www/html/src/DB.php:66
+```
+Ursache: `/api/live/:slug` schloss gespiegelte Demo-Zählpunkte (`mirror_source_metering_point_id`,
+siehe migrate_20260906.sql) über `metering_point_id NOT IN (SELECT id FROM metering_points
+WHERE ...)` aus. TimescaleDBs SkipScan-Optimierung für `DISTINCT ON` auf `esp_measurements`
+(einem Hypertable) kommt mit diesem NOT-IN-Subplan nicht zurecht und wirft intern einen Fehler --
+reproduzierbar bei JEDEM Aufruf dieser Route. `communityLivePower()` (dieselbe Ausschluss-Logik,
+aber für die eingeloggte Dashboard-Ansicht) war davon nie betroffen, weil sie von Anfang an einen
+`JOIN metering_points mp ON mp.id = ... AND mp.mirror_source_metering_point_id IS NULL` statt
+eines NOT-IN-Subplans verwendet hat. **Fix:** `/api/live/:slug` auf dasselbe JOIN-Muster
+umgestellt (kein Migrations-/Setup-Skript nötig, reine Code-Änderung) -- bei einem ähnlichen
+Fehlerbild (SkipScan/Subplan-Fehler im Log) grundsätzlich zuerst prüfen, ob irgendwo noch eine
+`NOT IN (SELECT ...)`-Variante der `mirror_source_metering_point_id`-Ausschlussregel existiert,
+und auf JOIN umstellen.
+**Wichtige Nebenerkenntnis:** die generische Fehlerseite zeigt den technischen Fehlertext NUR für
+eingeloggte Nutzer (`Auth::check()`-Gate in `renderFatalErrorPage()`) -- ein anonymer `curl`-Test
+liefert deshalb nur "Es ist ein unerwarteter Fehler aufgetreten" ohne jedes Detail. Der einzige
+Weg zum tatsächlichen Fehlertext ist `docker compose logs webapp | grep -i unhandled` (aus dem
+Repo-Root, siehe oben).
 
 ---
 
@@ -1095,6 +1119,16 @@ docker compose up -d --build
 > Beide Fassungen vor dem jeweiligen Commit mit Playwright gegen das echte `app.css` gerendert
 > und verifiziert -- bei der zweiten Fassung zusätzlich das SMIL-Timing selbst per
 > `page.evaluate()`-Polling (nicht nur Screenshots) auf exakt 1s Bewegung + 0,5s Pause geprüft.
+> **Netz/Verbrauch strikt waagrecht** (dritte Nachbesserung, selbes Update, Patrick: "das schiefe
+> gefällt mir nicht"): beide Linien nehmen jetzt bewusst die Y-Koordinate des EEG-Knotens als
+> gemeinsame Höhe (`trimHorizontal()`), statt der individuell gemessenen Kreis-Mitte -- letztere
+> konnte durch unterschiedlich hohe Beschriftungen um ein, zwei Pixel abweichen und die Linie
+> dadurch leicht schräg wirken lassen. Per `getAttribute('d')`-Vergleich verifiziert (y1 === y2).
+>
+> **Wichtigster Fund (selbes Update): der eigentliche Grund für die leere öffentliche
+> Live-Anzeige war ein TimescaleDB-SkipScan-Bug, nicht (nur) die DB-Rolle** -- siehe "Bekannte
+> Probleme" weiter oben für die volle Diagnose und den Fix (JOIN statt `NOT IN (SELECT ...)`
+> in `/api/live/:slug`).
 >
 > **Zusätzlich (selbes Update): Live-Anzeige zeigt bei einem Fehler jetzt eine sichtbare
 > Meldung statt stillschweigend nichts zu tun.** `webapp/src/views/pages/live.php` (öffentliche
