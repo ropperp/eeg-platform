@@ -496,6 +496,71 @@ Muster (`uploadRedirect()` statt `header('Location: ...')`) übertragen.
 Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten
 `git pull && docker compose up -d --build` aktiv.
 
+> **Nachtrag (24.08.2026, per HAR-Analyse):** die WebKit-Redirect-Theorie oben ist real und der
+> Fix bleibt sinnvoll, war aber NICHT die Ursache für Patricks konkreten Fall -- der Fehler trat
+> auch in Chrome auf (reines WebKit-Problem hätte das nicht erklärt). Ein vom Browser
+> exportiertes HAR (`chrome://net-export` bzw. DevTools-Network-Tab → Rechtsklick → "Save all as
+> HAR") zeigte den eigentlichen Widerspruch: `Content-Length: 31830` angekündigt, aber nur
+> `bodySize: 371` tatsächlich gesendet (exakt nur das multipart-Gerüst, null Bytes der PNG-Datei
+> selbst) -- der Browser ist beim LESEN der Datei von der Festplatte gescheitert, noch bevor
+> irgendein Netzwerk-Request überhaupt zum Tragen kam. Ursache: die Datei lag in einem
+> iCloud-Drive-Ordner und war dort nur als Platzhalter vorhanden (Dateigröße korrekt bekannt,
+> Bytes aber nicht lokal vorhanden) -- kein Bug in diesem Repo. **Merksatz:** bei einem
+> Browser-Datei-Lese-Fehler beim Upload (nicht nur Safari) HAR-Export anfordern und
+> `Content-Length` gegen `bodySize`/tatsächlich übertragene Bytes vergleichen -- eine massive
+> Diskrepanz zeigt ein lokales Datei-Lese-Problem (Cloud-Sync-Platzhalter, Berechtigungen,
+> Datei zwischenzeitlich verschoben/gelöscht), keinen Server-/Netzwerk-Fehler.
+
+### Logo-Upload wirkt nie -- zwei fest eingecheckte Platzhalter-Dateien überschatten die PHP-Route (Vorfall 24.08.2026, ECHTE Ursache, gelöst)
+Nachdem das iCloud-Problem oben behoben war (Sync eingeschaltet, Upload kam laut Server-seitigem
+`md5sum`-Vergleich korrekt an -- `logo-dark.png` und `logo-light.png` waren jetzt zwei
+tatsächlich unterschiedliche Dateien unter `/var/www/html/latex-templates/`), zeigte
+`https://stromfueralle.at/logo-dark.png` weiterhin das helle Logo -- reproduzierbar auch per
+`curl` direkt auf dem Server (kein Browser-Cache im Spiel). `md5sum` von `curl`-Download und der
+tatsächlich hochgeladenen Datei stimmten NICHT überein -- der Hash entsprach exakt `logo-light.png`.
+
+**Ursache:** `webapp/public/logo-dark.png` und `logo-light.png` waren als ECHTE, statische
+Dateien im Git-Repo eingecheckt (Commit vom 17.08.2026, als Notlösung für ein anderes Problem:
+"Header-Logo war nie in Git, ein voller Image-Rebuild hat es verloren" -- beide damals aus
+`assets/images/logo.png` befüllt, also von Anfang an byte-identisch). `webapp/docker/nginx.conf`
+liefert `*.png`-Anfragen aber bewusst per `try_files $uri /index.php?$query_string;` aus -- prüft
+also ZUERST, ob eine echte Datei mit genau diesem Namen unter `public/` existiert, und liefert
+diese direkt aus, OHNE jemals `index.php` (und damit die dynamische `/logo-:variant.png`-Route
+mit ihrer `adminFilePath()`-Logik für Live-Uploads) zu erreichen. Die beiden 17.08.2026 fest
+eingecheckten Dateien haben dieses gesamte dynamische System seither lautlos überschattet --
+JEDER Logo-Upload über `/admin/templates` seit diesem Datum landete zwar korrekt unter
+`/var/www/html/latex-templates/logo-*.png`, wurde aber NIE ausgeliefert, weil nginx nie so weit
+kam. Der Docker-Kommentar in `nginx.conf` (Zeile 55) beschreibt genau diese beiden Pfade explizit
+als "dynamische PHP-Routen, keine echten Dateien" -- der stille Widerspruch dazu blieb über einen
+Monat unbemerkt, weil zuvor niemand ein tatsächlich abweichendes Dark-Mode-Logo hochgeladen hatte
+(die mitgelieferte Standard-Fallback-Logik in `Dockerfile`, Zeilen 34-38, füllt `logo-light.png`
+UND `logo-dark.png` ebenfalls beide aus derselben Quellgrafik -- ein frischer Install sieht daher
+ohnehin für beide Varianten dasselbe Bild, ganz unabhängig von diesem Bug).
+
+**Fix:** `git rm webapp/public/logo-dark.png webapp/public/logo-light.png` -- die beiden
+statischen Platzhalter sind ersatzlos entfernt, `nginx.conf`s `try_files`-Fallback reicht Anfragen
+an diese Pfade jetzt wie ursprünglich vorgesehen an `index.php` weiter, wo `adminFilePath()`
+korrekt zuerst das Live-Upload-Volume (`/var/www/html/latex-templates/`), sonst die
+`Dockerfile`-Standardgrafik prüft. Kein Datenverlust -- die Standard-Fallback-Kopien in
+`latex-templates-default/` (Dockerfile, Zeile 37-38) bleiben unverändert bestehen, ein frischer
+Install zeigt weiterhin sofort ein Logo. Reine Datei-Löschung, kein Migrations-/Setup-Skript
+nötig -- mit dem nächsten `git pull && docker compose up -d --build` aktiv (WICHTIG: ein reines
+`git pull` ohne `--build` reicht hier nicht, die beiden Dateien liegen bereits im Docker-Image
+und werden erst durch einen echten Image-Rebuild entfernt).
+
+**Diagnose-Weg, der zur eigentlichen Ursache führte** (für ein ähnliches "Upload wirkt nie"-Bild
+in Zukunft): (1) `docker compose exec webapp sh -c 'ls -la .../logo-*.png; md5sum .../logo-*.png'`
+bestätigte, dass die LIVE-Dateien im Upload-Volume tatsächlich unterschiedlich UND aktuell waren
+-- der Upload selbst funktionierte also. (2) `curl -s -o /tmp/x.png ".../logo-dark.png" &&
+md5sum /tmp/x.png` (direkt auf dem Server, kein Browser/kein Cache) lieferte trotzdem den Hash
+der LIGHT-Datei -- das schloss Browser-Cache und alle client-seitigen Erklärungen endgültig aus
+und bewies, dass der Server selbst (unabhängig vom PHP-Code) die falschen Bytes ausliefert.
+(3) Erst danach der Blick auf die tatsächliche Dateiebene (`find webapp/public -iname "logo*"`)
+zeigte die beiden fest eingecheckten Schattendateien. **Merksatz:** wenn `curl` direkt auf dem
+Server schon die falsche Datei liefert, obwohl der PHP-Code korrekt aussieht, IMMER prüfen, ob
+nginx den Request per `try_files`/`location`-Block schon VOR der PHP-Route an eine echte,
+gleichnamige Datei im `public/`-Verzeichnis abbiegt.
+
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
 ```bash

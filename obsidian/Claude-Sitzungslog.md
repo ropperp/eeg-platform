@@ -8,6 +8,39 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-24 (88) — Claude Code — Claude Sonnet 5
+**Prompt:** Fortsetzung der Logo-Diagnose über mehrere Nachrichten: "noch immer der fehler"
+(Safari-Fehlerscreenshot nach dem deployten Fix) → nach bestätigtem Deploy und Browser-Test:
+"Ja stimmt. Synchronisation war ausgeschaltet. aber trozdem ist das alte bild noch drinnen. auch
+mit https://stromfueralle.at/logo-dark.png kommt noch das light logo. es liegt trozdem am
+server" → abschließend ein vom Nutzer bereitgestelltes HAR-Datei-Export sowie mehrere
+Terminal-Ausgaben (Datei-Vergleich im Container, curl-Test) auf meine gezielten Rückfragen hin.
+**Auftrag:** Trotz zweier vorheriger Fixes (Cache-Busting, Safari-Redirect-Workaround) zeigte das
+Dark-Mode-Logo weiterhin das falsche Bild -- Patrick wollte das endgültig geklärt haben, auch
+nachdem er selbst schon einen Teil der Ursache (deaktivierte iCloud-Synchronisation) gefunden
+hatte.
+**Ergebnis:** Drei tatsächlich unabhängige Ursachen nacheinander aufgedeckt, jede mit einem
+eigenen, hartnäckig zwingenden Beweis statt bloßer Vermutung: (1) Analyse einer vom Nutzer
+bereitgestellten HAR-Datei zeigte einen Content-Length/bodySize-Widerspruch (31830 angekündigt,
+nur 371 tatsächlich gesendet) -- die vom Nutzer bereits vermutete iCloud-Drive-Platzhalterdatei
+war die Ursache für die gescheiterten Upload-Versuche, kein Bug in diesem Repo. (2) Nach
+Einschalten der Synchronisation bestätigte ein `md5sum`-Vergleich im Container, dass der Upload
+jetzt korrekt ankam (zwei tatsächlich unterschiedliche Dateien) -- aber `curl` direkt auf dem
+Server (also ganz ohne Browser-Cache) lieferte trotzdem den falschen Hash. (3) Das führte zur
+eigentlichen, seit 17.08.2026 bestehenden Ursache: `webapp/public/logo-dark.png` und
+`logo-light.png` waren als echte, byte-identische Dateien fest ins Repo eingecheckt (damalige
+Notlösung für ein anderes Problem) -- `nginx.conf`s `try_files`-Regel lieferte diese SOFORT aus
+und erreichte nie die dynamische PHP-Route, wodurch JEDER Logo-Upload seit diesem Datum
+wirkungslos blieb, nicht nur Patricks aktueller Versuch. Fix: `git rm` beider Platzhalterdateien,
+sodass `try_files` korrekt zur PHP-Route (`adminFilePath()`, Live-Upload-Volume zuerst) durchreicht.
+CLAUDE.md/Infrastruktur.md entsprechend korrigiert (vorherige Diagnose als "real, aber nicht die
+Ursache" markiert statt einfach überschrieben). Alle 134 Tests weiterhin grün. Commit/Push/PR/
+Merge nach dem üblichen Workflow, mit ausdrücklichem Hinweis, dass ein echter Image-Rebuild
+(nicht nur `git pull`) nötig ist, da die Platzhalterdateien bereits im laufenden Docker-Image
+liegen.
+
+---
+
 ## 2026-08-24 (87) — Claude Code — Claude Sonnet 5
 **Prompt:** "Hey, das mit der Grafik und der Live-Anzeige sieht jetzt gut aus. Nur, was nicht
 passt, ist das mit dem Logo und dem Dark-Mode. Ich habe noch mal das Bild hochgeladen. Es ist
