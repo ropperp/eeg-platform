@@ -594,19 +594,36 @@ vom selben Tag:
   (eigenes `.end`-Ereignis) ist in Chromium robust, Querverweise zwischen zwei unabhängig
   dynamisch erzeugten Elementen nicht. Timing per `page.evaluate()`-Polling verifiziert.
 
-### Logo im Dark-Mode zeigte scheinbar Light-Mode-Logo (24.08.2026, gelöst -- ZWEI Ursachen)
+### Logo im Dark-Mode zeigte scheinbar Light-Mode-Logo (24.08.2026, gelöst -- DREI Ursachen)
 CSS-Umschaltung und PHP-Route (`/logo-:variant.png`) waren beide korrekt.
-1. Fehlendes Cache-Busting (real, aber nicht die eigentliche Ursache für Patricks Symptom): die
-   Route setzt `Cache-Control: public, max-age=3600`, `<img src="/logo-dark.png">` blieb aber
-   bei jedem Upload dieselbe URL. Fix: neue Funktion `logoAssetUrl()` hängt `?v=<filemtime>` an.
-2. **Eigentliche Ursache:** der erneute Logo-Upload selbst schlug in Safari fehl --
-   "request body stream exhausted" (NSURLErrorDomain:-1021), ein bekannter WebKit-Bug bei
-   großen `multipart/form-data`-Uploads, deren Server-Antwort ein klassischer 3xx-Redirect ist
-   (`header('Location: ...')`) -- die neue Datei kam dadurch nie beim Server an. Fix: neue
-   Funktion `uploadRedirect()` (`webapp/public/index.php`) gibt 200 OK + eine kleine
-   HTML-Seite mit Meta-Refresh/JS-Redirect zurück statt eines 3xx-Status, angewendet auf
-   `/admin/templates/:name/upload` und `/portal/settings/logo`. Details: `CLAUDE.md`,
-   Abschnitt "Datei-Upload in Safari schlägt mit 'request body stream exhausted' fehl".
+1. Fehlendes Cache-Busting (real, aber nicht die eigentliche Ursache): Fix `logoAssetUrl()`
+   hängt `?v=<filemtime>` an `<img src="/logo-dark.png">` an.
+2. Ein tatsächlicher Upload-Versuch schlug fehl, weil die ausgewählte Datei in einem
+   iCloud-Drive-Ordner nur als Platzhalter vorlag (Sync ausgeschaltet) -- der Browser konnte sie
+   nicht lesen, egal welcher Browser (per HAR-Export bewiesen: `Content-Length` kündigte die
+   volle Dateigröße an, tatsächlich gesendet wurden aber nur die paar hundert Bytes des
+   multipart-Gerüsts, null Bytes der PNG selbst). Kein Bug in diesem Repo -- gelöst durch
+   Einschalten der iCloud-Synchronisation. Trotzdem als generelle Absicherung ergänzt: neue
+   Funktion `uploadRedirect()` (`webapp/public/index.php`) gibt nach einem Datei-Upload 200 OK +
+   eine kleine HTML-Seite mit Meta-Refresh/JS-Redirect zurück statt eines 3xx-Redirects --
+   behebt einen ECHTEN, separaten WebKit-Bug ("request body stream exhausted" bei einem
+   3xx-Redirect auf einen großen multipart-POST), der hier zwar nicht die Ursache war, aber
+   real und dokumentiert ist. Angewendet auf `/admin/templates/:name/upload` und
+   `/portal/settings/logo`.
+3. **Eigentliche Ursache, selbst nach erfolgreichem Upload:** `webapp/public/logo-dark.png` und
+   `logo-light.png` waren als ECHTE, statische Dateien im Git-Repo eingecheckt (Notlösung vom
+   17.08.2026 für ein anderes Problem, beide von Anfang an byte-identisch). `nginx.conf` liefert
+   `*.png`-Requests über `try_files $uri /index.php?...` aus -- findet es eine echte Datei mit
+   passendem Namen unter `public/`, liefert es diese SOFORT aus, ohne je die dynamische PHP-Route
+   (und damit die Live-Upload-Logik in `adminFilePath()`) zu erreichen. Jeder Logo-Upload seit
+   17.08.2026 landete zwar korrekt im Upload-Volume, wurde aber nie ausgeliefert. Per `curl`
+   direkt auf dem Server (kein Browser-Cache!) bewiesen: falscher Hash trotz korrekt
+   unterschiedlicher Dateien im Volume. Fix: `git rm webapp/public/logo-dark.png
+   webapp/public/logo-light.png` -- danach reicht `try_files` korrekt an `index.php` weiter.
+   **Braucht einen echten Image-Rebuild** (`docker compose up -d --build`), ein reines
+   `git pull` reicht nicht, die Dateien liegen schon im Image. Details: `CLAUDE.md`, Abschnitt
+   "Logo-Upload wirkt nie -- zwei fest eingecheckte Platzhalter-Dateien überschatten die
+   PHP-Route".
 
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte
