@@ -625,6 +625,18 @@ CSS-Umschaltung und PHP-Route (`/logo-:variant.png`) waren beide korrekt.
    "Logo-Upload wirkt nie -- zwei fest eingecheckte Platzhalter-Dateien überschatten die
    PHP-Route".
 
+### Logo auf portal.stromfueralle.at komplett unsichtbar (25.08.2026, Nebenwirkung des vorigen Fixes, gelöst)
+Direkt nach dem Entfernen der beiden Schattendateien oben: `stromfueralle.at` zeigte das Logo
+korrekt, `portal.stromfueralle.at` (Login + Backoffice) gar keins mehr. Per HAR-Export bestätigt:
+`/logo-light.png` bekam von der Portal-Subdomain aus **302** mit `Location:` auf die
+Hauptdomain -- eine bereits bestehende Domain-Trennungs-Logik in `index.php` (alles außer
+`/portal/*`/`/admin/*` wird von `portal.*` auf die Hauptdomain umgeleitet) erwischte auch das
+Logo. Die eigene CSP (`img-src 'self'`) verbietet dem Browser, einer domainübergreifenden
+Bild-Weiterleitung zu folgen -- vorher nie aufgefallen, weil die (jetzt entfernten)
+Schattendateien den Request nie bis zu dieser Logik durchließen. Fix: `/logo-light.png` und
+`/logo-dark.png` explizit von der Domain-Weiterleitung ausgenommen (neue `$isSharedAsset`-Prüfung
+in `index.php`) -- echte geteilte Assets, werden jetzt auf jeder Domain lokal beantwortet.
+
 ### Datei-/Profilbild-Upload: 500 im Browser (Stand 16.07.2026, gelöst)
 Jeder Upload brach ab, `docker compose logs webapp` (nur Access-Log) zeigte nichts. Echte
 Ursache erst sichtbar im nginx-**Fehler**-Log IM Container:

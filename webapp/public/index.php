@@ -1165,8 +1165,17 @@ function notifyMeterCodeShared(string $communityId, string $meterCode): void
 $requestHost = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $isBackofficePath = str_starts_with($requestPath, '/portal') || str_starts_with($requestPath, '/admin');
+// /logo-light.png und /logo-dark.png sind domain-unabhängige geteilte Assets -- base.php UND
+// portal.php binden beide Varianten ein (siehe logoAssetUrl()). Ohne diese Ausnahme leitet die
+// Domain-Trennung einen Bildaufruf von portal.stromfueralle.at auf die Hauptdomain um (3xx) --
+// die eigene CSP (img-src 'self') verbietet dem Browser aber, einer domainübergreifenden
+// Bild-Weiterleitung zu folgen, das Logo bleibt dadurch auf dem Portal unsichtbar (Vorfall
+// 25.08.2026: erst durch Entfernen zweier fest eingecheckter Platzhalter-Dateien in public/
+// sichtbar geworden, siehe "Bekannte Probleme" -- vorher fing nginx den Request als echte Datei
+// ab, bevor diese Weiterleitungslogik überhaupt lief).
+$isSharedAsset = $requestPath === '/logo-light.png' || $requestPath === '/logo-dark.png';
 
-if ($requestHost === 'portal.stromfueralle.at' && !$isBackofficePath) {
+if ($requestHost === 'portal.stromfueralle.at' && !$isBackofficePath && !$isSharedAsset) {
     header('Location: https://stromfueralle.at' . $_SERVER['REQUEST_URI']);
     exit;
 }

@@ -561,6 +561,40 @@ Server schon die falsche Datei liefert, obwohl der PHP-Code korrekt aussieht, IM
 nginx den Request per `try_files`/`location`-Block schon VOR der PHP-Route an eine echte,
 gleichnamige Datei im `public/`-Verzeichnis abbiegt.
 
+### Logo auf portal.stromfueralle.at komplett unsichtbar (Vorfall 25.08.2026, Nebenwirkung des vorigen Fixes, gelöst)
+Direkt nachdem die beiden Schattendateien oben entfernt wurden (Fix für "Logo-Upload wirkt nie"):
+`stromfueralle.at` zeigte das Logo jetzt korrekt, aber auf `portal.stromfueralle.at` (Login-Seite
+UND eingeloggter Backoffice-Bereich) fehlte es komplett -- keine falsche Grafik, einfach gar
+keine. Per HAR-Export (DevTools → Network-Tab → "Save all as HAR") bestätigt: der Bild-Request
+`https://portal.stromfueralle.at/logo-light.png?v=...` bekam **302 Found** mit
+`Location: https://stromfueralle.at/logo-light.png?v=...` zurück -- eine domainübergreifende
+Weiterleitung. Die eigene CSP (`img-src 'self'`, siehe `webapp/docker/nginx.conf`) erlaubt
+Bilder aber nur vom selben Origin -- der Browser verweigert es, einer Bild-Weiterleitung auf
+eine ANDERE Domain zu folgen, das `<img>` bleibt dadurch leer, ganz ohne sichtbaren Fehler.
+
+**Ursache:** eine bereits bestehende Domain-Trennungs-Logik ganz am Anfang von `index.php`
+(noch vor `new Router()`): alles außer `/portal/*` und `/admin/*` wird von
+`portal.stromfueralle.at` auf die Hauptdomain umgeleitet (bewusst so gedacht, damit die
+Login-/Backoffice-Subdomain nicht versehentlich Marketing-Seiten mit anzeigt). `/logo-light.png`
+fällt nicht unter `/portal`/`/admin`, wurde also mit umgeleitet. **Vorher nie aufgefallen, weil
+diese Logik nie erreicht wurde:** solange die beiden statischen Schattendateien (siehe oben)
+noch existierten, fing nginx den `/logo-*.png`-Request bereits auf Dateisystem-Ebene ab und
+lieferte ihn direkt aus -- die Anfrage kam bei `index.php` (und damit bei dieser
+Domain-Trennungs-Logik) nie an. Das Entfernen der Schattendateien hat diesen bereits vorher
+bestehenden, aber bis dahin folgenlosen Bug erst sichtbar gemacht.
+
+**Fix:** neue Ausnahme `$isSharedAsset` in `webapp/public/index.php` (direkt bei der
+Domain-Trennung) schließt `/logo-light.png` und `/logo-dark.png` explizit von der
+Portal→Hauptdomain-Weiterleitung aus -- diese beiden Pfade werden jetzt auf JEDER Domain lokal
+beantwortet, kein Redirect mehr nötig, da es sich um echte geteilte Assets handelt (von
+`base.php` UND `portal.php` eingebunden, siehe `logoAssetUrl()`). `/infoblatt.pdf` und
+`/hero-banner-image` bewusst NICHT in die Ausnahme aufgenommen -- die sind ausschließlich in
+`home.php`/`legal_beitreten.php` (reine Marketing-Seiten über `base.php`) verlinkt, werden also
+nie von der Portal-Subdomain aus angefragt und wären dort ohnehin schon durch dieselbe
+Domain-Trennung für die umgebende SEITE selbst nie erreichbar. Reine Code-Änderung, kein
+Migrations-/Setup-Skript nötig -- mit dem nächsten `git pull && docker compose up -d --build`
+aktiv.
+
 ### SSL-Zertifikat fehlt/ungültig auf stromfueralle.at
 Diagnose auf dem nginx-Proxy-Host (10.0.0.144):
 ```bash
