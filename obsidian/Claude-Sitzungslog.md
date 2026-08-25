@@ -8,6 +8,34 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-25 (89) — Claude Code — Claude Sonnet 5
+**Prompt:** Drei Screenshots (Login-Seite und Backoffice-Dashboard auf portal.stromfueralle.at
+ohne sichtbares Logo, Startseite auf stromfueralle.at mit korrektem Logo): "Auf der Seite
+stromfueralle.at funktioniert das aber. Unter portal.stromfueralle.at wird gar kein Logo
+angezeigt. Oder es gibt eine Charakteristik, dass hier ein Logo wäre, aber gerade gar keins.
+Bitte da noch mal schauen, dass portal.stromfueralle.at auch die Routen geändert werden."
+**Auftrag:** Direkte Fortsetzung/Nebenwirkung des vorigen Fixes (PR #137, Entfernung der beiden
+Schattendateien) -- auf der Hauptdomain funktionierte das Logo jetzt, auf der Portal-Subdomain
+war es komplett verschwunden statt nur falsch.
+**Ergebnis:** Ein vom Nutzer bereitgestelltes HAR-File (DevTools-Network-Export) zeigte die
+Ursache eindeutig: der Bild-Request `/logo-light.png` bekam von `portal.stromfueralle.at` aus
+einen 302-Redirect auf die Hauptdomain zurück -- eine bereits bestehende, aber bisher folgenlose
+Domain-Trennungs-Logik in `index.php` (alles außer `/portal/*`/`/admin/*` wird von der
+Portal-Subdomain auf die Hauptdomain umgeleitet). Die eigene CSP (`img-src 'self'`) verbietet dem
+Browser, dieser domainübergreifenden Bild-Weiterleitung zu folgen -- das Logo blieb dadurch leer,
+ganz ohne sichtbaren Fehler. Diese Logik existierte schon lange, wurde aber nie erreicht: die im
+vorigen Fix entfernten statischen Schattendateien hatten den Request bisher immer schon auf
+nginx-Ebene abgefangen, bevor er überhaupt bei `index.php` ankam -- das Entfernen dieser Dateien
+hat also einen zweiten, unabhängigen, bis dahin unsichtbaren Bug erst freigelegt. Fix: neue
+`$isSharedAsset`-Ausnahme in der Domain-Trennungs-Logik nimmt `/logo-light.png` und
+`/logo-dark.png` explizit von der Portal→Hauptdomain-Weiterleitung aus -- beide Pfade werden
+jetzt auf jeder Domain lokal beantwortet. `/infoblatt.pdf`/`/hero-banner-image` bewusst nicht
+mit ausgenommen (nur auf reinen Marketing-Seiten verlinkt, nie von der Portal-Subdomain aus
+angefragt). Alle 134 Tests weiterhin grün, `php -l` sauber. CLAUDE.md/Infrastruktur.md ergänzt.
+Commit/Push/PR/Merge nach dem üblichen Workflow.
+
+---
+
 ## 2026-08-24 (88) — Claude Code — Claude Sonnet 5
 **Prompt:** Fortsetzung der Logo-Diagnose über mehrere Nachrichten: "noch immer der fehler"
 (Safari-Fehlerscreenshot nach dem deployten Fix) → nach bestätigtem Deploy und Browser-Test:
