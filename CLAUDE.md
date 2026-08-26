@@ -345,7 +345,7 @@ curl -vI https://www.stromfueralle.at 2>&1 | grep -i subject
 `/etc/letsencrypt/live/stromfueralle.at/` erweitert wird (Pfad in der vhost-Config bleibt gültig)
 statt eine neue `-0001`-Lineage anzulegen.
 
-### portal-Subdomain für den Login freischalten (ausstehend, Stand 2026-07-15)
+### portal-Subdomain für den Login freischalten (erledigt -- Setup-Referenz, ursprünglich 2026-07-15)
 Ziel: Der "Anmelden"-Button auf der Hauptseite verlinkt jetzt auf
 `https://portal.stromfueralle.at/portal/login` (App-seitig bereits umgesetzt). Traefik
 (10.0.0.250, dieses Repo) hat für `portal.stromfueralle.at` schon einen Router auf dieselbe
@@ -1029,11 +1029,12 @@ docker compose up -d --build
 > Kernseiten der "Verwaltung": Obmann-Mitgliederliste (`/portal/members`) + Mitglied-Detailseite
 > (`/portal/members/:id`), Platform-Admin-Nutzerliste (`/admin`) + Nutzerdetailseite
 > (`/admin/users/:id`, inkl. Mitglied-Identität-Auswahlfeld) + EEG-Mitgliederliste
-> (`/admin/communities/:id`). **Noch NICHT abgedeckt** (bewusst zurückgestellt, siehe
-> Konversation): Aktivitätslog (Freitext kann Namen enthalten), Beitrittsanträge, Postfach,
-> Support-Tickets, Rechnungsliste, sowie die Mitglied-BEARBEITEN-Formulare (zeigen echte Werte
-> in Eingabefeldern, auch wenn Speichern ohnehin gesperrt ist) -- diese Seiten beim Vorführen des
-> Demo-Accounts vorerst meiden, bis sie ebenfalls maskiert sind.
+> (`/admin/communities/:id`). Die damals noch offenen Lücken (Aktivitätslog, Beitrittsanträge,
+> Postfach, Support-Tickets, Rechnungsliste, Mitglied-Bearbeiten-Formular) sind in späteren
+> Updates desselben Tages (siehe die Einträge weiter unten in diesem Abschnitt) alle geschlossen
+> worden -- `demoMaskAuditLog()`, `demoMaskApplication(s)()`, `demoMaskNotification(s)()`,
+> `demoMaskSupportMessages()`, `demoMaskMembers()` in der Rechnungsliste, sowie `denyDemoPage()`
+> für `/portal/members/:id/edit`.
 
 > **Stolperstein Pre-Launch-Popup (Patrick, 06.09.2026, per Screenshot):** ein Demo-Login saß
 > beim allerersten Aufruf der Mitglied-Ansicht ("Verbraucher 1"/"Einspeiser 1") hinter dem
