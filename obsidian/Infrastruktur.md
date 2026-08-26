@@ -529,11 +529,10 @@ Stattdessen `certbot certonly --nginx --cert-name stromfueralle.at --expand -d .
 (rührt die nginx-Config nicht an) und die vhost-Datei danach selbst schreiben.
 Details/vollständiges Skript: siehe `CLAUDE.md` im Repo.
 
-### portal-Subdomain für Login (ausstehend, Stand 2026-07-15)
-Anmelden-Button verlinkt jetzt auf `portal.stromfueralle.at/portal/login`. Traefik-Routing
-steht bereits, es fehlt noch die SSL-Terminierung auf 10.0.0.144 (gleiches Vorgehen wie bei
-www oben, zusätzlich `-d portal.stromfueralle.at` im certbot-Aufruf + eigener server{}-Block
-in der vhost-Datei). Details/vollständiges Skript: siehe `CLAUDE.md` im Repo.
+### portal-Subdomain für Login (erledigt -- Setup-Referenz, ursprünglich 2026-07-15)
+Anmelden-Button verlinkt auf `portal.stromfueralle.at/portal/login`, SSL-Terminierung auf
+10.0.0.144 längst eingerichtet und seither vielfach live getestet. Setup-Schritte (für einen
+Neuaufbau/eine weitere Subdomain) bleiben als Referenz in `CLAUDE.md` erhalten.
 
 ### SSL-Zertifikat fehlt/ungültig
 Meist: mehrere Zertifikats-Lineages für dieselbe Domain (`stromfueralle.at`,
