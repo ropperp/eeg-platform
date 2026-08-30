@@ -319,19 +319,29 @@ eingespeiste Leistung in einem Diagramm einzusehen?"). Nur relevant für Mitglie
 mindestens einem aktiven Einspeise-/Prosumer-Zählpunkt.
 
 ```json
-{ "date": "2026-07-26", "has_data": true,
-  "total_messung_kwh": 812.4, "total_gemeinschaft_kwh": 4.92,
+{ "date": "2026-07-26", "has_data": true, "has_erzeugung_gesamt": true,
+  "total_messung_kwh": 812.4, "total_gemeinschaft_kwh": 4.92, "total_erzeugung_gesamt_kwh": 6.10,
   "intervals": [
-    { "zeit": "00:00", "einspeisung_w": null },
-    { "zeit": "12:00", "einspeisung_w": 340 }
+    { "zeit": "00:00", "einspeisung_w": null, "erzeugung_gesamt_w": null },
+    { "zeit": "12:00", "einspeisung_w": 340, "erzeugung_gesamt_w": 480 }
   ] }
 ```
 `total_messung_kwh` ist die GESAMTE gemeinschaftliche Erzeugung der EEG an diesem Tag (nicht
 mitgliedsspezifisch -- nur als grober Kontext mitgeliefert, in der Regel nicht anzeigen).
-`total_gemeinschaft_kwh`/`einspeisung_w` sind dagegen die eigene, individuell zugerechnete
-Einspeisung (nach Teilnahmefaktor) -- das ist die für das Diagramm relevante Zahl. `intervals`
-hat wie bei `/consumption/interval` immer 96 Einträge, `einspeisung_w` ist `null` ohne Wert für
-diesen Zeitpunkt.
+`total_gemeinschaft_kwh`/`einspeisung_w` sind die eigene, individuell zugerechnete Einspeisung
+(nach Teilnahmefaktor) -- der energiegemeinschaftlich GENUTZTE Anteil der eigenen Erzeugung.
+Seit 07.09.2026 (`database/migrate_20260907.sql`, Patrick: "wie viel sie einspeisen und wie viel
+davon in der Energiegemeinschaft verwendet wurde") zusätzlich `total_erzeugung_gesamt_kwh`/
+`erzeugung_gesamt_w` -- die eigene GESAMTE Erzeugung des Zählpunkts (Grundlage für ein
+gestapeltes Diagramm analog zu `/consumption/interval`: Gesamterzeugung als Gesamtfläche,
+`einspeisung_w` als der darin enthaltene, gemeinschaftlich genutzte Teil). `has_erzeugung_gesamt`
+ist `false` für Tage, die vor dieser Migration importiert wurden (die Spalte wurde damals noch
+nicht gelesen) -- in diesem Fall ist `erzeugung_gesamt_w`/`total_erzeugung_gesamt_kwh` für den
+ganzen Tag `null`/`0`, die App sollte dann auf eine reine Einzel-Linien-Ansicht (nur
+`einspeisung_w`) zurückfallen statt ein optisch falsches gestapeltes Diagramm zu zeigen (die
+gemeinschaftlich genutzte Fläche würde sonst über eine Gesamtfläche von 0 W hinausragen).
+`intervals` hat wie bei `/consumption/interval` immer 96 Einträge, beide `_w`-Felder sind `null`
+ohne Wert für diesen Zeitpunkt.
 
 ### GET /api/v1/invoices
 

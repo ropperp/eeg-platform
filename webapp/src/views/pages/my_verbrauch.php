@@ -1,7 +1,5 @@
 <?php
 $pageTitle = 'Mein Verbrauch (Viertelstunden)';
-$prevDate = date('Y-m-d', strtotime($date . ' -1 day'));
-$nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
 
 // SVG-Flächendiagramm, gestapelt: unten (grün) = aus der EEG gedeckter Anteil, oben (grau) =
 // zusätzlich aus dem öffentlichen Netz bezogen -- Gesamthöhe der Fläche = Gesamtverbrauch.
@@ -36,16 +34,7 @@ ob_start();
 </div>
 
 <div class="card" style="margin-bottom:1.5rem">
-  <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
-    <a href="?date=<?= $prevDate ?>" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem">&larr; Vortag</a>
-    <form method="get" style="display:inline">
-      <input type="date" name="date" value="<?= htmlspecialchars($date) ?>" max="<?= date('Y-m-d') ?>"
-             onchange="this.form.submit()" style="padding:.4rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
-    </form>
-    <?php $nextDisabled = $nextDate > date('Y-m-d'); ?>
-    <a href="<?= $nextDisabled ? '#' : '?date=' . $nextDate ?>" class="btn"
-       style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem<?= $nextDisabled ? ';pointer-events:none;opacity:.4' : '' ?>">Folgetag &rarr;</a>
-  </div>
+  <?php $pickerColor = 'green'; $baseUrl = '/portal/my/verbrauch'; require __DIR__ . '/../partials/interval_day_picker.php'; ?>
 
   <?php if (!$data['has_data']): ?>
     <p style="color:var(--gray-600);font-size:.9rem">

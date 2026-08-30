@@ -2153,12 +2153,17 @@ $router->post('/portal/my/contract/:type/sign', function ($params) {
 function memberIntervalDayData(string $communityId, array $meteringPointIds, string $date, string $energyDirection = 'CONSUMPTION'): array
 {
     if (!$meteringPointIds) {
-        return ['intervals' => [], 'total_messung_kwh' => 0.0, 'total_gemeinschaft_kwh' => 0.0, 'has_data' => false];
+        return [
+            'intervals' => [], 'total_messung_kwh' => 0.0, 'total_gemeinschaft_kwh' => 0.0,
+            'total_erzeugung_gesamt_kwh' => 0.0, 'has_data' => false, 'has_erzeugung_gesamt' => false,
+        ];
     }
     DB::setCommunity($communityId);
     $placeholders = implode(',', array_fill(0, count($meteringPointIds), '?'));
     $rows = DB::fetchAll(
-        "SELECT time, SUM(kwh_messung) AS kwh_messung, SUM(kwh_gemeinschaft) AS kwh_gemeinschaft
+        "SELECT time, SUM(kwh_messung) AS kwh_messung, SUM(kwh_gemeinschaft) AS kwh_gemeinschaft,
+                SUM(kwh_erzeugung_gesamt) AS kwh_erzeugung_gesamt,
+                COUNT(kwh_erzeugung_gesamt) AS n_erzeugung_gesamt
          FROM eda_interval_data
          WHERE community_id = ? AND metering_point_id IN ($placeholders)
            AND energy_direction = ? AND time >= ?::date AND time < ?::date + INTERVAL '1 day'
@@ -2166,30 +2171,74 @@ function memberIntervalDayData(string $communityId, array $meteringPointIds, str
         array_merge([$communityId], $meteringPointIds, [$energyDirection, $date, $date])
     );
     $byTime = [];
+    $hasErzeugungGesamt = false;
     foreach ($rows as $r) {
+        if ((int)$r['n_erzeugung_gesamt'] > 0) { $hasErzeugungGesamt = true; }
         $byTime[date('H:i', strtotime($r['time']))] = [
-            'messung_w'     => round((float)$r['kwh_messung'] * 4000),
-            'gemeinschaft_w' => round((float)$r['kwh_gemeinschaft'] * 4000),
+            'messung_w'          => round((float)$r['kwh_messung'] * 4000),
+            'gemeinschaft_w'     => round((float)$r['kwh_gemeinschaft'] * 4000),
+            'erzeugung_gesamt_w' => (int)$r['n_erzeugung_gesamt'] > 0 ? round((float)$r['kwh_erzeugung_gesamt'] * 4000) : null,
         ];
     }
     $intervals = [];
     $totalMessung = 0.0;
     $totalGemeinschaft = 0.0;
+    $totalErzeugungGesamt = 0.0;
     for ($m = 0; $m < 24 * 60; $m += 15) {
         $label = sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
         $v = $byTime[$label] ?? null;
-        $intervals[] = ['zeit' => $label, 'verbrauch_w' => $v['messung_w'] ?? null, 'gemeinschaft_w' => $v['gemeinschaft_w'] ?? null];
+        $intervals[] = [
+            'zeit' => $label,
+            'verbrauch_w' => $v['messung_w'] ?? null,
+            'gemeinschaft_w' => $v['gemeinschaft_w'] ?? null,
+            'erzeugung_gesamt_w' => $v['erzeugung_gesamt_w'] ?? null,
+        ];
     }
     foreach ($rows as $r) {
         $totalMessung += (float)$r['kwh_messung'];
         $totalGemeinschaft += (float)$r['kwh_gemeinschaft'];
+        $totalErzeugungGesamt += (float)$r['kwh_erzeugung_gesamt'];
     }
     return [
         'intervals' => $intervals,
         'total_messung_kwh' => round($totalMessung, 3),
         'total_gemeinschaft_kwh' => round($totalGemeinschaft, 3),
+        'total_erzeugung_gesamt_kwh' => round($totalErzeugungGesamt, 3),
         'has_data' => count($rows) > 0,
+        // Eigene Gesamterzeugung erst seit migrate_20260907.sql importiert -- ältere, noch nicht
+        // erneut hochgeladene Tage haben nur kwh_gemeinschaft, kein kwh_erzeugung_gesamt. Eigenes
+        // Flag statt einfach "total_erzeugung_gesamt_kwh > 0", weil 0 kWh (z.B. nachts) ein
+        // gültiger Messwert ist, keine fehlende Spalte.
+        'has_erzeugung_gesamt' => $hasErzeugungGesamt,
     ];
+}
+
+/**
+ * Für welche Tage eines Monats liegen für ein Mitglied bereits Viertelstundenwerte vor --
+ * Grundlage für den Tages-Picker auf /portal/my/verbrauch und /portal/my/einspeisung (Patrick,
+ * 06.09.2026 [Folgetermin]: "wenn man sagt, man möchte zu einem gewissen Datum gehen [...] über
+ * eine Eingabe oder über Pfeiltasten zu den Monaten springen [...] mit Zahlen [...] wenn Daten
+ * vorhanden sind [...] grün/gelb, wenn noch keine Daten vorhanden sind [...] grau" -- statt sich
+ * Tag für Tag über "Vortag"/"Folgetag" vorzuarbeiten, zeigt der Picker auf einen Blick, welche
+ * Tage im gewählten Monat überhaupt Daten haben). Ein Tag zählt als "vorhanden", sobald
+ * IRGENDEIN Viertelstundenwert an diesem Tag existiert -- keine Row-Level-Vollständigkeitsprüfung
+ * (ein teilweise befüllter Tag ist immer noch nützlicher anzuzeigen als "grau/keine Daten").
+ */
+function memberIntervalMonthAvailability(string $communityId, array $meteringPointIds, string $yearMonth, string $energyDirection = 'CONSUMPTION'): array
+{
+    if (!$meteringPointIds) { return []; }
+    DB::setCommunity($communityId);
+    $placeholders = implode(',', array_fill(0, count($meteringPointIds), '?'));
+    $rows = DB::fetchAll(
+        "SELECT DISTINCT time::date AS tag
+         FROM eda_interval_data
+         WHERE community_id = ? AND metering_point_id IN ($placeholders)
+           AND energy_direction = ? AND time >= ?::date AND time < ?::date + INTERVAL '1 month'",
+        array_merge([$communityId], $meteringPointIds, [$energyDirection, $yearMonth . '-01', $yearMonth . '-01'])
+    );
+    $days = [];
+    foreach ($rows as $r) { $days[(int)date('j', strtotime($r['tag']))] = true; }
+    return $days;
 }
 
 $router->get('/portal/my/verbrauch', function () {
@@ -2214,8 +2263,12 @@ $router->get('/portal/my/verbrauch', function () {
         ) : null;
         $date = !empty($latest['letzter']) ? date('Y-m-d', strtotime($latest['letzter'])) : date('Y-m-d');
     }
+    // Angezeigter Monat im Tages-Picker: per ?month=YYYY-MM wählbar (Monats-Navigation), sonst
+    // der Monat des aktuell angezeigten Tages.
+    $month = (!empty($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])) ? $_GET['month'] : substr($date, 0, 7);
 
     $data = memberIntervalDayData($member['community_id'], $mpIds, $date);
+    $monthAvailability = memberIntervalMonthAvailability($member['community_id'], $mpIds, $month);
     require ROOT . '/src/views/pages/my_verbrauch.php';
 });
 
@@ -2245,8 +2298,10 @@ $router->get('/portal/my/einspeisung', function () {
         ) : null;
         $date = !empty($latest['letzter']) ? date('Y-m-d', strtotime($latest['letzter'])) : date('Y-m-d');
     }
+    $month = (!empty($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])) ? $_GET['month'] : substr($date, 0, 7);
 
     $data = memberIntervalDayData($member['community_id'], $mpIds, $date, 'GENERATION');
+    $monthAvailability = memberIntervalMonthAvailability($member['community_id'], $mpIds, $month, 'GENERATION');
     require ROOT . '/src/views/pages/my_einspeisung.php';
 });
 
@@ -3133,8 +3188,11 @@ $router->get('/api/v1/consumption/interval', function () {
  * Möglichkeit, ihre eingespeiste Leistung in einem Diagramm einzusehen?". 'total_messung_kwh'
  * ist bei GENERATION die gemeinschaftsweite Gesamterzeugung (NICHT mitgliedsspezifisch, siehe
  * memberIntervalDayData()) -- bewusst trotzdem mitgeliefert (falls die App sie mal als
- * Kontext-Info zeigen will), die für das eigene Diagramm relevante Zahl ist
- * 'total_gemeinschaft_kwh'/'gemeinschaft_w'.
+ * Kontext-Info zeigen will). Seit migrate_20260907.sql zusätzlich 'total_erzeugung_gesamt_kwh'/
+ * 'erzeugung_gesamt_w' (eigene GESAMTE Erzeugung des Zählpunkts, Patrick, 06.09.2026
+ * [Folgetermin]: "wie viel sie einspeisen und wie viel davon in der Energiegemeinschaft
+ * verwendet wurde") -- 'has_erzeugung_gesamt' zeigt an, ob dieser Wert für den Tag vorliegt
+ * (fehlt bei vor der Migration importierten Tagen, siehe memberIntervalDayData()).
  */
 $router->get('/api/v1/production/interval', function () {
     $ctx = AppApiAuth::requireAppAuth();
@@ -3155,13 +3213,16 @@ $router->get('/api/v1/production/interval', function () {
     $data = memberIntervalDayData($ctx['community_id'], $mpIds, $date, 'GENERATION');
 
     echo json_encode([
-        'date'                   => $date,
-        'has_data'               => $data['has_data'],
-        'total_messung_kwh'      => $data['total_messung_kwh'],
-        'total_gemeinschaft_kwh' => $data['total_gemeinschaft_kwh'],
-        'intervals'              => array_map(fn($iv) => [
-            'zeit'           => $iv['zeit'],
-            'einspeisung_w'  => $iv['gemeinschaft_w'],
+        'date'                       => $date,
+        'has_data'                   => $data['has_data'],
+        'has_erzeugung_gesamt'       => $data['has_erzeugung_gesamt'],
+        'total_messung_kwh'          => $data['total_messung_kwh'],
+        'total_gemeinschaft_kwh'     => $data['total_gemeinschaft_kwh'],
+        'total_erzeugung_gesamt_kwh' => $data['total_erzeugung_gesamt_kwh'],
+        'intervals'                  => array_map(fn($iv) => [
+            'zeit'               => $iv['zeit'],
+            'einspeisung_w'      => $iv['gemeinschaft_w'],
+            'erzeugung_gesamt_w' => $iv['erzeugung_gesamt_w'],
         ], $data['intervals']),
     ]);
 });

@@ -325,8 +325,9 @@ docker compose up -d --build
 > Nachname/E-Mail/Adresse/IBAN/Zählpunktnummer komplett unkenntlich, Telefon nur letzte 4
 > Stellen, Geburtsdatum maskiert, Profilbild → Default-Avatar) -- eingebaut in
 > Mitgliederliste/-detail (Obmann) sowie Nutzerliste/-detail/EEG-Mitgliederliste
-> (Platform-Admin). Noch nicht abgedeckt: Aktivitätslog, Anträge, Postfach, Support-Tickets,
-> Rechnungsliste, Bearbeiten-Formulare -- beim Vorführen vorerst meiden. Details: `CLAUDE.md`.
+> (Platform-Admin). Die damals noch offenen Lücken (Aktivitätslog, Anträge, Postfach,
+> Support-Tickets, Rechnungsliste, Bearbeiten-Formulare) wurden in späteren Updates alle
+> geschlossen. Details: `CLAUDE.md`.
 
 > **Stolperstein Pre-Launch-Popup Demo-Login:** ein Demo-Login saß beim allerersten Aufruf der
 > Mitglied-Ansicht hinter dem Pre-Launch-Hinweis-Popup fest -- der "Gelesen"-Button dahinter ist
@@ -452,6 +453,25 @@ docker compose up -d --build
 > Text steht weiterhin nur in `docker compose logs webapp` (siehe Bekannte Probleme oben).
 >
 > Details: `CLAUDE.md`.
+
+> **Einmalig nach dem Update vom 07.09.2026** (Einspeisung-Diagramm zeigt Gesamterzeugung vs.
+> gemeinschaftlich genutzten Anteil, neuer Monats-/Tages-Picker für beide
+> Viertelstunden-Diagramme -- Patrick: "wie viel sie einspeisen und wie viel davon in der
+> Energiegemeinschaft verwendet wurde" + "über eine Eingabe oder über Pfeiltasten zu den
+> Monaten springen"):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260907.sql
+> docker compose up -d --build
+> ```
+> Neue EDA-Spalte `kwh_erzeugung_gesamt` (eigene Gesamterzeugung, dritte Kennzahl im
+> "Energiedaten"-Sheet, bisher nicht gelesen) -- **noch nicht gegen eine echte Exportdatei
+> verifiziert**, der Parser warnt jetzt aber, falls die Spaltenbeschriftung nicht passt statt
+> still zu importieren. Bereits importierte Tage bleiben ohne Gesamtwert (Einzel-Linien-Fallback
+> mit Hinweis), bis sie erneut über `/portal/eda/upload` hochgeladen werden. Neuer
+> Monats-/Tages-Picker (grün/gelb = Daten vorhanden, grau = noch nicht) ersetzt das bisherige
+> Vortag/Folgetag-Klicken auf beiden Diagrammen. Details: `CLAUDE.md`.
 
 Bei neuen DB-Migrations:
 ```bash

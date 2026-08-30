@@ -57,9 +57,13 @@ DB_DSN = (
 
 SHEET_NAME = "Energiedaten"
 
-# Welche Kennzahl-Spalte (per Label, robust gegen Reihenfolge-Änderungen) für die beiden
-# gespeicherten Werte je Energierichtung herangezogen wird -- siehe kwh_messung/kwh_gemeinschaft
-# in database/migrate_20260904.sql.
+# Welche Kennzahl-Spalte (per Label, robust gegen Reihenfolge-Änderungen) für die
+# gespeicherten Werte je Energierichtung herangezogen wird -- siehe kwh_messung/kwh_gemeinschaft/
+# kwh_erzeugung_gesamt in database/migrate_20260904.sql bzw. migrate_20260907.sql.
+# "kwh_erzeugung_gesamt" nur bei GENERATION vorhanden (optional, siehe _find_target_col()-Aufruf
+# unten) -- die eigene GESAMTE Erzeugung des Zählpunkts, im Gegensatz zu kwh_messung (dort
+# gemeinschaftsweite Summe über alle Einspeiser) und kwh_gemeinschaft (nur der über den
+# Teilnahmefaktor zugeteilte Anteil), siehe Kommentar in migrate_20260907.sql.
 TARGET_LABELS = {
     "CONSUMPTION": {
         "kwh_messung": "gesamtverbrauch lt. messung",
@@ -68,6 +72,7 @@ TARGET_LABELS = {
     "GENERATION": {
         "kwh_messung": "gesamte gemeinschaftliche erzeugung",
         "kwh_gemeinschaft": "erzeugung lt. messung entsprechend dem teilnahmefaktor",
+        "kwh_erzeugung_gesamt": "gesamt-/überschusserzeugung",
     },
 }
 
@@ -79,6 +84,7 @@ class IntervalRow:
     time: datetime
     kwh_messung: float | None
     kwh_gemeinschaft: float | None
+    kwh_erzeugung_gesamt: float | None
     quality: str | None
 
 
@@ -210,6 +216,23 @@ class IntervalXlsxDataSource:
             targets = TARGET_LABELS[direction]
             col_messung = self._find_target_col(metric_cols, targets["kwh_messung"])
             col_gemeinschaft = self._find_target_col(metric_cols, targets["kwh_gemeinschaft"])
+            # Nur bei GENERATION vorhanden -- .get() statt [...], damit CONSUMPTION (kein
+            # solcher Eintrag in TARGET_LABELS) nicht mit einem KeyError abbricht.
+            col_erzeugung_gesamt = None
+            erzeugung_gesamt_target = targets.get("kwh_erzeugung_gesamt")
+            if erzeugung_gesamt_target:
+                col_erzeugung_gesamt = self._find_target_col(metric_cols, erzeugung_gesamt_target)
+                if col_erzeugung_gesamt is None:
+                    # Anders als bei kwh_messung kein harter Abbruch (die Spalte ist optional,
+                    # ältere Aufrufer/Zeilen kommen ohne sie aus) -- aber eine sichtbare Warnung,
+                    # falls die tatsächliche EDA-Spaltenbeschriftung von der hier angenommenen
+                    # ("gesamt-/überschusserzeugung", siehe TARGET_LABELS) abweicht, statt still
+                    # jede Zeile ohne Gesamterzeugung zu importieren.
+                    log.warning(
+                        "Zählpunkt %s (%s): Kennzahl-Spalte für kwh_erzeugung_gesamt nicht gefunden "
+                        "(gesucht: '%s') -- wird ohne eigene Gesamterzeugung importiert.",
+                        mpid, direction, erzeugung_gesamt_target,
+                    )
             if col_messung is None:
                 log.warning("Zählpunkt %s (%s): Kennzahl-Spalte für kwh_messung nicht gefunden, übersprungen.", mpid, direction)
                 continue
@@ -217,6 +240,7 @@ class IntervalXlsxDataSource:
             mp = MeteringPointInterval(zaehlpunkt_nr=mpid, energy_direction=direction)
             val_col, qual_col = col_messung
             gem_val_col = col_gemeinschaft[0] if col_gemeinschaft else None
+            erzeugung_gesamt_val_col = col_erzeugung_gesamt[0] if col_erzeugung_gesamt else None
 
             r = data_start_row
             while r <= max_row:
@@ -230,10 +254,12 @@ class IntervalXlsxDataSource:
                 if wert is not None:
                     qualitaet = ws.cell(row=r, column=qual_col).value
                     gemeinschaft = ws.cell(row=r, column=gem_val_col).value if gem_val_col else None
+                    erzeugung_gesamt = ws.cell(row=r, column=erzeugung_gesamt_val_col).value if erzeugung_gesamt_val_col else None
                     mp.rows.append(IntervalRow(
                         time=datetime.strptime(ts_str, "%d.%m.%Y %H:%M"),
                         kwh_messung=float(wert),
                         kwh_gemeinschaft=float(gemeinschaft) if gemeinschaft is not None else None,
+                        kwh_erzeugung_gesamt=float(erzeugung_gesamt) if erzeugung_gesamt is not None else None,
                         quality=str(qualitaet).strip() if qualitaet else None,
                     ))
                 r += 1
@@ -322,14 +348,16 @@ def import_to_db(
             )
 
             rows = [
-                (row.time, community_id, mp_id, mp.energy_direction, row.kwh_messung, row.kwh_gemeinschaft, row.quality)
+                (row.time, community_id, mp_id, mp.energy_direction, row.kwh_messung, row.kwh_gemeinschaft,
+                 row.kwh_erzeugung_gesamt, row.quality)
                 for row in mp.rows
             ]
             psycopg2.extras.execute_values(
                 cur,
                 """
                 INSERT INTO eda_interval_data
-                    (time, community_id, metering_point_id, energy_direction, kwh_messung, kwh_gemeinschaft, quality)
+                    (time, community_id, metering_point_id, energy_direction, kwh_messung, kwh_gemeinschaft,
+                     kwh_erzeugung_gesamt, quality)
                 VALUES %s
                 """,
                 rows,

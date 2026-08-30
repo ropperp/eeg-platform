@@ -1251,6 +1251,57 @@ docker compose up -d --build
 > Verwaltungs-Nachrichten (`author_label = Auth::userName()`, ebenfalls ein echter Name) --
 > eigene Nachrichten der beiden fiktiven Demo-Mitglieder bleiben unmaskiert.
 
+> **Einmalig nach dem Update vom 07.09.2026** (Einspeisung-Diagramm zeigt jetzt Gesamterzeugung
+> vs. gemeinschaftlich genutzten Anteil, neuer Monats-/Tages-Picker für beide
+> Viertelstunden-Diagramme -- Patrick, 06.09.2026 [Folgetermin]: "Gleich wie bei den Verbrauchern
+> zu den Einspeisern darstellen, wie viel sie einspeisen und wie viel davon in der
+> Energiegemeinschaft verwendet wurde [...] gesamte Einspeisung [...] in Grau [...] was
+> Energiegemeinschaftlich genutzt wurde bitte in Gelb" + "beim langsam hin- und herscrollen
+> gefällt mir das nicht [...] über eine Eingabe oder über Pfeiltasten zu den Monaten springen
+> [...] mit Zahlen [...] wenn Daten vorhanden sind [...] grün/gelb, wenn noch keine Daten
+> vorhanden sind [...] Grau"):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260907.sql
+> docker compose up -d --build
+> ```
+> **1. Neue EDA-Kennzahl-Spalte importiert:** `eda-parser/parser_interval.py` liest seither auch
+> die dritte GENERATION-Spalte im "Energiedaten"-Sheet ("Gesamt-/Überschusserzeugung", bisher nur
+> die ersten zwei Kennzahlen wurden gebraucht) als neue Spalte `kwh_erzeugung_gesamt` in
+> `eda_interval_data` -- die eigene GESAMTE Erzeugung des Zählpunkts, im Unterschied zu
+> `kwh_messung` (bei GENERATION gemeinschaftsweite Summe über ALLE Einspeiser, nicht
+> mitgliedsspezifisch) und `kwh_gemeinschaft` (nur der über den Teilnahmefaktor zugeteilte,
+> tatsächlich gemeinschaftlich genutzte Anteil). **Spaltenbeschriftung noch NICHT gegen eine
+> echte Exportdatei verifiziert** (anders als die beiden bereits länger genutzten Spalten) --
+> der Parser loggt jetzt aber eine Warnung ("Kennzahl-Spalte für kwh_erzeugung_gesamt nicht
+> gefunden"), falls die tatsächliche Beschriftung abweicht, statt still ohne den neuen Wert zu
+> importieren. Bei einer solchen Warnung: tatsächliche Spaltenbeschriftung in der XLSX-Datei
+> prüfen und `TARGET_LABELS["GENERATION"]["kwh_erzeugung_gesamt"]` entsprechend anpassen.
+>
+> **2. Bereits importierte Tage bleiben ohne Gesamterzeugung, bis sie erneut hochgeladen
+> werden** -- die neue Spalte wurde vorher nicht gelesen, ein rückwirkendes Befüllen passiert
+> nicht automatisch. `/portal/my/einspeisung` erkennt das je Tag (`has_erzeugung_gesamt`) und
+> zeigt für ältere Tage weiterhin die bisherige Einzel-Linien-Ansicht mit Hinweistext, für neu
+> importierte Tage das neue gestapelte Diagramm (grau = Gesamterzeugung, gelb = gemeinschaftlich
+> genutzter Anteil, gleiches Muster wie das bestehende Verbrauchs-Diagramm). Wer möchte, dass
+> auch bereits hochgeladene Tage die Gesamtfläche zeigen, muss die jeweilige EDA-Datei einfach
+> erneut über `/portal/eda/upload` hochladen (überlappende Zeiträume werden automatisch
+> überschrieben, siehe bestehende Import-Logik).
+>
+> **3. Neuer Monats-/Tages-Picker** (`webapp/src/views/partials/interval_day_picker.php`, von
+> `/portal/my/verbrauch` UND `/portal/my/einspeisung` gemeinsam genutzt) ersetzt das bisherige
+> reine "Vortag"/"Folgetag"/`<input type="date">` -- zeigt den gewählten Monat als Zahlen-Raster
+> (1 bis 28/29/30/31 je nach Monat), grün (Verbraucher) bzw. gelb (Einspeiser) hinterlegt für
+> Tage MIT Daten, grau für Tage ohne. Monats-Wechsel per Pfeil-Buttons, `<input type="month">`
+> ODER Pfeiltasten (nur wenn der Fokus nicht gerade in einem Eingabefeld liegt). Grundlage:
+> neue Funktion `memberIntervalMonthAvailability()` (ein einfaches `SELECT DISTINCT time::date`
+> je Monat, kein zusätzlicher Tabellen-Overhead). Kein Verhalten der App-API geändert -- die
+> App bekommt seit diesem Update zusätzlich `has_erzeugung_gesamt`/`erzeugung_gesamt_w` in
+> `/api/v1/production/interval` (siehe `docs/APP_API.md`), müsste aber selbst noch eine eigene
+> native Monats-/Tages-Navigation umsetzen, falls gewünscht -- das war hier nicht Teil des
+> Auftrags (Patricks Beschreibung "hin- und herscrollen" bezog sich auf das Web-Portal).
+
 > **Einmalig nach dem Update vom 24.08.2026** (Energiefluss-Grafik neu gezeichnet, geometrisch
 > statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):
 > `webapp/src/views/partials/energy_flow.php` (gemeinsam genutzt von `manager_dashboard.php` und
