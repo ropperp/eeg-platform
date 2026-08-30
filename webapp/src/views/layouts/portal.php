@@ -186,25 +186,12 @@
 
     <?php elseif ($isManager): ?>
       <p class="sidebar-label">Verwaltung</p>
-      <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
-        <span class="sidebar-icon"><?= icon('chart-bar') ?></span><span class="sidebar-text">Übersicht</span>
-      </a>
-      <a href="/portal/members" class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">
-        <span class="sidebar-icon"><?= icon('users-three') ?></span><span class="sidebar-text">Mitglieder</span>
-        <?php if ($membersWithEspError > 0): ?>
-          <span class="badge badge-red" style="margin-left:.4rem"><?= $membersWithEspError ?></span>
-        <?php endif; ?>
-      </a>
-      <a href="/portal/files" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/files') ? 'active' : '' ?>">
-        <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
-      </a>
-      <a href="/portal/billing" class="<?= $_SERVER['REQUEST_URI'] === '/portal/billing' || str_starts_with($_SERVER['REQUEST_URI'], '/portal/billing?') ? 'active' : '' ?>">
-        <span class="sidebar-icon"><?= icon('currency-eur') ?></span><span class="sidebar-text">Abrechnung</span>
-      </a>
-      <a href="/portal/billing/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/billing/invoices') ? 'active' : '' ?>">
-        <span class="sidebar-icon"><?= icon('receipt') ?></span><span class="sidebar-text">Rechnungen</span>
-      </a>
       <?php
+        // Zähler für die Badges unten -- MUSS vor allen Links stehen, die sie lesen (u.a.
+        // "Mitglieder" gleich als erstes): stand bis 08.09.2026 weiter unten, nach dem
+        // "Mitglieder"-Link, wodurch $membersWithEspError dort noch gar nicht existierte
+        // ("Undefined variable"-Warnung, Badge blieb dadurch praktisch immer unsichtbar, egal
+        // ob tatsächlich ein ESP-Fehler vorlag).
         $pendingApplications = 0;
         $offeneNotifications = 0;
         $unassignedMeteringPoints = 0;
@@ -256,6 +243,24 @@
           )['cnt'];
         }
       ?>
+      <a href="/portal/dashboard" class="<?= str_contains($_SERVER['REQUEST_URI'], 'dashboard') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('chart-bar') ?></span><span class="sidebar-text">Übersicht</span>
+      </a>
+      <a href="/portal/members" class="<?= str_contains($_SERVER['REQUEST_URI'], 'members') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('users-three') ?></span><span class="sidebar-text">Mitglieder</span>
+        <?php if ($membersWithEspError > 0): ?>
+          <span class="badge badge-red" style="margin-left:.4rem"><?= $membersWithEspError ?></span>
+        <?php endif; ?>
+      </a>
+      <a href="/portal/files" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/files') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
+      </a>
+      <a href="/portal/billing" class="<?= $_SERVER['REQUEST_URI'] === '/portal/billing' || str_starts_with($_SERVER['REQUEST_URI'], '/portal/billing?') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('currency-eur') ?></span><span class="sidebar-text">Abrechnung</span>
+      </a>
+      <a href="/portal/billing/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/billing/invoices') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('receipt') ?></span><span class="sidebar-text">Rechnungen</span>
+      </a>
       <a href="/portal/applications" class="<?= str_contains($_SERVER['REQUEST_URI'], 'applications') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('download-simple') ?></span><span class="sidebar-text">Neuanmeldungen</span>
         <?php if ($pendingApplications > 0): ?>
