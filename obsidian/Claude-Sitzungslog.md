@@ -8,6 +8,31 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-09 (93) — Claude Code — Claude Sonnet 5
+**Prompt:** Fortsetzung der offenen Daniel-Ropper-Frage aus Eintrag 92, per Live-Diagnose-Dialog
+(SQL-Abfragen, `docker compose logs`, `\d audit_log`) gemeinsam mit Patrick durchgeführt, dazwischen
+u.a.: "ich lade sie bei https://portal.stromfueralle.at/portal/eda/upload-interval auf, nicht auf
+/portal/eda/upload" und am Ende zwei hochgeladene echte EDA-Exportdateien
+(RC108175_20260701.../20260801...xlsx) mit dem Ergebnis der neuen Warnmeldung.
+**Auftrag:** Klären, warum bei Daniel Roppers Einspeisungs-Diagramm nur der gelbe (gemeinschaftlich
+genutzte), aber kein grauer (gesamter) Bereich erscheint -- ursprünglich aus Eintrag 92 offen
+geblieben.
+**Ergebnis:** Vierstufige Fehlerkette gefunden und behoben, alle per PR gemergt: (1)
+`migrate_20260909.sql` -- `audit_log` fehlten nach `migrate_20260908.sql` noch `entity_typ`/
+`beschreibung`/`ist_fehler` (Patricks Server hatte eine komplett andere Alt-Struktur); (2)
+`migrate_20260910.sql` -- zwei NOT-NULL-Alt-Spalten (`action`, `entity_type`) ohne Default
+blockierten jede Einfügung trotzdem weiter; (3) `eda-parser/parser_interval.py` +
+`EdaParserRunner.php` -- `log.warning()`-Meldungen des Parsers landeten bei einem ERFOLGREICHEN
+Import bisher nirgends sichtbar (stderr wurde verworfen), jetzt über `LoadResult.warnings` im
+JSON-Ergebnis und direkt auf der Upload-Seite sichtbar; (4) dadurch von Patricks eigenem Testupload
+sofort aufgedeckt und korrigiert: die Spaltenbezeichnung für `kwh_erzeugung_gesamt` war falsch
+geraten (`"Gesamt/Überschusserzeugung, Gemeinschaftsüberschuss [kWh]"`, ohne Bindestrich, statt der
+ursprünglichen Annahme). Fünf PRs (#142-#146) gemergt. Deploy-Doku in `CLAUDE.md`/
+`Infrastruktur.md` ergänzt. Patrick muss betroffene Zeiträume einmal erneut über
+`/portal/eda/upload-interval` hochladen, damit `kwh_erzeugung_gesamt` nachträglich befüllt wird.
+
+---
+
 ## 2026-09-08 (92) — Claude Code — Claude Sonnet 5
 **Prompt:** "Jetzt funktioniert so, halbert. Nur was da nicht so ganz passt: Bei den
 Gitterstreifen habe ich gesagt: Bitte mach das. Schreib auch bei jedem Gitterstreifen die

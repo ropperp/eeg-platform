@@ -1352,6 +1352,65 @@ docker compose up -d --build
 > des Verwaltungs-Menüs verschoben (vor den ersten Link, der eine der Variablen liest). Reine
 > Code-Änderung, kein Migrations-/Setup-Skript nötig.
 
+> **Einmalig nach dem Update vom 09.09.2026** (audit_log auf Patricks Server hatte noch ZWEI
+> weitere, tiefer liegende Schema-Probleme über migrate_20260908.sql hinaus, außerdem: EDA-
+> Intervallparser-Warnungen waren bei einem erfolgreichen Import bisher komplett unsichtbar --
+> dadurch blieb "warum hat Daniel Roppers Einspeisung keine graue Gesamtfläche" lange ungeklärt):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260909.sql
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260910.sql
+> docker compose up -d --build
+> ```
+> **1. `audit_log` fehlten NACH migrate_20260908.sql immer noch `entity_typ`, `beschreibung`,
+> `ist_fehler`.** `\d audit_log` auf Patricks Server zeigte eine komplett andere, ältere
+> Tabellenstruktur (`action`/`entity_type`/`details`/`actor_label`/`ip`/`aenderungen` statt
+> `aktion`/`entity_typ`/`beschreibung`/`ist_fehler`) -- vermutlich Rest eines früh verworfenen
+> Schema-Entwurfs. `migrate_20260908.sql` hatte nur `aktion` ergänzt, weil PostgreSQL die
+> INSERT-Zielspaltenliste von links nach rechts prüft und beim ERSTEN unbekannten Namen abbricht
+> (`aktion` steht als drittes in der Liste `community_id, user_id, aktion, entity_typ, ...` --
+> die dahinterliegenden fehlenden Spalten kamen dadurch nie zum Vorschein). `migrate_20260909.sql`
+> ergänzt die restlichen drei.
+>
+> **2. Selbst danach scheiterte jede Einfügung weiterhin** mit `null value in column "action" [...]
+> violates not-null constraint` -- zwei Alt-Spalten aus demselben verworfenen Entwurf (`action`,
+> `entity_type`) waren `NOT NULL` OHNE Default, der aktuelle Code befüllt sie aber nie (nur
+> `aktion`/`entity_typ`). `migrate_20260910.sql` entfernt den `NOT NULL`-Zwang auf beiden
+> (Spalten/eventuell vorhandene historische Werte bleiben unangetastet). Erst danach lief
+> `logAudit()` auf diesem Server tatsächlich fehlerfrei durch -- zu erkennen u.a. daran, dass der
+> zuvor NEUESTE Audit-Log-Eintrag überhaupt vom 21.06.2026 stammte (jede Protokollierung seither
+> war lautlos gescheitert, ohne dass irgendeine echte Funktion davon betroffen war).
+>
+> **3. EDA-Intervallparser: `log.warning()` landete bei einem ERFOLGREICHEN Import nirgends.**
+> `EdaParserRunner::runInterval()` (`webapp/src/EdaParserRunner.php`) verwirft `stderr` bei
+> Erfolg komplett -- nur bei einem fehlgeschlagenen Lauf fließt es in die Fehlerdiagnose ein.
+> Warnungen aus `IntervalXlsxDataSource.load()` (u.a. genau die "Kennzahl-Spalte für
+> kwh_erzeugung_gesamt nicht gefunden"-Warnung aus dem 07.09.2026-Update) waren dadurch bei
+> jedem erfolgreichen Import unsichtbar -- weder im Audit-Log noch auf der Upload-Ergebnisseite
+> noch in `docker compose logs`, obwohl genau diese Seite (`eda_upload.php`) `warnings` pro
+> Zeile längst anzeigt. Fix: `LoadResult` trägt jetzt eine eigene `warnings`-Liste,
+> `import_to_db()` übernimmt sie in ihre bestehende `warnings`-Liste (landet dadurch in
+> `eda_interval_imports`, im Audit-Log UND direkt auf der Upload-Ergebnisseite). Die Warnung
+> nennt jetzt zusätzlich die tatsächlich in der Datei gefundenen Spaltenbezeichnungen.
+>
+> **4. Dadurch sofort gefunden: `kwh_erzeugung_gesamt`-Spaltenname war falsch geraten.** Die im
+> 07.09.2026-Update eingetragene Annahme `"gesamt-/überschusserzeugung"` (MIT Bindestrich vor dem
+> Schrägstrich) war nie gegen eine echte Exportdatei verifiziert worden. Patricks erster echter
+> Test (09.09.2026, Datei für Daniel Roppers Zählpunkt) zeigte über die neue Warnung sofort die
+> tatsächliche Bezeichnung: `"Gesamt/Überschusserzeugung, Gemeinschaftsüberschuss [kWh]"` -- OHNE
+> Bindestrich. `TARGET_LABELS["GENERATION"]["kwh_erzeugung_gesamt"]` korrigiert auf
+> `"gesamt/überschusserzeugung"` (Substring-Match, kollisionsfrei gegen die drei übrigen
+> GENERATION-Spalten verifiziert). **Wer die Gesamterzeugung schon vor diesem Fix importiert
+> hat, muss die jeweilige Datei einmal erneut über `/portal/eda/upload-interval` hochladen** --
+> überlappende Zeiträume werden automatisch überschrieben.
+>
+> **Merksatz für ähnliche Fälle:** bei "Parser/Import lief angeblich erfolgreich durch, aber ein
+> erwarteter Wert fehlt trotzdem" IMMER zuerst prüfen, ob eine `log.warning()`-Meldung im
+> Erfolgsfall überhaupt irgendwo sichtbar gemacht wird (stdout/JSON-Ergebnis, nicht nur stderr) --
+> sonst bleibt die eigentliche Ursache (hier: falsch geratener Spaltenname) unsichtbar, obwohl der
+> Code sie technisch längst "wusste".
+
 > **Einmalig nach dem Update vom 24.08.2026** (Energiefluss-Grafik neu gezeichnet, geometrisch
 > statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):
 > `webapp/src/views/partials/energy_flow.php` (gemeinsam genutzt von `manager_dashboard.php` und

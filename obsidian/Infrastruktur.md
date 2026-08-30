@@ -490,6 +490,31 @@ docker compose up -d --build
 > gebraucht wird) -- Berechnungs-Block in `portal.php` an den Anfang verschoben. Details:
 > `CLAUDE.md`.
 
+> **Einmalig nach dem Update vom 09.09.2026** (audit_log auf Patricks Server brauchte NACH
+> migrate_20260908.sql noch zwei weitere Migrationen; EDA-Intervallparser-Warnungen waren bei
+> Erfolg bisher komplett unsichtbar; dadurch gefunden: `kwh_erzeugung_gesamt`-Spaltenname war
+> falsch geraten):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260909.sql
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260910.sql
+> docker compose up -d --build
+> ```
+> `audit_log` auf diesem Server hatte eine komplett andere Alt-Struktur (`action`/`entity_type`/
+> `details`/... statt `aktion`/`entity_typ`/`beschreibung`/`ist_fehler`) -- migrate_20260909.sql
+> ergänzt die restlichen fehlenden Spalten, migrate_20260910.sql entfernt einen NOT-NULL-Zwang
+> auf zwei nicht mehr genutzten Alt-Spalten (`action`, `entity_type`), der jede Einfügung trotz
+> vollständiger neuer Spalten weiterhin blockierte. Zusätzlich: `EdaParserRunner::runInterval()`
+> verwarf `stderr` (und damit jede `log.warning()`-Meldung des Parsers) bei einem erfolgreichen
+> Import bisher komplett -- Warnungen fließen jetzt über `LoadResult.warnings` ins JSON-Ergebnis
+> und erscheinen direkt auf der Upload-Ergebnisseite. Dadurch sofort sichtbar geworden: die
+> Spaltenbezeichnung für `kwh_erzeugung_gesamt` war falsch geraten (`"Gesamt/Überschusserzeugung,
+> Gemeinschaftsüberschuss [kWh]"`, OHNE Bindestrich, statt der ursprünglichen Annahme
+> `"Gesamt-/Überschusserzeugung"`) -- korrigiert. Wer die Gesamterzeugung schon vorher importiert
+> hat, muss die Datei einmal erneut über `/portal/eda/upload-interval` hochladen. Details:
+> `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
