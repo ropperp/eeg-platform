@@ -61,6 +61,7 @@ ob_start();
     </div>
 
     <svg viewBox="0 0 <?= $W ?> <?= $H ?>" style="width:100%;height:auto" role="img" aria-label="Viertelstündlicher Verbrauch und Eigendeckung">
+      <?php require __DIR__ . '/../partials/interval_chart_grid.php'; ?>
       <polygon points="<?= $totalArea ?>" fill="#cbd5e1" />
       <polygon points="<?= $gemArea ?>" fill="#86efac" />
       <polyline points="<?= implode(' ', $totalPoints) ?>" fill="none" stroke="#475569" stroke-width="1.5" />

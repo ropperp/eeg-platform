@@ -1301,6 +1301,20 @@ docker compose up -d --build
 > `/api/v1/production/interval` (siehe `docs/APP_API.md`), müsste aber selbst noch eine eigene
 > native Monats-/Tages-Navigation umsetzen, falls gewünscht -- das war hier nicht Teil des
 > Auftrags (Patricks Beschreibung "hin- und herscrollen" bezog sich auf das Web-Portal).
+>
+> **4. Nachbesserung (07.09.2026): dezentes Hintergrund-Gitter in beiden Diagrammen** (Patrick:
+> "wäre beim Diagramm bei den Einspeisern und Beziehern noch interessant, wenn man im
+> Hintergrund so ein graues Gitter einzeichnen würde, mit ein bisschen genauerer
+> Zeitunterteilung, vielleicht im Stunden- oder im 2-Stunden-Takt. Das Gleiche auf der
+> Leistungshöhe [...] in 10 Teilungen"): neuer gemeinsamer Partial
+> `webapp/src/views/partials/interval_chart_grid.php` zeichnet senkrechte Linien alle 2 Stunden
+> (12 Linien) und waagrechte Linien in 10 gleich große Abschnitte der Leistungsachse (9
+> Trennlinien) -- `var(--gray-200)`, hinter den eigentlichen Flächen (verschwindet dadurch dort,
+> wo die Fläche opak ist, genau wie bei den meisten Chart-Bibliotheken üblich). Muss direkt nach
+> dem öffnenden `<svg>`-Tag eingebunden werden (vor den Flächen/Linien), erwartet die im Scope
+> bereits berechneten `$x`/`$yFromW`/`$n`/`$maxW`/`$H`/`$padL` aus der jeweiligen Seite. Reine
+> Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten `git pull && docker
+> compose up -d --build` aktiv.
 
 > **Einmalig nach dem Update vom 24.08.2026** (Energiefluss-Grafik neu gezeichnet, geometrisch
 > statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):

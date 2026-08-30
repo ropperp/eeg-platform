@@ -85,6 +85,7 @@ ob_start();
     </div>
 
     <svg viewBox="0 0 <?= $W ?> <?= $H ?>" style="width:100%;height:auto" role="img" aria-label="Viertelstündliche Einspeisung<?= $hasGesamt ? ' und gemeinschaftliche Nutzung' : '' ?>">
+      <?php require __DIR__ . '/../partials/interval_chart_grid.php'; ?>
       <?php if ($hasGesamt): ?>
         <polygon points="<?= $gesamtArea ?>" fill="#cbd5e1" />
       <?php endif; ?>

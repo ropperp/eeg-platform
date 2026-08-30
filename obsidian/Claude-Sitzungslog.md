@@ -8,6 +8,45 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-07 (91) — Claude Code — Claude Sonnet 5
+**Prompt:** "Was jetzt noch ist, ist, dass ich in der App sage, dass für diesen Tag noch keine
+Gesamtespeisung bei den Einspeisern vorhanden ist, obwohl ich alle EDA-Dateien für die
+Viertelstundenwerte für die Anzeige gelöscht habe. Trotzdem werden diese angezeigt. [...] Wie
+kann ich die Datenbank für diese noch mal löschen, damit ich sie neu hochladen kann und diese
+dann übernommen werden? Denn nur ein Hochladen der gleichen Monate, aber mit den neuen Daten,
+funktioniert nämlich nicht. Außerdem wäre beim Diagramm bei den Einspeisern und Beziehern noch
+interessant, wenn man im Hintergrund so ein graues Gitter einzeichnen würde, mit ein bisschen
+genauerer Zeitunterteilung, vielleicht im Stunden- oder im 2-Stunden-Takt. Das Gleiche auf der
+Leistungshöhe [...] in 10 Teilungen."
+**Auftrag:** Zwei Anliegen: (1) Diagnose, warum ein erneuter EDA-Upload die neue
+Gesamteinspeisung-Spalte nicht übernimmt, obwohl vermeintlich alle Dateien gelöscht wurden, plus
+ein Weg, die zugrundeliegenden Datenbank-Werte gezielt zu löschen; (2) ein dezentes
+Hintergrund-Gitter für beide Viertelstunden-Diagramme (Zeitachse alle 1-2h, Leistungsachse in
+10 Teilen).
+**Ergebnis:** (2) sofort umgesetzt -- neuer gemeinsamer Partial
+`webapp/src/views/partials/interval_chart_grid.php` zeichnet senkrechte Linien alle 2 Stunden
+und waagrechte Linien in 10 Abschnitten der Leistungsachse, dezent grau, hinter den Flächen
+(daher innerhalb der gefüllten Bereiche nicht sichtbar, wie bei den meisten Charts üblich) --
+in beide Diagramme eingebunden, mit Playwright verifiziert (Raster sichtbar in den nicht von
+den Flächen bedeckten Bereichen, keine JS-Fehler). (1) Codeanalyse ergab: der
+Papierkorb-Button in der Import-Historie unter `/portal/eda/upload` löscht laut eigenem
+Bestätigungsdialog ausdrücklich NUR den Protokolleintrag, NICHT die Messwerte selbst ("Nur
+Protokolleintrag löschen" bzw. "Messwerte bleiben erhalten") -- das erklärt vermutlich, warum
+die alten Werte trotz vermeintlichem Löschen weiter angezeigt wurden. Zusätzlich: die
+Import-Logik selbst (`import_to_db()` in `parser_interval.py`) löscht beim erneuten Hochladen
+bereits automatisch alle vorhandenen Werte im exakten Zeitraum der neuen Datei, bevor die neuen
+Zeilen eingefügt werden -- ein normaler erneuter Upload sollte alte Werte also eigentlich schon
+ersetzen, ohne dass manuell in der Datenbank aufgeräumt werden muss. Wahrscheinlichste Erklärung
+für "funktioniert nicht": entweder lief beim Test noch der alte Server-Stand (PR #140 von diesem
+Tag noch nicht deployt) oder die tatsächliche Spaltenbeschriftung im echten EDA-Export weicht
+von der angenommenen ab (siehe Warnung im Parser-Log). Patrick wurden beide Diagnoseschritte
+sowie ein manueller SQL-Befehl zum gezielten Löschen der `eda_interval_data`-Zeilen für einen
+bestimmten Zeitraum als Absicherung mitgegeben. Alle 134 Tests weiterhin grün, `php -l` sauber.
+Commit/Push/PR/Merge nach dem üblichen Workflow (nur für Punkt 2 -- Punkt 1 war reine Diagnose/
+Beratung ohne Code-Änderung).
+
+---
+
 ## 2026-09-07 (90) — Claude Code — Claude Sonnet 5
 **Prompt:** "Hey du, ich habe eine weitere Idee, die du bitte umsetzen solltest: [...] Bei den
 Einspeisern gefällt mir das so nicht ganz. Bei den Einspeisern haben wir jetzt ja nur, wie viel
