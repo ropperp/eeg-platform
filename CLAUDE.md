@@ -1315,6 +1315,42 @@ docker compose up -d --build
 > bereits berechneten `$x`/`$yFromW`/`$n`/`$maxW`/`$H`/`$padL` aus der jeweiligen Seite. Reine
 > Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten `git pull && docker
 > compose up -d --build` aktiv.
+>
+> **5. Nachbesserung (08.09.2026): jede Gitterlinie beschriftet** (Patrick: "Schreib auch bei
+> jedem Gitterstreifen die Uhrzeit unten der x-Achse und bei der y-Achse auch bei jedem Streifen
+> die Leistung in Watt, damit man das besser ablesen kann und nicht ausrechnen müsste"). Der
+> Partial zeichnet jetzt zu jeder der 12 Zeitlinien (00:00, 02:00, ..., 22:00) und jeder der 11
+> Leistungslinien (0 bis Maximum in 10 gleich großen Schritten) eine passende Beschriftung --
+> ersetzt die bisherige, viel gröbere Beschriftung (nur 5 feste Uhrzeiten bzw. nur 0/Maximum),
+> die vorher direkt in `my_verbrauch.php`/`my_einspeisung.php` gezeichnet wurde (jetzt entfernt,
+> einzige Beschriftungsquelle ist der Partial, damit Linie und Zahl garantiert zusammenpassen).
+
+> **Einmalig nach dem Update vom 08.09.2026** (zwei unabhängige Bugs behoben, beim Sichten der
+> Server-Logs zu einer anderen Anfrage entdeckt -- reine Wartung, kein neues Feature):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260908.sql
+> docker compose up -d --build
+> ```
+> **1. `audit_log` fehlte die Spalte `aktion`** -- JEDER `logAudit()`-Aufruf (Datei-Uploads,
+> Mitglieder-Änderungen, Abrechnung, ...) schlug seit jeher mit
+> `SQLSTATE[42703]: column "aktion" of relation "audit_log" does not exist` fehl. Kein Datenverlust
+> und keine kaputte Funktionalität -- `logAudit()` ist bewusst fehlertolerant (try/catch, siehe
+> Kommentar dort), die eigentliche Aktion lief immer normal durch, nur der Aktivitätslog-Eintrag
+> ging verloren. Vermutliche Ursache: die Tabelle wurde auf diesem Server schon VOR
+> `migrate_20260716.sql` (das sie per `CREATE TABLE IF NOT EXISTS` inkl. `aktion`-Spalte anlegt)
+> in einer älteren Form angelegt, wodurch das `IF NOT EXISTS` seither nie griff. Migration fügt
+> die fehlende Spalte nachträglich hinzu (idempotent -- auf Servern, wo sie schon existiert, ein
+> reines No-Op).
+>
+> **2. Sidebar-Badge "Mitglieder" (ESP-Fehler-Anzahl) funktionierte nie** -- `PHP Warning:
+> Undefined variable $membersWithEspError in portal.php`. Der Berechnungs-Block für alle
+> Sidebar-Zähler (Neuanmeldungen, Postfach, Support, ESP-Fehler, ...) stand bisher NACH dem
+> "Mitglieder"-Link, der `$membersWithEspError` aber schon vorher braucht -- die Variable
+> existierte an der Stelle schlicht noch nicht. Fix: kompletten Berechnungs-Block an den Anfang
+> des Verwaltungs-Menüs verschoben (vor den ersten Link, der eine der Variablen liest). Reine
+> Code-Änderung, kein Migrations-/Setup-Skript nötig.
 
 > **Einmalig nach dem Update vom 24.08.2026** (Energiefluss-Grafik neu gezeichnet, geometrisch
 > statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):

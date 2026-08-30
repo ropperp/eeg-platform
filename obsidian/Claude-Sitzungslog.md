@@ -8,6 +8,40 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-08 (92) — Claude Code — Claude Sonnet 5
+**Prompt:** "Jetzt funktioniert so, halbert. Nur was da nicht so ganz passt: Bei den
+Gitterstreifen habe ich gesagt: Bitte mach das. Schreib auch bei jedem Gitterstreifen die
+Uhrzeit unten der x-Achse und bei der y-Achse auch bei jedem Streifen die Leistung in Watt,
+damit man das besser ablesen kann und nicht ausrechnen müsste, welche Linie jetzt welche
+Leistung ist. Was auch noch fehlt, ist bei der Erzeugung die gesamte Einspeisung von dieser
+Person, weil zum Beispiel bei meinem Vater Daniel Ropper nur der gelbe Bereich angezeigt wird
+und kein größerer grauer Bereich, der zum Beispiel eingespeist wird, aber nicht gemeinschaftlich
+genutzt wird." -- dazu ein `docker compose logs webapp`-Auszug (ohne dass ich danach gefragt
+hatte -- ich hatte um `git log -1 --oneline` gebeten).
+**Auftrag:** Gitter-Beschriftung nachschärfen (jede Linie statt nur weniger fester Marken) sowie
+klären, warum bei einem konkreten Einspeiser (Daniel Ropper) weiterhin nur der gemeinschaftlich
+genutzte Anteil, keine Gesamtfläche erscheint.
+**Ergebnis:** Gitter-Beschriftung sofort umgesetzt -- `interval_chart_grid.php` zeichnet jetzt zu
+jeder der 12 Zeit- und 11 Leistungslinien eine passende Zahl, die alte gröbere Beschriftung
+direkt in `my_verbrauch.php`/`my_einspeisung.php` wurde entfernt (einzige Quelle jetzt der
+gemeinsame Partial). Mit Playwright verifiziert. Der gepostete Log-Auszug beantwortete die
+eigentliche Frage (Daniel Ropper) nicht direkt, enthielt aber zwei unabhängige, echte Bugs:
+(1) `column "aktion" of relation "audit_log" does not exist` -- JEDER `logAudit()`-Aufruf
+schlägt auf diesem Server seit jeher fehl (fehlertolerant, kein Funktionsausfall, aber der
+komplette Aktivitätslog fehlt); vermutlich wurde die Tabelle vor der committeten
+`migrate_20260716.sql` schon einmal anders angelegt, wodurch deren `CREATE TABLE IF NOT EXISTS`
+nie griff. Neue `migrate_20260908.sql` ergänzt die fehlende Spalte nachträglich (idempotent).
+(2) `PHP Warning: Undefined variable $membersWithEspError in portal.php` -- der
+Zähler-Berechnungsblock für die Sidebar-Badges stand nach dem "Mitglieder"-Link, der genau diese
+Variable schon vorher braucht; das ESP-Fehler-Badge zeigte dadurch seit jeher nie etwas an,
+unabhängig vom tatsächlichen Zustand. Block an den Anfang des Verwaltungs-Menüs verschoben. Die
+eigentliche Daniel-Ropper-Frage bleibt offen -- keine Warnung zu `kwh_erzeugung_gesamt` im
+geposteten Log-Ausschnitt sichtbar, aber der Ausschnitt zeigt auch keinen erkennbaren
+Upload-Vorgang; Patrick um einen gezielten Test (Upload + sofortiger Log-Check) gebeten. Alle
+134 Tests weiterhin grün, `php -l` sauber. Commit/Push/PR/Merge nach dem üblichen Workflow.
+
+---
+
 ## 2026-09-07 (91) — Claude Code — Claude Sonnet 5
 **Prompt:** "Was jetzt noch ist, ist, dass ich in der App sage, dass für diesen Tag noch keine
 Gesamtespeisung bei den Einspeisern vorhanden ist, obwohl ich alle EDA-Dateien für die

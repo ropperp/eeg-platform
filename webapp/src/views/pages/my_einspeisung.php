@@ -94,11 +94,6 @@ ob_start();
         <polyline points="<?= implode(' ', $gesamtPoints) ?>" fill="none" stroke="#475569" stroke-width="1.5" />
       <?php endif; ?>
       <polyline points="<?= implode(' ', $gemPoints) ?>" fill="none" stroke="#b45309" stroke-width="1.5" />
-      <?php foreach ([0, 6, 12, 18, 23.75] as $h): $i = (int)round($h * 4); $i = min($i, $n - 1); ?>
-        <text x="<?= $x($i) ?>" y="<?= $H - 6 ?>" font-size="11" fill="var(--gray-600)" text-anchor="middle"><?= sprintf('%02d:00', (int)$h) ?></text>
-      <?php endforeach; ?>
-      <text x="4" y="<?= $yFromW($maxW) + 4 ?>" font-size="11" fill="var(--gray-600)"><?= number_format($maxW, 0, ',', '.') ?> W</text>
-      <text x="4" y="<?= $yFromW(0) ?>" font-size="11" fill="var(--gray-600)">0 W</text>
     </svg>
     <div style="display:flex;gap:1.5rem;margin-top:.75rem;font-size:.8rem;color:var(--gray-600)">
       <span><span style="display:inline-block;width:.8rem;height:.8rem;background:#fde68a;border:1px solid #b45309;margin-right:.35rem;vertical-align:middle"></span>energiegemeinschaftlich genutzt</span>

@@ -66,11 +66,6 @@ ob_start();
       <polygon points="<?= $gemArea ?>" fill="#86efac" />
       <polyline points="<?= implode(' ', $totalPoints) ?>" fill="none" stroke="#475569" stroke-width="1.5" />
       <polyline points="<?= implode(' ', $gemPoints) ?>" fill="none" stroke="#16a34a" stroke-width="1.5" />
-      <?php foreach ([0, 6, 12, 18, 23.75] as $h): $i = (int)round($h * 4); $i = min($i, $n - 1); ?>
-        <text x="<?= $x($i) ?>" y="<?= $H - 6 ?>" font-size="11" fill="var(--gray-600)" text-anchor="middle"><?= sprintf('%02d:00', (int)$h) ?></text>
-      <?php endforeach; ?>
-      <text x="4" y="<?= $yFromW($maxW) + 4 ?>" font-size="11" fill="var(--gray-600)"><?= number_format($maxW, 0, ',', '.') ?> W</text>
-      <text x="4" y="<?= $yFromW(0) ?>" font-size="11" fill="var(--gray-600)">0 W</text>
     </svg>
     <div style="display:flex;gap:1.5rem;margin-top:.75rem;font-size:.8rem;color:var(--gray-600)">
       <span><span style="display:inline-block;width:.8rem;height:.8rem;background:#86efac;border:1px solid #16a34a;margin-right:.35rem;vertical-align:middle"></span>aus der EEG gedeckt</span>

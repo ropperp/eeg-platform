@@ -473,7 +473,22 @@ docker compose up -d --build
 > Monats-/Tages-Picker (grün/gelb = Daten vorhanden, grau = noch nicht) ersetzt das bisherige
 > Vortag/Folgetag-Klicken auf beiden Diagrammen. Nachbesserung (selbes Datum): dezentes
 > graues Hintergrund-Gitter in beiden Diagrammen (senkrecht alle 2h, waagrecht in 10 Abschnitte
-> der Leistungsachse) -- neuer Partial `interval_chart_grid.php`. Details: `CLAUDE.md`.
+> der Leistungsachse) -- neuer Partial `interval_chart_grid.php`, seit 08.09.2026 mit Beschriftung
+> an JEDER Linie (Uhrzeit unten, Watt links). Details: `CLAUDE.md`.
+
+> **Einmalig nach dem Update vom 08.09.2026** (zwei Bugs behoben, beim Log-Sichten entdeckt):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260908.sql
+> docker compose up -d --build
+> ```
+> `audit_log` fehlte auf diesem Server die Spalte `aktion` (jeder `logAudit()`-Aufruf schlug seit
+> jeher fehl, aber fehlertolerant -- kein Datenverlust, nur der Log-Eintrag ging verloren) --
+> Migration ergänzt die Spalte nachträglich. Zusätzlich: Sidebar-Badge "Mitglieder" (ESP-Fehler)
+> zeigte nie etwas an (`$membersWithEspError` wurde erst NACH dem Link berechnet, an dem sie
+> gebraucht wird) -- Berechnungs-Block in `portal.php` an den Anfang verschoben. Details:
+> `CLAUDE.md`.
 
 Bei neuen DB-Migrations:
 ```bash
