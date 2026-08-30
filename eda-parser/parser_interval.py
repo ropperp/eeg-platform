@@ -14,8 +14,12 @@ RC108175_20260701T00_0020260731T23_45.xlsx):
   "MM"-Qualitätsspalte), je nach Energierichtung:
     CONSUMPTION: Gesamtverbrauch, Verbrauch (Teilnahmefaktor), Anteil gem. Erzeugung,
                  Eigendeckung gem. Erzeugung, Eigendeckung aus erneuerbarer Energie
-    GENERATION:  Gesamte gem. Erzeugung, Erzeugung (Teilnahmefaktor),
-                 Gesamt-/Überschusserzeugung, Restüberschuss
+    GENERATION:  Gesamte gemeinschaftliche Erzeugung [kWh],
+                 Erzeugung lt. Messung entsprechend dem Teilnahmefaktor und EC-ID [kWh],
+                 Gesamt/Überschusserzeugung, Gemeinschaftsüberschuss [kWh] (Label KEIN Bindestrich
+                 vor dem Schrägstrich -- anders als ursprünglich angenommen, siehe Fund 09.09.2026
+                 anhand einer echten Exportdatei RC108175_20260801T00_0020260830T23_45.xlsx),
+                 Restüberschuss bei EG und je ZP [kWh]
   Für die Mitglieder-Diagramme werden nur die jeweils ersten zwei Kennzahlen gebraucht (siehe
   TARGET_LABELS unten) -- die übrigen sind in der Datei vorhanden, aber (noch) nicht relevant.
 - Am Ende der Zählpunkt-Spalten folgen "TOTAL"-Spalten (Community-Summe) -- werden übersprungen,
@@ -72,7 +76,7 @@ TARGET_LABELS = {
     "GENERATION": {
         "kwh_messung": "gesamte gemeinschaftliche erzeugung",
         "kwh_gemeinschaft": "erzeugung lt. messung entsprechend dem teilnahmefaktor",
-        "kwh_erzeugung_gesamt": "gesamt-/überschusserzeugung",
+        "kwh_erzeugung_gesamt": "gesamt/überschusserzeugung",
     },
 }
 
