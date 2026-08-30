@@ -8,6 +8,47 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-07 (90) — Claude Code — Claude Sonnet 5
+**Prompt:** "Hey du, ich habe eine weitere Idee, die du bitte umsetzen solltest: [...] Bei den
+Einspeisern gefällt mir das so nicht ganz. Bei den Einspeisern haben wir jetzt ja nur, wie viel
+sie wirklich in die Energiegemeinschaft einspeisen. Was aber noch interessant ist: Gleich wie
+bei den Verbrauchern zu den Einspeisern darstellen, wie viel sie einspeisen und wie viel davon
+in der Energiegemeinschaft verwendet wurde. [...] Von mir ist auch in Grau. Soll der gesamte
+Einspeisung und was Energiegemeinschaftlich genutzt wurde bitte in Gelb markieren. Bei den
+Daten oder beim langsam hin- und herscrollen gefällt mir das nicht so ganz. [...] Interessant
+wäre, wenn man so über eine Eingabe oder über Pfeiltasten zu den Monaten springen kann und dann
+aber mit Zahlen von 1 bis so viel wie der Monat hat [...] markieren. Wenn Daten vorhanden sind,
+bei den Verbrauchern grün, bei den Einspeisern gelb. Wenn noch keine Daten vorhanden sind [...]
+in Grau."
+**Auftrag:** Zwei Erweiterungen für die Viertelstunden-Diagramme der Mitglieder: (1) das
+Einspeisung-Diagramm sollte wie das bereits bestehende Verbrauchs-Diagramm eine
+Gesamt-vs.-Anteil-Darstellung zeigen (graue Gesamtfläche, gelber gemeinschaftlich genutzter
+Anteil), bisher gab es dort nur den genutzten Anteil allein; (2) die bisherige
+Vortag/Folgetag-Navigation war zu langsam für größere Zeitsprünge -- gewünscht war eine
+Monats-Navigation (Eingabe oder Pfeiltasten) mit einem Tage-Raster, farblich nach
+Datenverfügbarkeit markiert.
+**Ergebnis:** (1) Neue DB-Spalte `kwh_erzeugung_gesamt` (`database/migrate_20260907.sql`) --
+der EDA-Export enthält eine dritte, bisher ungenutzte Kennzahl-Spalte ("Gesamt-/
+Überschusserzeugung") für die eigene Gesamterzeugung eines Einspeise-Zählpunkts, `parser_interval.py`
+liest sie jetzt mit ein (samt Warnung, falls die Spaltenbeschriftung in der echten Datei
+abweicht -- noch nicht gegen eine reale Exportdatei verifiziert). `/portal/my/einspeisung`
+zeigt jetzt ein gestapeltes Flächendiagramm (grau = Gesamterzeugung, gelb = gemeinschaftlich
+genutzter Anteil) analog zum Verbrauchs-Diagramm, mit sauberem Fallback auf die alte
+Einzel-Linien-Ansicht für Tage, die vor der Migration importiert wurden (sonst hätte die gelbe
+Fläche optisch über eine leere graue Fläche hinausgeragt). `/api/v1/production/interval` liefert
+die neuen Felder zusätzlich für die App. (2) Neuer gemeinsamer Partial
+`webapp/src/views/partials/interval_day_picker.php` (von beiden Diagrammen genutzt): Monats-Nav
+per Pfeil-Buttons, `<input type="month">` und Pfeiltasten (deaktiviert bei Fokus in einem
+Eingabefeld), darunter ein Tage-Raster mit grün/gelb (Daten vorhanden) bzw. grau (noch nicht)
+je nach Diagrammtyp. Mit Playwright gegen vier Szenarien (Verbraucher, Einspeiser mit/ohne neue
+Spalte, keine Daten) sowie Monats-Navigation per Klick UND Pfeiltaste verifiziert (Screenshots,
+keine JS-Fehler). Nebenbei zwei veraltete "noch nicht abgedeckt"-Hinweise zur
+Demo-Account-Maskierung in CLAUDE.md/Infrastruktur.md korrigiert (waren in der Zwischenzeit
+längst geschlossen worden). Alle 134 PHP-Tests weiterhin grün, `php -l`/`python3 -m py_compile`
+sauber. Commit/Push/PR/Merge nach dem üblichen Workflow.
+
+---
+
 ## 2026-08-25 (89) — Claude Code — Claude Sonnet 5
 **Prompt:** Drei Screenshots (Login-Seite und Backoffice-Dashboard auf portal.stromfueralle.at
 ohne sichtbares Logo, Startseite auf stromfueralle.at mit korrektem Logo): "Auf der Seite
