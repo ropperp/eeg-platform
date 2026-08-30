@@ -471,7 +471,9 @@ docker compose up -d --build
 > still zu importieren. Bereits importierte Tage bleiben ohne Gesamtwert (Einzel-Linien-Fallback
 > mit Hinweis), bis sie erneut über `/portal/eda/upload` hochgeladen werden. Neuer
 > Monats-/Tages-Picker (grün/gelb = Daten vorhanden, grau = noch nicht) ersetzt das bisherige
-> Vortag/Folgetag-Klicken auf beiden Diagrammen. Details: `CLAUDE.md`.
+> Vortag/Folgetag-Klicken auf beiden Diagrammen. Nachbesserung (selbes Datum): dezentes
+> graues Hintergrund-Gitter in beiden Diagrammen (senkrecht alle 2h, waagrecht in 10 Abschnitte
+> der Leistungsachse) -- neuer Partial `interval_chart_grid.php`. Details: `CLAUDE.md`.
 
 Bei neuen DB-Migrations:
 ```bash
