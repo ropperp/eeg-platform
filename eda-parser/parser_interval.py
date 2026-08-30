@@ -100,6 +100,7 @@ class LoadResult:
     metering_points: list[MeteringPointInterval]
     period_from: datetime
     period_to: datetime
+    warnings: list[str] = field(default_factory=list)
 
 
 def _worst_quality(a: str | None, b: str | None) -> str | None:
@@ -169,6 +170,15 @@ class IntervalXlsxDataSource:
         # (zaehlpunkt_nr, energy_direction) -> {label_lower: (value_col, quality_col)}
         blocks: dict[tuple[str, str], dict[str, tuple[int, int]]] = {}
         order: list[tuple[str, str]] = []
+        # log.warning() landet nur auf stderr -- bei einem ERFOLGREICHEN Lauf (Exit-Code 0,
+        # gültiges JSON auf stdout) liest EdaParserRunner.php stderr zwar ein, verwirft es aber
+        # ungeloggt (siehe dortiger Klassendoc: stderr wird nur bei einem FEHLGESCHLAGENEN Lauf
+        # in die Diagnose übernommen). Jede hier auftretende Warnung deshalb zusätzlich in diese
+        # Liste, die load() zurückgibt und import_to_db() in ihre eigene, tatsächlich sowohl im
+        # Audit-Log als auch in der Import-Historie sichtbare "warnings"-Liste übernimmt (Fund
+        # 09.09.2026: genau deshalb war eine fehlende Kennzahl-Spalte bisher nirgends sichtbar,
+        # obwohl der Import selbst erfolgreich lief).
+        warnings: list[str] = []
 
         c = 2
         while c <= max_col:
@@ -228,13 +238,17 @@ class IntervalXlsxDataSource:
                     # falls die tatsächliche EDA-Spaltenbeschriftung von der hier angenommenen
                     # ("gesamt-/überschusserzeugung", siehe TARGET_LABELS) abweicht, statt still
                     # jede Zeile ohne Gesamterzeugung zu importieren.
-                    log.warning(
-                        "Zählpunkt %s (%s): Kennzahl-Spalte für kwh_erzeugung_gesamt nicht gefunden "
-                        "(gesucht: '%s') -- wird ohne eigene Gesamterzeugung importiert.",
-                        mpid, direction, erzeugung_gesamt_target,
+                    msg = (
+                        f"Zählpunkt {mpid} ({direction}): Kennzahl-Spalte für kwh_erzeugung_gesamt "
+                        f"nicht gefunden (gesucht: '{erzeugung_gesamt_target}', vorhanden: "
+                        f"{sorted(metric_cols.keys())}) -- wird ohne eigene Gesamterzeugung importiert."
                     )
+                    log.warning(msg)
+                    warnings.append(msg)
             if col_messung is None:
-                log.warning("Zählpunkt %s (%s): Kennzahl-Spalte für kwh_messung nicht gefunden, übersprungen.", mpid, direction)
+                msg = f"Zählpunkt {mpid} ({direction}): Kennzahl-Spalte für kwh_messung nicht gefunden, übersprungen."
+                log.warning(msg)
+                warnings.append(msg)
                 continue
 
             mp = MeteringPointInterval(zaehlpunkt_nr=mpid, energy_direction=direction)
@@ -267,10 +281,12 @@ class IntervalXlsxDataSource:
             if mp.rows:
                 result.append(mp)
             else:
-                log.warning("Zählpunkt %s (%s): keine Werte im Exportzeitraum, übersprungen.", mpid, direction)
+                msg = f"Zählpunkt {mpid} ({direction}): keine Werte im Exportzeitraum, übersprungen."
+                log.warning(msg)
+                warnings.append(msg)
 
         wb.close()
-        return LoadResult(metering_points=result, period_from=period_from, period_to=period_to)
+        return LoadResult(metering_points=result, period_from=period_from, period_to=period_to, warnings=warnings)
 
     @staticmethod
     def _find_target_col(metric_cols: dict[str, tuple[int, int]], target_substr: str) -> tuple[int, int] | None:
@@ -296,6 +312,7 @@ def import_to_db(
     user_id: str | None,
     period_from: datetime,
     period_to: datetime,
+    load_warnings: list[str] | None = None,
 ) -> dict:
     """Schreibt die Viertelstundenwerte. Anders als beim monatlichen Import (parser.py) sind sich
     ÜBERLAPPENDE/wiederholte Zeiträume hier der Normalfall (Patrick lädt bewusst alle paar Tage
@@ -303,8 +320,11 @@ def import_to_db(
     database/migrate_20260904.sql) -- deshalb kein Duplikat-Fehler wie in parser.py, sondern pro
     Zählpunkt ein einfaches "vorhandene Werte in genau diesem Zeitraum löschen, neu einfügen".
     Unbekannte Zählpunkte werden wie beim Monatsimport automatisch angelegt (inaktiv, ohne
-    Mitglied-Zuordnung), damit ihre Daten nicht verloren gehen."""
-    warnings: list[str] = []
+    Mitglied-Zuordnung), damit ihre Daten nicht verloren gehen.
+    load_warnings: Warnungen aus IntervalXlsxDataSource.load() (z.B. nicht gefundene
+    Kennzahl-Spalten) -- fließen hier mit ein, damit sie über dieselbe "warnings"-Liste sowohl
+    in eda_interval_imports als auch im Audit-Log/der UI landen, statt nur auf stderr zu verpuffen."""
+    warnings: list[str] = list(load_warnings or [])
     neu_angelegt: list[dict] = []
     total_records = 0
 
@@ -409,7 +429,7 @@ def main():
         loaded = source.load(args.file)
         result = import_to_db(
             conn, community_id, loaded.metering_points, os.path.basename(args.file), args.user_id,
-            loaded.period_from, loaded.period_to,
+            loaded.period_from, loaded.period_to, load_warnings=loaded.warnings,
         )
         print(json.dumps(result, indent=2, ensure_ascii=False))
     finally:
