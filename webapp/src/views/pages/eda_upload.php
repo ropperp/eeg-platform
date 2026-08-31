@@ -200,8 +200,8 @@
               </td>
               <td>
                 <form method="post" action="/portal/eda/interval-imports/<?= $imp['id'] ?>/delete" style="display:inline"
-                      onsubmit="return confirmDangerDelete('den Protokolleintrag „<?= htmlspecialchars(addslashes($imp['filename'])) ?>“ (Messwerte bleiben erhalten)')">
-                  <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem" title="Nur Protokolleintrag löschen"><?= icon('trash') ?></button>
+                      onsubmit="return confirmDangerDelete('den Import „<?= htmlspecialchars(addslashes($imp['filename'])) ?>“ inkl. aller dabei importierten Viertelstundenwerte')">
+                  <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem" title="Import inkl. Messwerte löschen"><?= icon('trash') ?></button>
                 </form>
               </td>
             </tr>
