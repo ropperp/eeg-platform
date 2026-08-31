@@ -227,19 +227,26 @@
           // 30.07.2026): Anzahl Mitglieder mit mind. einem aktiven Zählpunkt, dessen ESP länger
           // als die Offline-Schwelle nicht mehr gemeldet hat ODER dessen Zähler (P1-Signal)
           // nicht erreichbar ist -- verschwindet automatisch, sobald das Gerät wieder online
-          // ist bzw. der Zähler wieder erreichbar ist (gleiche Logik wie /portal/members und
-          // die Status-Kachelzeile im Obmann-Dashboard).
+          // ist bzw. der Zähler wieder erreichbar ist. War bis 31.08.2026 auf esp_online
+          // angewiesen -- genau das flackerte laut Patrick trotz durchgehender Live-Daten
+          // (19.08.2026, siehe hat_esp_fehler-Kommentar in /portal/members) und erzeugte hier
+          // False-Positives, die diese Badge nie hatte, weil sie bis zum Reihenfolge-Fix vom
+          // 08.09.2026 wegen der Undefined-Variable praktisch nie sichtbar war -- der erste
+          // echte Blick auf eine tatsächlich gerenderte Zahl (31.08.2026, Patrick: Badge zeigt
+          // "1", aber kein Mitglied in der Liste als fehlerhaft markiert) deckte das sofort auf.
+          // Jetzt exakt dieselbe, bereits korrigierte Logik wie hat_esp_fehler in /portal/members
+          // (kein esp_online mehr, dafür meter_code IS NOT NULL) UND wie die Status-Kachelzeile
+          // im Obmann-Dashboard (mirror_source_metering_point_id IS NULL, sonst zählen
+          // Demo-Zählpunkte mit, siehe migrate_20260906.sql-Kommentar dort).
           $espOfflineMinutesNav = espOfflineAfterMinutes();
           $membersWithEspError = (int)DB::fetchOne(
               "SELECT COUNT(DISTINCT mp.member_id) AS cnt
                FROM metering_points mp
                WHERE mp.community_id = ? AND mp.active = true AND mp.member_id IS NOT NULL
-                 AND mp.esp_last_seen_at IS NOT NULL
-                 AND (
-                    NOT (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval)
-                    OR (mp.esp_online AND mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND NOT mp.meter_reachable)
-                 )",
-              [$ar['community_id'], $espOfflineMinutesNav, $espOfflineMinutesNav]
+                 AND mp.meter_code IS NOT NULL AND mp.esp_last_seen_at IS NOT NULL
+                 AND mp.mirror_source_metering_point_id IS NULL
+                 AND NOT (mp.esp_last_seen_at > now() - (? || ' minutes')::interval AND mp.meter_reachable)",
+              [$ar['community_id'], $espOfflineMinutesNav]
           )['cnt'];
         }
       ?>
