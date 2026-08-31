@@ -7903,14 +7903,18 @@ $router->post('/portal/eda/imports/:id/delete', function ($params) {
 });
 
 /**
- * Löscht nur den Protokoll-Eintrag eines Viertelstundenwerte-Imports, NICHT die dabei
- * importierten Messwerte selbst -- anders als beim Monatsimport oben ist das hier sicher genug:
- * Zeiträume überlappen sich bei diesem Import-Typ bewusst normal (Patrick lädt alle paar Tage
- * einen neuen, teils überlappenden Ausschnitt hoch), ein exaktes Zurückrechnen "welche Zeilen
- * gehören zu genau diesem Log-Eintrag" wäre bei Überlappungen nicht mehr eindeutig. Falsche/
- * veraltete Werte werden stattdessen einfach durch einen erneuten Upload desselben Zeitraums
- * überschrieben (siehe import_to_db() in eda-parser/parser_interval.py) -- diese Route räumt
- * nur die Historien-Anzeige auf.
+ * Löscht einen Viertelstundenwerte-Import-Protokolleintrag UND die dabei importierten Messwerte
+ * im exakten Zeitraum dieses Imports (period_from/period_to) für die Community -- analog zur
+ * Monatsimport-Löschung oben. Ursprünglich (bis 31.08.2026) löschte diese Route bewusst NUR den
+ * Protokolleintrag, mit der Begründung, dass sich Zeiträume bei diesem Import-Typ normal
+ * überlappen und "welche Zeilen gehören zu genau diesem Log-Eintrag" bei Überlappungen nicht
+ * mehr eindeutig sei. Patrick, 31.08.2026, per Screenshot: nach einem kompletten Löschen aller
+ * Protokolleinträge zeigte die "Daten vorhanden bis ..."-Anzeige weiterhin den alten Stand --
+ * die Messwerte blieben ja unangetastet liegen. Auf ausdrücklichen Wunsch jetzt wie beim
+ * Monatsimport: exakter Zeitraum wird mitgelöscht. Bei sich überlappenden Importen kann das
+ * theoretisch auch Zeilen eines ANDEREN, noch bestehenden Imports mitlöschen, falls deren
+ * Zeiträume sich decken -- in der Praxis unproblematisch, weil Patrick ohnehin regelmäßig neu
+ * hochlädt und ein doppelt entfernter Bereich beim nächsten Upload einfach wieder befüllt wird.
  */
 $router->post('/portal/eda/interval-imports/:id/delete', function ($params) {
     Auth::requireLogin(); Auth::requireRole('manager');
@@ -7920,9 +7924,14 @@ $router->post('/portal/eda/interval-imports/:id/delete', function ($params) {
     $imp = DB::fetchOne('SELECT * FROM eda_interval_imports WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$imp) { http_response_code(404); return; }
 
+    $deletedRows = DB::execute(
+        'DELETE FROM eda_interval_data WHERE community_id = ? AND time >= ? AND time <= ?',
+        [$communityId, $imp['period_from'], $imp['period_to']]
+    );
     DB::execute('DELETE FROM eda_interval_imports WHERE id = ?', [$imp['id']]);
     logAudit($communityId, 'eda.interval_import.delete', 'eda_interval_import', $imp['id'],
-        'Viertelstundenwerte-Import-Protokolleintrag "' . $imp['filename'] . '" gelöscht (Messwerte selbst bleiben erhalten).');
+        'Viertelstundenwerte-Import "' . $imp['filename'] . '" (' . date('d.m.Y', strtotime($imp['period_from'])) . ' – '
+        . date('d.m.Y', strtotime($imp['period_to'])) . ') gelöscht, ' . $deletedRows . ' Messwert-Datensätze entfernt.');
 
     header('Location: /portal/eda/upload?deleted=1');
     exit;
