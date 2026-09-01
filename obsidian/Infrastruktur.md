@@ -515,6 +515,24 @@ docker compose up -d --build
 > hat, muss die Datei einmal erneut über `/portal/eda/upload-interval` hochladen. Details:
 > `CLAUDE.md`.
 
+> **Einmalig nach dem Update vom 31.08.2026** (EDA-Intervallparser: GENERATION-Spaltenzuordnung
+> für "Meine Einspeisung" grundlegend korrigiert, nicht nur unsichtbar wie beim Fix vom
+> 09.09.2026 oben):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260911.sql
+> docker compose up -d --build
+> ```
+> Patrick hat die echten Exportdateien geteilt -- Analyse zeigte: die bisher als
+> "gemeinschaftlich genutzt" (gelb) verwendete Spalte ("Erzeugung lt. Messung entsprechend dem
+> Teilnahmefaktor") ist in JEDER geprüften Zeile bereits die GESAMTE Erzeugung, kein reduzierter
+> Anteil -- die ursprünglich für "Gesamt" angenommene Spalte ist dagegen in jedem Export leer.
+> Eine bisher ungenutzte vierte Spalte ("Restüberschuss bei EG und je ZP") enthält den tatsächlich
+> ans Netz abgegebenen, nicht genutzten Rest. Neu: `kwh_erzeugung_gesamt` = Teilnahmefaktor-Spalte
+> direkt, `kwh_gemeinschaft` = Teilnahmefaktor-Spalte minus Restüberschuss. Wer schon vorher
+> importiert hat, muss die Datei einmal erneut hochladen. Details: `CLAUDE.md`.
+
 Bei neuen DB-Migrations:
 ```bash
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql

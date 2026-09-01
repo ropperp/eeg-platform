@@ -1411,6 +1411,40 @@ docker compose up -d --build
 > sonst bleibt die eigentliche Ursache (hier: falsch geratener Spaltenname) unsichtbar, obwohl der
 > Code sie technisch längst "wusste".
 
+> **Einmalig nach dem Update vom 31.08.2026** (EDA-Intervallparser: GENERATION-Spaltenzuordnung
+> für "Meine Einspeisung" grundlegend korrigiert -- der Fix vom 09.09.2026 oben hatte die
+> Sichtbarkeit hergestellt, aber die zugrundeliegende Spaltenzuordnung war zusätzlich inhaltlich
+> falsch):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260911.sql
+> docker compose up -d --build
+> ```
+> Auch nach dem Fix vom 09.09.2026 (Spaltenname korrigiert, keine Warnung mehr, Spalte wird
+> gefunden) zeigte "Meine Einspeisung" bei Daniel Ropper weiterhin keine graue Gesamtfläche.
+> Patrick hat daraufhin die beiden echten Exportdateien direkt geteilt -- Analyse mit openpyxl
+> gegen alle 6 Zählpunkte / 2.688 Zeilen je Zählpunkt zeigte: die Spalte "Erzeugung lt. Messung
+> entsprechend dem Teilnahmefaktor und EC-ID" (bisher als `kwh_gemeinschaft`, "nur der über den
+> Teilnahmefaktor zugeteilte, reduzierte Anteil") ist in JEDER geprüften Zeile IDENTISCH zu
+> "Gesamte gemeinschaftliche Erzeugung" -- entgegen dem Namen also bereits die GESAMTE Erzeugung
+> des Zählpunkts, kein reduzierter Anteil. Die ursprünglich für "Gesamterzeugung" angenommene
+> Spalte ("Gesamt-/Überschusserzeugung, Gemeinschaftsüberschuss") ist dagegen in JEDER Zeile
+> beider Dateien leer -- vom Netzbetreiber nie befüllt. Tatsächlich befüllt und bisher komplett
+> ungenutzt: eine vierte Spalte "Restüberschuss bei EG und je ZP" -- in allen 2.688 geprüften
+> Zeilen kleiner-gleich der Teilnahmefaktor-Spalte, also der ans Netz abgegebene, NICHT
+> gemeinschaftlich genutzte Rest. Neue Berechnung in `eda-parser/parser_interval.py`:
+> `kwh_erzeugung_gesamt` = Teilnahmefaktor-Spalte direkt, `kwh_gemeinschaft` (der tatsächlich
+> gemeinschaftlich genutzte, gelbe Anteil) = Teilnahmefaktor-Spalte minus Restüberschuss. Gegen
+> beide echten Exportdateien verifiziert: 0 Verletzungen von `gemeinschaft <= gesamt`.
+> **Wer die Gesamterzeugung schon vor diesem Fix importiert hat (auch nach dem 09.09.2026-Fix),
+> muss die jeweilige Datei einmal erneut über `/portal/eda/upload-interval` hochladen** --
+> überlappende Zeiträume werden automatisch überschrieben. **Merksatz:** bei EDA-Exportspalten,
+> deren Name eine "Reduktion"/"Zuteilung" suggeriert (hier "...entsprechend dem
+> Teilnahmefaktor..."), nicht ungeprüft von der Namensbedeutung auf den tatsächlichen Inhalt
+> schließen -- ein direkter Blick in eine echte Exportdatei (mehrere Zählpunkte/Zeilen
+> vergleichen) ist zuverlässiger als eine plausible Spaltenbeschriftung.
+
 > **Einmalig nach dem Update vom 24.08.2026** (Energiefluss-Grafik neu gezeichnet, geometrisch
 > statt mit starren CSS-Connectors -- reine Code-Änderung, kein Migrations-/Setup-Skript nötig):
 > `webapp/src/views/partials/energy_flow.php` (gemeinsam genutzt von `manager_dashboard.php` und
