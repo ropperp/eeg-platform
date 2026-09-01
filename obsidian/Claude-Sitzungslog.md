@@ -8,6 +8,38 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-08-31 (94) — Claude Code — Claude Sonnet 5
+**Prompt:** Fortsetzung derselben Daniel-Ropper-Frage nach Eintrag 93 -- nach dem Label-Fix
+zeigte "Meine Einspeisung" weiterhin kein Grau. Dazwischen zwei Nebenthemen: "bitte überprüfe,
+ob daten drinnen stehen. und wenn ein upload gelöscht wird, sollen auch die Daten aus der DB
+gelöscht werden. das drüberspeichern funktioniert irgendwie nicht so ganz" (Löschen räumte bisher
+nur den Protokolleintrag, nicht die Messwerte auf) sowie "unter mitglieder ist ein roter punkt
+mit einer 1. aber dann ist bei keinem mitglied eine bemerkung" (Sidebar-Badge-Diskrepanz). Am
+Ende: "Habe die zwei Tabellen gerade mal selber angesehen [...] Wie hast du das eigentlich bei
+den Verbrauchern gemacht gehabt? [...] Bitte probier das noch mal." samt beider echter
+EDA-Exportdateien als Anhang. Dazwischen außerdem eine weitergeleitete Netzbetreiber-Mail (KNG
+Kärnten Netz) zur Neudefinition der Nahebereiche ab 05.10.2026, zur Dokumentation.
+**Auftrag:** Vier Anliegen: (1) Ursache für die weiterhin fehlende graue Gesamtfläche bei
+Einspeisern klären und beheben, (2) Löschen eines Viertelstundenwerte-Imports soll auch die
+Messwerte entfernen, (3) Diskrepanz zwischen Sidebar-Badge und Mitgliederliste bei ESP-Fehlern
+klären, (4) Netzbetreiber-Mail zusammenfassen und dokumentieren.
+**Ergebnis:** (1) Grundlegender Fund durch direkte Analyse der von Patrick geteilten echten
+XLSX-Dateien (openpyxl, alle 6 Zählpunkte, 2.688 Zeilen je Zählpunkt geprüft): die als
+"gemeinschaftlich genutzt" verwendete Spalte war entgegen ihrem Namen bereits die GESAMTE
+Erzeugung, die für "Gesamt" angenommene Spalte ist in jedem Export leer, eine vierte,
+ungenutzte Spalte ("Restüberschuss bei EG und je ZP") enthält den tatsächlich nicht genutzten
+Rest -- `eda-parser/parser_interval.py` entsprechend umgebaut
+(`kwh_gemeinschaft = Teilnahmefaktor − Restüberschuss`), `migrate_20260911.sql` korrigiert den
+Spaltenkommentar. (2) `/portal/eda/interval-imports/:id/delete` löscht jetzt auch
+`eda_interval_data` im exakten Zeitraum. (3) Sidebar-Zähler-Abfrage in `portal.php` hing noch an
+der alten, `esp_online`-abhängigen Logik (Flackern, siehe 19.08.2026) und hatte keinen
+Demo-Zählpunkt-Ausschluss -- an die bereits korrigierte Version in `/portal/members` angeglichen.
+(4) `docs/REGULATORIK.md` neu angelegt, erster Eintrag zur KNG-Mail. Fünf PRs (#148-#151, dazu
+schon vorher #142-#147 aus Eintrag 93) gemergt, alle in `CLAUDE.md`/`Infrastruktur.md`
+dokumentiert.
+
+---
+
 ## 2026-09-09 (93) — Claude Code — Claude Sonnet 5
 **Prompt:** Fortsetzung der offenen Daniel-Ropper-Frage aus Eintrag 92, per Live-Diagnose-Dialog
 (SQL-Abfragen, `docker compose logs`, `\d audit_log`) gemeinsam mit Patrick durchgeführt, dazwischen
