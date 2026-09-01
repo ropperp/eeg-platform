@@ -64,10 +64,22 @@ SHEET_NAME = "Energiedaten"
 # Welche Kennzahl-Spalte (per Label, robust gegen Reihenfolge-Änderungen) für die
 # gespeicherten Werte je Energierichtung herangezogen wird -- siehe kwh_messung/kwh_gemeinschaft/
 # kwh_erzeugung_gesamt in database/migrate_20260904.sql bzw. migrate_20260907.sql.
-# "kwh_erzeugung_gesamt" nur bei GENERATION vorhanden (optional, siehe _find_target_col()-Aufruf
-# unten) -- die eigene GESAMTE Erzeugung des Zählpunkts, im Gegensatz zu kwh_messung (dort
-# gemeinschaftsweite Summe über alle Einspeiser) und kwh_gemeinschaft (nur der über den
-# Teilnahmefaktor zugeteilte Anteil), siehe Kommentar in migrate_20260907.sql.
+#
+# GENERATION-Zuordnung KORRIGIERT am 31.08.2026 -- Fund anhand echter Exportdateien (Patrick,
+# RC108175_2026-07.../2026-08...xlsx), gegen alle 6 Zählpunkte / 2.688 Zeilen je Zählpunkt
+# verifiziert: die ursprüngliche Annahme "kwh_gemeinschaft = nur der über den Teilnahmefaktor
+# ZUGETEILTE (reduzierte) Anteil" war falsch. "Erzeugung lt. Messung entsprechend dem
+# Teilnahmefaktor und EC-ID" ist tatsächlich in JEDER geprüften Zeile identisch zu "Gesamte
+# gemeinschaftliche Erzeugung" -- beide sind bereits die GESAMTE Erzeugung des Zählpunkts, nicht
+# ein reduzierter Anteil. Die zunächst für "kwh_erzeugung_gesamt" angenommene Spalte
+# "Gesamt/Überschusserzeugung, Gemeinschaftsüberschuss" ist dagegen in JEDER Zeile leer (nie vom
+# Netzbetreiber befüllt) -- unbrauchbar. Tatsächlich befüllt und nützlich ist stattdessen
+# "Restüberschuss bei EG und je ZP": in jeder der 2.688 geprüften Zeilen kleiner-gleich der
+# "Teilnahmefaktor"-Spalte -- das ist der ans Netz abgegebene, NICHT gemeinschaftlich genutzte
+# Rest. Damit gilt: Gesamterzeugung = "Teilnahmefaktor"-Spalte, gemeinschaftlich genutzt =
+# Gesamterzeugung minus Restüberschuss (siehe Berechnung in load() weiter unten). "kwh_messung"
+# ("Gesamte gemeinschaftliche Erzeugung") bleibt zwar weiter importiert, wird aber aktuell in
+# keiner GENERATION-Ansicht angezeigt.
 TARGET_LABELS = {
     "CONSUMPTION": {
         "kwh_messung": "gesamtverbrauch lt. messung",
@@ -76,7 +88,7 @@ TARGET_LABELS = {
     "GENERATION": {
         "kwh_messung": "gesamte gemeinschaftliche erzeugung",
         "kwh_gemeinschaft": "erzeugung lt. messung entsprechend dem teilnahmefaktor",
-        "kwh_erzeugung_gesamt": "gesamt/überschusserzeugung",
+        "kwh_restueberschuss": "restüberschuss bei eg und je zp",
     },
 }
 
@@ -231,21 +243,24 @@ class IntervalXlsxDataSource:
             col_messung = self._find_target_col(metric_cols, targets["kwh_messung"])
             col_gemeinschaft = self._find_target_col(metric_cols, targets["kwh_gemeinschaft"])
             # Nur bei GENERATION vorhanden -- .get() statt [...], damit CONSUMPTION (kein
-            # solcher Eintrag in TARGET_LABELS) nicht mit einem KeyError abbricht.
-            col_erzeugung_gesamt = None
-            erzeugung_gesamt_target = targets.get("kwh_erzeugung_gesamt")
-            if erzeugung_gesamt_target:
-                col_erzeugung_gesamt = self._find_target_col(metric_cols, erzeugung_gesamt_target)
-                if col_erzeugung_gesamt is None:
+            # solcher Eintrag in TARGET_LABELS) nicht mit einem KeyError abbricht. Siehe
+            # TARGET_LABELS-Kommentar oben: "kwh_gemeinschaft" (Teilnahmefaktor-Spalte) ist bei
+            # GENERATION bereits die GESAMTE Erzeugung -- der Restüberschuss wird hier nur
+            # geladen, um davon den tatsächlich gemeinschaftlich genutzten Anteil abzuziehen.
+            col_restueberschuss = None
+            restueberschuss_target = targets.get("kwh_restueberschuss")
+            if restueberschuss_target:
+                col_restueberschuss = self._find_target_col(metric_cols, restueberschuss_target)
+                if col_restueberschuss is None:
                     # Anders als bei kwh_messung kein harter Abbruch (die Spalte ist optional,
                     # ältere Aufrufer/Zeilen kommen ohne sie aus) -- aber eine sichtbare Warnung,
                     # falls die tatsächliche EDA-Spaltenbeschriftung von der hier angenommenen
-                    # ("gesamt-/überschusserzeugung", siehe TARGET_LABELS) abweicht, statt still
-                    # jede Zeile ohne Gesamterzeugung zu importieren.
+                    # abweicht, statt still jede Zeile ohne Aufteilung zu importieren.
                     msg = (
-                        f"Zählpunkt {mpid} ({direction}): Kennzahl-Spalte für kwh_erzeugung_gesamt "
-                        f"nicht gefunden (gesucht: '{erzeugung_gesamt_target}', vorhanden: "
-                        f"{sorted(metric_cols.keys())}) -- wird ohne eigene Gesamterzeugung importiert."
+                        f"Zählpunkt {mpid} ({direction}): Kennzahl-Spalte für kwh_restueberschuss "
+                        f"nicht gefunden (gesucht: '{restueberschuss_target}', vorhanden: "
+                        f"{sorted(metric_cols.keys())}) -- Gesamterzeugung wird ohne Aufteilung in "
+                        f"gemeinschaftlich genutzt/Restüberschuss importiert (beide gleich)."
                     )
                     log.warning(msg)
                     warnings.append(msg)
@@ -258,7 +273,7 @@ class IntervalXlsxDataSource:
             mp = MeteringPointInterval(zaehlpunkt_nr=mpid, energy_direction=direction)
             val_col, qual_col = col_messung
             gem_val_col = col_gemeinschaft[0] if col_gemeinschaft else None
-            erzeugung_gesamt_val_col = col_erzeugung_gesamt[0] if col_erzeugung_gesamt else None
+            restueberschuss_val_col = col_restueberschuss[0] if col_restueberschuss else None
 
             r = data_start_row
             while r <= max_row:
@@ -271,8 +286,19 @@ class IntervalXlsxDataSource:
                 wert = ws.cell(row=r, column=val_col).value
                 if wert is not None:
                     qualitaet = ws.cell(row=r, column=qual_col).value
-                    gemeinschaft = ws.cell(row=r, column=gem_val_col).value if gem_val_col else None
-                    erzeugung_gesamt = ws.cell(row=r, column=erzeugung_gesamt_val_col).value if erzeugung_gesamt_val_col else None
+                    gemeinschaft_roh = ws.cell(row=r, column=gem_val_col).value if gem_val_col else None
+                    restueberschuss = ws.cell(row=r, column=restueberschuss_val_col).value if restueberschuss_val_col else None
+                    if direction == "GENERATION" and gemeinschaft_roh is not None:
+                        # gemeinschaft_roh ist hier schon die GESAMTE Erzeugung (siehe
+                        # TARGET_LABELS-Kommentar) -- kwh_erzeugung_gesamt uebernimmt sie direkt,
+                        # kwh_gemeinschaft wird um den (ggf. nicht vorhandenen) Restüberschuss
+                        # reduziert, um den tatsaechlich gemeinschaftlich genutzten Anteil zu
+                        # erhalten.
+                        erzeugung_gesamt = gemeinschaft_roh
+                        gemeinschaft = gemeinschaft_roh - restueberschuss if restueberschuss is not None else gemeinschaft_roh
+                    else:
+                        erzeugung_gesamt = None
+                        gemeinschaft = gemeinschaft_roh
                     mp.rows.append(IntervalRow(
                         time=datetime.strptime(ts_str, "%d.%m.%Y %H:%M"),
                         kwh_messung=float(wert),
