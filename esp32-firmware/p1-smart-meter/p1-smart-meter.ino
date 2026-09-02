@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.0.0"
+#define FIRMWARE_VERSION  "1.1.0"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -473,6 +473,16 @@ String buildPage() {
   h += ".raw { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 20px; }";
   h += ".raw p { font-size: 13px; color: #888; margin-bottom: 8px; }";
   h += "pre { font-size: 12px; font-family: monospace; color: #aaa; white-space: pre-wrap; word-break: break-all; }";
+  // Bisher fest auf Dark Mode -- folgt jetzt zusaetzlich der Systemeinstellung des aufrufenden
+  // Geraets (Patrick, 31.08.2026: "es ist jetzt nicht alles in Dark Mode [...] machen wir es
+  // trotzdem in Light Mode auch"), gleiches Prinzip wie im Web-Portal.
+  h += "@media (prefers-color-scheme: light) {";
+  h += "body { background: #f5f5f5; color: #111; }";
+  h += "a.btn { border-color: #ccc; color: #333; }";
+  h += "a.btn:hover { background: #e5e5e5; }";
+  h += ".card, .raw { background: #fff; border-color: #ddd; }";
+  h += "pre { color: #333; }";
+  h += "}";
   h += "</style></head><body>";
 
   // Titelzeile
@@ -866,6 +876,12 @@ String buildWifiPortal() {
   h += "#nets div:hover{background:#222}";
   h += ".hint{font-size:12px;color:#666;margin-top:4px}";
   h += "#msg{display:none;background:#14532d;color:#86efac;border:1px solid #166634;border-radius:8px;padding:10px;margin-top:12px;font-size:13px}";
+  h += "@media (prefers-color-scheme: light) {";
+  h += "body { background: #f5f5f5; color: #111; }";
+  h += "input { background: #fff; border-color: #ccc; color: #111; }";
+  h += ".sec { background: #fff; border-color: #ddd; }";
+  h += "#nets div { border-color: #ddd; } #nets div:hover { background: #eee; }";
+  h += "}";
   h += "</style></head><body>";
   h += "<h1>P1 Smart Meter</h1><p class='sub'>Schritt 1 von 2 - WLAN verbinden</p>";
   h += "<div class='sec'><h3>WLAN</h3>";
@@ -941,6 +957,12 @@ String buildSettingsPage() {
   h += ".sec{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;margin-top:14px}";
   h += ".hint{font-size:12px;color:#666;margin-top:4px}a{color:#60a5fa}";
   h += "#msg{display:none;background:#14532d;color:#86efac;border:1px solid #166634;border-radius:8px;padding:10px;margin-top:12px;font-size:13px}";
+  h += "@media (prefers-color-scheme: light) {";
+  h += "body { background: #f5f5f5; color: #111; }";
+  h += "input { background: #fff; border-color: #ccc; color: #111; }";
+  h += ".gear { border-color: #ccc; color: #333; }";
+  h += ".sec { background: #fff; border-color: #ddd; }";
+  h += "}";
   h += "</style></head><body>";
   h += "<div class='topbar'><h1>zuordnung</h1><button class='gear' onclick='toggleMqtt()' title='mqtt-einstellungen'>&#9881;</button></div>";
   h += "<p class='sub'>schritt 2 von 2 - zaehler &amp; eeg</p>";
