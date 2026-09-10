@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.3.0"
+#define FIRMWARE_VERSION  "1.3.1"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -805,6 +805,14 @@ void checkForFirmwareUpdate() {
   // liegt kurzzeitig zusaetzlich komplett im Speicher (bei per_page=10 unkritisch).
   String payload = http.getString();
   http.end();
+  client.stop();
+  // Fund 10.09.2026, sechster echter Testlauf: "Redirect-Aufloesung lieferte HTTP -1" (-1 =
+  // HTTPC_ERROR_CONNECTION_REFUSED, siehe HTTPClient.h) -- schon die naechste Verbindung NACH
+  // dieser hier (Redirect-Check zu github.com, siehe weiter unten) wurde abgewiesen. Dieselbe
+  // Pause wie zwischen Redirect-Check und Download (siehe dort) jetzt auch HIER, zwischen
+  // Release-Liste und Redirect-Check -- offenbar reicht die reine JSON-Verarbeitungszeit dazwischen
+  // nicht aus, bis der Netzwerkstack den Socket der vorigen Verbindung wirklich freigegeben hat.
+  delay(500);
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
   if (err) {
@@ -876,7 +884,7 @@ void checkForFirmwareUpdate() {
     // nicht, bis der LWIP-Netzwerkstack den alten Socket wirklich freigegeben hat (bekannter,
     // in der ESP32-Community verbreiteter Workaround: kurze Pause zwischen aufeinanderfolgenden
     // TLS-Verbindungen einbauen).
-    delay(300);
+    delay(500);
 
     WiFiClientSecure updateClient;
     updateClient.setInsecure();
