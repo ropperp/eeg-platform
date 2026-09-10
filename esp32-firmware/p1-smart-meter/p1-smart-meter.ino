@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.7"
+#define FIRMWARE_VERSION  "1.2.8"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -746,6 +746,17 @@ void checkForFirmwareUpdate() {
   WiFiClientSecure client;
   client.setInsecure();  // wie beim MQTT-TLS-Transport (applyMqttClientMode()) -- kein Zertifikat
                           // auf dem Geraet noetig, die Verbindung ist trotzdem verschluesselt.
+  // Fund 10.09.2026, fuenfter echter Testlauf ("connection refused" trotz manuell aufgeloestem
+  // Redirect): dieser Ablauf baut in kurzer Folge bis zu DREI eigene HTTPS-Verbindungen auf
+  // (Release-Liste, Redirect-Aufloesung, eigentlicher Download) -- zusaetzlich zur ohnehin
+  // dauerhaft offenen MQTT-Verbindung. WiFiClientSecures Standard-Puffer sind mit 16 KB Empfang/
+  // Senden pro Verbindung auf einem ESP32 mit begrenztem RAM grosszuegig -- mehrere davon kurz
+  // hintereinander koennen den freien Speicher so stark fragmentieren/auslasten, dass die
+  // naechste TLS-Verbindung vom LWIP-Stack mit "connection refused" abgewiesen wird, obwohl der
+  // Server selbst erreichbar ist (curl vom selben Netz aus bestaetigt funktionsfaehig). Kleinere,
+  // fuer unsere kleinen JSON-Antworten/den reinen Redirect-Check trotzdem ausreichende Puffer
+  // reduzieren diesen Speicherdruck (bekannter, in der ESP32-Community verbreiteter Workaround).
+  client.setBufferSizes(8192, 2048);
   HTTPClient http;
   // KEIN http.useHTTP10(true) (Fund 10.09.2026, erster echter Testlauf auf Hardware --
   // deserializeJson() scheiterte reproduzierbar mit "IncompleteInput"): GitHubs API liefert
@@ -838,20 +849,16 @@ void checkForFirmwareUpdate() {
     addLog("Neue Firmware " + remoteVersion + " gefunden, lade herunter...");
     Serial.println("Firmware-Update: " + assetUrl);
 
-    // Fund 10.09.2026, vierter echter Testlauf: "browser_download_url" (github.com/...) liefert
-    // per curl bestaetigt einen 302 auf einen ANDEREN Host (release-assets.githubusercontent.com,
-    // signierte URL) -- der eigentliche Dateiinhalt liegt NUR dort. httpUpdate.update() mit
-    // setFollowRedirects() (voriger Fix) aenderte "Wrong HTTP Code" zu "connection refused" --
-    // vermutlich verkraftet das intern wiederverwendete WiFiClientSecure-Objekt den Host-Wechsel
-    // mitten im Redirect nicht sauber (github.com -> release-assets.githubusercontent.com sind
-    // zwei komplett getrennte TLS-Verbindungen). Robuster: den Redirect HIER SELBST einmal
-    // auflösen (eigener kurzer GET, kein Follow-Redirects noetig) und httpUpdate.update() direkt
-    // die bereits fertig aufgeloeste Ziel-URL uebergeben -- dafuer ist dann gar kein
-    // Redirect-Handling mehr noetig (einzelner Host, einzelne Verbindung).
+    // "browser_download_url" (github.com/...) liefert per curl bestaetigt einen 302 auf einen
+    // ANDEREN Host (release-assets.githubusercontent.com, signierte URL) -- der eigentliche
+    // Dateiinhalt liegt NUR dort. Redirect wird deshalb HIER SELBST einmal aufgeloest (eigener
+    // kurzer GET) und httpUpdate.update() bekommt direkt die fertig aufgeloeste Ziel-URL --
+    // dafuer ist dann kein Redirect-Handling der Update-Bibliothek mehr noetig.
     String downloadUrl = assetUrl;
     {
       WiFiClientSecure redirectClient;
       redirectClient.setInsecure();
+      redirectClient.setBufferSizes(4096, 2048);  // s.o. -- nur ein Redirect-Header noetig, kein Body
       HTTPClient redirectHttp;
       redirectHttp.begin(redirectClient, assetUrl);
       redirectHttp.addHeader("User-Agent", "p1-smartmeter-esp32");
@@ -859,12 +866,23 @@ void checkForFirmwareUpdate() {
       if (redirectCode >= 300 && redirectCode < 400) {
         String location = redirectHttp.getLocation();
         if (location.length() > 0) downloadUrl = location;
+      } else {
+        addLog("Redirect-Aufloesung lieferte HTTP " + String(redirectCode) + " statt 3xx, versuche Original-URL direkt");
       }
       redirectHttp.end();
+      redirectClient.stop();
     }
+    // Fund 10.09.2026, fuenfter echter Testlauf: selbst nach dem Redirect-Fix weiterhin
+    // "connection refused" -- vermutlich reicht die Zeit zwischen dem Schliessen der
+    // Redirect-Check-Verbindung und dem Aufbau der naechsten (fuer den eigentlichen Download)
+    // nicht, bis der LWIP-Netzwerkstack den alten Socket wirklich freigegeben hat (bekannter,
+    // in der ESP32-Community verbreiteter Workaround: kurze Pause zwischen aufeinanderfolgenden
+    // TLS-Verbindungen einbauen).
+    delay(300);
 
     WiFiClientSecure updateClient;
     updateClient.setInsecure();
+    updateClient.setBufferSizes(4096, 2048);
     httpUpdate.rebootOnUpdate(true);  // Geraet startet nach erfolgreichem Update automatisch neu
     t_httpUpdate_return ret = httpUpdate.update(updateClient, downloadUrl);
     // HTTP_UPDATE_OK wird hier nie erreicht -- das Geraet startet vorher neu (rebootOnUpdate).
