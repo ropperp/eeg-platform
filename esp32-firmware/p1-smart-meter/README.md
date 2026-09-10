@@ -125,8 +125,16 @@ sie herunter und flasht sich selbst (`HTTPUpdate`, danach automatischer Neustart
      Ab dem nächsten stündlichen Check holt sich jedes Gerät mit `cfgAutoUpdate` (Standard: an)
      automatisch die neue Version.
 4. Testen: Im `/config`-Formular eines Testgeräts auf "jetzt auf update prüfen" klicken statt auf
-   den nächsten stündlichen Check zu warten -- Ergebnis erscheint im Log-Ringpuffer auf der
-   Startseite (`/`) des Geräts.
+   den nächsten stündlichen Check zu warten. Zeigt seit 10.09.2026 direkt auf derselben Seite
+   eine Ladeanimation und danach das lesbare Ergebnis an (🆕 neue Version gefunden / ✅ bereits
+   aktuell / ❌ Fehler) -- darunter läuft dauerhaft ein automatisch aktualisierter Log
+   (`GET /log`, HTTP-Basic-Auth wie `/config`), nicht nur für den manuellen Check, sondern für
+   alle Ereignisse (MQTT-Fernkonfiguration, Zählernummer-Mismatch, ...). **Vorher stand hier
+   fälschlich "Ergebnis erscheint im Log-Ringpuffer auf der Startseite (`/`)" -- der Ringpuffer
+   existierte zwar im Code (`addLog()`), wurde aber nirgends tatsächlich angezeigt, weder auf `/`
+   noch sonst wo. Zusätzlich schrieb `checkForFirmwareUpdate()` im häufigsten Fall (Firmware
+   bereits aktuell) bisher GAR KEINE Log-Zeile -- der Button wirkte dadurch, als würde er nichts
+   tun.**
 
 ### Wichtige Einschränkungen (bitte vor dem ersten echten Rollout lesen)
 
