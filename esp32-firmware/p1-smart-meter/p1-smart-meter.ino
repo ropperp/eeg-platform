@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.5"
+#define FIRMWARE_VERSION  "1.2.6"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -837,20 +837,36 @@ void checkForFirmwareUpdate() {
 
     addLog("Neue Firmware " + remoteVersion + " gefunden, lade herunter...");
     Serial.println("Firmware-Update: " + assetUrl);
+
+    // Fund 10.09.2026, vierter echter Testlauf: "browser_download_url" (github.com/...) liefert
+    // per curl bestaetigt einen 302 auf einen ANDEREN Host (release-assets.githubusercontent.com,
+    // signierte URL) -- der eigentliche Dateiinhalt liegt NUR dort. httpUpdate.update() mit
+    // setFollowRedirects() (voriger Fix) aenderte "Wrong HTTP Code" zu "connection refused" --
+    // vermutlich verkraftet das intern wiederverwendete WiFiClientSecure-Objekt den Host-Wechsel
+    // mitten im Redirect nicht sauber (github.com -> release-assets.githubusercontent.com sind
+    // zwei komplett getrennte TLS-Verbindungen). Robuster: den Redirect HIER SELBST einmal
+    // auflösen (eigener kurzer GET, kein Follow-Redirects noetig) und httpUpdate.update() direkt
+    // die bereits fertig aufgeloeste Ziel-URL uebergeben -- dafuer ist dann gar kein
+    // Redirect-Handling mehr noetig (einzelner Host, einzelne Verbindung).
+    String downloadUrl = assetUrl;
+    {
+      WiFiClientSecure redirectClient;
+      redirectClient.setInsecure();
+      HTTPClient redirectHttp;
+      redirectHttp.begin(redirectClient, assetUrl);
+      redirectHttp.addHeader("User-Agent", "p1-smartmeter-esp32");
+      int redirectCode = redirectHttp.GET();
+      if (redirectCode >= 300 && redirectCode < 400) {
+        String location = redirectHttp.getLocation();
+        if (location.length() > 0) downloadUrl = location;
+      }
+      redirectHttp.end();
+    }
+
     WiFiClientSecure updateClient;
     updateClient.setInsecure();
     httpUpdate.rebootOnUpdate(true);  // Geraet startet nach erfolgreichem Update automatisch neu
-    // Fund 10.09.2026, dritter echter Testlauf ("Update fehlgeschlagen: Wrong HTTP Code" /
-    // "connection refused"): "browser_download_url" aus der GitHub-API zeigt auf
-    // github.com/.../releases/download/..., der eigentliche Datei-Inhalt liegt aber auf einem
-    // ANDEREN Host (objects.githubusercontent.com, signierte URL) -- github.com antwortet dort
-    // nur mit einem 302-Redirect dorthin. HTTPClient/HTTPUpdate folgt Redirects NICHT
-    // automatisch, wenn setFollowRedirects() nicht explizit gesetzt wird (Default: aus) --
-    // httpUpdate.update() bekam dadurch die 302-Antwort selbst statt der echten Datei,
-    // erwartete aber 200 ("Wrong HTTP Code"). STRICT statt FORCE: folgt Redirects nur bei
-    // GET/HEAD (genau unser Fall), nicht bei potenziell unsicheren Methoden.
-    httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    t_httpUpdate_return ret = httpUpdate.update(updateClient, assetUrl);
+    t_httpUpdate_return ret = httpUpdate.update(updateClient, downloadUrl);
     // HTTP_UPDATE_OK wird hier nie erreicht -- das Geraet startet vorher neu (rebootOnUpdate).
     if (ret == HTTP_UPDATE_FAILED) {
       addLog("Update fehlgeschlagen: " + httpUpdate.getLastErrorString());
