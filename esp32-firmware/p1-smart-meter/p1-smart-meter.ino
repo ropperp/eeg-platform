@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.0"
+#define FIRMWARE_VERSION  "1.2.1"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -747,7 +747,14 @@ void checkForFirmwareUpdate() {
   client.setInsecure();  // wie beim MQTT-TLS-Transport (applyMqttClientMode()) -- kein Zertifikat
                           // auf dem Geraet noetig, die Verbindung ist trotzdem verschluesselt.
   HTTPClient http;
-  http.useHTTP10(true);  // vereinfacht das Streaming fuer deserializeJson() unten (kein Chunked Encoding)
+  // KEIN http.useHTTP10(true) (Fund 10.09.2026, erster echter Testlauf auf Hardware --
+  // deserializeJson() scheiterte reproduzierbar mit "IncompleteInput"): GitHubs API liefert
+  // die Antwort ueblicherweise Transfer-Encoding: chunked, unabhaengig davon, welche
+  // HTTP-Version der Client anfragt. HTTPClients eigene automatische Dechunkung von
+  // getStream() greift aber NUR im HTTP/1.1-Modus (Default) -- mit useHTTP10(true) landeten
+  // die rohen Chunk-Groessen-Marker (Hex-Ziffern + CRLF zwischen den Datenbloecken) DIREKT im
+  // JSON-Stream und haben ihn dadurch kaputt/verkuerzt aussehen lassen. Ohne useHTTP10 bleibt
+  // getStream() zuverlaessig sauber, unabhaengig von der tatsaechlich verwendeten Framing-Art.
   String url = "https://api.github.com/repos/" + String(OTA_UPDATE_REPO) + "/releases?per_page=10";
   if (!http.begin(client, url)) {
     addLog("Update-Check: Verbindung zu GitHub fehlgeschlagen");
@@ -755,6 +762,9 @@ void checkForFirmwareUpdate() {
   }
   http.addHeader("User-Agent", "p1-smartmeter-esp32");  // GitHub verlangt zwingend einen User-Agent, sonst HTTP 403
   http.addHeader("Accept", "application/vnd.github+json");
+  http.addHeader("Accept-Encoding", "identity");  // explizit keine Kompression -- deserializeJson()
+                                                   // liest den Stream unkomprimiert, ein evtl.
+                                                   // gzip-komprimierter Body waere sonst kein gueltiges JSON.
 
   int code = http.GET();
   if (code != 200) {
