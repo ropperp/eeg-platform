@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.4"
+#define FIRMWARE_VERSION  "1.2.5"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
