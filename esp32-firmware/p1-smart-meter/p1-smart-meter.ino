@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.8"
+#define FIRMWARE_VERSION  "1.2.9"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -749,14 +749,13 @@ void checkForFirmwareUpdate() {
   // Fund 10.09.2026, fuenfter echter Testlauf ("connection refused" trotz manuell aufgeloestem
   // Redirect): dieser Ablauf baut in kurzer Folge bis zu DREI eigene HTTPS-Verbindungen auf
   // (Release-Liste, Redirect-Aufloesung, eigentlicher Download) -- zusaetzlich zur ohnehin
-  // dauerhaft offenen MQTT-Verbindung. WiFiClientSecures Standard-Puffer sind mit 16 KB Empfang/
-  // Senden pro Verbindung auf einem ESP32 mit begrenztem RAM grosszuegig -- mehrere davon kurz
-  // hintereinander koennen den freien Speicher so stark fragmentieren/auslasten, dass die
-  // naechste TLS-Verbindung vom LWIP-Stack mit "connection refused" abgewiesen wird, obwohl der
-  // Server selbst erreichbar ist (curl vom selben Netz aus bestaetigt funktionsfaehig). Kleinere,
-  // fuer unsere kleinen JSON-Antworten/den reinen Redirect-Check trotzdem ausreichende Puffer
-  // reduzieren diesen Speicherdruck (bekannter, in der ESP32-Community verbreiteter Workaround).
-  client.setBufferSizes(8192, 2048);
+  // dauerhaft offenen MQTT-Verbindung. Vermutung: der LWIP-Netzwerkstack gibt einen gerade
+  // geschlossenen Socket nicht sofort wieder frei, die naechste TLS-Verbindung kurz danach wird
+  // dadurch abgewiesen, obwohl der Server selbst erreichbar ist (curl vom selben Netz aus
+  // bestaetigt funktionsfaehig). setBufferSizes() (kleinere TLS-Puffer, urspruenglich als
+  // zusaetzliche Massnahme geplant) gibt es in dieser ESP32-Core-Version nicht mehr
+  // (WiFiClientSecure = NetworkClientSecure, andere API) -- deshalb bleibt es bei explizitem
+  // stop() + kurzer Pause zwischen den Verbindungen (siehe weiter unten).
   HTTPClient http;
   // KEIN http.useHTTP10(true) (Fund 10.09.2026, erster echter Testlauf auf Hardware --
   // deserializeJson() scheiterte reproduzierbar mit "IncompleteInput"): GitHubs API liefert
@@ -858,7 +857,6 @@ void checkForFirmwareUpdate() {
     {
       WiFiClientSecure redirectClient;
       redirectClient.setInsecure();
-      redirectClient.setBufferSizes(4096, 2048);  // s.o. -- nur ein Redirect-Header noetig, kein Body
       HTTPClient redirectHttp;
       redirectHttp.begin(redirectClient, assetUrl);
       redirectHttp.addHeader("User-Agent", "p1-smartmeter-esp32");
@@ -882,7 +880,6 @@ void checkForFirmwareUpdate() {
 
     WiFiClientSecure updateClient;
     updateClient.setInsecure();
-    updateClient.setBufferSizes(4096, 2048);
     httpUpdate.rebootOnUpdate(true);  // Geraet startet nach erfolgreichem Update automatisch neu
     t_httpUpdate_return ret = httpUpdate.update(updateClient, downloadUrl);
     // HTTP_UPDATE_OK wird hier nie erreicht -- das Geraet startet vorher neu (rebootOnUpdate).
