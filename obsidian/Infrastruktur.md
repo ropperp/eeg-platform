@@ -742,6 +742,17 @@ Zwei Sackgassen unterwegs, die NICHT die Ursache waren: leeres `docker compose l
 (normal, kein Accesslog konfiguriert) und fehlendes `proxy_http_version 1.1;` im nginx-Proxy auf
 10.0.0.144 (sinnvoller Fix, hat dieses Problem aber nicht behoben). Details: siehe `CLAUDE.md`.
 
+## ESP32-Firmware: automatisches OTA-Update -- erster echter Hardware-Test (10.09.2026)
+
+Das Auto-Update-Feature der P1-Smart-Meter-Firmware war nie kompiliert/getestet. Patrick hat es
+an einem Tag über mehrere Testrunden mit echter Hardware geprüft -- sechs unabhängige Fehler
+gefunden und behoben (Log nirgends angezeigt, JSON-Parse-Fehler, nicht befolgter GitHub-Redirect,
+"connection refused" durch zu knapp aufeinanderfolgende TLS-Verbindungen, ein Compile-Fehler
+durch eine fehlende API in der neueren ESP32-Core-Version). Ab Version 1.3.1/1.3.2 lief der
+komplette automatische Zyklus (erkennen → herunterladen → flashen → neu starten) erstmals
+fehlerfrei durch. Betrifft nur die Firmware, keine Server-/Plattform-Änderung. Vollständige
+Chronologie: `esp32-firmware/p1-smart-meter/README.md`, Details auch in `CLAUDE.md`.
+
 ## Claude-Sitzungslog (Selbstdokumentation)
 
 Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,

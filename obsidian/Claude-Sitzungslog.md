@@ -8,6 +8,36 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-10 (95) — Claude Code — Claude Sonnet 5
+**Prompt:** "Können wir da eine ganz kleine Änderung machen oder auch nur eine Versionsänderung
+[...] um einfach zu testen, ob dieser gleich bleibt und ob dieser überhaupt automatisch
+übertragen wird" (Auftakt), danach über mehrere Testrunden mit echten Fehlermeldungen von
+Patricks Testgerät ("wo soll ich logs sehen?", "JSON-Fehler (IncompleteInput)", "Wrong HTTP
+Code", "connection refused", ein Arduino-IDE-Kompilierfehler, erneut "connection refused"),
+abschließend: "Gratuliere uns beide [...] bitte pusht die Änderungen [...] dokumentiert mir
+bitte, was die Fehler waren."
+**Auftrag:** Das nie kompilierte/getestete automatische Firmware-Update-Feature der
+ESP32-P1-Smart-Meter-Geräte (Update von GitHub Releases, ohne Vor-Ort-Termin) gemeinsam mit
+Patrick auf echter Hardware erstmals end-to-end verifizieren und alle dabei gefundenen Fehler
+beheben, danach die komplette Fehler-Chronologie dokumentieren.
+**Ergebnis:** 14 PRs (#153-#166) auf `main` gemergt. Nebenbei: Light-Mode für die drei
+geräteeigenen Webseiten ergänzt. Sechs unabhängige, nacheinander erst durch den jeweils vorigen
+Fix sichtbar gewordene Fehler gefunden und behoben: (1) Log-Ringpuffer nirgends angezeigt +
+"bereits aktuell" wurde nie geloggt -- neuer `GET /log`-Endpunkt samt Live-Anzeige und
+Ladeanimation auf `/config`; (2) `IncompleteInput` beim JSON-Parsen -- `http.getString()` statt
+Stream-Parsing; (3) `Wrong HTTP Code` -- GitHub-Redirect auf einen anderen Host wurde nicht
+befolgt; (4) `connection refused` trotz Redirect-Fix -- Redirect wird jetzt selbst per kurzem GET
+aufgelöst; (5) Arduino-Kompilierfehler durch eine in Patricks ESP32-Core-Version nicht mehr
+existierende API; (6) erneut `connection refused`, diesmal durch zu knapp aufeinanderfolgende
+TLS-Verbindungen ohne Pause dazwischen -- explizites Verbindungs-Schließen + 500ms Pause vor
+jeder neuen HTTPS-Verbindung. Version 1.3.1→1.3.2: kompletter automatischer Zyklus (erkennen →
+herunterladen → flashen → neu starten) erstmals bestätigt fehlerfrei, nachgewiesen am
+geänderten `FIRMWARE_VERSION`-Wert nach einem nie per Kabel aufgespielten Update. Vollständige
+Chronologie in `esp32-firmware/p1-smart-meter/README.md` ("Debugging-Geschichte") sowie
+`CLAUDE.md`/`Infrastruktur.md` ergänzt.
+
+---
+
 ## 2026-08-31 (94) — Claude Code — Claude Sonnet 5
 **Prompt:** Fortsetzung derselben Daniel-Ropper-Frage nach Eintrag 93 -- nach dem Label-Fix
 zeigte "Meine Einspeisung" weiterhin kein Grau. Dazwischen zwei Nebenthemen: "bitte überprüfe,

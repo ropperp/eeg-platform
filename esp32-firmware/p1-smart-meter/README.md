@@ -138,11 +138,15 @@ sie herunter und flasht sich selbst (`HTTPUpdate`, danach automatischer Neustart
 
 ### Wichtige Einschränkungen (bitte vor dem ersten echten Rollout lesen)
 
-- **Ungetestet/nicht kompiliert:** Der Code für dieses Feature wurde in dieser Sitzung geschrieben,
-  aber in dieser Umgebung steht kein ESP32-Toolchain zur Verfügung -- es wurde **nicht kompiliert
-  oder auf echter Hardware getestet**. Bitte zuerst auf einem Testgerät (Kabel oder `ArduinoOTA`,
-  nicht automatisch) verifizieren, dass es kompiliert und der Update-Ablauf tatsächlich
-  funktioniert, bevor irgendein Kundengerät `cfgAutoUpdate` aktiv hat.
+- **Auf echter Hardware end-to-end verifiziert (Patrick, 10.09.2026):** der komplette Zyklus
+  (Release-Liste abrufen, neue Version erkennen, Weiterleitung auflösen, `.bin` herunterladen,
+  selbst flashen, neu starten) wurde erstmals erfolgreich auf einem echten Testgerät durchlaufen
+  (`p1-smartmeter-v1.3.2`, beweisbar am geänderten `FIRMWARE_VERSION`-Wert nach einem rein
+  automatischen, nie per Kabel aufgespielten Update). Bis dahin brauchte es sieben aufeinander
+  aufbauende Fixes für ebenso viele unabhängige, erst auf echter Hardware sichtbare Fehler --
+  vollständige Chronologie mit Ursache je Fehler im Abschnitt "Debugging-Geschichte" unten. Vor
+  jedem Kundengeräte-Rollout trotzdem weiterhin zuerst als Pre-Release auf eigener Testhardware
+  verifizieren (siehe unten) -- GitHub selbst kann sein API-/Redirect-Verhalten jederzeit ändern.
 - **Neue Abhängigkeit:** Bibliothek `ArduinoJson` (Benoit Blanchon, v7) muss einmalig über den
   Library Manager der Arduino-IDE installiert werden -- vorher hatte dieses Projekt keine
   JSON-Bibliothek als Abhängigkeit.
@@ -158,6 +162,55 @@ sie herunter und flasht sich selbst (`HTTPUpdate`, danach automatischer Neustart
   danach automatisch neu.
 - Um das GitHub-Repo für die Update-Suche zu wechseln (z. B. eigenes, separates Firmware-Repo
   statt `eeg-platform`): `OTA_UPDATE_REPO` im Sketch anpassen (Format `"owner/repo"`).
+
+### Debugging-Geschichte des ersten echten Testlaufs (10.09.2026)
+
+Das Auto-Update-Feature wurde ursprünglich ohne ESP32-Toolchain geschrieben (siehe Warnung, die
+oben bis zu diesem Tag stand) -- Patrick hat es danach über mehrere Testrunden mit echter
+Hardware, `curl`-Gegentests und Arduino-IDE-Kompilierläufen auf Herz und Nieren geprüft. Sechs
+unabhängige Fehler kamen dabei zum Vorschein, jeder erst durch den vorigen Fix sichtbar geworden.
+Festgehalten hier, falls sich einer der Fehler durch ein künftiges GitHub-/ESP32-Core-Update
+wiederholt:
+
+1. **Log-Ringpuffer nirgends angezeigt** (`v1.2.0`): ein Kommentar behauptete, das Ergebnis von
+   "jetzt auf update prüfen" erscheine im Log auf der Startseite -- `addLog()` wurde aber
+   nirgends tatsächlich gerendert. Zusätzlich schrieb `checkForFirmwareUpdate()` im häufigsten
+   Fall (Firmware bereits aktuell) gar keine Log-Zeile. Fix: neuer `GET /log`-Endpunkt + Anzeige
+   auf `/config`, plus Logging für "bereits aktuell"/"kein passender Release".
+2. **`JSON-Fehler (IncompleteInput)`** (`v1.2.2`): `deserializeJson()` direkt aus
+   `http.getStream()` (TLS-Socket) ist auf dem ESP32 fragil -- Verzögerungen bei der
+   TLS-Entschlüsselung können `read()`/`available()` kurzzeitig "keine Daten" melden lassen,
+   der Parser bricht dann vorzeitig ab. Ein erster, falscher Verdacht (`http.useHTTP10(true)`
+   verhindere fälschlich Chunked-Encoding-Dechunkung, `v1.2.1`) behob es NICHT. Fix: komplette
+   Antwort erst per `http.getString()` puffern, danach erst parsen.
+3. **`Update fehlgeschlagen: Wrong HTTP Code`** (`v1.2.4`): `browser_download_url` aus der
+   GitHub-API zeigt auf `github.com/.../releases/download/...`, antwortet dort aber nur mit
+   einem 302 auf einen anderen Host (`release-assets.githubusercontent.com`, signierte URL).
+   `HTTPUpdate` folgt Redirects nicht automatisch. Fix-Versuch: `httpUpdate.setFollowRedirects()`.
+4. **`Update fehlgeschlagen: HTTP error: connection refused`** (nach `v1.2.4`): der Fix aus (3)
+   änderte den Fehler nur, behob ihn nicht -- das wiederverwendete `WiFiClientSecure`-Objekt
+   verkraftete den Host-Wechsel mitten im Redirect offenbar nicht. Fix (`v1.2.6`): Redirect
+   selbst per kurzem GET auflösen (`getLocation()`), `httpUpdate.update()` bekommt direkt die
+   fertige Ziel-URL, kein Redirect-Handling der Bibliothek mehr nötig.
+5. **Compile-Fehler `'WiFiClientSecure' hat kein Element 'setBufferSizes'`** (`v1.2.8` →
+   `v1.2.9`): ein als zusätzliche Absicherung gedachter Aufruf existiert in Patricks
+   (neuerer) ESP32-Arduino-Core-Version nicht mehr (`WiFiClientSecure` = `NetworkClientSecure`,
+   andere API). Ersatzlos entfernt.
+6. **Erneut `connection refused`, diesmal schon bei der Redirect-Auflösung selbst** (HTTP-Code
+   `-1` = `HTTPC_ERROR_CONNECTION_REFUSED`, nach `v1.2.6`/`v1.2.8`): der LWIP-Netzwerkstack gab
+   den Socket der vorigen HTTPS-Verbindung offenbar nicht schnell genug frei, bevor die nächste
+   aufgebaut wurde -- bei bis zu drei Verbindungen kurz hintereinander (Release-Liste,
+   Redirect-Check, Download) plus der dauerhaft offenen MQTT-Verbindung ein reales Risiko auf
+   einem speicherbegrenzten Gerät. Fix (`v1.3.1`): explizites `client.stop()` + 500ms Pause vor
+   JEDER neuen HTTPS-Verbindung in `checkForFirmwareUpdate()`, nicht nur vor der letzten.
+
+Ab `v1.3.1` (auf dem Testgerät) → `v1.3.2` (automatisch nachgezogen) lief der komplette Zyklus
+fehlerfrei durch. **Merksatz für ähnliche Fälle künftig:** bei einem "Testgerät flashen, dann
+prüfen" verwechselt sich leicht, WESSEN Version-Bestand gerade getestet wird -- ein Fix wirkt
+erst, wenn er tatsächlich auf dem laufenden Gerät steht (Kabel-Flash), nicht schon dadurch, dass
+er in einem neuen GitHub-Release liegt. Deshalb abwechselnd: neue Version X mit dem Fix per Kabel
+aufspielen (bekannt-guter neuer Ausgangsstand), DANACH eine rein versionserhöhte Version X+1 als
+Ziel für den automatischen Test veröffentlichen.
 
 ## Bezug zur Plattform (`eeg-platform`-Repo)
 
