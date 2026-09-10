@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.1.0"
+#define FIRMWARE_VERSION  "1.2.0"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -781,14 +781,22 @@ void checkForFirmwareUpdate() {
     return;
   }
 
+  // Ob ueberhaupt ein zu dieser Firmware passender Release gefunden wurde (Tag-Praefix stimmt,
+  // kein Draft/Pre-Release) -- getrennt von "ist er auch NEUER", damit die Log-Meldung am Ende
+  // unterscheiden kann zwischen "bereits aktuell" und "gar kein passender Release vorhanden"
+  // (Patrick, 10.09.2026: "einfach ob was gefunden wurde oder nicht" -- bisher blieb der
+  // haeufigste Fall, bereits aktuelle Firmware, komplett ohne jede Log-Meldung).
+  bool foundMatchingRelease = false;
   for (JsonObject release : doc.as<JsonArray>()) {
     if (release["draft"] | false) continue;
     if (release["prerelease"] | false) continue;   // Beta -- fuer Kundengeraete ignorieren
     String tag = release["tag_name"] | "";
     if (!tag.startsWith(OTA_TAG_PREFIX)) continue;  // gehoert zu einem anderen Projekt/der Plattform
+    foundMatchingRelease = true;
 
     String remoteVersion = tag.substring(String(OTA_TAG_PREFIX).length());
     if (!isNewerVersion(FIRMWARE_VERSION, remoteVersion)) {
+      addLog("Firmware ist aktuell (Version " + String(FIRMWARE_VERSION) + ", neuester Release " + remoteVersion + ")");
       return;  // aeltester/gleich neuer passender Release zuerst gefunden -> nichts zu tun
     }
 
@@ -817,6 +825,9 @@ void checkForFirmwareUpdate() {
       addLog("Update fehlgeschlagen: " + httpUpdate.getLastErrorString());
     }
     return;  // nur den ersten passenden (= neuesten) Release pro Aufruf pruefen
+  }
+  if (!foundMatchingRelease) {
+    addLog("Update-Check: kein passender Release gefunden (Tag-Praefix '" + String(OTA_TAG_PREFIX) + "')");
   }
 }
 
@@ -957,11 +968,17 @@ String buildSettingsPage() {
   h += ".sec{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;margin-top:14px}";
   h += ".hint{font-size:12px;color:#666;margin-top:4px}a{color:#60a5fa}";
   h += "#msg{display:none;background:#14532d;color:#86efac;border:1px solid #166634;border-radius:8px;padding:10px;margin-top:12px;font-size:13px}";
+  h += "#updstatus{display:none;align-items:center;gap:8px;margin-top:10px;font-size:13px}";
+  h += ".spinner{width:14px;height:14px;border:2px solid #444;border-top-color:#eee;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}";
+  h += "@keyframes spin{to{transform:rotate(360deg)}}";
+  h += "#logbox{background:#0a0a0a;border:1px solid #333;border-radius:8px;padding:10px 12px;margin-top:6px;font-size:12px;font-family:monospace;color:#aaa;max-height:180px;overflow-y:auto;white-space:pre-wrap}";
   h += "@media (prefers-color-scheme: light) {";
   h += "body { background: #f5f5f5; color: #111; }";
   h += "input { background: #fff; border-color: #ccc; color: #111; }";
   h += ".gear { border-color: #ccc; color: #333; }";
   h += ".sec { background: #fff; border-color: #ddd; }";
+  h += ".spinner { border-color: #ccc; border-top-color: #333; }";
+  h += "#logbox { background: #fff; border-color: #ddd; color: #333; }";
   h += "}";
   h += "</style></head><body>";
   h += "<div class='topbar'><h1>zuordnung</h1><button class='gear' onclick='toggleMqtt()' title='mqtt-einstellungen'>&#9881;</button></div>";
@@ -976,7 +993,10 @@ String buildSettingsPage() {
   h += "<div class='hint'>prueft regelmaessig github auf eine neue firmware-version und installiert sie automatisch (kein kabel/ota-termin noetig). aktuelle version: " + String(FIRMWARE_VERSION) + "</div>";
   h += "<label>pruefintervall (sekunden)</label><input id='usec' type='number' min='60' value='" + String(cfgUpdateSec) + "' placeholder='3600'>";
   h += "<div class='hint'>default: 3600 (1 stunde).</div>";
-  h += "<button class='save' style='background:#374151;margin-top:10px' onclick='checkUpdateNow()'>jetzt auf update pruefen</button>";
+  h += "<button class='save' id='updbtn' style='background:#374151;margin-top:10px' onclick='checkUpdateNow()'>jetzt auf update pruefen</button>";
+  h += "<div id='updstatus'><span class='spinner' id='updspinner' style='display:none'></span><span id='updtext'></span></div>";
+  h += "<div class='hint' style='margin-top:14px'>letzte ereignisse (aktualisiert sich von selbst):</div>";
+  h += "<pre id='logbox'>--</pre>";
   h += "</div>";
   h += "<div id='mqtt' class='sec' style='display:none'>";
   h += "<label>mqtt-topic (optional)</label><input id='mtopic' value='" + cfgMqttTopic + "' placeholder='leer = eeg/{rc}/meter/{zaehler}/live'>";
@@ -1013,7 +1033,41 @@ String buildSettingsPage() {
   h += "b.append('update_sec',document.getElementById('usec').value);";
   h += "fetch('/saveconfig',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b.toString()})";
   h += ".then(function(){var m=document.getElementById('msg');m.style.display='block';m.textContent='gespeichert.';});}";
-  h += "function checkUpdateNow(){fetch('/checkupdate',{method:'POST'}).then(function(r){return r.text();}).then(function(t){var m=document.getElementById('msg');m.style.display='block';m.textContent=t;});}";
+  // Log-Ringpuffer alle 3s anzeigen (Patrick, 10.09.2026: 'wo soll ich logs sehen? weiss ich
+  // nicht'). checkUpdateNow() nutzt denselben Endpunkt zusaetzlich gezielt: merkt sich den
+  // Eintrags-Zaehler VOR dem Auslösen, pollt danach engmaschiger und zeigt, sobald ein neuer
+  // Eintrag da ist, das Ergebnis lesbar an (gefunden/aktuell/fehlgeschlagen), statt nur den
+  // rohen Log-Text -- inkl. Ladeanimation waehrend der Wartezeit.
+  h += "function refreshLog(){fetch('/log').then(function(r){return r.json();}).then(function(d){";
+  h += "document.getElementById('logbox').textContent = d.entries.length ? d.entries.slice().reverse().join('\\n') : '(noch keine ereignisse)';";
+  h += "return d;});}";
+  h += "setInterval(refreshLog, 3000); refreshLog();";
+  h += "function checkUpdateNow(){";
+  h += "var btn=document.getElementById('updbtn'), st=document.getElementById('updstatus'),";
+  h += "sp=document.getElementById('updspinner'), tx=document.getElementById('updtext');";
+  h += "btn.disabled=true; st.style.display='flex'; sp.style.display='inline-block'; tx.textContent='pruefe...';";
+  h += "fetch('/log').then(function(r){return r.json();}).then(function(d0){";
+  h += "var startPos=d0.pos, tries=0;";
+  h += "fetch('/checkupdate',{method:'POST'});";
+  h += "var poll=setInterval(function(){";
+  h += "tries++;";
+  h += "fetch('/log').then(function(r){return r.json();}).then(function(d){";
+  h += "document.getElementById('logbox').textContent = d.entries.length ? d.entries.slice().reverse().join('\\n') : '(noch keine ereignisse)';";
+  h += "if(d.pos > startPos){";
+  h += "clearInterval(poll); btn.disabled=false; sp.style.display='none';";
+  h += "var neu = d.entries.slice(d.entries.length - (d.pos - startPos)).join(' / ');";
+  h += "if(/neue firmware.*gefunden/i.test(neu)) tx.textContent='\\uD83C\\uDD95 ' + neu;";
+  h += "else if(/ist aktuell/i.test(neu)) tx.textContent='\\u2705 ' + neu;";
+  h += "else if(/fehlgeschlagen|fehler|kein passender/i.test(neu)) tx.textContent='\\u274C ' + neu;";
+  h += "else tx.textContent = neu;";
+  h += "} else if(tries>=15){";
+  h += "clearInterval(poll); btn.disabled=false; sp.style.display='none';";
+  h += "tx.textContent='kein ergebnis erhalten -- siehe log unten.';";
+  h += "}";
+  h += "});";
+  h += "}, 1000);";
+  h += "});";
+  h += "}";
   h += "function forget(){if(confirm('wlan-daten loeschen und neu starten?'))";
   h += "fetch('/forgetwifi',{method:'POST'}).then(function(){alert('esp startet neu im setup-modus.');});}";
   h += "</script></body></html>";
@@ -1074,12 +1128,35 @@ void handleForgetWifi() {
 }
 
 // Manueller Anstoss von checkForFirmwareUpdate() ueber den "jetzt pruefen"-Button im
-// /config-Formular -- Antwort geht sofort raus, das eigentliche Ergebnis landet im Log-Ringpuffer
-// (sichtbar auf "/"), damit der Browser nicht auf einen evtl. minutenlangen Download+Flash-Vorgang warten muss.
+// /config-Formular -- Antwort geht sofort raus, das eigentliche Ergebnis landet im Log-Ringpuffer,
+// damit der Browser nicht auf einen evtl. minutenlangen Download+Flash-Vorgang warten muss.
 void handleCheckUpdate() {
   if (!requireAuth()) return;
-  server.send(200, "text/plain", "Pruefe im Hintergrund -- Ergebnis siehe Log auf der Startseite.");
+  server.send(200, "text/plain", "Pruefe im Hintergrund -- Ergebnis erscheint gleich im Log unten.");
   checkForFirmwareUpdate();
+}
+
+// Log-Ringpuffer als JSON, fuer die Live-Anzeige auf der /config-Seite (Patrick, 10.09.2026:
+// "wo soll ich logs sehen? weiss ich nicht, wo ich das finden soll" -- der Ringpuffer wurde
+// bisher nirgends tatsaechlich angezeigt, obwohl ein Kommentar oben das faelschlich behauptet
+// hatte). "pos" ist der monoton steigende Gesamtzaehler aller je geloggten Eintraege seit dem
+// letzten Boot -- die Seite erkennt darueber zuverlaessig, ob seit einer eigenen Aktion (z.B.
+// "jetzt auf update pruefen") ein NEUER Eintrag dazugekommen ist, ohne den Text selbst
+// vergleichen zu muessen (siehe checkUpdateNow() in buildSettingsPage()).
+void handleLog() {
+  if (!requireAuth()) return;
+  int count = min(logPos, MAX_LOG);
+  String j = "{\"pos\":" + String(logPos) + ",\"entries\":[";
+  for (int i = 0; i < count; i++) {
+    int idx = (logPos - count + i) % MAX_LOG;
+    String e = frameLog[idx];
+    e.replace("\\", "\\\\");
+    e.replace("\"", "\\\"");
+    if (i > 0) j += ",";
+    j += "\"" + e + "\"";
+  }
+  j += "]}";
+  server.send(200, "application/json", j);
 }
 
 // ── Setup ─────────────────────────────────────────────────────
@@ -1134,6 +1211,7 @@ void setup() {
     server.on("/saveconfig", HTTP_POST, handleSaveConfig);
     server.on("/forgetwifi", HTTP_POST, handleForgetWifi);
     server.on("/checkupdate", HTTP_POST, handleCheckUpdate);
+    server.on("/log", handleLog);
 
     server.begin();
     Serial.println("Webserver gestartet");
