@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.3"
+#define FIRMWARE_VERSION  "1.2.4"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -840,6 +840,16 @@ void checkForFirmwareUpdate() {
     WiFiClientSecure updateClient;
     updateClient.setInsecure();
     httpUpdate.rebootOnUpdate(true);  // Geraet startet nach erfolgreichem Update automatisch neu
+    // Fund 10.09.2026, dritter echter Testlauf ("Update fehlgeschlagen: Wrong HTTP Code" /
+    // "connection refused"): "browser_download_url" aus der GitHub-API zeigt auf
+    // github.com/.../releases/download/..., der eigentliche Datei-Inhalt liegt aber auf einem
+    // ANDEREN Host (objects.githubusercontent.com, signierte URL) -- github.com antwortet dort
+    // nur mit einem 302-Redirect dorthin. HTTPClient/HTTPUpdate folgt Redirects NICHT
+    // automatisch, wenn setFollowRedirects() nicht explizit gesetzt wird (Default: aus) --
+    // httpUpdate.update() bekam dadurch die 302-Antwort selbst statt der echten Datei,
+    // erwartete aber 200 ("Wrong HTTP Code"). STRICT statt FORCE: folgt Redirects nur bei
+    // GET/HEAD (genau unser Fall), nicht bei potenziell unsicheren Methoden.
+    httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     t_httpUpdate_return ret = httpUpdate.update(updateClient, assetUrl);
     // HTTP_UPDATE_OK wird hier nie erreicht -- das Geraet startet vorher neu (rebootOnUpdate).
     if (ret == HTTP_UPDATE_FAILED) {
