@@ -695,6 +695,23 @@ Content-Security-Policy denken, besonders wenn irgendwo ein `<script src="https:
 eine fremde Domain zeigt -- `grep -rn "https://.*\.js\"" webapp/src` findet solche Stellen,
 sollte im gesamten Code eigentlich nie wieder vorkommen.
 
+### ESP32-Firmware: automatisches OTA-Update von GitHub Releases -- erster echter Hardware-Test (10.09.2026)
+
+Das Auto-Update-Feature (`esp32-firmware/p1-smart-meter/p1-smart-meter.ino`,
+`checkForFirmwareUpdate()`) war ursprünglich ohne ESP32-Toolchain geschrieben und nie kompiliert
+worden. Patrick hat es an einem Tag über mehrere Testrunden mit echter Hardware auf Herz und
+Nieren geprüft -- sechs unabhängige Fehler kamen dabei zum Vorschein, jeder erst durch den
+vorigen Fix sichtbar geworden (Log-Ringpuffer nirgends angezeigt → `IncompleteInput` beim
+JSON-Parsen → `Wrong HTTP Code` bei einem von GitHub nicht befolgten Redirect →
+`connection refused` trotz aufgelöstem Redirect → Compile-Fehler durch eine in Patricks
+ESP32-Core-Version nicht mehr existierende API → erneut `connection refused`, diesmal durch zu
+knapp aufeinanderfolgende TLS-Verbindungen ohne Pause dazwischen). Ab Version `1.3.1`/`1.3.2`
+lief der komplette Zyklus (erkennen → herunterladen → flashen → neu starten) erstmals fehlerfrei
+durch, rein automatisch über WLAN. Vollständige Chronologie mit Ursache und Fix je Fehler:
+`esp32-firmware/p1-smart-meter/README.md`, Abschnitt "Debugging-Geschichte des ersten echten
+Testlaufs". Betrifft ausschließlich die ESP32-Firmware, keine Plattform-/Server-Änderung -- kein
+Migrations-/Setup-Skript nötig.
+
 ---
 
 ## Update (laufendes System)
