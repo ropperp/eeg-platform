@@ -87,7 +87,7 @@ const char* ntpServer = "pool.ntp.org";
 // -- Firmware-Auto-Update (GitHub Releases) --------------------------------
 // Bei jedem Release (siehe checkForFirmwareUpdate() weiter unten fuer den genauen Ablauf)
 // diese Version erhoehen, sonst erkennt kein Geraet das neue Release als "neuer".
-#define FIRMWARE_VERSION  "1.2.1"
+#define FIRMWARE_VERSION  "1.2.2"
 // owner/repo -- fuer ein eigenes/separates Firmware-Repo hier einfach umtragen, sonst bleibt
 // alles unveraendert (die Plattform selbst kuemmert sich nicht darum, das ist rein Firmware-seitig).
 #define OTA_UPDATE_REPO   "ropperp/eeg-platform"
@@ -783,11 +783,22 @@ void checkForFirmwareUpdate() {
   filter[0]["assets"][0]["name"] = true;
   filter[0]["assets"][0]["browser_download_url"] = true;
 
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+  // Fund 10.09.2026, zweiter echter Testlauf (der erste hatte useHTTP10(true) als Ursache
+  // vermutet, entfernt -- der Fehler blieb trotzdem bestehen): direktes Parsen aus
+  // http.getStream() (TLS-Socket) ist auf dem ESP32 grundsaetzlich fragil -- Verzoegerungen
+  // bei der TLS-Record-Entschluesselung koennen dazu fuehren, dass read()/available()
+  // kurzzeitig "keine Daten" melden, obwohl der Rest der Antwort noch unterwegs ist;
+  // deserializeJson() liest dann vorzeitig als "IncompleteInput" ab. Robuster Standardweg:
+  // HTTPClient puffert die komplette Antwort selbst zuverlaessig (inkl. internem Retry bei
+  // TLS-Verzoegerungen) in einen String, ERST DANACH wird daraus geparst -- der Filter greift
+  // weiterhin beim Parsen, spart also weiterhin RAM im Ergebnis-Dokument, nur der Rohtext
+  // liegt kurzzeitig zusaetzlich komplett im Speicher (bei per_page=10 unkritisch).
+  String payload = http.getString();
   http.end();
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
   if (err) {
-    addLog("Update-Check: JSON-Fehler (" + String(err.c_str()) + ")");
+    addLog("Update-Check: JSON-Fehler (" + String(err.c_str()) + ", " + String(payload.length()) + " Bytes empfangen)");
     return;
   }
 
