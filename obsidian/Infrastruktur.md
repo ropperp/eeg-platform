@@ -626,6 +626,13 @@ Vollständige Diagnose + Selbstheilung per Hardware-Watchdog (Pi rebootet sich b
 selbst): `docs/RASPBERRY_STABILITAET.md`. Bereits abgesichert: `restart: always` auf allen
 Containern + Docker-Log-Rotation (`x-logging` in `docker-compose.yml`).
 
+**Update 23.09.2026 (gehäufte Hänger):** Übergangs-Mitigation bis zur eigentlichen Ursache --
+täglicher Zwangs-Reboot um 03:00 Uhr (`/etc/cron.d/eeg-daily-reboot`, `root /sbin/reboot`),
+~1 Min. Downtime, danach alle Container automatisch wieder online. Fehler-/Neustart-Log
+einzelner Dienste: `/var/log/eeg-health.log`. Hängt der ganze Pi (SSH tot), steht das NICHT in
+dieser Datei -- dafür `docs/RASPBERRY_STABILITAET.md` Abschnitt 2 (Journal persistent machen,
+dann `journalctl -b -1`).
+
 ### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- DREI Ursachen)
 Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Drei unabhängige Ursachen
 nacheinander gefunden:
