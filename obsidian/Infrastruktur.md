@@ -633,6 +633,12 @@ einzelner Dienste: `/var/log/eeg-health.log`. Hängt der ganze Pi (SSH tot), ste
 dieser Datei -- dafür `docs/RASPBERRY_STABILITAET.md` Abschnitt 2 (Journal persistent machen,
 dann `journalctl -b -1`).
 
+**Nachtrag 23.09.2026:** Auf diesem Pi fehlten tatsächlich beide Diagnose-Voraussetzungen --
+kein `/var/log/eeg-health.log` (Health-Monitor-Cron nie eingerichtet) und kein persistentes
+Journal. Beides nachgeholt, zusätzlich Hardware-Watchdog aktiviert (Abschnitt 1 der
+RASPBERRY_STABILITAET.md, war ebenfalls nicht gesetzt) -- Pi rebootet sich bei komplettem
+Einfrieren künftig selbst nach ~15 s.
+
 ### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- DREI Ursachen)
 Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Drei unabhängige Ursachen
 nacheinander gefunden:
