@@ -641,6 +641,16 @@ lassen.
 > Einträge. Hängt dagegen der **ganze Pi** (SSH nicht mehr erreichbar), steht dazu nichts in
 > dieser Datei -- dafür `docs/RASPBERRY_STABILITAET.md` Abschnitt 2 (zuerst Journal persistent
 > machen, dann nach dem nächsten Hänger `journalctl -b -1`).
+>
+> **Nachtrag (23.09.2026): beide Diagnose-Voraussetzungen fehlten auf diesem Pi tatsächlich.**
+> `tail /var/log/eeg-health.log` → „No such file or directory" (der Cron-Job aus „Container-
+> Healthchecks & Selbstheilung" war nie eingerichtet) und `journalctl -b -1` → „no persistent
+> journal was found" (Journal nie auf `Storage=persistent` gestellt, siehe
+> `docs/RASPBERRY_STABILITAET.md` Abschnitt 2.0). Beides jetzt nachgeholt, zusätzlich der in
+> Abschnitt 1 von `docs/RASPBERRY_STABILITAET.md` beschriebene **Hardware-Watchdog** aktiviert
+> (bisher ebenfalls nicht gesetzt) -- damit rebootet sich der Pi bei einem kompletten Einfrieren
+> künftig selbst nach ~15 s, statt unbegrenzt zu hängen. Der tägliche 3-Uhr-Reboot (oben) aktiviert
+> `/dev/watchdog` beim ersten automatischen Neustart mit.
 
 ### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
 Vorfall 24.08.2026, DREI UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
