@@ -289,7 +289,11 @@ services:
       # jede Vorlage, weil das Volume das im Image gebackene ./templates verdeckt.
       - /opt/eeg/latex-templates:/app/templates
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3210/health"]
+      # KEIN curl im Image (node:20-slim hat keins, siehe latex-service/Dockerfile) -- ein
+      # curl-Healthcheck schlaegt hier IMMER fehl ("executable file not found"), unabhaengig
+      # vom tatsaechlichen Zustand des Dienstes. Node 20 hat globales fetch() eingebaut,
+      # das braucht keine zusaetzliche Abhaengigkeit.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3210/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
