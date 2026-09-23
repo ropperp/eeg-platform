@@ -738,6 +738,38 @@ durch, rein automatisch über WLAN. Vollständige Chronologie mit Ursache und Fi
 Testlaufs". Betrifft ausschließlich die ESP32-Firmware, keine Plattform-/Server-Änderung -- kein
 Migrations-/Setup-Skript nötig.
 
+### latex-service dauerhaft "unhealthy" trotz laufendem Dienst (Vorfall 24.09.2026, gelöst)
+Beim ersten echten Testlauf von `scripts/health_monitor.sh` (siehe Abschnitt "Raspberry Pi hängt
+sich auf" oben -- der Cron dafür war auf Patricks Pi bis dahin nie eingerichtet gewesen) zeigte
+sich: `latex-service` war dauerhaft `unhealthy`, obwohl `docker compose logs latex-service` ganz
+normal "latex-service listening on :3210" zeigt und der Dienst grundsätzlich funktioniert.
+**Ursache:** der Healthcheck in `docker-compose.yml` rief `curl -f http://localhost:3210/health`
+auf -- das `node:20-slim`-Basisimage von `latex-service/Dockerfile` installiert aber KEIN `curl`.
+Der Healthcheck schlug deshalb bei JEDEM Aufruf mit "executable file not found" fehl, unabhängig
+vom tatsächlichen Zustand des Dienstes -- Docker markierte den Container dauerhaft unhealthy,
+`health_monitor.sh` versuchte ihn alle 5 Minuten neu zu starten (erfolglos, weil der Healthcheck
+ja weiterhin fehlschlägt, ganz gleich wie oft neu gestartet wird) und verschickte wiederholt
+Alarm-Mails. **Fix:** Healthcheck auf Node's eingebautes `fetch()` umgestellt (kein zusätzliches
+Paket nötig, Node 20 hat globales `fetch` bereits eingebaut):
+```yaml
+test: ["CMD", "node", "-e", "fetch('http://localhost:3210/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+```
+Reine compose-Konfig-Änderung, kein Image-Rebuild zwingend nötig (der Healthcheck steht in
+`docker-compose.yml`, nicht im Dockerfile) -- mit dem nächsten `git pull && docker compose up -d`
+(bzw. `--build`, funktioniert genauso) aktiv.
+
+> **Zusätzlicher Stolperstein beim erstmaligen Einrichten des Health-Monitor-Crons auf einem
+> NICHT-root-Cron-Nutzer** (wie Patricks `admin`-User): `/var/log` gehört auf den meisten
+> Systemen `root` und ist für andere Nutzer nicht beschreibbar -- ein Cron-Eintrag, der per
+> `>> /var/log/eeg-health.log` in eine noch NICHT existierende Datei schreiben will, scheitert
+> deshalb lautlos (Cron mailt Fehler standardmäßig lokal zu, was hier nicht eingerichtet ist).
+> Einmalig die Datei als root anlegen und dem Cron-Nutzer übergeben, danach funktioniert das
+> reine Anhängen (`>>`) auch ohne Schreibrecht auf das Verzeichnis selbst:
+> ```bash
+> sudo touch /var/log/eeg-health.log
+> sudo chown <cron-user>:<cron-user> /var/log/eeg-health.log
+> ```
+
 ---
 
 ## Update (laufendes System)

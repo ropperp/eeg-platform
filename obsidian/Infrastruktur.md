@@ -766,6 +766,21 @@ komplette automatische Zyklus (erkennen → herunterladen → flashen → neu st
 fehlerfrei durch. Betrifft nur die Firmware, keine Server-/Plattform-Änderung. Vollständige
 Chronologie: `esp32-firmware/p1-smart-meter/README.md`, Details auch in `CLAUDE.md`.
 
+## latex-service dauerhaft "unhealthy" trotz laufendem Dienst (Vorfall 24.09.2026, gelöst)
+
+Healthcheck rief `curl -f http://localhost:3210/health` auf, aber `node:20-slim` (Basisimage von
+`latex-service/Dockerfile`) hat kein `curl` installiert -- der Check schlug deshalb IMMER fehl,
+unabhängig vom tatsächlichen Zustand. Docker markierte den Container dauerhaft unhealthy,
+`health_monitor.sh` startete ihn alle 5 Min. erfolglos neu und verschickte wiederholt
+Alarm-Mails. Fix: Healthcheck auf Node's eingebautes `fetch()` umgestellt statt `curl` (kein
+Extra-Paket nötig). Reine compose-Konfig-Änderung, `git pull && docker compose up -d` reicht.
+
+Zusätzlicher Stolperstein beim Einrichten des Health-Monitor-Crons unter einem Nicht-root-User:
+`/var/log` ist für andere Nutzer meist nicht beschreibbar -- ein `>>`-Redirect in eine noch nicht
+existierende Datei scheitert lautlos. Fix: `sudo touch /var/log/eeg-health.log && sudo chown
+<cron-user>:<cron-user> /var/log/eeg-health.log`, danach funktioniert das Anhängen ohne
+Verzeichnis-Schreibrecht.
+
 ## Claude-Sitzungslog (Selbstdokumentation)
 
 Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,
