@@ -626,6 +626,22 @@ Containern (Autostart nach Reboot) und Docker-Log-Rotation (`x-logging` in
 `docker-compose.yml`, max. 3 × 10 MB/Container), damit die Logs die Platte nicht volllaufen
 lassen.
 
+> **Update (23.09.2026, gehäufte Hänger der letzten 1–2 Wochen):** Bis die eigentliche Ursache
+> über die Diagnoseschritte in `docs/RASPBERRY_STABILITAET.md` geklärt ist, läuft als
+> Übergangs-Mitigation ein täglicher Zwangs-Reboot um 03:00 Uhr (ca. 1 Minute Downtime, danach
+> starten alle Container dank `restart: always` automatisch wieder) -- senkt die
+> Wahrscheinlichkeit, dass der Pi tagsüber für Mitglieder unerreichbar hängt:
+> ```bash
+> echo "0 3 * * * root /sbin/reboot" | sudo tee /etc/cron.d/eeg-daily-reboot
+> sudo chmod 644 /etc/cron.d/eeg-daily-reboot
+> ```
+> Log für Fehler/Neustarts einzelner **Dienste** (nicht des ganzen Pi): `/var/log/eeg-health.log`
+> (aus `scripts/health_monitor.sh`, alle 5 Min. per Cron, siehe Abschnitt „Container-Healthchecks
+> & Selbstheilung" weiter unten) -- `tail -100 /var/log/eeg-health.log` zeigt die letzten
+> Einträge. Hängt dagegen der **ganze Pi** (SSH nicht mehr erreichbar), steht dazu nichts in
+> dieser Datei -- dafür `docs/RASPBERRY_STABILITAET.md` Abschnitt 2 (zuerst Journal persistent
+> machen, dann nach dem nächsten Hänger `journalctl -b -1`).
+
 ### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
 Vorfall 24.08.2026, DREI UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
 auftritt, alle drei Diagnosewege der Reihe nach prüfen, nicht nur den ersten:
