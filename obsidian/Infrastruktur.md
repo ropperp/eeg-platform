@@ -639,6 +639,20 @@ Journal. Beides nachgeholt, zusätzlich Hardware-Watchdog aktiviert (Abschnitt 1
 RASPBERRY_STABILITAET.md, war ebenfalls nicht gesetzt) -- Pi rebootet sich bei komplettem
 Einfrieren künftig selbst nach ~15 s.
 
+**Nachtrag 24.09.2026:** `Storage=persistent` wirkt auf diesem Pi trotz korrekter Konfiguration
+nicht -- journald bleibt dauerhaft beim flüchtigen Runtime-Journal, `/var/log/journal/<machine-id>/`
+bleibt nach jedem Neustart leer bzw. verschwindet ganz. Ausführliche Diagnose (Rechte, Platz, kein
+Container laut `systemd-detect-virt`, Maschinen-ID korrekt committed, keine Sandbox-Einschränkung
+in der Unit, kein Credential-Override, selbst `SYSTEMD_LOG_LEVEL=debug` zeigt keine Fehlermeldung)
+fand keine der üblichen Ursachen -- journald versucht schlicht nie, die persistente Journal-Datei
+zu öffnen. Vermutlich eine Eigenheit dieses Cloud-Init-Images/dieser systemd-Version, ohne
+riskantes `strace` auf dem Produktivsystem nicht weiter eingrenzbar. **Workaround statt
+Ursachenforschung:** `scripts/journal_persist_workaround.sh` schreibt `journalctl -f` in eine
+normale, rotierte Textdatei (`/var/log/journal-persist.log`), komplett unabhängig von journalds
+eigener Speicher-Logik. Nach einem Hänger Logs von VORHER dort suchen, nicht über `journalctl -b -1`
+(liefert weiterhin "no persistent journal was found"). Details: `CLAUDE.md`, Abschnitt "Raspberry
+Pi hängt sich auf", und `docs/RASPBERRY_STABILITAET.md` Abschnitt 2.0.
+
 ### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- DREI Ursachen)
 Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Drei unabhängige Ursachen
 nacheinander gefunden:

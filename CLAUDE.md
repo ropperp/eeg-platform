@@ -651,6 +651,35 @@ lassen.
 > (bisher ebenfalls nicht gesetzt) -- damit rebootet sich der Pi bei einem kompletten Einfrieren
 > künftig selbst nach ~15 s, statt unbegrenzt zu hängen. Der tägliche 3-Uhr-Reboot (oben) aktiviert
 > `/dev/watchdog` beim ersten automatischen Neustart mit.
+>
+> **Nachtrag (24.09.2026): `Storage=persistent` wirkt auf diesem Pi trotz korrekter Konfiguration
+> nicht -- journald bleibt dauerhaft beim flüchtigen Runtime-Journal.** Nach einem echten
+> Freeze-Vorfall (Vater musste den Pi hart vom Strom trennen, da der Watchdog zu diesem Zeitpunkt
+> noch nicht aktiviert war) zeigte sich beim Nachprüfen: `/var/log/journal/<machine-id>/` blieb
+> nach jedem Neustart leer bzw. verschwand komplett -- unabhängig von erneutem `mkdir`/
+> `systemd-tmpfiles --create`/`journalctl --flush`. Ausführliche Diagnose (u. a. `stat`, `mount`,
+> `df`, `systemd-detect-virt` [Ergebnis: `none`, also echte Hardware, kein Container], Prüfung von
+> `/etc/machine-id` [korrekt committed, kein First-Boot-Zustand], der vollständigen
+> `systemd-journald.service`-Unit [kein Sandboxing/`ProtectSystem`], sogar `SYSTEMD_LOG_LEVEL=debug`
+> im laufenden Dienst) fand **keine** Fehlermeldung und **keine** der üblichen Ursachen (Rechte,
+> Platz, Container, Maschinen-ID, Config-Syntax, Credential-Override über `ImportCredential=
+> journal.*`) -- journald versucht schlicht nie, die persistente Journal-Datei zu öffnen, auch im
+> Debug-Log nicht. Vermutlich eine Eigenheit dieses Cloud-Init-Images/dieser systemd-Version, die
+> sich per Ferndiagnose nicht weiter eingrenzen ließ, ohne riskant in den laufenden Dienst
+> einzugreifen (`strace` auf einem Produktivsystem).
+>
+> **Workaround statt Ursachenforschung:** `scripts/journal_persist_workaround.sh` legt einen
+> eigenen, einfachen Dienst (`journal-persist.service`) an, der `journalctl -f` in eine normale
+> Textdatei (`/var/log/journal-persist.log`, per `logrotate` täglich rotiert, 14 Tage) mitschreibt
+> -- komplett unabhängig von journalds eigener (hier offenbar kaputter) Speicher-Logik, überlebt
+> jeden Reboot einfach als gewöhnliche Datei:
+> ```bash
+> sudo bash scripts/journal_persist_workaround.sh
+> ```
+> Nach einem künftigen Hänger/Reboot Logs von VOR dem Absturz also **nicht** über `journalctl -b -1`
+> suchen (liefert weiterhin "no persistent journal was found"), sondern direkt in
+> `/var/log/journal-persist.log` nachsehen (z. B. um den bekannten Ausfallzeitpunkt herum grep'en).
+> `docs/RASPBERRY_STABILITAET.md` Abschnitt 2.0 entsprechend um diesen Hinweis ergänzt.
 
 ### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
 Vorfall 24.08.2026, DREI UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
