@@ -89,6 +89,22 @@ journalctl --list-boots        # danach muss mehr als nur der aktuelle Boot (0) 
 Ab jetzt überlebt das Journal einen Reboot, und nach dem nächsten Hänger zeigt `journalctl -b -1`
 tatsächlich den Boot davor. **Ohne diesen Schritt** liefern die folgenden `-b -1`-Befehle nichts.
 
+> **Falls das auf diesem Pi trotzdem nicht klappt (Vorfall 24.09.2026):** `journalctl -b -1`
+> meldet auch nach obigen drei Befehlen weiterhin „no persistent journal was found", und
+> `/var/log/journal/<machine-id>/` bleibt nach jedem Reboot leer bzw. verschwindet ganz. Bei
+> Patricks Pi war das reproduzierbar der Fall, trotz ausführlicher Diagnose (Rechte, Platz, kein
+> Container, Maschinen-ID korrekt, keine Sandbox-Einschränkung, kein Credential-Override, keine
+> Fehlermeldung selbst mit `SYSTEMD_LOG_LEVEL=debug`) — journald öffnet auf diesem Image aus
+> ungeklärtem Grund einfach nie die persistente Journal-Datei. Volle Diagnose-Chronologie in
+> `CLAUDE.md`, Abschnitt „Raspberry Pi hängt sich auf", Nachtrag 24.09.2026. **Workaround statt
+> Ursachenforschung:**
+> ```bash
+> sudo bash scripts/journal_persist_workaround.sh
+> ```
+> Schreibt `journalctl -f` in eine normale, von journalds Speicher-Logik unabhängige Textdatei
+> (`/var/log/journal-persist.log`, rotiert). Logs von VOR einem Hänger dann dort suchen statt über
+> `journalctl -b -1`.
+
 ### Logs von VOR dem Absturz ansehen
 Nach dem nächsten Hänger + Reboot **zuerst** die Logs von VOR dem Absturz ansehen:
 
