@@ -931,14 +931,33 @@ dieses Repos (externer Proxy-Host).
 
 > **Noch offen, bewusst NICHT unilateral gefixt (brauchen Patricks Entscheidung/externe
 > Host-Änderungen):** DMARC/DKIM fehlt (DNS + M365, betrifft `noreply@`/`eda@stromfueralle.at`,
-> DNS-Propagierung kann Stunden dauern), `traefik.stromfueralle.at` ist öffentlich erreichbar und
-> zeigt ein falsches Zertifikat (CN `ropper.dyndns.org`, keine eigene Traefik-Dashboard-Öffnung
-> laut `docker-compose.yml` -- vermutlich nur eine verwaiste DNS-/Proxy-Altlast, siehe
-> "www-Subdomain hinzufügen" oben: `traefik.stromfueralle.at` steht zwar im Zertifikat-SAN, hat
-> aber nie einen eigenen `server{}`-Block bekommen), kein CAA-DNS-Record, `Domain=.stromfueralle.at`
+> DNS-Propagierung kann Stunden dauern), kein CAA-DNS-Record, `Domain=.stromfueralle.at`
 > beim Session-Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den bereits bewusst
 > gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt- und Portal-Domain wieder
 > einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen).
+
+> **F-04 (traefik.stromfueralle.at) behoben (25.09.2026):** die `stromfueralle.at`-Zertifikats-
+> Lineage auf dem Proxy-Host (10.0.0.144) enthielt `stromfueralle.at`, `www.stromfueralle.at`,
+> `portal.stromfueralle.at` UND `traefik.stromfueralle.at` -- Letzteres hatte aber (siehe
+> "www-Subdomain hinzufügen" oben) nie einen eigenen `server{}`-Block bekommen, wurde also von
+> irgendeinem anderen vhost auf demselben Host mit dessen (falschem) Zertifikat beantwortet.
+> Domain per `sudo certbot certonly --nginx --cert-name stromfueralle.at -d stromfueralle.at
+> -d www.stromfueralle.at -d portal.stromfueralle.at` aus der Lineage entfernt (certbot fragt
+> dabei explizit "You are also removing previously included domain(s): traefik.stromfueralle.at
+> -- Did you intend to make this change?" -- (U)pdate bestätigen). **Stolperstein dabei:** ein
+> erster Versuch OHNE `--cert-name` hat NICHT die bestehende Lineage aktualisiert, sondern eine
+> zweite, parallele Lineage `stromfueralle.at-0001` angelegt (unbenutzt, da die vhost-Config
+> weiterhin auf die ursprüngliche `stromfueralle.at`-Lineage zeigte) -- musste per `certbot
+> delete --cert-name stromfueralle.at-0001` erst wieder entfernt werden, bevor der Befehl MIT
+> `--cert-name` die eigentlich gewünschte, bestehende Lineage traf. **Merksatz:** beim Ändern
+> (nicht nur Erweitern) der Domain-Liste einer bestehenden Zertifikats-Lineage IMMER
+> `--cert-name <name>` explizit mitgeben -- sonst vergleicht certbot nur den Domain-NAMEN
+> (nicht die Lineage) und legt bei jeder Abweichung stillschweigend eine neue Lineage an, ohne
+> die eigentlich gemeinte zu berühren. Danach DNS-Eintrag für `traefik.stromfueralle.at` bei
+> helloly gelöscht -- Subdomain löst seither gar nicht mehr auf, kein Zertifikatsfehler mehr
+> möglich. `admin.`/`live.stromfueralle.at` bleiben weiterhin außerhalb der Zertifikats-Lineage
+> (nie dokumentiert gewesen, unklar ob/wo sie aktuell per HTTPS erreichbar sein sollen -- kein
+> Teil dieses Fixes, offene Frage für später).
 
 > **F-10 (öffentliche Live-Anzeige bei wenigen Zählpunkten) -- Patricks bewusste Entscheidung,
 > keine Aktion (25.09.2026):** "Da machen wir gar nichts, weil keiner weiß, ja, trotzdem, wem
@@ -954,12 +973,12 @@ dieses Repos (externer Proxy-Host).
 > vorherige Einschätzung, HSTS müsse auf dem externen Proxy-Host (10.0.0.144) ergänzt werden --
 > `add_header Strict-Transport-Security "max-age=31536000" always;` steht jetzt stattdessen
 > direkt in `webapp/docker/nginx.conf`, wie die übrigen Security-Header. Bewusst OHNE
-> `includeSubDomains` (würde Browser zwingen, JEDE Subdomain nur noch über HTTPS zu laden --
-> `traefik.stromfueralle.at` hat aber aktuell kein gültiges Zertifikat, `admin.`/
-> `live.stromfueralle.at` sind auf dem externen Proxy nicht explizit dokumentiert) und ohne
-> `preload` (quasi unumkehrbarer Schritt, eigene bewusste Entscheidung nötig, kein
-> Automatismus) -- beides erst ergänzen, wenn F-04 (`traefik.stromfueralle.at`) bereinigt und
-> alle Subdomains bestätigt per HTTPS erreichbar sind.
+> `includeSubDomains` (würde Browser zwingen, JEDE Subdomain nur noch über HTTPS zu laden) und
+> ohne `preload` (quasi unumkehrbarer Schritt, eigene bewusste Entscheidung nötig, kein
+> Automatismus) -- F-04 ist zwar seither bereinigt (`traefik.stromfueralle.at` komplett aus DNS/
+> Zertifikat entfernt, siehe eigener Eintrag oben), aber `admin.`/`live.stromfueralle.at` stehen
+> weiterhin NICHT im Zertifikat, also `includeSubDomains` weiterhin nicht ergänzen, bis das
+> geklärt ist.
 
 ---
 
