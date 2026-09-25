@@ -929,11 +929,15 @@ Reine Code-Änderungen (Punkt 1 + 3), kein Migrations-/Setup-Skript nötig -- mi
 `git pull && docker compose up -d --build` aktiv. Punkt 2's eigentlicher Fix lag außerhalb
 dieses Repos (externer Proxy-Host).
 
-> **Noch offen, bewusst NICHT unilateral gefixt (brauchen Patricks Entscheidung/externe
-> Host-Änderungen):** DMARC fehlt weiterhin (`_dmarc.stromfueralle.at` TXT-Record, DNS),
-> `Domain=.stromfueralle.at` beim Session-Cookie (Report schlägt `__Host-`-Präfix vor -- würde
-> aber den bereits bewusst gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt-
-> und Portal-Domain wieder einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen).
+> **DMARC behoben (26.09.2026):** `_dmarc.stromfueralle.at TXT "v=DMARC1; p=none;
+> rua=mailto:office@stromfueralle.at; fo=1"` gesetzt (bewusst `p=none` -- reiner
+> Beobachtungsmodus, blockt nichts. Nach einigen Wochen ohne Auffälligkeiten in den Reports auf
+> `p=quarantine`, später `p=reject` hochstufen). Damit ist der komplette externe
+> Sicherheits-Review vom 25./26.09.2026 abgeschlossen -- einziger bewusst unverändert
+> gebliebener Punkt: `Domain=.stromfueralle.at` beim Session-Cookie (Report schlägt
+> `__Host-`-Präfix vor -- würde aber den bereits bewusst gelösten "sofort ausgeloggt beim
+> Domain-Wechsel"-Bug zwischen Haupt- und Portal-Domain wieder einführen, siehe
+> Auth::start()-Kommentar, NICHT blind übernehmen).
 
 > **F-03/F-07 behoben (26.09.2026, per Nachtest #2 bestätigt):** DKIM eingerichtet (die beiden
 > von Microsoft 365 verlangten `selector1._domainkey`/`selector2._domainkey`-CNAMEs stehen im

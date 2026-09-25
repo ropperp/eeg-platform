@@ -867,10 +867,12 @@ tatsächlich beide dokumentierten Zähler (E-Mail-Limit 5, IP-Limit 20, je 15 Mi
 Login verdrahtet; 13 Testversuche (vermutlich mit wechselnden E-Mails) blieben schlicht unter
 beiden Schwellenwerten. Kein Bug, kein Fix nötig.
 
-**Noch offen** (brauchen Patricks Entscheidung oder externe Host-/DNS-Änderungen): DMARC-Record
-(`_dmarc.stromfueralle.at` TXT, DNS), `Domain=.stromfueralle.at` beim Cookie (Report schlägt
-`__Host-`-Präfix vor -- würde aber den bewusst gelösten Portal-Domain-Logout-Bug wieder
-einführen, NICHT blind übernehmen). Details: `CLAUDE.md`.
+**DMARC behoben (26.09.2026):** `_dmarc.stromfueralle.at` TXT gesetzt (`p=none`, Beobachtungsmodus,
+später auf `p=quarantine`/`p=reject` hochstufen). Damit ist der externe Sicherheits-Review vom
+25./26.09.2026 komplett abgeschlossen -- einziger bewusst unverändert gebliebener Punkt:
+`Domain=.stromfueralle.at` beim Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den
+bewusst gelösten Portal-Domain-Logout-Bug wieder einführen, NICHT blind übernehmen). Details:
+`CLAUDE.md`.
 
 **F-03/F-07 behoben (26.09.2026):** DKIM (zwei M365-CNAMEs im DNS) und CAA-Record gesetzt, per
 Nachtest #2 bestätigt. Eine Behauptung aus diesem Nachtest (jede Domain habe jetzt ein eigenes
