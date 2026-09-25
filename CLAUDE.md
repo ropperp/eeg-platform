@@ -872,6 +872,75 @@ Reine compose-Konfig-Änderung, kein Image-Rebuild zwingend nötig (der Healthch
 > sudo chown <cron-user>:<cron-user> /var/log/eeg-health.log
 > ```
 
+### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
+### gemeldeter Befund als Fehlalarm widerlegt
+Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,
+Sitechecker.pro "Website Safety Report") sowie später einen ausführlichen KI-generierten
+Blackbox-Sicherheitsreport gegen `stromfueralle.at` laufen lassen und die Ergebnisse geteilt.
+Drei reale Lücken bestätigt und noch am selben Tag behoben:
+
+**1. Session-Cookie hatte in Produktion NIE das `Secure`-Flag.** Ursache: `webapp` terminiert
+selbst nie TLS (das macht ausschließlich der externe nginx-Proxy, 10.0.0.144) und bekam den
+`X-Forwarded-Proto https`-Header vom Proxy bisher nie an PHP weitergereicht --
+`$_SERVER['HTTPS']` (geprüft in `Auth::start()`s `session_set_cookie_params(['secure' =>
+isset($_SERVER['HTTPS'])...])`) war dadurch serverseitig IMMER leer, obwohl die Seite für jeden
+Besucher ausschließlich über HTTPS läuft. **Fix:** neue `map $http_x_forwarded_proto
+$fastcgi_https {...}`-Direktive + `fastcgi_param HTTPS $fastcgi_https;` in
+`webapp/docker/nginx.conf` (bewusst als `map` statt fix `on`, damit lokale Entwicklung über
+`docker-compose.override.yml` -- kein `X-Forwarded-Proto` dort -- weiterhin ohne Secure-Cookie-
+über-Klartext-HTTP-Problem funktioniert). Live per `curl` verifiziert: `Set-Cookie: eeg_session=
+...; secure; HttpOnly; SameSite=Lax`.
+
+**2. nginx-/PHP-Version wurden an jeden Besucher/Scanner verraten -- auf ZWEI unabhängigen
+Ebenen.** `webapp/docker/nginx.conf` bekam `server_tokens off;`, `webapp/docker/php.ini`
+`expose_php = Off` (kein `X-Powered-By: PHP/x.y.z` mehr). **Wichtiger Zwischenfund:** die von
+Sitechecker gemeldete `nginx/1.22.1` stammte entgegen meiner ersten (falschen) Vermutung NICHT
+von `webapp` (das läuft auf `nginx/1.30.4`, per `docker compose exec webapp nginx -v` bestätigt),
+sondern vom externen nginx-Proxy (10.0.0.144) selbst -- ein Reverse Proxy generiert seinen
+`Server`-Header standardmäßig selbst aus der EIGENEN `server_tokens`-Einstellung, reicht NICHT
+automatisch den Header des Backends durch. Auf 10.0.0.144 stand `server_tokens off;` in
+`/etc/nginx/nginx.conf` bereits, aber ausgerechnet dort **auskommentiert** -- Fix war ein simples
+Entkommentieren + `nginx -t && systemctl reload nginx` auf dem Proxy-Host, kein Repo-Code.
+
+**3. `robots.txt`/`security.txt` fehlten, drei zusätzliche Security-Header fehlten.** Neue
+`webapp/public/robots.txt` (sperrt Crawler pauschal aus `/portal/`, `/admin/`, `/api/`) und
+`webapp/public/.well-known/security.txt` (RFC 9116, Kontakt `office@stromfueralle.at`, gültig
+bis 25.09.2027) -- beide brauchen in `webapp/docker/nginx.conf` je einen eigenen
+`location = ...`-Block mit `default_type text/plain;`, weil `.txt` nicht in nginx' `mime.types`
+steht und sonst der globale `default_type application/octet-stream;` gegriffen und die Dateien
+zum Download statt zur Anzeige angeboten hätte. Zusätzlich drei neue `add_header`-Zeilen im
+`server{}`-Block: `Permissions-Policy` (deaktiviert ungenutzte Browser-APIs wie Kamera/Mikro/
+Standort), `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site`
+(bewusst "same-site" statt "same-origin", weil sonst `portal.`/`admin.`/`live.stromfueralle.at`
+sich gegenseitig keine Ressourcen mehr einbetten dürften).
+
+**Ein gemeldeter Befund als Fehlalarm widerlegt, kein Bug:** der Blackbox-Report bemängelte
+fehlende Login-Ratenbegrenzung (13 Fehlversuche ohne erkennbare Bremse). `RateLimiter.php`
+(seit dem OWASP-Audit vom 13.08.2026 vorhanden) implementiert tatsächlich beide dort
+dokumentierten unabhängigen Zähler korrekt UND beide sind am Login (`POST /portal/login` in
+`index.php`) tatsächlich verdrahtet: `isLoginBlocked()` prüft E-Mail-Zähler (Limit 5/15 Min)
+ODER IP-Zähler (Limit 20/15 Min), `registerLoginFailure()` erhöht beide. Ein Test mit 13
+Versuchen bleibt unter dem IP-Limit von 20 -- und sofern dabei (wie bei einem Blackbox-Test
+üblich) unterschiedliche E-Mail-Adressen probiert wurden, erreicht keine einzelne davon je das
+Einzel-Limit von 5. Kein Fix nötig, reines Schwellenwert-/Testmethodik-Artefakt, kein fehlender
+Code.
+
+Reine Code-Änderungen (Punkt 1 + 3), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
+`git pull && docker compose up -d --build` aktiv. Punkt 2's eigentlicher Fix lag außerhalb
+dieses Repos (externer Proxy-Host).
+
+> **Noch offen, bewusst NICHT unilateral gefixt (brauchen Patricks Entscheidung/externe
+> Host-Änderungen):** HSTS-Header fehlt (externer Proxy), DMARC/DKIM fehlt (DNS + M365, betrifft
+> `noreply@`/`eda@stromfueralle.at`), `traefik.stromfueralle.at` ist öffentlich erreichbar und
+> zeigt ein falsches Zertifikat (CN `ropper.dyndns.org`, keine eigene Traefik-Dashboard-Öffnung
+> laut `docker-compose.yml` -- vermutlich nur eine verwaiste DNS-/Proxy-Altlast, siehe
+> "www-Subdomain hinzufügen" oben: `traefik.stromfueralle.at` steht zwar im Zertifikat-SAN, hat
+> aber nie einen eigenen `server{}`-Block bekommen), kein CAA-DNS-Record, `Domain=.stromfueralle.at`
+> beim Session-Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den bereits bewusst
+> gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt- und Portal-Domain wieder
+> einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen), sowie eine offene
+> DSGVO-Frage zur öffentlichen `/live/:slug`-Anzeige bei EEGs mit nur sehr wenigen Zählpunkten.
+
 ---
 
 ## Update (laufendes System)

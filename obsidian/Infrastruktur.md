@@ -842,6 +842,38 @@ existierende Datei scheitert lautlos. Fix: `sudo touch /var/log/eeg-health.log &
 <cron-user>:<cron-user> /var/log/eeg-health.log`, danach funktioniert das Anhängen ohne
 Verzeichnis-Schreibrecht.
 
+## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
+
+Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at
+laufen lassen. Drei echte Lücken gefunden und noch am selben Tag behoben:
+
+1. **Session-Cookie ohne `Secure`-Flag in Produktion:** `webapp` terminiert nie selbst TLS und
+   bekam `X-Forwarded-Proto` bisher nie an PHP weitergereicht -- `$_SERVER['HTTPS']` war dadurch
+   immer leer. Fix: `map`/`fastcgi_param HTTPS` in `webapp/docker/nginx.conf`.
+2. **nginx-/PHP-Version verraten, auf zwei unabhängigen Ebenen:** `server_tokens off;` +
+   `expose_php = Off` im Repo behoben `webapp`s eigene Header. Die von Sitechecker gemeldete
+   `nginx/1.22.1` stammte aber tatsächlich vom EXTERNEN nginx-Proxy (10.0.0.144, `webapp` selbst
+   läuft auf 1.30.4) -- Reverse Proxys generieren ihren `Server`-Header standardmäßig selbst statt
+   den des Backends durchzureichen. Fix dort: bereits vorhandenes, aber auskommentiertes
+   `server_tokens off;` in `/etc/nginx/nginx.conf` aktiviert.
+3. **`robots.txt`/`security.txt` fehlten, drei Security-Header fehlten:** neue
+   `webapp/public/robots.txt` + `webapp/public/.well-known/security.txt` (RFC 9116, Kontakt
+   office@stromfueralle.at), dafür je ein `location`-Block mit `default_type text/plain;` in
+   `nginx.conf` (sonst `.txt` als Download statt Text). Zusätzlich `Permissions-Policy`,
+   `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site`.
+
+**Fehlalarm widerlegt:** gemeldete fehlende Login-Ratenbegrenzung -- `RateLimiter.php` hat
+tatsächlich beide dokumentierten Zähler (E-Mail-Limit 5, IP-Limit 20, je 15 Min.) korrekt am
+Login verdrahtet; 13 Testversuche (vermutlich mit wechselnden E-Mails) blieben schlicht unter
+beiden Schwellenwerten. Kein Bug, kein Fix nötig.
+
+**Noch offen** (brauchen Patricks Entscheidung oder externe Host-/DNS-Änderungen): HSTS-Header
+(externer Proxy), DMARC/DKIM (DNS + M365), `traefik.stromfueralle.at` öffentlich mit falschem
+Zertifikat (vermutlich verwaiste DNS-/Proxy-Altlast), fehlender CAA-Record, `Domain=
+.stromfueralle.at` beim Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den bewusst
+gelösten Portal-Domain-Logout-Bug wieder einführen, NICHT blind übernehmen), DSGVO-Frage zur
+öffentlichen Live-Anzeige bei sehr wenigen Zählpunkten. Details: `CLAUDE.md`.
+
 ## Claude-Sitzungslog (Selbstdokumentation)
 
 Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,

@@ -9,6 +9,32 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-09-25 — Claude Code — Claude Sonnet 5
+**Prompt:** "Ich hätte gern, dass du bitte mir nach ein paar Skills suchst und die Skills
+ausführst, um zu testen, wie sicher unsere Seite eigentlich ist, also von Datenschutz,
+Webseitensicherheit, Hackbarkeit und Cybersecurity und so etwas." Dazu Screenshots eines
+Cookiebot-Scans und eines Sitechecker.pro-Reports. Später: "Haben wir einen Test mit einer
+anderen KI gemacht [...] und dieser Report ist rausgekommen. Schau dir mal bitte an." (ein
+ausführlicher externer Blackbox-Sicherheitsreport als Datei).
+**Auftrag:** Sicherheits-/Datenschutz-Review der Live-Plattform auf Basis der gemeldeten
+Scan-Ergebnisse und des externen Reports; gefundene echte Lücken beheben, Fehlalarme als solche
+einordnen und offene Punkte, die Patricks Entscheidung oder externe Host-Änderungen brauchen,
+klar benennen statt sie unilateral zu "fixen".
+**Ergebnis:** Drei reale Lücken behoben (PRs #186/#187 + diese Sitzung): Session-Cookie ohne
+`Secure`-Flag in Produktion (fehlendes `X-Forwarded-Proto` → `HTTPS`-Mapping in
+`webapp/docker/nginx.conf`), verratene nginx-/PHP-Version (`server_tokens off;`, `expose_php =
+Off`, plus ein Fix auf dem externen Proxy-Host selbst -- die dort gemeldete nginx-Version kam
+tatsächlich vom Proxy, nicht von `webapp`, nach gemeinsamer Verifikation per `nginx -v` auf
+beiden Hosts), sowie fehlendes `robots.txt`/`security.txt` und drei zusätzliche Security-Header
+(Permissions-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy). Den gemeldeten
+Befund "keine Login-Ratenbegrenzung" durch Lesen von `RateLimiter.php` und der Login-Route als
+Fehlalarm widerlegt (beide Zähler sind korrekt verdrahtet, der Test blieb nur unter den
+Schwellenwerten). `CLAUDE.md`/`obsidian/Infrastruktur.md` entsprechend dokumentiert, inkl. Liste
+der noch offenen, bewusst nicht unilateral gefixten Punkte (HSTS, DMARC/DKIM,
+`traefik.stromfueralle.at`, CAA-Record, Cookie-Domain-Frage, DSGVO-Frage zur Live-Anzeige).
+
+---
+
+## 2026-09-25 — Claude Code — Claude Sonnet 5
 **Prompt:** Mehrere Themen in einer langen Sitzung. Zum Journal-Problem: `ls -la
 /var/log/journal/` zeigte einen leeren Ordner trotz `Storage=persistent`, gemeinsame
 Ferndiagnose über mehrere Runden (u. a. "cat /etc/systemd/journald.conf | grep -i storage",
