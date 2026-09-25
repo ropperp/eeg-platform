@@ -1,0 +1,48 @@
+# Datei-Provider für Traefik: definiert dieselben Router/Services, die vorher als
+# Docker-Labels auf dem webapp-Container standen. Wichtiger Unterschied: diese Datei lebt
+# unabhängig vom Lebenszyklus des webapp-Containers.
+#
+# Vorfall 25.09.2026: solange die Router nur als Labels AUF dem webapp-Container selbst
+# existierten, verschwanden sie zusammen mit dem Container, sobald er gestoppt wurde
+# (z.B. `docker compose stop webapp`, oder ein echter Absturz). Traefik antwortete dann
+# nicht mehr mit einem aussagekräftigen 502/503/504 (Backend nicht erreichbar), sondern mit
+# einem nackten "404 page not found" -- kein Router matcht mehr. Der nginx-Proxy auf
+# 10.0.0.144 zeigt bei 502/503/504 eine eigene Wartungsseite (siehe
+# 70_stromfueralle.conf dort) -- die griff bei gestopptem webapp deshalb nie, weil gar kein
+# 5xx zurückkam, sondern ein 404, das dort bewusst NICHT abgefangen wird (echte
+# Anwendungs-404-Seiten sollen ja nicht überdeckt werden).
+#
+# Mit dieser Datei bleibt der Router bestehen, auch wenn der Container komplett fehlt --
+# nur der Service-Server wird dann unerreichbar -> korrektes 502/503/504, Wartungsseite
+# greift zuverlässig, unabhängig davon ob nur webapp oder der ganze Pi ausfällt.
+#
+# WICHTIG: die Domain ist hier fest auf stromfueralle.at eingetragen -- der File-Provider
+# kennt (anders als docker-compose.yml selbst) keine ${DOMAIN}-Variablensubstitution aus
+# der .env. Falls sich DOMAIN je ändern sollte, hier von Hand nachziehen.
+http:
+  routers:
+    webapp:
+      rule: "Host(`stromfueralle.at`) || Host(`www.stromfueralle.at`)"
+      entryPoints: ["web"]
+      service: webapp
+    live:
+      rule: "Host(`live.stromfueralle.at`)"
+      entryPoints: ["web"]
+      service: webapp
+    portal:
+      rule: "Host(`portal.stromfueralle.at`)"
+      entryPoints: ["web"]
+      service: webapp
+    admin:
+      rule: "Host(`admin.stromfueralle.at`)"
+      entryPoints: ["web"]
+      service: webapp
+    webapp-legacy:
+      rule: "Host(`webapp.mechtronix.at`)"
+      entryPoints: ["web"]
+      service: webapp
+  services:
+    webapp:
+      loadBalancer:
+        servers:
+          - url: "http://webapp:80"

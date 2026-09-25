@@ -88,12 +88,17 @@ server {
     include             /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
     client_max_body_size 20M;
+    include             snippets/eeg-maintenance.conf;
     location / {
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
         proxy_pass         http://10.0.0.250;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto https;
+        proxy_intercept_errors on;
+        proxy_connect_timeout 5s;
     }
 }
 server {
@@ -102,6 +107,8 @@ server {
     return 301 https://$host$request_uri;
 }
 ```
+Derselbe `include snippets/eeg-maintenance.conf;` + `proxy_intercept_errors on;` steht auch im
+`portal.stromfueralle.at`-Block weiter unten in derselben Datei.
 
 > `client_max_body_size 20M;` muss hier gesetzt sein (Standard-Limit von nginx ist nur 1 MB) — sonst
 > liefert **dieser** nginx-Proxy bei Datei-Uploads (z. B. Ausweis-Scan, Beitrittserklärung-PDF) einen
@@ -109,6 +116,28 @@ server {
 > korrekt auf 20M stehen. Nach Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
 
 > `www.stromfueralle.at` muss als SAN im Zertifikat enthalten sein (siehe "www-Subdomain hinzufügen" unten), sonst liefert nginx für www das Default-Zertifikat aus und Browser zeigen einen SSL-Fehler.
+
+### Eigene Wartungsseite bei Serverausfall (seit 25.09.2026)
+Statt nginx' eigener hässlicher Standard-Fehlerseite bzw. eines nackten Verbindungsfehlers im
+Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende Seite
+("Kurzschluss" — animierte durchhängende/reißende Stromleitung zwischen zwei Masten), sobald
+`10.0.0.250` (Traefik/Pi) ein 502/503/504 liefert oder gar nicht erreichbar ist:
+- `/etc/nginx/error_pages/wartung.html` — eigenständige, selbst-enthaltene HTML-Datei (kein
+  externes CSS/JS/Font, läuft auch wenn sonst alles down ist), `<meta http-equiv="refresh"
+  content="30">` prüft automatisch alle 30s neu. Nur auf dem nginx-Proxy-Host abgelegt, nicht im
+  Git-Repo (reiner Deploy-Artefakt für einen anderen Host, wie die restliche nginx-Proxy-Config).
+- `/etc/nginx/snippets/eeg-maintenance.conf` — der wiederverwendbare `error_page`/`location`-Block,
+  in beide `server{}`-Blöcke (Hauptdomain + `portal`) eingebunden.
+- `proxy_intercept_errors on;` ist nötig, sonst reicht nginx Traefiks eigene 502/503/504-Antwort
+  roh durch statt der eigenen Seite. `proxy_connect_timeout 5s;` sorgt dafür, dass ein komplett
+  unerreichbarer Pi (nicht nur ein toter Webserver dahinter) schneller erkannt wird als mit
+  nginx' Standard-Timeout.
+- **Bewusst NICHT auf HTTP 404 erweitert:** die Wartungsseite fängt nur 502/503/504 ab. 404 lässt
+  die App selbst über ihre eigene, echte `404.php`-Seite beantworten -- ein pauschales Abfangen
+  aller 404 würde die auch überdecken.
+- Voraussetzung dafür, dass ein nur gestopptes/abgestürztes `webapp` (nicht der ganze Pi) überhaupt
+  ein 502/503/504 statt eines nackten Traefik-404 liefert: siehe "Webapp-Router" weiter oben
+  (Traefik-File-Provider statt Docker-Labels, Vorfall 25.09.2026).
 
 ---
 
@@ -129,7 +158,7 @@ server {
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:latest | 80:80 | Reverse Proxy, liest Docker-Labels |
+| traefik | traefik:latest | 80:80 | Reverse Proxy, Docker-Labels + File-Provider |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
 | redis | redis:7-alpine | — | Session-Cache |
 | mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
@@ -141,18 +170,44 @@ server {
 - Traefik hört **nur auf Port 80** (kein HTTPS, kein Let's Encrypt) — SSL macht der nginx-Proxy
 - `DOCKER_API_VERSION=1.40` ist als Env-Var gesetzt (Docker Engine 29.x braucht mindestens 1.40, Traefik v3.x würde sonst 1.24 verwenden → Fehler)
 - `--providers.docker.exposedbydefault=false` → nur Container mit `traefik.enable=true` werden geroutet
+- Zusätzlich zum Docker-Provider läuft seit 25.09.2026 ein **File-Provider**
+  (`--providers.file.filename=/etc/traefik/dynamic.yml`, Datei im Repo: `docker/traefik/dynamic.yml`)
+  für die webapp-Router — Grund siehe "Webapp-Router" unten.
 
-### Webapp-Router-Labels
+### Webapp-Router
+Seit 25.09.2026 **nicht mehr** als Docker-Labels auf dem `webapp`-Container, sondern als
+Traefik-File-Provider-Konfiguration in `docker/traefik/dynamic.yml` (ins Repo eingecheckt,
+in den `traefik`-Container gemountet):
 ```yaml
-traefik.enable=true
-traefik.http.routers.webapp.rule=Host(`stromfueralle.at`) || Host(`www.stromfueralle.at`)
-traefik.http.routers.webapp.entrypoints=web
-traefik.http.routers.live.rule=Host(`live.stromfueralle.at`)
-traefik.http.routers.portal.rule=Host(`portal.stromfueralle.at`)
-traefik.http.routers.admin.rule=Host(`admin.stromfueralle.at`)
-traefik.http.routers.webapp-legacy.rule=Host(`webapp.mechtronix.at`)
-traefik.http.services.webapp.loadbalancer.server.port=80
+http:
+  routers:
+    webapp:        { rule: "Host(`stromfueralle.at`) || Host(`www.stromfueralle.at`)", entryPoints: [web], service: webapp }
+    live:          { rule: "Host(`live.stromfueralle.at`)",   entryPoints: [web], service: webapp }
+    portal:        { rule: "Host(`portal.stromfueralle.at`)", entryPoints: [web], service: webapp }
+    admin:         { rule: "Host(`admin.stromfueralle.at`)",  entryPoints: [web], service: webapp }
+    webapp-legacy: { rule: "Host(`webapp.mechtronix.at`)",    entryPoints: [web], service: webapp }
+  services:
+    webapp:
+      loadBalancer:
+        servers: [{ url: "http://webapp:80" }]
 ```
+**Warum die Umstellung (Vorfall 25.09.2026):** Solange die Router nur als Labels AUF dem
+`webapp`-Container selbst standen, verschwanden sie zusammen mit dem Container, sobald er
+gestoppt wurde (z. B. `docker compose stop webapp`, oder ein echter Absturz) — Traefik
+antwortete dann kurz nach dem Stop nicht mehr mit einem aussagekräftigen 502/503/504
+("Backend nicht erreichbar"), sondern mit seinem eigenen, nackten `404 page not found`
+(`Content-Type: text/plain`, kein Router matcht mehr). Entdeckt beim Testen der neuen
+nginx-Wartungsseite (siehe unten) — die fängt bei 502/503/504 eine eigene Seite ab, griff
+bei nur gestopptem `webapp` (Traefik selbst lief noch) deshalb nie, weil kein 5xx
+zurückkam (404 wird bewusst NICHT abgefangen, sonst würde die Wartungsseite auch echte
+Anwendungs-404-Seiten überdecken). Mit dem File-Provider bleibt der Router jetzt bestehen,
+egal ob nur `webapp` oder Traefik selbst fehlt — nur der Backend-Server wird dann
+unerreichbar → korrektes 502/503/504, Wartungsseite greift zuverlässig in beiden Fällen.
+`http://webapp:80` als Backend-URL funktioniert dabei ganz normal über Dockers eingebautes
+DNS im gemeinsamen `eeg-net`-Netzwerk, unabhängig von Docker-Label-Discovery.
+> **DOMAIN dort ist hart eingetragen** (`stromfueralle.at`) — der File-Provider kennt keine
+> `${DOMAIN}`-Variablensubstitution aus der `.env` wie `docker-compose.yml` selbst. Bei
+> einer Domain-Änderung `docker/traefik/dynamic.yml` von Hand mitziehen.
 
 ---
 
@@ -808,6 +863,14 @@ cd /opt/eeg-platform
 git pull origin main
 docker compose up -d --build
 ```
+
+> **Einmalig nach dem Update vom 25.09.2026** (Webapp-Router jetzt Traefik-File-Provider
+> statt Docker-Labels, siehe Abschnitt "Webapp-Router" weiter oben): kein Host-Verzeichnis
+> anzulegen, `docker/traefik/dynamic.yml` liegt schon im Repo und wird einfach mitgemountet.
+> `docker compose up -d --build` reicht -- Traefik erkennt die neue `command:`-Zeile
+> (`--providers.file.filename=...`) und den neuen Mount automatisch beim Neustart des
+> `traefik`-Containers. Kurz verifizieren, dass die Seite danach weiterhin normal erreichbar
+> ist (`curl -H "Host: stromfueralle.at" http://localhost/`).
 
 > **Einmalig nach dem Update vom 14.07.2026** (Verträge/Dateien-Migration): Das neue
 > Storage-Volume muss auf dem Host existieren, BEVOR `docker compose up -d --build` läuft,
