@@ -8,6 +8,29 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-26 — Claude Code — Claude Sonnet 5
+**Prompt:** Fortsetzung des Security-Reviews vom Vortag über mehrere externe Nachtest-Reports
+("Nächster Test noch mal durchgeführt", zwei weitere hochgeladene Blackbox-Nachtest-Dateien),
+dazwischen Patricks eigene Kommandozeilen-Schritte auf dem Proxy-Host (`certbot certificates`,
+`certonly`, `delete`) mit meiner Anleitung. Abschließend: "Ist geändert, ja, ist gesetzt."
+(DMARC-Record).
+**Auftrag:** Die aus dem Erstreport verbleibenden, extern zu erledigenden Punkte (HSTS-
+Verifikation, F-04 traefik-Subdomain, DKIM/DMARC, CAA-Record) gemeinsam mit Patrick abarbeiten
+und jeden Fortschritt gegen unabhängige externe Nachtests verifizieren, statt nur behaupteten
+Erfolg zu übernehmen.
+**Ergebnis:** F-04 (traefik.stromfueralle.at) aus Zertifikat-SAN und DNS entfernt -- dabei ein
+eigenes Versehen korrigiert (erster certbot-Befehl ohne `--cert-name` legte eine parallele,
+ungenutzte Lineage an statt die bestehende zu ändern, per `certbot delete` wieder aufgeräumt).
+DKIM (F-03) und CAA (F-07) von Patrick eingerichtet, per externem Nachtest bestätigt; eine
+Behauptung in diesem Nachtest (angeblich getrennte Zertifikate je Domain) als nicht mit der
+eigenen Verifikation übereinstimmend zurückgewiesen. DMARC-Record gesetzt (`p=none`,
+`rua=mailto:office@stromfueralle.at`) -- damit ist der gesamte externe Sicherheits-Review vom
+25./26.09.2026 abgeschlossen; einziger bewusst unverändert gebliebener Punkt bleibt die
+Cookie-Domain (F-06), da eine Änderung einen bereits gelösten Bug wieder einführen würde.
+`CLAUDE.md`/`obsidian/Infrastruktur.md` durchgehend mitgeführt (PRs #191/#192 + diese Sitzung).
+
+---
+
 ## 2026-09-25 — Claude Code — Claude Sonnet 5
 **Prompt:** "Ich hätte gern, dass du bitte mir nach ein paar Skills suchst und die Skills
 ausführst, um zu testen, wie sicher unsere Seite eigentlich ist, also von Datenschutz,
