@@ -8,6 +8,54 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-09-25 — Claude Code — Claude Sonnet 5
+**Prompt:** Mehrere Themen in einer langen Sitzung. Zum Journal-Problem: `ls -la
+/var/log/journal/` zeigte einen leeren Ordner trotz `Storage=persistent`, gemeinsame
+Ferndiagnose über mehrere Runden (u. a. "cat /etc/systemd/journald.conf | grep -i storage",
+"sudo systemctl status systemd-journal-flush.service", "SYSTEMD_LOG_LEVEL=debug"). Danach:
+"Eine Sache, die cool wäre, ist, wenn ich eine Benachrichtigung bekommen würde, wenn die Seite
+offline wäre. [...] Können wir da eine Überprüfung machen, die [...] alle 10 Minuten überprüft:
+Ist meine Seite erreichbar [...] vielleicht einfach auch über den Telegram-Account". Danach:
+"Können wir aber irgendwie das machen, dass der reverse proxy, für die Zeit der Raspi offline
+ist, eine Seite angezeigt wird mit, die seite ist gerade offline. Es wird daran gearbeitet
+[...] Zeig mir erst mal mit einer Vorschau die Website und dann setzen wir sie um" und "bisschen
+Bunter machen in den Farben unserer Website. Vielleich auch eine Stromleitung, die gerade
+durchbricht als Animation. So bisschen Lustig." Abschließend: "können wir den raspi aber noch
+soweit bringen, dass nur der webserver nicht erreichbar ist [...] die fehlermeldungen
+durchtesten" und "Ist das die Standard-404-Seite, wenn was Falsches in der Webzeile eingetragen
+wird im Pfad, oder?"
+**Auftrag:** Auf dem Produktivserver: Ursache für ein dauerhaft leeres persistentes
+Journal trotz korrekter Konfiguration finden (oder zumindest einen verlässlichen Workaround
+bauen); ein externes Erreichbarkeits-Monitoring mit Telegram-Alarm für stromfueralle.at
+einrichten; eine markenkonforme, animierte Wartungsseite für Serverausfälle entwerfen und
+deployen; sicherstellen, dass diese Wartungsseite auch bei einem nur abgestürzten Webserver
+(nicht nur beim ganzen Pi) zuverlässig greift.
+**Ergebnis:** (1) `Storage=persistent` bleibt auf diesem Pi trotz ausführlicher, ergebnisloser
+Diagnose (Rechte/Platz/Container/Maschinen-ID/Sandbox/Credential-Override alle ausgeschlossen)
+wirkungslos -- Workaround `scripts/journal_persist_workaround.sh` (`journal-persist.service`)
+schreibt `journalctl -f` stattdessen in eine normale, rotierte Textdatei; Befund + Workaround in
+`CLAUDE.md`/`Infrastruktur.md` dokumentiert (PR #182). (2) Node-RED-Flow für Patricks Proxmox
+gebaut: prüft `stromfueralle.at` alle 10 Min., unterscheidet per Inhalts-Marker "unreachable" /
+"backend_down" (502/503/504) / "hung" (falscher Inhalt) / "ok", meldet nur bei Zustandswechsel
+per Telegram -- inkl. eines gefundenen Encoding-Bugs im ersten Marker-String (`&` vs. `&amp;`).
+(3) Eigene Wartungsseite "Kurzschluss" (dunkles Theme in den Markenfarben, zwei Strommasten mit
+durchhängender, bei Ausfall reißender und schwingender Leitung) iterativ per Artifact-Vorschau
+mit Patrick entworfen -- dabei zwei Animationsfehler gefunden und behoben (CSS-`d`-Property-
+Animation wird von manchen Browsern lautlos ignoriert → auf SMIL umgestellt; ein Kontrollpunkt
+lag zufällig exakt auf der Verbindungsgeraden → aus einer "Kurve" wurde ein Zickzack). Auf dem
+nginx-Proxy-Host (10.0.0.144, außerhalb des Repos) als `/etc/nginx/error_pages/wartung.html` +
+`snippets/eeg-maintenance.conf` deployt. (4) Beim Testen entdeckt: die Wartungsseite griff nur
+bei komplettem Pi-Ausfall, nicht bei nur gestopptem `webapp` -- Ursache: die Traefik-Router
+lagen als Docker-Labels direkt auf dem `webapp`-Container und verschwanden mit ihm (Traefik
+antwortete dann mit einem nackten 404 statt 502/503/504). Per `curl`-Test auf dem Server
+verifiziert und behoben durch Umstellung auf einen Traefik-File-Provider
+(`docker/traefik/dynamic.yml`), unabhängig vom Container-Lebenszyklus (PR #183). Kompletter
+End-to-End-Test über die echte öffentliche Domain (webapp gestoppt → Wartungsseite erscheint,
+gestartet → echte Seite wieder da) von Patrick bestätigt. Nebenbei: Zielsetzung im
+Diplomarbeit-ABA-Formular zweimal auf Wunsch nachgeschärft (PRs #180, #181).
+
+---
+
 ## 2026-09-10 (95) — Claude Code — Claude Sonnet 5
 **Prompt:** "Können wir da eine ganz kleine Änderung machen oder auch nur eine Versionsänderung
 [...] um einfach zu testen, ob dieser gleich bleibt und ob dieser überhaupt automatisch
