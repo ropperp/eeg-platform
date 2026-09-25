@@ -871,8 +871,10 @@ beiden Schwellenwerten. Kein Bug, kein Fix nötig.
 (DNS + M365), `traefik.stromfueralle.at` öffentlich mit falschem Zertifikat (vermutlich verwaiste
 DNS-/Proxy-Altlast), fehlender CAA-Record, `Domain=.stromfueralle.at` beim Cookie (Report schlägt
 `__Host-`-Präfix vor -- würde aber den bewusst gelösten Portal-Domain-Logout-Bug wieder
-einführen, NICHT blind übernehmen), DSGVO-Frage zur öffentlichen Live-Anzeige bei sehr wenigen
-Zählpunkten. Details: `CLAUDE.md`.
+einführen, NICHT blind übernehmen). Details: `CLAUDE.md`.
+
+**F-10 (Live-Anzeige bei wenigen Zählpunkten) -- Patricks bewusste Entscheidung, keine Aktion
+(25.09.2026):** bleibt wie es ist, kein Mindestanzahl-Schwellenwert eingebaut.
 
 **Nachtest + Korrektur (25.09.2026):** ein zweiter externer Test bestätigte F-08/F-09 als
 behoben und bewies dabei, dass Header aus `webapp/docker/nginx.conf` unverändert bis zum Browser

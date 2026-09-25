@@ -938,8 +938,13 @@ dieses Repos (externer Proxy-Host).
 > aber nie einen eigenen `server{}`-Block bekommen), kein CAA-DNS-Record, `Domain=.stromfueralle.at`
 > beim Session-Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den bereits bewusst
 > gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt- und Portal-Domain wieder
-> einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen), sowie eine offene
-> DSGVO-Frage zur öffentlichen `/live/:slug`-Anzeige bei EEGs mit nur sehr wenigen Zählpunkten.
+> einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen).
+
+> **F-10 (öffentliche Live-Anzeige bei wenigen Zählpunkten) -- Patricks bewusste Entscheidung,
+> keine Aktion (25.09.2026):** "Da machen wir gar nichts, weil keiner weiß, ja, trotzdem, wem
+> die 10 Punkte gehören, und das ist ganz egal. Ich brauche keine Mindestanzahl." Bleibt wie es
+> ist -- `/api/live/:slug`/`/live/:slug` zeigt weiterhin die Summe über alle Zählpunkte einer
+> EEG, unabhängig von deren Anzahl, kein Schwellenwert eingebaut.
 
 > **Nachtest (25.09.2026) + Korrektur zu HSTS (F-01):** ein zweiter externer Blackbox-Test nach
 > obigen Fixes bestätigte F-08 (`robots.txt`/`security.txt`) und F-09 (Permissions-Policy/COOP/
