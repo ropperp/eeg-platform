@@ -735,6 +735,24 @@ lassen.
 > suchen (liefert weiterhin "no persistent journal was found"), sondern direkt in
 > `/var/log/journal-persist.log` nachsehen (z. B. um den bekannten Ausfallzeitpunkt herum grep'en).
 > `docs/RASPBERRY_STABILITAET.md` Abschnitt 2.0 entsprechend um diesen Hinweis ergänzt.
+>
+> **Nachtrag (25.09.2026): echter ~28-minütiger Hänger, Watchdog-Reboot deutlich später als
+> konfiguriert -- offener Punkt, noch ungeklärt.** Erster echter Praxistest des am selben Tag
+> gebauten Erreichbarkeits-Monitorings (Node-RED, siehe unten): Alarm um 22:08:55 Uhr
+> ("backend_down", HTTP 503). `uptime -s` zeigte danach einen Neustart erst um **22:27:28 Uhr** --
+> rund 28 Minuten Hänger, deutlich länger als der konfigurierte Watchdog-Reboot-Timeout von
+> ~2 Minuten (`RebootWatchdogUSec=2min`, siehe `docs/RASPBERRY_STABILITAET.md` Abschnitt 1).
+> `journal-persist.log` (siehe oben) hat für genau dieses Zeitfenster **nichts** aufgezeichnet --
+> passt zu einem schweren I/O-Stau, der auch das Schreiben der eigenen Log-Datei blockiert hätte,
+> nicht zu einem sauberen, plangemäßen Watchdog-Reboot. `vcgencmd get_throttled` direkt danach
+> zeigte `0x0` (sauber, keine Unterspannung/Überhitzung als Ursache). Zwei vorangegangene
+> Neustarts um 21:56 und 21:58 Uhr (nur ~2 Min. auseinander, ebenfalls vollständig im Log
+> sichtbar) waren dagegen kein Systemfehler, sondern Patrick hatte den Pi bewusst zweimal
+> manuell neu gestartet, um seiner Mutter die neue Wartungsseite vorzuführen -- nicht mit dem
+> eigentlichen Hänger danach verwechseln. **Offene Frage für den nächsten Vorfall:** warum
+> petted der Watchdog offenbar so viel länger als konfiguriert, bzw. warum enthält
+> `journal-persist.log` für das Hänger-Fenster selbst gar nichts? Bei einer Wiederholung zuerst
+> dort nachsehen, ob sich das Muster (Log-Lücke + verzögerter Reboot) wiederholt.
 
 ### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
 Vorfall 24.08.2026, DREI UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder

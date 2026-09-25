@@ -691,6 +691,15 @@ eigener Speicher-Logik. Nach einem Hänger Logs von VORHER dort suchen, nicht ü
 (liefert weiterhin "no persistent journal was found"). Details: `CLAUDE.md`, Abschnitt "Raspberry
 Pi hängt sich auf", und `docs/RASPBERRY_STABILITAET.md` Abschnitt 2.0.
 
+**Nachtrag 25.09.2026 (offen, ungeklärt):** echter ~28-minütiger Hänger beim ersten Praxistest des
+neuen Erreichbarkeits-Monitorings -- Alarm 22:08:55 Uhr, `uptime -s` zeigte Neustart erst
+22:27:28 Uhr, deutlich später als der konfigurierte Watchdog-Timeout (~2 Min.).
+`journal-persist.log` hat für genau dieses Fenster nichts aufgezeichnet (passt zu einem
+I/O-Stau, der auch das eigene Log blockiert) -- `vcgencmd get_throttled` danach sauber (`0x0`).
+Zwei frühere Neustarts um 21:56/21:58 Uhr waren dagegen Patricks eigene manuelle Vorführung für
+seine Mutter, kein Fehler. Offene Frage für den nächsten Vorfall: warum petted der Watchdog so
+viel länger als konfiguriert bzw. warum bleibt das Log für genau dieses Fenster leer.
+
 ### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- DREI Ursachen)
 Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Drei unabhängige Ursachen
 nacheinander gefunden:
