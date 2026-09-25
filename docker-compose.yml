@@ -24,6 +24,12 @@ services:
       - "--ping=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      # File-Provider für die webapp-Router (siehe docker/traefik/dynamic.yml) -- lebt
+      # unabhängig vom webapp-Container, damit ein gestopptes/abgestürztes webapp ein
+      # korrektes 502/503/504 statt eines nackten Traefik-404 liefert (Vorfall 25.09.2026,
+      # siehe Kommentar in der Datei). watch=true übernimmt Änderungen ohne Neustart.
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
     environment:
       - DOCKER_API_VERSION=1.40
@@ -32,6 +38,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/eeg/traefik/letsencrypt:/letsencrypt
+      - ./docker/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     healthcheck:
       # `--ping=true` aktiviert den internen /ping-Endpoint; `traefik healthcheck` fragt ihn ab.
       test: ["CMD", "traefik", "healthcheck", "--ping"]
@@ -237,21 +244,9 @@ services:
       # Sicherung wirklich läuft (Alter, Größe, Dateien). Bewusst read-only -- die Webapp soll
       # Backups anzeigen, aber niemals verändern oder löschen können.
       - ./backups:/var/www/html/backups:ro
-    labels:
-      - "traefik.enable=true"
-      # Alle Routen laufen über web (HTTP) — nginx macht SSL davor
-      - "traefik.http.routers.webapp.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
-      - "traefik.http.routers.webapp.entrypoints=web"
-      - "traefik.http.routers.live.rule=Host(`live.${DOMAIN}`)"
-      - "traefik.http.routers.live.entrypoints=web"
-      - "traefik.http.routers.portal.rule=Host(`portal.${DOMAIN}`)"
-      - "traefik.http.routers.portal.entrypoints=web"
-      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
-      - "traefik.http.routers.admin.entrypoints=web"
-      # Legacy-URL
-      - "traefik.http.routers.webapp-legacy.rule=Host(`webapp.mechtronix.at`)"
-      - "traefik.http.routers.webapp-legacy.entrypoints=web"
-      - "traefik.http.services.webapp.loadbalancer.server.port=80"
+    # Kein traefik.* Label mehr hier (Stand 25.09.2026) -- die Router/Services sind jetzt im
+    # Traefik-File-Provider definiert (docker/traefik/dynamic.yml), damit sie unabhängig vom
+    # Lebenszyklus dieses Containers bestehen bleiben. Grund + Vorfall siehe Kommentar dort.
     depends_on:
       timescaledb:
         condition: service_healthy
