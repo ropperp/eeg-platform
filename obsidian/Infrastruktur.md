@@ -867,10 +867,16 @@ tatsächlich beide dokumentierten Zähler (E-Mail-Limit 5, IP-Limit 20, je 15 Mi
 Login verdrahtet; 13 Testversuche (vermutlich mit wechselnden E-Mails) blieben schlicht unter
 beiden Schwellenwerten. Kein Bug, kein Fix nötig.
 
-**Noch offen** (brauchen Patricks Entscheidung oder externe Host-/DNS-Änderungen): DMARC/DKIM
-(DNS + M365), fehlender CAA-Record, `Domain=.stromfueralle.at` beim Cookie (Report schlägt
+**Noch offen** (brauchen Patricks Entscheidung oder externe Host-/DNS-Änderungen): DMARC-Record
+(`_dmarc.stromfueralle.at` TXT, DNS), `Domain=.stromfueralle.at` beim Cookie (Report schlägt
 `__Host-`-Präfix vor -- würde aber den bewusst gelösten Portal-Domain-Logout-Bug wieder
 einführen, NICHT blind übernehmen). Details: `CLAUDE.md`.
+
+**F-03/F-07 behoben (26.09.2026):** DKIM (zwei M365-CNAMEs im DNS) und CAA-Record gesetzt, per
+Nachtest #2 bestätigt. Eine Behauptung aus diesem Nachtest (jede Domain habe jetzt ein eigenes
+Einzelzertifikat) stimmt NICHT mit unserer eigenen `certbot certificates`/`curl`-Verifikation
+überein (es ist weiterhin EIN gemeinsames Zertifikat mit allen drei Namen im SAN) -- nicht
+ungeprüft übernehmen. Details: `CLAUDE.md`.
 
 **F-10 (Live-Anzeige bei wenigen Zählpunkten) -- Patricks bewusste Entscheidung, keine Aktion
 (25.09.2026):** bleibt wie es ist, kein Mindestanzahl-Schwellenwert eingebaut.

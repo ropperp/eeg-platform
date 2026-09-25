@@ -930,11 +930,22 @@ Reine Code-Änderungen (Punkt 1 + 3), kein Migrations-/Setup-Skript nötig -- mi
 dieses Repos (externer Proxy-Host).
 
 > **Noch offen, bewusst NICHT unilateral gefixt (brauchen Patricks Entscheidung/externe
-> Host-Änderungen):** DMARC/DKIM fehlt (DNS + M365, betrifft `noreply@`/`eda@stromfueralle.at`,
-> DNS-Propagierung kann Stunden dauern), kein CAA-DNS-Record, `Domain=.stromfueralle.at`
-> beim Session-Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den bereits bewusst
-> gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt- und Portal-Domain wieder
-> einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen).
+> Host-Änderungen):** DMARC fehlt weiterhin (`_dmarc.stromfueralle.at` TXT-Record, DNS),
+> `Domain=.stromfueralle.at` beim Session-Cookie (Report schlägt `__Host-`-Präfix vor -- würde
+> aber den bereits bewusst gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt-
+> und Portal-Domain wieder einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen).
+
+> **F-03/F-07 behoben (26.09.2026, per Nachtest #2 bestätigt):** DKIM eingerichtet (die beiden
+> von Microsoft 365 verlangten `selector1._domainkey`/`selector2._domainkey`-CNAMEs stehen im
+> DNS, Signatur nachweisbar aktiv -- nur DMARC selbst fehlt noch, siehe oben) und CAA-Record
+> (`stromfueralle.at CAA 0 issue "letsencrypt.org"`) gesetzt, beide extern verifiziert.
+> **Eine Aussage aus Nachtest #2 stimmt NICHT mit dem überein, was wir selbst per `certbot
+> certificates`/`curl` kurz vorher verifiziert hatten:** der Report behauptet, jede Domain
+> (`stromfueralle.at`/`www.`/`portal.`) habe jetzt "ihr eigenes, einzelnes Zertifikat" --
+> tatsächlich ist es weiterhin EIN gemeinsames Zertifikat (Lineage `stromfueralle.at`) mit allen
+> drei Namen im SAN, exakt wie beim F-04-Fix eingerichtet (`CN=stromfueralle.at`, per curl auf
+> beiden Domains bestätigt). Diese eine Behauptung im Report also nicht ungeprüft übernehmen --
+> möglicherweise eine Fehlinterpretation des Scan-Ergebnisses auf der Report-Seite.
 
 > **F-04 (traefik.stromfueralle.at) behoben (25.09.2026):** die `stromfueralle.at`-Zertifikats-
 > Lineage auf dem Proxy-Host (10.0.0.144) enthielt `stromfueralle.at`, `www.stromfueralle.at`,
