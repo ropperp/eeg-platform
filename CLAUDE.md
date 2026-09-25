@@ -930,8 +930,8 @@ Reine Code-Änderungen (Punkt 1 + 3), kein Migrations-/Setup-Skript nötig -- mi
 dieses Repos (externer Proxy-Host).
 
 > **Noch offen, bewusst NICHT unilateral gefixt (brauchen Patricks Entscheidung/externe
-> Host-Änderungen):** HSTS-Header fehlt (externer Proxy), DMARC/DKIM fehlt (DNS + M365, betrifft
-> `noreply@`/`eda@stromfueralle.at`), `traefik.stromfueralle.at` ist öffentlich erreichbar und
+> Host-Änderungen):** DMARC/DKIM fehlt (DNS + M365, betrifft `noreply@`/`eda@stromfueralle.at`,
+> DNS-Propagierung kann Stunden dauern), `traefik.stromfueralle.at` ist öffentlich erreichbar und
 > zeigt ein falsches Zertifikat (CN `ropper.dyndns.org`, keine eigene Traefik-Dashboard-Öffnung
 > laut `docker-compose.yml` -- vermutlich nur eine verwaiste DNS-/Proxy-Altlast, siehe
 > "www-Subdomain hinzufügen" oben: `traefik.stromfueralle.at` steht zwar im Zertifikat-SAN, hat
@@ -940,6 +940,21 @@ dieses Repos (externer Proxy-Host).
 > gelösten "sofort ausgeloggt beim Domain-Wechsel"-Bug zwischen Haupt- und Portal-Domain wieder
 > einführen, siehe Auth::start()-Kommentar, NICHT blind übernehmen), sowie eine offene
 > DSGVO-Frage zur öffentlichen `/live/:slug`-Anzeige bei EEGs mit nur sehr wenigen Zählpunkten.
+
+> **Nachtest (25.09.2026) + Korrektur zu HSTS (F-01):** ein zweiter externer Blackbox-Test nach
+> obigen Fixes bestätigte F-08 (`robots.txt`/`security.txt`) und F-09 (Permissions-Policy/COOP/
+> CORP) als tatsächlich behoben -- UND lieferte damit den Beweis, dass `add_header`-Zeilen aus
+> `webapp/docker/nginx.conf` unverändert bis zum Browser durchkommen, weil der externe
+> nginx-Proxy Response-Header beim `proxy_pass` einfach weiterreicht. Das widerlegt meine
+> vorherige Einschätzung, HSTS müsse auf dem externen Proxy-Host (10.0.0.144) ergänzt werden --
+> `add_header Strict-Transport-Security "max-age=31536000" always;` steht jetzt stattdessen
+> direkt in `webapp/docker/nginx.conf`, wie die übrigen Security-Header. Bewusst OHNE
+> `includeSubDomains` (würde Browser zwingen, JEDE Subdomain nur noch über HTTPS zu laden --
+> `traefik.stromfueralle.at` hat aber aktuell kein gültiges Zertifikat, `admin.`/
+> `live.stromfueralle.at` sind auf dem externen Proxy nicht explizit dokumentiert) und ohne
+> `preload` (quasi unumkehrbarer Schritt, eigene bewusste Entscheidung nötig, kein
+> Automatismus) -- beides erst ergänzen, wenn F-04 (`traefik.stromfueralle.at`) bereinigt und
+> alle Subdomains bestätigt per HTTPS erreichbar sind.
 
 ---
 

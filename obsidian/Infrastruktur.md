@@ -867,12 +867,19 @@ tatsächlich beide dokumentierten Zähler (E-Mail-Limit 5, IP-Limit 20, je 15 Mi
 Login verdrahtet; 13 Testversuche (vermutlich mit wechselnden E-Mails) blieben schlicht unter
 beiden Schwellenwerten. Kein Bug, kein Fix nötig.
 
-**Noch offen** (brauchen Patricks Entscheidung oder externe Host-/DNS-Änderungen): HSTS-Header
-(externer Proxy), DMARC/DKIM (DNS + M365), `traefik.stromfueralle.at` öffentlich mit falschem
-Zertifikat (vermutlich verwaiste DNS-/Proxy-Altlast), fehlender CAA-Record, `Domain=
-.stromfueralle.at` beim Cookie (Report schlägt `__Host-`-Präfix vor -- würde aber den bewusst
-gelösten Portal-Domain-Logout-Bug wieder einführen, NICHT blind übernehmen), DSGVO-Frage zur
-öffentlichen Live-Anzeige bei sehr wenigen Zählpunkten. Details: `CLAUDE.md`.
+**Noch offen** (brauchen Patricks Entscheidung oder externe Host-/DNS-Änderungen): DMARC/DKIM
+(DNS + M365), `traefik.stromfueralle.at` öffentlich mit falschem Zertifikat (vermutlich verwaiste
+DNS-/Proxy-Altlast), fehlender CAA-Record, `Domain=.stromfueralle.at` beim Cookie (Report schlägt
+`__Host-`-Präfix vor -- würde aber den bewusst gelösten Portal-Domain-Logout-Bug wieder
+einführen, NICHT blind übernehmen), DSGVO-Frage zur öffentlichen Live-Anzeige bei sehr wenigen
+Zählpunkten. Details: `CLAUDE.md`.
+
+**Nachtest + Korrektur (25.09.2026):** ein zweiter externer Test bestätigte F-08/F-09 als
+behoben und bewies dabei, dass Header aus `webapp/docker/nginx.conf` unverändert bis zum Browser
+durchkommen (der externe Proxy reicht sie beim `proxy_pass` einfach weiter) -- widerlegt meine
+vorherige Annahme, HSTS (F-01) müsse extern ergänzt werden. `Strict-Transport-Security:
+max-age=31536000` steht jetzt stattdessen im Repo, bewusst ohne `includeSubDomains`/`preload`
+(erst nach Bereinigung von F-04 sinnvoll). Details: `CLAUDE.md`.
 
 ## Claude-Sitzungslog (Selbstdokumentation)
 
