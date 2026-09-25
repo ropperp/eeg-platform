@@ -19,7 +19,7 @@ ausführlicher externer Blackbox-Sicherheitsreport als Datei).
 Scan-Ergebnisse und des externen Reports; gefundene echte Lücken beheben, Fehlalarme als solche
 einordnen und offene Punkte, die Patricks Entscheidung oder externe Host-Änderungen brauchen,
 klar benennen statt sie unilateral zu "fixen".
-**Ergebnis:** Drei reale Lücken behoben (PRs #186/#187 + diese Sitzung): Session-Cookie ohne
+**Ergebnis:** Drei reale Lücken behoben (PRs #186/#187/#188 + diese Sitzung): Session-Cookie ohne
 `Secure`-Flag in Produktion (fehlendes `X-Forwarded-Proto` → `HTTPS`-Mapping in
 `webapp/docker/nginx.conf`), verratene nginx-/PHP-Version (`server_tokens off;`, `expose_php =
 Off`, plus ein Fix auf dem externen Proxy-Host selbst -- die dort gemeldete nginx-Version kam
@@ -28,9 +28,14 @@ beiden Hosts), sowie fehlendes `robots.txt`/`security.txt` und drei zusätzliche
 (Permissions-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy). Den gemeldeten
 Befund "keine Login-Ratenbegrenzung" durch Lesen von `RateLimiter.php` und der Login-Route als
 Fehlalarm widerlegt (beide Zähler sind korrekt verdrahtet, der Test blieb nur unter den
-Schwellenwerten). `CLAUDE.md`/`obsidian/Infrastruktur.md` entsprechend dokumentiert, inkl. Liste
-der noch offenen, bewusst nicht unilateral gefixten Punkte (HSTS, DMARC/DKIM,
-`traefik.stromfueralle.at`, CAA-Record, Cookie-Domain-Frage, DSGVO-Frage zur Live-Anzeige).
+Schwellenwerten). Ein Nachtest bestätigte F-08/F-09 als behoben und deckte dabei eine eigene
+Fehleinschätzung auf: Header aus `webapp/docker/nginx.conf` kommen unverändert extern an (der
+Proxy reicht sie beim `proxy_pass` durch) -- HSTS (F-01) gehört deshalb ebenfalls ins Repo statt
+auf den externen Proxy-Host, jetzt entsprechend nachgezogen (`max-age=31536000`, bewusst ohne
+`includeSubDomains`/`preload` wegen der noch offenen `traefik.stromfueralle.at`-Baustelle).
+`CLAUDE.md`/`obsidian/Infrastruktur.md` entsprechend dokumentiert, inkl. Liste der noch offenen,
+bewusst nicht unilateral gefixten Punkte (DMARC/DKIM, `traefik.stromfueralle.at`, CAA-Record,
+Cookie-Domain-Frage, DSGVO-Frage zur Live-Anzeige).
 
 ---
 
