@@ -112,8 +112,13 @@ class Billing
             $tariff = self::getTariffForPeriod($run['community_id'], $run['period_from']);
             $tax    = self::getTaxForPeriod($run['community_id'], $run['period_from']);
 
-            // Rechnungsnummer-Schema (Patrick, 06.08.2026): RE-<Jahr 2-stellig><laufende Nummer,
-            // 4-stellig>_<Marktpartner-ID>_<Nachname>_<Vorname>, z.B. "RE-260001_RC108175_Muster_Erika".
+            // Rechnungsnummer-Schema: RE-<Jahr 2-stellig><laufende Nummer, 4-stellig>, z.B.
+            // "RE-260001". Ursprünglich (06.08.2026) noch um "_<Marktpartner-ID>_<Nachname>_
+            // <Vorname>" ergänzt -- auf Patricks Wunsch (26.09.2026, nach der ersten echten
+            // Abrechnung: "bitte machen wir da nur die Rechnungsnummer") wieder entfernt, macht
+            // die Nummer als SEPA-Verwendungszweck/EndToEndId kürzer und den Rechnungskopf
+            // übersichtlicher. Bereits vergebene, längere Nummern bestehender Rechnungen bleiben
+            // unverändert (kein rückwirkendes Umbenennen).
             // Die laufende Nummer ist je EEG (Marktpartner-ID) UND Jahr fortlaufend und beginnt bei
             // 0001 -- pro EEG getrennt, weil jede EEG ein eigener Verein mit eigener, laut § 11 UStG
             // lückenloser Rechnungsnummerierung ist (nicht plattformweit gemeinsam). Ermittelt über
@@ -121,8 +126,6 @@ class Billing
             // eigene Zählertabelle) -- da "Neu berechnen" die eigenen Entwürfe dieses Laufs vorher
             // löscht (siehe oben), zählen dabei nur ANDERE, bereits bestehende Rechnungen mit, die
             // Nummern bleiben also bei mehrfachem Neuberechnen dieses Laufs stabil.
-            $community  = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$run['community_id']]);
-            $rcNummer   = $community['marktpartner_id'] ?? 'RC000000';
             $jahr       = date('y');
             $numPrefix  = 'RE-' . $jahr;
             $existing   = DB::fetchOne(
@@ -214,15 +217,7 @@ class Billing
                     $saldo += (float)$extra['amount_eur'];
                 }
 
-                if (!empty($member['company_name'])) {
-                    $nachname = self::slugName($member['company_name']);
-                    $vorname  = '';
-                } else {
-                    $nachname = self::slugName($member['last_name']);
-                    $vorname  = self::slugName($member['first_name']);
-                }
-                $rechnungsnummer = $numPrefix . str_pad((string)$invoiceSeq++, 4, '0', STR_PAD_LEFT)
-                    . '_' . $rcNummer . '_' . $nachname . '_' . $vorname;
+                $rechnungsnummer = $numPrefix . str_pad((string)$invoiceSeq++, 4, '0', STR_PAD_LEFT);
 
                 DB::execute(
                     'INSERT INTO invoices (billing_run_id, community_id, member_id, rechnungsnummer, saldo_eur, pdf_path)
@@ -350,22 +345,6 @@ class Billing
             [$communityId, $periodFrom, $periodTo]
         );
         return (int)($l3['n'] ?? 0);
-    }
-
-    /**
-     * Für den Namensteil der Rechnungsnummer (RE-260001_RC108175_Muster_Erika): deutsche Umlaute
-     * transliterieren, alles außer Buchstaben/Ziffern entfernen (keine Leerzeichen/Bindestriche/
-     * Sonderzeichen in einer Rechnungsnummer, die auch als SEPA-Verwendungszweck/EndToEndId und
-     * PDF-Dateiname verwendet wird).
-     */
-    private static function slugName(string $name): string
-    {
-        $name = str_replace(
-            ['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß'],
-            ['ae', 'oe', 'ue', 'Ae', 'Oe', 'Ue', 'ss'],
-            $name
-        );
-        return preg_replace('/[^A-Za-z0-9]+/', '', $name) ?? '';
     }
 
     /**
