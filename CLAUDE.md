@@ -906,6 +906,53 @@ Reine compose-Konfig-Änderung, kein Image-Rebuild zwingend nötig (der Healthch
 > sudo chown <cron-user>:<cron-user> /var/log/eeg-health.log
 > ```
 
+### Abrechnung: "Abrechnungslauf nicht gefunden" trotz gerade angelegtem Lauf (Vorfall 26.09.2026, gelöst)
+Patrick wollte erstmals eine MONATLICHE Testabrechnung (Juli) statt der üblichen Quartalsabrechnung
+durchführen -- Lauf unter `/portal/billing` angelegt, EDA-Datei hochgeladen (taucht unter "EDA
+Imports" korrekt auf), aber ein Klick auf "Rechnungs-Entwürfe berechnen" lieferte "Abrechnungslauf
+nicht gefunden", obwohl der Lauf nachweislich existierte -- auch nach Löschen und Neu-Anlegen.
+
+**Ursache:** `POST /portal/billing/generate` (und ebenso `/portal/billing/release`) hat -- anders
+als JEDE andere `/portal/billing/*`-Route -- **kein `DB::setCommunity($communityId)` vor dem Aufruf
+von `Billing::generateDrafts()`/`Billing::finalize()`** gesetzt. Beide Methoden lesen den Lauf aber
+als ALLERERSTE Abfrage per rohem `SELECT * FROM billing_runs WHERE id = ?` (ohne `community_id` in
+der WHERE-Klausel), noch bevor sie selbst irgendwo `DB::setCommunity()` aufrufen. Row-Level-Security
+(`database/init.sql`: `CREATE POLICY community_isolation ON billing_runs USING (community_id =
+current_setting('app.community_id', true)::uuid)`) verwirft dadurch bei dieser einen Abfrage
+AUSNAHMSLOS JEDE Zeile -- `app.community_id` war für diese Anfrage schlicht noch nie gesetzt worden
+(jede PHP-FPM-Anfrage startet mit einer frischen DB-Verbindung, kein zeilenübergreifender Zustand).
+Der Lauf existierte die ganze Zeit völlig korrekt, RLS hat ihn nur unsichtbar gemacht.
+
+**Fix:** `DB::setCommunity($communityId);` in beiden Routen ergänzt, direkt nach
+`Auth::activeCommunityId()`, exakt wie in allen anderen `/portal/billing/*`-Routen bereits üblich.
+Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten
+`git pull && docker compose up -d --build` aktiv. **Merksatz:** bei JEDER neuen Route, die eine
+RLS-geschützte Tabelle per ID abfragt, MUSS `DB::setCommunity()` VOR der ersten Abfrage stehen --
+sonst liefert die Abfrage nicht etwa einen Fehler, sondern lautlos "nichts gefunden", was leicht als
+Datenproblem statt als fehlender Community-Kontext missverstanden wird.
+
+> **Zweiter, unabhängiger Fund beim selben Test: EDA-Import warnte fälschlich vor "fehlenden"
+> Zählpunkten später beigetretener Mitglieder.** Patrick: "schau auch immer, ob die Mitglieder in
+> diesem Zeitraum schon dabei waren, weil ich immer wieder die Nachricht bekomme, dass gewisse
+> Mitglieder noch nicht in dieser XLSX-Datei vorhanden sind -- das ist deswegen, weil ein paar erst
+> später beigetreten sind." `eda-parser/parser.py` (`import_to_db()`) verglich bisher ausschließlich
+> den HEUTIGEN `active`-Status eines Zählpunkts gegen den Datei-Inhalt, unabhängig vom importierten
+> Zeitraum -- ein erst im September beigetretenes Mitglied ist heute aktiv, konnte im JULI-Export
+> aber unmöglich auftauchen, wurde also fälschlich als "fehlender Zählpunkt, evtl. Abmeldung/
+> Zählerwechsel" gemeldet. **Fix:** dieselbe Grenze wie in `Billing::generateDrafts()`
+> (`member_since <= period_to`) jetzt auch hier, zusätzlich `member_until` für zwischenzeitlich
+> ausgetretene Mitglieder berücksichtigt -- auf reine Kalendertage (`.date()`) verglichen, um
+> dieselbe Zeitzonen-Fallgrube wie bei `Billing::missingMonths()` von vornherein zu vermeiden.
+> Reine Code-Änderung, kein Migrations-/Setup-Skript nötig.
+>
+> **Offene Frage/Feature-Wunsch von Patrick, NICHT umgesetzt (Architektur-Entscheidung nötig):**
+> er hätte gerne, dass beim Anlegen eines Abrechnungszeitraums direkt die zugehörige EDA-Datei
+> ausgewählt/hochgeladen wird, damit beide "zusammengehören", statt wie bisher rein über
+> überlappende Datumsbereiche zwischen `billing_runs` und `eda_imports`/`eda_measurements`
+> zugeordnet zu werden (kein FK zwischen den beiden Tabellen). Mit dem Fix oben funktioniert die
+> bestehende datumsbasierte Zuordnung aber bereits korrekt -- ob die explizite Verknüpfung als
+> UX-Verbesserung trotzdem gewünscht ist, muss Patrick noch entscheiden, bevor das umgesetzt wird.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,

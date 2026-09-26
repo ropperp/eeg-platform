@@ -6750,6 +6750,15 @@ $router->post('/portal/billing/generate', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
     $communityId = Auth::activeCommunityId();
+    // Fehlte hier bisher (anders als bei jeder anderen /portal/billing/*-Route) -- Billing::
+    // generateDrafts() liest billing_runs aber ALS ERSTES per reinem "SELECT ... WHERE id = ?"
+    // (ohne community_id in der WHERE-Klausel, siehe Billing.php), noch bevor die Funktion
+    // selbst DB::setCommunity() aufruft. Row-Level-Security (siehe DB.php: "USING (community_id
+    // = current_setting('app.community_id', true)::uuid)") ließ diese Abfrage dadurch buchstäblich
+    // JEDE Zeile verwerfen, weil app.community_id für diese Anfrage noch nie gesetzt worden war --
+    // "Abrechnungslauf nicht gefunden", obwohl der Lauf echt existierte (Patrick, 26.09.2026: neu
+    // angelegten Lauf für Juli berechnen wollte, Fehler kam trotzdem, auch nach Löschen/Neu-Anlegen).
+    DB::setCommunity($communityId);
     try {
         Billing::generateDrafts($runId);
         logAudit($communityId, 'billing.generate', 'billing_run', $runId, 'Rechnungs-Entwürfe berechnet');
@@ -6767,6 +6776,10 @@ $router->post('/portal/billing/release', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $runId = $_POST['billing_run_id'] ?? '';
     $communityId = Auth::activeCommunityId();
+    // Derselbe fehlende DB::setCommunity()-Aufruf wie bei /portal/billing/generate oben --
+    // Billing::finalize() liest billing_runs ebenso zuerst per rohem "SELECT ... WHERE id = ?",
+    // bevor irgendwo intern DB::setCommunity() gesetzt wird. Siehe Kommentar dort.
+    DB::setCommunity($communityId);
     try {
         Billing::finalize($runId, Auth::userId());
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Abrechnungslauf freigegeben');
