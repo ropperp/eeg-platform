@@ -1,13 +1,14 @@
 <?php
-$pageTitle = 'Gutschriften – ' . $run['quartal'];
+$pageTitle = 'Gutschriften' . ($run ? ' – ' . $run['quartal'] : '');
 ob_start();
 ?>
 
-<h2 style="margin-bottom:.25rem"><?= icon('bank') ?> Gutschriften auszahlen -- <?= htmlspecialchars($run['quartal']) ?></h2>
+<h2 style="margin-bottom:.25rem"><?= icon('bank') ?> Offene Gutschriften<?= $run ? ' -- ' . htmlspecialchars($run['quartal']) : '' ?></h2>
 <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1.5rem">
-  Mitglieder mit Guthaben aus diesem Abrechnungslauf. Für jedes Feld gibt es einen eigenen
-  „Kopieren"-Button -- damit lässt sich der Wert direkt in das entsprechende Feld einer neuen
-  Überweisung im Online-Banking einfügen, ohne ihn abtippen zu müssen.
+  Mitglieder mit noch nicht überwiesenem Guthaben<?= $run ? ' aus diesem Abrechnungslauf' : ' (über alle Abrechnungsläufe)' ?>.
+  Für jedes Feld gibt es einen eigenen „Kopieren"-Button -- damit lässt sich der Wert direkt in
+  das entsprechende Feld einer neuen Überweisung im Online-Banking einfügen, ohne ihn abtippen zu
+  müssen. Sobald eine Überweisung erledigt ist, verschwindet die Gutschrift aus dieser Liste.
 </p>
 
 <?php if (isset($_GET['success'])): ?>
@@ -16,12 +17,26 @@ ob_start();
 
 <?php if (empty($gutschriften)): ?>
   <div class="card" style="text-align:center;color:var(--gray-600);padding:2rem">
-    Keine Gutschriften in diesem Abrechnungslauf.
+    <?= icon('check-circle') ?> Keine offenen Gutschriften<?= $run ? ' in diesem Abrechnungslauf' : '' ?>.
   </div>
 <?php else: ?>
   <?php foreach ($gutschriften as $g): ?>
     <div class="card" style="margin-bottom:1rem">
-      <h3 style="margin-bottom:.75rem"><?= htmlspecialchars($g['name']) ?></h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+        <h3 style="margin:0">
+          <?= htmlspecialchars($g['name']) ?>
+          <?php if (!$run): ?>
+            <span class="badge badge-gray" style="font-size:.7rem;font-weight:400"><?= htmlspecialchars($g['quartal']) ?></span>
+          <?php endif; ?>
+        </h3>
+        <form method="post" action="/portal/billing/gutschriften/<?= htmlspecialchars($g['invoice_id']) ?>/erledigt"
+              onsubmit="return confirm('Überweisung von ' + <?= json_encode($g['betrag']) ?> + ' € an ' + <?= json_encode($g['name']) ?> + ' wirklich als durchgeführt markieren? Die Gutschrift verschwindet danach aus dieser Liste.')">
+          <?php if ($run): ?><input type="hidden" name="run_id" value="<?= htmlspecialchars($run['id']) ?>"><?php endif; ?>
+          <button type="submit" class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">
+            <?= icon('check-circle') ?> Überweisung durchgeführt
+          </button>
+        </form>
+      </div>
       <table style="width:100%">
         <tbody>
           <tr>

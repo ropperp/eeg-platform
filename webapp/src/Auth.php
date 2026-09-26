@@ -137,6 +137,10 @@ class Auth
         // zurücksetzen statt auf session_regenerate_id() zu verlassen, das den Session-Inhalt
         // (inkl. dieser Flag) unverändert auf die neue Session-ID mitnimmt.
         unset($_SESSION['prelaunch_ack']);
+        // Gutschriften-Login-Erinnerung (siehe layouts/portal.php) soll ebenfalls bei JEDEM Login
+        // erneut erscheinen, nicht nur einmal pro Browser-Session -- Patrick, 26.09.2026: "damit
+        // ich auch nicht vergesse, dass ich noch Geld an meine Mitglieder überweisen muss".
+        unset($_SESSION['gutschriften_reminder_dismissed']);
 
         DB::execute('UPDATE users SET last_login_at = now() WHERE id = ?', [$user['id']]);
         session_regenerate_id(true);

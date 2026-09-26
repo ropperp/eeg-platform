@@ -37,6 +37,26 @@
         // einen read-only Demo-Login gar nicht klickbar (siehe Router.php), der Zugang saß also
         // bisher hinter diesem Banner fest.
         $showPrelaunchNotice = !$isPlatformAdmin && !$isManager && !Auth::isDemo() && empty($_SESSION['prelaunch_ack']);
+
+        // Gutschriften-Erinnerung: einmal pro Login für Obmann/Platform-Admin, solange es offene
+        // (noch nicht als überwiesen markierte) Gutschriften in der gerade aktiven Community gibt
+        // -- Patrick, 26.09.2026: "damit ich auch nicht vergesse, dass ich noch Geld an meine
+        // Mitglieder überweisen muss". Braucht eine aktive Community (ein Platform-Admin ohne
+        // ausgewählte EEG bekommt sie nicht, kann die Zahl sonst nicht sinnvoll zuordnen). Flag
+        // wird wie prelaunch_ack bei jedem establishSession() zurückgesetzt (siehe Auth.php),
+        // erscheint also wirklich bei jedem Login neu, nicht nur beim ersten der Browser-Session.
+        // Für Demo-Logins nie -- die Zielseite ist ohnehin für sie gesperrt (denyDemoPage()).
+        $offeneGutschriftenCount = 0;
+        if (($isManager || $isPlatformAdmin) && !Auth::isDemo() && ($ar['community_id'] ?? null)
+            && empty($_SESSION['gutschriften_reminder_dismissed'])) {
+            DB::setCommunity($ar['community_id']);
+            $offeneGutschriftenCount = (int)(DB::fetchOne(
+                'SELECT COUNT(*) AS cnt FROM invoices
+                 WHERE community_id = ? AND saldo_eur < 0 AND gutschrift_ausgezahlt_at IS NULL',
+                [$ar['community_id']]
+            )['cnt'] ?? 0);
+        }
+        $showGutschriftenReminder = $offeneGutschriftenCount > 0;
       ?>
 
       <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>
@@ -164,7 +184,7 @@
   </div>
 </header>
 
-<div class="portal-layout" style="<?= $showPrelaunchNotice ? 'filter:blur(4px);pointer-events:none;user-select:none' : '' ?>">
+<div class="portal-layout" style="<?= ($showPrelaunchNotice || $showGutschriftenReminder) ? 'filter:blur(4px);pointer-events:none;user-select:none' : '' ?>">
   <aside class="sidebar" id="sidebar">
     <?php if ($activeRoleName === 'platform_admin'): ?>
       <p class="sidebar-label">Plattform</p>
@@ -357,6 +377,28 @@
         <input type="hidden" name="return_to" value="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>">
         <button type="submit" class="btn btn-primary">Gelesen, weiter zur Plattform</button>
       </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($showGutschriftenReminder): ?>
+<div style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:1rem">
+  <div class="card" style="max-width:32rem;width:100%;padding:1.75rem">
+    <h2 style="margin-bottom:.75rem"><?= icon('bank') ?> Ausstehende Überweisungen an Mitglieder</h2>
+    <p style="font-size:.9rem;line-height:1.6;margin-bottom:1.25rem">
+      Es gibt derzeit <strong><?= $offeneGutschriftenCount ?></strong>
+      <?= $offeneGutschriftenCount === 1 ? 'Gutschrift' : 'Gutschriften' ?> an Mitglieder, die noch
+      nicht überwiesen <?= $offeneGutschriftenCount === 1 ? 'wurde' : 'wurden' ?>.
+    </p>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+      <form method="post" action="/portal/gutschriften-erinnerung/spaeter">
+        <input type="hidden" name="return_to" value="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>">
+        <button type="submit" class="btn btn-secondary">Später</button>
+      </form>
+      <a href="/portal/billing/gutschriften" class="btn btn-primary" style="margin-left:auto">
+        <?= icon('bank') ?> Jetzt durchführen
+      </a>
     </div>
   </div>
 </div>
