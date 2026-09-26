@@ -700,6 +700,20 @@ Zwei frühere Neustarts um 21:56/21:58 Uhr waren dagegen Patricks eigene manuell
 seine Mutter, kein Fehler. Offene Frage für den nächsten Vorfall: warum petted der Watchdog so
 viel länger als konfiguriert bzw. warum bleibt das Log für genau dieses Fenster leer.
 
+**Nachtrag 26.09.2026 -- vermutlich gelöst, zeigt auf Stromversorgung statt Software:**
+Wiederholung am Folgetag (nur EIN echter Totalabsturz 06:48–07:28 Uhr trotz vier gemeldeter
+Alarme -- die übrigen drei waren der tägliche Reboot bzw. kurze Container-Nachwehen, System lief
+laut `uptime -s` durchgehend). `journal-persist.log` zeigte erneut eine komplette Stille (04:57
+bis 07:23 Uhr) direkt gefolgt von einer frischen Boot-Meldung -- kein Software-Hänger würde das
+simple Journal-Mitschreiben selbst stoppen. **Entscheidender Fund:** `nvme smart-log` zeigt eine
+kerngesunde SSD (0 Fehler, 100% Spare, 0% verschlissen -- bootet von NVMe, nicht SD-Karte), aber
+`unsafe_shutdowns: 131` bei nur `power_cycles: 170` insgesamt -- ~77% aller bisherigen
+Einschaltvorgänge folgten auf einen unsauberen Stromverlust, nicht auf normales Herunterfahren.
+Deutet stark auf ein Stromversorgungsproblem hin (Netzteil/Kabel/Steckdose), nicht auf Software,
+Kernel oder Datenträger. Nächster Schritt: physische Prüfung vor Ort (Loxone-Steckdosen-
+Automatisierungen, Netzteil-Dimensionierung, Steckverbindungen, Test mit anderem Netzteil).
+Details: `CLAUDE.md`.
+
 ### Live-Anzeige (`/api/live/:slug`) zeigt keine Daten (Vorfall 24.08.2026, gelöst -- DREI Ursachen)
 Öffentliche Live-Seite lieferte für eine EEG einen Fehler statt Daten. Drei unabhängige Ursachen
 nacheinander gefunden:
