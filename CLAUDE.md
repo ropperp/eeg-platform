@@ -998,8 +998,9 @@ Betrag und dem Verwendungszweck [...] wo du einfach nur auf einen Button klickst
 dann kopierst [...] dann kann ich somit die Überweisungen alle nach der Reihe gleich an meine
 Kunden die Gutschrift überweisen."
 
-**Neue Seite `/portal/billing/:id/gutschriften`** (`webapp/src/views/pages/billing_gutschriften.php`,
-Route in `webapp/public/index.php`) listet für einen Abrechnungslauf alle Rechnungen mit
+**Neue Seite `/portal/billing/gutschriften`** (optional `?run_id=<uuid>` auf einen einzelnen Lauf
+eingeschränkt, siehe Nachbesserung unten -- `webapp/src/views/pages/billing_gutschriften.php`,
+Route in `webapp/public/index.php`) listet Rechnungen mit
 `saldo_eur < 0` auf -- pro Mitglied eine Karte mit Kontoinhaber, IBAN, (falls vorhanden) BIC,
 Betrag und Verwendungszweck (= Rechnungsnummer, gleiches Muster wie bei der bestehenden
 Mahnungs-E-Mail-Vorlage). **Bewusst EIN eigener „Kopieren"-Button je Einzelfeld statt eines
@@ -1030,6 +1031,63 @@ dort, eine maskierte Version einer reinen Kopier-Liste wäre ohnehin witzlos.
 Reine Code-Änderung (neue Route + neue View, keine neue Tabelle/Spalte -- alle nötigen Felder
 existieren bereits auf `members`/`invoices`), kein Migrations-/Setup-Skript nötig -- mit dem
 nächsten `git pull && docker compose up -d --build` aktiv.
+
+> **Nachbesserung (26.09.2026): Gutschriften als abhakbare Erledigungsliste + Login-Erinnerung +
+> E-Mail bei fälliger SEPA-Lastschrift.** Patrick, direkt nach dem ersten Feature oben: "Passt
+> das auch, einen Abhaken mit „Überweisung durchgeführt" [...] irgendwie so? Erst wenn's
+> durchgeführt ist, soll es dann irgendwo weg sein, damit ich auch nicht vergesse, dass ich noch
+> Geld an meine Mitglieder überweisen muss. Vielleicht darf das auch beim Admin und beim Obmann
+> jedes Mal bei jedem Login auftauchen [...] und er kommt dann genau mit einem „Später"- oder
+> einem „Jetzt durchführen"-Button auf die Seite." Zusätzlich: "Ich möchte gerne per E-Mail
+> verständigt werden, wenn die Pre-Notification-Zeit vorbei ist [...] damit ich jetzt die
+> SEPA-Lastschrift-XML-Datei bei der Sparkasse hochladen [...] kann."
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20260926.sql
+> docker compose up -d --build
+> ( crontab -l 2>/dev/null; echo "0 8 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/sepa_faelligkeit_check.php >> /var/log/eeg-sepa-faelligkeit.log 2>&1" ) | crontab -
+> ```
+> **1. Gutschriften abhaken.** Neue Spalte `invoices.gutschrift_ausgezahlt_at` -- solange NULL,
+> gilt eine Gutschrift als offen. `/portal/billing/gutschriften` (ehemals `/portal/billing/:id/
+> gutschriften`, jetzt ohne `:id` und mit optionalem `?run_id=` -- Route + View gemeinsam für den
+> Einzellauf-Aufruf UND die kommunityweite Sicht über alle Läufe genutzt) zeigt nur noch OFFENE
+> Gutschriften und bekommt pro Karte einen Button "Überweisung durchgeführt"
+> (`POST /portal/billing/gutschriften/:invoiceId/erledigt`), der die Spalte setzt -- danach
+> verschwindet die Karte aus der Liste. Bewusst KEIN separates "Abbrechen" als eigener
+> Datenbank-Zustand: der native Browser-`confirm()`-Dialog vor dem Absenden (gleiches Muster wie
+> überall sonst im Portal, z.B. beim Löschen eines Laufs) IST die Abbrechen-Möglichkeit -- ein
+> zusätzlicher persistenter "abgebrochen"-Status hätte keinen erkennbaren Nutzen (nichts wurde ja
+> tatsächlich unternommen, es bleibt einfach offen).
+>
+> **2. Login-Erinnerung für Obmann/Platform-Admin.** `layouts/portal.php` zählt bei jedem
+> Seitenaufruf (mit aktiver Community, nicht im Demo-Zugang) die offenen Gutschriften der
+> Community; sind es mehr als 0 UND wurde die Erinnerung in dieser Login-Sitzung noch nicht mit
+> "Später" weggeklickt (`$_SESSION['gutschriften_reminder_dismissed']`), erscheint ein Modal
+> (gleiches Muster wie das bestehende Pre-Launch-Popup) mit der Anzahl offener Gutschriften und
+> zwei Buttons: "Später" (`POST /portal/gutschriften-erinnerung/spaeter`, blendet das Modal nur
+> für den Rest DIESER Sitzung aus) und "Jetzt durchführen" (Link zu
+> `/portal/billing/gutschriften`, schließt das Modal nicht dauerhaft -- solange noch offene
+> Gutschriften bestehen, erscheint es beim nächsten Seitenaufruf wieder, außer "Später" wurde
+> geklickt). Die Dismiss-Flag wird -- exakt wie beim Pre-Launch-Popup -- in
+> `Auth::establishSession()` bei JEDEM Login zurückgesetzt, erscheint also wirklich bei jedem
+> neuen Login erneut, nicht nur einmal pro Browser-Sitzung.
+>
+> **3. E-Mail bei fälliger SEPA-Lastschrift.** Neue Spalten `billing_runs.
+> sepa_xml_heruntergeladen_at` (wird beim ERSTEN Download der Sammellastschrift-XML unter
+> `/portal/billing/:id/sepa-xml` gesetzt, per `COALESCE()` nur einmalig) und `billing_runs.
+> sepa_faelligkeit_erinnerung_gesendet_at` (verhindert eine doppelte Mail bei mehrfachem
+> Cron-Lauf). Neues Skript `scripts/sepa_faelligkeit_check.php` (gleiches Aufruf-/Empfänger-Muster
+> wie `scripts/health_alert.php`, aber pro Community statt platform-weit) prüft täglich alle
+> freigegebenen Läufe: ist `released_at + communities.sepa_prenotification_days` (Standard 14
+> Tage, dieselbe Frist wie bei der SEPA-Vorabinformation) verstrichen, die Sammellastschrift-XML
+> aber noch NICHT heruntergeladen, UND enthält der Lauf überhaupt einzuziehende (nicht nur
+> Gutschrift-)Rechnungen, geht eine Mail an alle `manager`-Nutzer dieser Community. Ein reiner
+> Gutschriften-Lauf (keine einzuziehende Rechnung) wird dabei sofort als "erledigt" markiert,
+> ohne eine Mail zu verschicken -- er braucht ja keine SEPA-Einreichung.
+>
+> Reine Code-/Migrations-Änderung, kein weiteres Setup-Skript nötig -- mit dem nächsten
+> `git pull && docker compose up -d --build` (bzw. der obigen Migration + dem Cron-Eintrag) aktiv.
 
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt

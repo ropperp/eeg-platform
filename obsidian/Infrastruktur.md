@@ -905,7 +905,7 @@ einzeln öffnen müssen, um Kontoinhaber/IBAN/Betrag/Verwendungszweck fürs Onli
 abzutippen -- es gibt (noch) keinen automatisierten SEPA-Überweisungsexport, nur den
 bestehenden SEPA-Lastschrift-Export für einzuziehende, positive Salden.
 
-Neue Seite `/portal/billing/:id/gutschriften` listet pro Abrechnungslauf alle Mitglieder mit
+Neue Seite `/portal/billing/gutschriften` (optional `?run_id=`) listet Mitglieder mit
 `saldo_eur < 0` mit je einer Karte (Kontoinhaber, IBAN, ggf. BIC, Betrag, Verwendungszweck =
 Rechnungsnummer) -- jedes Feld hat einen eigenen "Kopieren"-Button (`navigator.clipboard.
 writeText()`), bewusst EIN Button pro Einzelfeld statt eines kombinierten Textblocks, weil
@@ -917,7 +917,23 @@ enthält) und jederzeit später über einen neuen "Gutschriften"-Button bei abge
 in `/portal/billing`. Für den Demo-Zugang komplett gesperrt (echte IBANs/Namen, gleiche
 Sensibilität wie das WLAN-Info-Feld).
 
-Reine Code-Änderung, kein Migrations-/Setup-Skript nötig. Details: `CLAUDE.md`.
+Reine Code-Änderung, kein Migrations-/Setup-Skript nötig.
+
+**Nachbesserung (26.09.2026): abhakbar + Login-Erinnerung + SEPA-Fälligkeits-Mail.**
+
+1. **Abhaken:** neue Spalte `invoices.gutschrift_ausgezahlt_at` -- Button "Überweisung
+   durchgeführt" pro Karte setzt sie, danach verschwindet die Gutschrift aus der Liste. Kein
+   separater "Abbrechen"-Zustand nötig, der native `confirm()`-Dialog davor reicht.
+2. **Login-Erinnerung:** Modal für Obmann/Platform-Admin (nicht Demo), erscheint bei jedem Login
+   erneut, solange offene Gutschriften bestehen -- "Später" blendet nur für die aktuelle Sitzung
+   aus, "Jetzt durchführen" verlinkt zur Gutschriften-Seite.
+3. **SEPA-Fälligkeits-Mail:** neues Skript `scripts/sepa_faelligkeit_check.php` (täglicher Cron)
+   mailt alle Obmänner/Manager einer Community, sobald die SEPA-Vorabinformationsfrist
+   (`communities.sepa_prenotification_days`, Standard 14 Tage) für einen freigegebenen Lauf
+   abgelaufen ist und die Sammellastschrift-XML noch nicht heruntergeladen wurde -- Download
+   markiert den Lauf automatisch als erledigt (`billing_runs.sepa_xml_heruntergeladen_at`).
+
+Migration `database/migrate_20260926.sql` + Cron-Eintrag nötig. Details: `CLAUDE.md`.
 
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 

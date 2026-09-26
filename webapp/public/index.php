@@ -1624,6 +1624,21 @@ $router->post('/portal/ack-prelaunch', function () {
     exit;
 });
 
+/**
+ * "Später"-Button der Gutschriften-Login-Erinnerung (siehe layouts/portal.php) -- unterdrückt
+ * den Hinweis nur für den Rest DIESER Session, nicht dauerhaft: die Flag wird bei jedem Login
+ * zurückgesetzt (Auth::establishSession()), damit offene Gutschriften nicht in Vergessenheit
+ * geraten (Patrick, 26.09.2026). Gleiches Open-Redirect-Schutzmuster wie /portal/ack-prelaunch.
+ */
+$router->post('/portal/gutschriften-erinnerung/spaeter', function () {
+    Auth::requireLogin();
+    $_SESSION['gutschriften_reminder_dismissed'] = true;
+    $returnTo = $_POST['return_to'] ?? '/portal/dashboard';
+    if (!str_starts_with($returnTo, '/portal/')) { $returnTo = '/portal/dashboard'; }
+    header('Location: ' . $returnTo);
+    exit;
+});
+
 $router->get('/portal/forgot-password', function () {
     require ROOT . '/src/views/pages/forgot_password.php';
 });
@@ -6815,7 +6830,7 @@ $router->post('/portal/billing/release', function () {
             [$runId]
         );
         if ($hatGutschriften) {
-            header('Location: /portal/billing/' . $runId . '/gutschriften?success=' . urlencode($msg));
+            header('Location: /portal/billing/gutschriften?run_id=' . urlencode($runId) . '&success=' . urlencode($msg));
         } else {
             header('Location: /portal/billing?success=' . urlencode($msg));
         }
@@ -6827,51 +6842,47 @@ $router->post('/portal/billing/release', function () {
 });
 
 /**
- * Übersicht der Gutschriften (Auszahlungen an Mitglieder mit negativem Saldo) eines
- * Abrechnungslaufs -- Kontoinhaber/IBAN/Betrag/Verwendungszweck je Mitglied, jeweils mit eigenem
- * Kopieren-Button, damit Patrick die Überweisungen der Reihe nach händisch im Online-Banking
- * eintragen kann (aktuell kein automatisierter SEPA-Überweisungsexport, nur der bereits
- * bestehende SEPA-LASTSCHRIFT-XML-Export für die einzuziehenden, positiven Salden). Auch nach
- * der Freigabe jederzeit über den Link in der Abrechnungsliste erreichbar, nicht nur direkt im
- * Anschluss an /portal/billing/release.
+ * Liefert alle noch offenen Gutschriften (Auszahlungen an Mitglieder mit negativem Saldo,
+ * gutschrift_ausgezahlt_at IS NULL) einer Community -- optional auf einen einzelnen
+ * Abrechnungslauf eingeschränkt. Grundlage für /portal/billing/gutschriften; die Login-Erinnerung
+ * im Portal-Layout (layouts/portal.php) zählt separat per eigenem COUNT(*), da sie nur die Anzahl
+ * braucht, nicht die vollen Zeilen (gleiche WHERE-Bedingung: saldo_eur < 0 UND
+ * gutschrift_ausgezahlt_at IS NULL).
  */
-$router->get('/portal/billing/:id/gutschriften', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    // Enthält echte Kontoinhaber-Namen/IBANs -- dieselbe Sensibilität wie das WLAN-Info-Feld
-    // oder das Mitglied-Bearbeiten-Formular, deshalb für den Demo-Zugang komplett gesperrt statt
-    // nur maskiert (eine Liste zum Abkopieren ergibt maskiert ohnehin keinen Sinn).
-    denyDemoPage('Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können hier keine echten Bankdaten angezeigt werden.');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
-
-    $rows = DB::fetchAll(
-        'SELECT i.rechnungsnummer, i.saldo_eur,
-                m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel,
-                m.kontoinhaber, m.member_iban, m.member_bic,
-                tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
-         FROM invoices i
-         JOIN members m ON m.id = i.member_id
-         LEFT JOIN LATERAL (
-             SELECT tax_model, tax_rate_percent FROM tax_config
-             WHERE community_id = ? AND valid_from <= ?
-             ORDER BY valid_from DESC LIMIT 1
-         ) tx ON true
-         WHERE i.billing_run_id = ? AND i.saldo_eur < 0
-         ORDER BY m.last_name, m.first_name',
-        [$communityId, $run['period_from'], $run['id']]
-    );
+function offeneGutschriften(string $communityId, ?string $runId = null): array
+{
+    $sql = 'SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal,
+                   m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel,
+                   m.kontoinhaber, m.member_iban, m.member_bic,
+                   tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
+            FROM invoices i
+            JOIN billing_runs br ON br.id = i.billing_run_id
+            JOIN members m ON m.id = i.member_id
+            LEFT JOIN LATERAL (
+                SELECT tax_model, tax_rate_percent FROM tax_config
+                WHERE community_id = ? AND valid_from <= br.period_from
+                ORDER BY valid_from DESC LIMIT 1
+            ) tx ON true
+            WHERE i.community_id = ? AND i.saldo_eur < 0 AND i.gutschrift_ausgezahlt_at IS NULL';
+    $params = [$communityId, $communityId];
+    if ($runId !== null) {
+        $sql .= ' AND i.billing_run_id = ?';
+        $params[] = $runId;
+    }
+    $sql .= ' ORDER BY br.quartal, m.last_name, m.first_name';
+    $rows = DB::fetchAll($sql, $params);
 
     // Derselbe Aufbau wie in renderInvoicePdf() (Anzeigename-Priorität, taxBreakdown() für den
     // tatsächlich zu überweisenden Brutto-Betrag) -- der hier ausgewiesene Betrag muss exakt dem
     // "Ihre Gutschrift von ..."-Betrag auf dem PDF entsprechen.
-    $gutschriften = array_map(function ($r) {
+    return array_map(function ($r) {
         $tax = taxBreakdown((float)$r['saldo_eur'], $r['eeg_tax_model'], $r['eeg_tax_rate']);
         $anzeigeName = ($r['invoice_name'] ?? '')
             ?: (($r['company_name'] ?? '')
             ?: trim((!empty($r['titel']) ? $r['titel'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']));
         return [
+            'invoice_id'       => $r['id'],
+            'quartal'          => $r['quartal'],
             'name'             => $anzeigeName,
             'kontoinhaber'     => $r['kontoinhaber'] ?: $anzeigeName,
             'iban'             => $r['member_iban'] ?? '',
@@ -6880,8 +6891,60 @@ $router->get('/portal/billing/:id/gutschriften', function ($params) {
             'verwendungszweck' => $r['rechnungsnummer'],
         ];
     }, $rows);
+}
 
+/**
+ * Übersicht der offenen Gutschriften (Auszahlungen an Mitglieder mit negativem Saldo) --
+ * Kontoinhaber/IBAN/Betrag/Verwendungszweck je Mitglied, jeweils mit eigenem Kopieren-Button,
+ * damit Patrick die Überweisungen der Reihe nach händisch im Online-Banking eintragen kann
+ * (aktuell kein automatisierter SEPA-Überweisungsexport, nur der bereits bestehende
+ * SEPA-LASTSCHRIFT-XML-Export für die einzuziehenden, positiven Salden). Ohne ?run_id=
+ * kommunityweit über ALLE Läufe (Ziel der Login-Erinnerung/des "Gutschriften"-Menüpunkts), mit
+ * ?run_id= auf einen einzelnen Lauf eingeschränkt (Ziel des Buttons direkt nach der Freigabe
+ * bzw. in der Abrechnungsliste). Jede hier angezeigte Gutschrift lässt sich per Button als
+ * "Überweisung durchgeführt" markieren -- verschwindet danach aus dieser Liste UND aus der
+ * Login-Erinnerung (Patrick, 26.09.2026: "Erst wenn's durchgeführt ist, soll es dann irgendwo
+ * weg sein, damit ich auch nicht vergesse, dass ich noch Geld an meine Mitglieder überweisen muss").
+ */
+$router->get('/portal/billing/gutschriften', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    // Enthält echte Kontoinhaber-Namen/IBANs -- dieselbe Sensibilität wie das WLAN-Info-Feld
+    // oder das Mitglied-Bearbeiten-Formular, deshalb für den Demo-Zugang komplett gesperrt statt
+    // nur maskiert (eine Liste zum Abkopieren ergibt maskiert ohnehin keinen Sinn).
+    denyDemoPage('Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können hier keine echten Bankdaten angezeigt werden.');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $runId = trim((string)($_GET['run_id'] ?? '')) ?: null;
+    $run = null;
+    if ($runId !== null) {
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$runId, $communityId]);
+        if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
+    }
+
+    $gutschriften = offeneGutschriften($communityId, $runId);
     require ROOT . '/src/views/pages/billing_gutschriften.php';
+});
+
+/**
+ * Markiert eine einzelne Gutschrift als manuell überwiesen -- verschwindet danach aus
+ * /portal/billing/gutschriften und aus der Login-Erinnerung. Bewusst kein "Rückgängig"-Button
+ * (siehe Frontend: der native confirm()-Dialog vor dem Absenden ist die einzige "Abbrechen"-
+ * Möglichkeit, gleiches Muster wie überall sonst im Portal, z.B. beim Löschen eines Abrechnungslaufs).
+ */
+$router->post('/portal/billing/gutschriften/:invoiceId/erledigt', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    DB::execute(
+        'UPDATE invoices SET gutschrift_ausgezahlt_at = now()
+         WHERE id = ? AND community_id = ? AND saldo_eur < 0 AND gutschrift_ausgezahlt_at IS NULL',
+        [$params['invoiceId'], $communityId]
+    );
+    logAudit($communityId, 'billing.gutschrift_erledigt', 'invoice', $params['invoiceId'], 'Gutschrift als überwiesen markiert');
+    $runId = trim((string)($_POST['run_id'] ?? ''));
+    header('Location: /portal/billing/gutschriften' . ($runId !== '' ? '?run_id=' . urlencode($runId) : ''));
+    exit;
 });
 
 /**
@@ -7073,6 +7136,12 @@ $router->get('/portal/billing/:id/sepa-xml', function ($params) {
     $xml = sepaPain008Xml($data['creditor'], $data['txns'], $collect, $version, 'RCUR', $msgId);
     logAudit($communityId, 'billing.sepa_export', 'billing_run', $params['id'],
         'SEPA-XML (pain.008.001.' . $version . ') mit ' . count($data['txns']) . ' Lastschrift(en) erzeugt');
+    // Nur beim ERSTEN Download setzen (COALESCE) -- scripts/sepa_faelligkeit_check.php erinnert
+    // sonst weiter an einen Lauf, den Patrick längst bei seiner Bank eingereicht hat.
+    DB::execute(
+        'UPDATE billing_runs SET sepa_xml_heruntergeladen_at = COALESCE(sepa_xml_heruntergeladen_at, now()) WHERE id = ?',
+        [$params['id']]
+    );
     $fname = 'SEPA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-pain008-' . $version . '.xml';
     header('Content-Type: application/xml; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $fname . '"');
