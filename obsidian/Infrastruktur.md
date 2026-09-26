@@ -856,6 +856,33 @@ existierende Datei scheitert lautlos. Fix: `sudo touch /var/log/eeg-health.log &
 <cron-user>:<cron-user> /var/log/eeg-health.log`, danach funktioniert das Anhängen ohne
 Verzeichnis-Schreibrecht.
 
+## Abrechnung: "Abrechnungslauf nicht gefunden" trotz existierendem Lauf (Vorfall 26.09.2026, gelöst)
+
+Patrick wollte erstmals eine monatliche Testabrechnung (Juli) statt der üblichen Quartalsabrechnung
+machen -- Lauf angelegt, EDA-Datei hochgeladen, aber "Rechnungs-Entwürfe berechnen" meldete
+"Abrechnungslauf nicht gefunden", obwohl der Lauf existierte (auch nach Löschen/Neu-Anlegen).
+
+**Ursache:** `POST /portal/billing/generate` und `/portal/billing/release` riefen -- anders als
+jede andere `/portal/billing/*`-Route -- kein `DB::setCommunity()` auf, BEVOR
+`Billing::generateDrafts()`/`finalize()` den Lauf per rohem `SELECT * FROM billing_runs WHERE
+id = ?` (ohne community_id in der WHERE-Klausel) lädt. Row-Level-Security verwirft dadurch bei
+dieser einen Abfrage ausnahmslos jede Zeile, weil `app.community_id` für diese Anfrage noch nie
+gesetzt war -- der Lauf war die ganze Zeit korrekt da, RLS hat ihn nur unsichtbar gemacht.
+
+**Fix:** `DB::setCommunity($communityId);` in beiden Routen ergänzt. Merksatz: bei jeder neuen
+Route, die eine RLS-geschützte Tabelle per ID abfragt, MUSS `DB::setCommunity()` vor der ersten
+Abfrage stehen -- sonst kommt lautlos "nichts gefunden" statt eines Fehlers.
+
+**Zweiter Fund:** EDA-Import warnte fälschlich vor "fehlenden" Zählpunkten später beigetretener
+Mitglieder (verglich nur den heutigen `active`-Status, nicht `member_since`/`member_until` gegen
+den importierten Zeitraum). Fix in `eda-parser/parser.py`: dieselbe Grenze wie in
+`Billing::generateDrafts()` jetzt auch beim Import-Abgleich.
+
+**Offen, Patricks Entscheidung nötig:** explizite Verknüpfung Abrechnungszeitraum ↔ EDA-Datei
+(statt bisher rein datumsbasiert) als UX-Feature -- mit dem Fix oben funktioniert die bestehende
+Zuordnung aber bereits korrekt, unklar ob die engere Verknüpfung zusätzlich gewünscht ist.
+Details: `CLAUDE.md`.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at

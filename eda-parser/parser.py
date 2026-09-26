@@ -344,15 +344,36 @@ def import_to_db(
         )
         registered = {row["zaehlpunkt_nr"]: str(row["id"]) for row in cur.fetchall()}
 
+        # Bewusst zusätzlich auf m.member_since/member_until eingegrenzt (Patrick, 26.09.2026:
+        # "schau auch immer, ob die Mitglieder in diesem Zeitraum schon dabei waren" -- vorher
+        # zählte hier ausschließlich der HEUTIGE aktiv-Status des Zählpunkts, unabhängig vom
+        # importierten Zeitraum. Ein Mitglied, das z.B. erst im September beigetreten ist,
+        # erschien beim Import einer JULI-Datei fälschlich als "fehlender Zählpunkt" -- der
+        # Zählpunkt ist ja heute aktiv, konnte im Juli-Export aber unmöglich auftauchen. Gleiche
+        # Grenze wie in Billing::generateDrafts() (member_since <= period_to), zusätzlich
+        # member_until berücksichtigt für zwischenzeitlich ausgetretene Mitglieder. Auf reine
+        # Kalendertage (.date()) statt tz-aware Timestamps verglichen, um dieselbe
+        # Zeitzonen-Fallgrube wie bei Billing::missingMonths() von vornherein zu vermeiden
+        # (member_since/member_until sind reine DATE-Spalten).
+        period_from_date = file_period_from.date() if hasattr(file_period_from, "date") else file_period_from
+        period_to_date = file_period_to.date() if hasattr(file_period_to, "date") else file_period_to
         cur.execute(
-            "SELECT id, zaehlpunkt_nr FROM metering_points WHERE community_id = %s AND active = true",
-            (community_id,)
+            """
+            SELECT mp.zaehlpunkt_nr
+            FROM metering_points mp
+            JOIN members m ON m.id = mp.member_id
+            WHERE mp.community_id = %s AND mp.active = true
+              AND m.member_since <= %s
+              AND (m.member_until IS NULL OR m.member_until >= %s)
+            """,
+            (community_id, period_to_date, period_from_date)
         )
         aktiv = {row["zaehlpunkt_nr"] for row in cur.fetchall()}
 
     zp_in_xlsx = {d.zaehlpunkt_nr for d in data}
 
-    # Fehlende Zählpunkte: bei uns AKTIV, aber nicht im Export enthalten.
+    # Fehlende Zählpunkte: bei uns AKTIV (und schon Mitglied während dieses Zeitraums), aber
+    # nicht im Export enthalten.
     for missing in aktiv - zp_in_xlsx:
         warnings.append(
             f"Zählpunkt {missing} ist bei uns aktiv, taucht im EDA-Export für diesen Zeitraum "
