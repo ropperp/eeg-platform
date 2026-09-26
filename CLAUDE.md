@@ -988,6 +988,49 @@ Spaltenaufteilung) gewünscht ist.
 Reine Code-Änderungen (Punkt 1 + 2), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
 `git pull && docker compose up -d --build` aktiv.
 
+### Gutschriften-Übersicht zum manuellen Überweisen (26.09.2026)
+Es gibt aktuell keinen automatisierten SEPA-Überweisungsexport (nur den bestehenden SEPA-
+**Lastschrift**-XML-Export für die einzuziehenden, positiven Salden) -- Guthaben von Mitgliedern
+(negativer Rechnungssaldo) musste Patrick bisher Rechnung für Rechnung einzeln öffnen, um
+Kontoinhaber/IBAN/Betrag/Verwendungszweck fürs Online-Banking abzutippen. Patrick: "wäre es cool,
+wenn da für jeden Kunden so ein Pop-up aufkommt mit dem Kontoinhaber des Bankkontos, IBAN, dem
+Betrag und dem Verwendungszweck [...] wo du einfach nur auf einen Button klickst und diese Zeile
+dann kopierst [...] dann kann ich somit die Überweisungen alle nach der Reihe gleich an meine
+Kunden die Gutschrift überweisen."
+
+**Neue Seite `/portal/billing/:id/gutschriften`** (`webapp/src/views/pages/billing_gutschriften.php`,
+Route in `webapp/public/index.php`) listet für einen Abrechnungslauf alle Rechnungen mit
+`saldo_eur < 0` auf -- pro Mitglied eine Karte mit Kontoinhaber, IBAN, (falls vorhanden) BIC,
+Betrag und Verwendungszweck (= Rechnungsnummer, gleiches Muster wie bei der bestehenden
+Mahnungs-E-Mail-Vorlage). **Bewusst EIN eigener „Kopieren"-Button je Einzelfeld statt eines
+kombinierten Textblocks** -- ein Online-Banking-Überweisungsformular (Sparkasse u.ä.) hat für
+Empfänger/IBAN/Betrag/Verwendungszweck ohnehin getrennte Eingabefelder, ein kombinierter String
+müsste beim Einfügen wieder manuell zerlegt werden. Technisch reines `navigator.clipboard.
+writeText()` auf `data-value`-Attributen (kein externes Skript, kein CSP-Konflikt -- läuft über
+dasselbe `script-src 'self' 'unsafe-inline'` wie die übrigen Inline-`<script>`-Blöcke im Portal),
+Button zeigt kurz "Kopiert!" als Feedback.
+
+Betrag und Reihenfolge der Felder folgen exakt derselben Logik wie im Rechnungs-PDF selbst
+(`taxBreakdown()` auf `saldo_eur`, `abs($tax['brutto'])` -- siehe "Rechnungs-PDF: Feedback..."
+oben) und derselben Anzeigename-Priorität (`invoice_name` > `company_name` > Titel+Vor-/Nachname)
+wie `renderInvoicePdf()`, damit der hier angezeigte Betrag garantiert mit dem "Ihre Gutschrift
+von ..."-Betrag auf dem PDF übereinstimmt. Kontoinhaber fällt auf den Anzeigenamen zurück, wenn
+das separate `kontoinhaber`-Feld leer ist (Konto läuft auf den Namen des Mitglieds -- Regelfall,
+siehe Kommentar bei der Beitritts-Route).
+
+**Erreichbar auf zwei Wegen:** (1) automatisch direkt nach `/portal/billing/release`, wenn der
+gerade freigegebene Lauf mindestens eine Gutschrift enthält (statt wie bisher immer zurück zur
+Abrechnungsliste); (2) jederzeit später über einen neuen "Gutschriften"-Button bei bereits
+abgeschlossenen (`status = 'done'`) Läufen in `/portal/billing`.
+
+**Für den Demo-Zugang komplett gesperrt** (`denyDemoPage()`, wie beim WLAN-Info-Feld oder dem
+Mitglied-Bearbeiten-Formular) -- echte Kontoinhaber-Namen/IBANs sind dieselbe Sensibilität wie
+dort, eine maskierte Version einer reinen Kopier-Liste wäre ohnehin witzlos.
+
+Reine Code-Änderung (neue Route + neue View, keine neue Tabelle/Spalte -- alle nötigen Felder
+existieren bereits auf `members`/`invoices`), kein Migrations-/Setup-Skript nötig -- mit dem
+nächsten `git pull && docker compose up -d --build` aktiv.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,

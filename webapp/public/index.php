@@ -6805,12 +6805,83 @@ $router->post('/portal/billing/release', function () {
             error_log('SEPA-Vorabinfo (Lauf ' . $runId . '): ' . $e->getMessage());
             $msg = 'Freigegeben. Hinweis: SEPA-Vorabinformationen konnten nicht versendet werden.';
         }
-        header('Location: /portal/billing?success=' . urlencode($msg));
+        // Direkt nach der Freigabe zur Gutschriften-Übersicht weiterleiten, falls in diesem Lauf
+        // überhaupt Guthaben (saldo_eur < 0) entstanden sind -- Patrick, 26.09.2026: er will die
+        // Überweisungen dafür direkt im Anschluss der Reihe nach in seinem Online-Banking
+        // eintragen, nicht erst wieder danach suchen. Kein Gutschriften-Fall -> normale Meldung
+        // wie bisher.
+        $hatGutschriften = DB::fetchOne(
+            'SELECT 1 FROM invoices WHERE billing_run_id = ? AND saldo_eur < 0 LIMIT 1',
+            [$runId]
+        );
+        if ($hatGutschriften) {
+            header('Location: /portal/billing/' . $runId . '/gutschriften?success=' . urlencode($msg));
+        } else {
+            header('Location: /portal/billing?success=' . urlencode($msg));
+        }
     } catch (Throwable $e) {
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Freigabe fehlgeschlagen: ' . $e->getMessage(), true);
         header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
     }
     exit;
+});
+
+/**
+ * Übersicht der Gutschriften (Auszahlungen an Mitglieder mit negativem Saldo) eines
+ * Abrechnungslaufs -- Kontoinhaber/IBAN/Betrag/Verwendungszweck je Mitglied, jeweils mit eigenem
+ * Kopieren-Button, damit Patrick die Überweisungen der Reihe nach händisch im Online-Banking
+ * eintragen kann (aktuell kein automatisierter SEPA-Überweisungsexport, nur der bereits
+ * bestehende SEPA-LASTSCHRIFT-XML-Export für die einzuziehenden, positiven Salden). Auch nach
+ * der Freigabe jederzeit über den Link in der Abrechnungsliste erreichbar, nicht nur direkt im
+ * Anschluss an /portal/billing/release.
+ */
+$router->get('/portal/billing/:id/gutschriften', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    // Enthält echte Kontoinhaber-Namen/IBANs -- dieselbe Sensibilität wie das WLAN-Info-Feld
+    // oder das Mitglied-Bearbeiten-Formular, deshalb für den Demo-Zugang komplett gesperrt statt
+    // nur maskiert (eine Liste zum Abkopieren ergibt maskiert ohnehin keinen Sinn).
+    denyDemoPage('Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können hier keine echten Bankdaten angezeigt werden.');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
+
+    $rows = DB::fetchAll(
+        'SELECT i.rechnungsnummer, i.saldo_eur,
+                m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel,
+                m.kontoinhaber, m.member_iban, m.member_bic,
+                tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
+         FROM invoices i
+         JOIN members m ON m.id = i.member_id
+         LEFT JOIN LATERAL (
+             SELECT tax_model, tax_rate_percent FROM tax_config
+             WHERE community_id = ? AND valid_from <= ?
+             ORDER BY valid_from DESC LIMIT 1
+         ) tx ON true
+         WHERE i.billing_run_id = ? AND i.saldo_eur < 0
+         ORDER BY m.last_name, m.first_name',
+        [$communityId, $run['period_from'], $run['id']]
+    );
+
+    // Derselbe Aufbau wie in renderInvoicePdf() (Anzeigename-Priorität, taxBreakdown() für den
+    // tatsächlich zu überweisenden Brutto-Betrag) -- der hier ausgewiesene Betrag muss exakt dem
+    // "Ihre Gutschrift von ..."-Betrag auf dem PDF entsprechen.
+    $gutschriften = array_map(function ($r) {
+        $tax = taxBreakdown((float)$r['saldo_eur'], $r['eeg_tax_model'], $r['eeg_tax_rate']);
+        $anzeigeName = ($r['invoice_name'] ?? '')
+            ?: (($r['company_name'] ?? '')
+            ?: trim((!empty($r['titel']) ? $r['titel'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']));
+        return [
+            'name'             => $anzeigeName,
+            'kontoinhaber'     => $r['kontoinhaber'] ?: $anzeigeName,
+            'iban'             => $r['member_iban'] ?? '',
+            'bic'              => $r['member_bic'] ?? '',
+            'betrag'           => number_format(abs($tax['brutto']), 2, ',', '.'),
+            'verwendungszweck' => $r['rechnungsnummer'],
+        ];
+    }, $rows);
+
+    require ROOT . '/src/views/pages/billing_gutschriften.php';
 });
 
 /**

@@ -898,6 +898,27 @@ Drei Kleinigkeiten nach Patricks erster echter Testabrechnung:
 
 Details: `CLAUDE.md`.
 
+## Gutschriften-Übersicht zum manuellen Überweisen (26.09.2026)
+
+Patrick wollte für Mitglieder mit Guthaben (negativer Rechnungssaldo) nicht mehr jede Rechnung
+einzeln öffnen müssen, um Kontoinhaber/IBAN/Betrag/Verwendungszweck fürs Online-Banking
+abzutippen -- es gibt (noch) keinen automatisierten SEPA-Überweisungsexport, nur den
+bestehenden SEPA-Lastschrift-Export für einzuziehende, positive Salden.
+
+Neue Seite `/portal/billing/:id/gutschriften` listet pro Abrechnungslauf alle Mitglieder mit
+`saldo_eur < 0` mit je einer Karte (Kontoinhaber, IBAN, ggf. BIC, Betrag, Verwendungszweck =
+Rechnungsnummer) -- jedes Feld hat einen eigenen "Kopieren"-Button (`navigator.clipboard.
+writeText()`), bewusst EIN Button pro Einzelfeld statt eines kombinierten Textblocks, weil
+Online-Banking-Überweisungsformulare ohnehin getrennte Eingabefelder haben. Betrag/Anzeigename
+folgen derselben Logik wie im Rechnungs-PDF, damit beide Beträge garantiert übereinstimmen.
+
+Erreichbar automatisch direkt nach `/portal/billing/release` (wenn der Lauf Gutschriften
+enthält) und jederzeit später über einen neuen "Gutschriften"-Button bei abgeschlossenen Läufen
+in `/portal/billing`. Für den Demo-Zugang komplett gesperrt (echte IBANs/Namen, gleiche
+Sensibilität wie das WLAN-Info-Feld).
+
+Reine Code-Änderung, kein Migrations-/Setup-Skript nötig. Details: `CLAUDE.md`.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at
