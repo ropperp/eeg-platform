@@ -753,6 +753,40 @@ lassen.
 > petted der Watchdog offenbar so viel länger als konfiguriert, bzw. warum enthält
 > `journal-persist.log` für das Hänger-Fenster selbst gar nichts? Bei einer Wiederholung zuerst
 > dort nachsehen, ob sich das Muster (Log-Lücke + verzögerter Reboot) wiederholt.
+>
+> **Nachtrag (26.09.2026): Wiederholung am Folgetag, diesmal mit starkem Hinweis auf die
+> Stromversorgung statt Software/Kernel.** Vier vom Node-RED-Monitoring gemeldete Ausfälle
+> zwischen 03:09 und 10:18 Uhr -- nach genauerer Analyse aber nur EIN echter Totalabsturz
+> (06:48–07:28 Uhr, `uptime -s` zeigte als einzigen Reboot seit dem Vortag `07:22:29`; Patrick
+> musste über eine Loxone-Steckdose den Strom hart trennen, kein Watchdog-Reboot hat gegriffen).
+> Die übrigen drei Meldungen (03:09, 07:49, 10:09) waren kein zweiter Absturz -- 03:09 passt zum
+> täglichen 3-Uhr-Reboot, 07:49 und 10:09 zeigen laut `eeg-health.log` nur kurze
+> Container-Nachwehen (`docker compose up -d`-Neustarts durch `health_monitor.sh`, System selbst
+> lief laut `uptime -s` durchgehend weiter). **`journal-persist.log` zeigte diesmal exakt dasselbe
+> Muster wie beim ersten Vorfall:** komplette Stille von 04:57:13 bis 07:23:04 Uhr (fast 2,5 h),
+> dann sofort eine frische Boot-Meldung (`Initial clock synchronization`) -- kein Software-Hänger
+> hätte das simple `journalctl -f`-Mitschreiben selbst zum Stillstand gebracht, das spricht für
+> einen echten Kernel-/Hardware-Freeze oder einen tatsächlichen Stromausfall.
+>
+> **Entscheidender Fund: `sudo nvme smart-log /dev/nvme0n1`** (das Gerät bootet von einer NVMe-SSD,
+> NICHT von einer SD-Karte, wie die obige Diagnose ursprünglich vermutet hatte -- `df -h` zeigt
+> `/dev/nvme0n1p2`). Die SSD selbst ist kerngesund (`critical_warning: 0`, `media_errors: 0`,
+> `available_spare: 100%`, `percentage_used: 0%`) -- schließt eine verschlissene/kaputte SSD als
+> Ursache aus. **Aber `unsafe_shutdowns: 131` bei nur `power_cycles: 170` insgesamt** -- rund 77%
+> aller bisherigen Einschaltvorgänge dieses Geräts folgten auf einen UNSAUBEREN Stromverlust,
+> nicht auf ein reguläres Herunterfahren (ein normaler `reboot`, auch der tägliche 3-Uhr-Cron,
+> benachrichtigt die SSD vorher ordentlich und zählt nicht als "unsafe"). Bei 1007
+> Betriebsstunden insgesamt ist das ein durchgehendes Muster über die gesamte Gerätelaufzeit, das
+> die seit 25.09.2026 neu eingerichtete Überwachung jetzt erstmals sichtbar macht -- **deutet
+> stark auf ein Problem bei der Stromversorgung selbst hin (Netzteil, Kabel, Steckdose), nicht auf
+> Software/Kernel/SD-Karte/SSD.** Nebenbei: `sudo dpkg --configure -a` war nötig (unterbrochener
+> dpkg-Zustand, vermutlich Nebenwirkung eines der harten Stromausfälle mitten in einem
+> Paket-Vorgang) -- lief beim zweiten Versuch sauber durch.
+>
+> **Nächster Schritt, physisch vor Ort statt per Fernwartung:** Loxone-Steckdose auf eigene
+> Automatisierungen/Zeitschaltungen prüfen, Netzteil/Kabel auf Beschädigung bzw. Unterdimensionierung
+> prüfen (Raspberry Pi 5 braucht ein echtes 5V/5A-USB-C-PD-Netzteil), alle Steckverbindungen neu
+> stecken, wenn möglich probeweise ein anderes, bekannt funktionierendes Netzteil testen.
 
 ### Live-Anzeige (öffentlich, `/api/live/:slug`) zeigt keine Daten
 Vorfall 24.08.2026, DREI UNABHÄNGIGE Ursachen nacheinander gefunden -- falls das Symptom wieder
