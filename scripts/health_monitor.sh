@@ -24,6 +24,14 @@ HOST="$(hostname)"
 cd "$REPO_DIR" 2>/dev/null || { echo "[health_monitor] REPO_DIR $REPO_DIR nicht gefunden"; exit 1; }
 mkdir -p "$STAMP_DIR"
 
+# Alle folgenden echo-Ausgaben mit Zeitstempel versehen (Vorfall 26.09.2026: eeg-health.log
+# hatte bisher KEINE Zeitstempel -- bei mehreren Vorfällen am selben Tag ließ sich dadurch kein
+# einziger Log-Eintrag mehr einer bestimmten Uhrzeit zuordnen). log() statt echo für alles, was
+# in die Log-Datei soll.
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
 # Healthstatus eines Containers: healthy | unhealthy | starting | none | missing | notrunning:<state>
 container_health() {
     local name="$1" state health
@@ -41,7 +49,7 @@ send_alert() {
         -e ALERT_ACTION="$action" \
         -e ALERT_HOST="$HOST" \
         webapp php < "$REPO_DIR/scripts/health_alert.php" \
-        || echo "[health_monitor] Alarm-Mail für $container konnte nicht gesendet werden"
+        || log "[health_monitor] Alarm-Mail für $container konnte nicht gesendet werden"
 }
 
 # Wartet, bis der Container wieder healthy (oder ohne Healthcheck: running) ist. Rückgabe 0 = ok.
@@ -75,10 +83,10 @@ for svc in $SERVICES; do
             ;;
         unhealthy)
             if in_cooldown "$stamp"; then
-                echo "[health_monitor] $svc weiterhin unhealthy (Cooldown aktiv) — kein erneuter Eingriff"
+                log "[health_monitor] $svc weiterhin unhealthy (Cooldown aktiv) — kein erneuter Eingriff"
                 continue
             fi
-            echo "[health_monitor] $svc unhealthy — versuche bis zu 2 Neustarts"
+            log "[health_monitor] $svc unhealthy — versuche bis zu 2 Neustarts"
             recovered=1
             for attempt in 1 2; do
                 docker restart "$svc" >/dev/null 2>&1
@@ -94,7 +102,7 @@ for svc in $SERVICES; do
             ;;
         notrunning:*)
             if in_cooldown "$stamp"; then continue; fi
-            echo "[health_monitor] $svc nicht laufend ($h) — versuche Start"
+            log "[health_monitor] $svc nicht laufend ($h) — versuche Start"
             docker compose up -d "$svc" >/dev/null 2>&1
             if wait_recovered "$svc"; then
                 send_alert "$svc" "war gestoppt (${h#notrunning:})" "automatisch neu gestartet — läuft wieder"
