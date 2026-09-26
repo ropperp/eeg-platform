@@ -953,6 +953,41 @@ Datenproblem statt als fehlender Community-Kontext missverstanden wird.
 > bestehende datumsbasierte Zuordnung aber bereits korrekt -- ob die explizite Verknüpfung als
 > UX-Verbesserung trotzdem gewünscht ist, muss Patrick noch entscheiden, bevor das umgesetzt wird.
 
+### Rechnungs-PDF: Feedback nach der ersten echten Abrechnung (26.09.2026)
+Direkt nach dem oben behobenen Bug lief Patricks erste echte Testabrechnung durch -- drei
+Kleinigkeiten am `rechnung.tex`-Layout bzw. der PHP-Erweiterung fielen ihm dabei auf:
+
+**1. Gutschrift wurde als Minusbetrag mit falscher Beschriftung angezeigt.** Der grüne
+Summenbalken zeigte bei einem Guthaben-Fall bisher `Ihr Guthaben` + den (negativen) Betrag,
+z. B. "EUR -3,90". Patrick: "Ihr Guthaben sollten Sie ja keines haben, weil wir es ja
+überweisen, und dann ist es kein Guthaben mehr, sondern eine Gutschrift" -- außerdem sollte der
+Betrag dort positiv stehen ("Ihre Gutschrift von €3,90"), während die "Summe netto" in der
+Tabelle darüber bewusst weiter negativ bleibt (korrekte Vorzeichenlogik in der Rechenkette).
+**Fix:** `$summeLabel`/`$zahlungText` in `webapp/public/index.php` (Route
+`/portal/invoices/:id/pdf`) von "Ihr Guthaben" auf "Ihre Gutschrift" umgestellt,
+`SUMME_BRUTTO` (nur diese eine Variable, ausschließlich für den grünen Balken in
+`rechnung.tex` verwendet) mit `abs()` immer positiv befüllt.
+
+**2. Rechnungsnummer zu lang.** Bisher `RE-260001_RC108175_Muster_Erika` (Jahr+laufende Nummer +
+Marktpartner-ID + Nach-/Vorname) -- Patrick: "bitte machen wir da nur die Rechnungsnummer, also
+nur RE-260001. Die RC-Nummer und den Vornamen, Namen, lassen wir weg." `Billing::
+generateDrafts()` baut die Nummer jetzt nur noch aus Präfix + laufender Nummer zusammen: die
+dafür nicht mehr gebrauchte `slugName()`-Hilfsfunktion (Umlaut-Transliteration für den Namensteil)
+wurde mit entfernt, da danach ungenutzt. Bereits vergebene, längere Nummern bestehender
+Rechnungen bleiben unverändert (kein rückwirkendes Umbenennen, nur neu berechnete/künftige
+Läufe betroffen).
+
+**3. Kopfzeilen-Layout (Kundennummer/Rechnungs-Nr./Rechnungsdatum/Fälligkeitsdatum/SEPA-
+Mandatsref.) noch nicht final geklärt.** Alle rechtsbündig (`rechnung.tex`, Zeile ~116:
+`\begin{tabular}{@{}r r@{}}`) -- Patrick: technisch noch im Druckbereich, "passt mir nicht so
+ganz", wollte aber selbst erst nach der kürzeren Rechnungsnummer (Punkt 2) nochmal draufschauen,
+ob es dann schon passt. **Bewusst NICHT blind geändert** -- abwarten, ob nach Punkt 2 noch
+Bedarf besteht, und falls ja, was genau (z. B. linksbündig statt rechtsbündig, oder eine andere
+Spaltenaufteilung) gewünscht ist.
+
+Reine Code-Änderungen (Punkt 1 + 2), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
+`git pull && docker compose up -d --build` aktiv.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,

@@ -1881,10 +1881,14 @@ function renderInvoicePdf(array $invoice): void
 
     $summeLabel = '';
     if ($saldoVal < 0) {
-        $zahlungText = 'Ihr Guthaben von \\textbf{EUR ' . $betragFmt . '} wird auf Ihr bei uns hinterlegtes Konto'
+        // "Gutschrift" statt "Guthaben" (Patrick, 26.09.2026, nach der ersten echten Abrechnung:
+        // "weil Guthaben Sie ja keines haben, weil wir es ja überweisen, und dann ist es kein
+        // Guthaben mehr, sondern eine Gutschrift") -- ein Guthaben bliebe bei uns liegen, das
+        // Mitglied bekommt den Betrag aber tatsächlich überwiesen.
+        $zahlungText = 'Ihre Gutschrift von \\textbf{EUR ' . $betragFmt . '} wird auf Ihr bei uns hinterlegtes Konto'
             . ($ibanEnd ? ' (IBAN mit der Endung \\textbf{' . $ibanEnd . '})' : '')
             . ' überwiesen. Sie müssen nichts weiter veranlassen.';
-        $summeLabel = 'Ihr Guthaben';
+        $summeLabel = 'Ihre Gutschrift';
     } elseif (!empty($invoice['mandatsreferenz'])) {
         $zahlungText = 'Der Rechnungsbetrag von \\textbf{EUR ' . $betragFmt . '} wird gemäß SEPA-Lastschriftmandat'
             . ' (Mandatsreferenz \\textbf{' . texEscape($invoice['mandatsreferenz']) . '}'
@@ -1932,7 +1936,12 @@ function renderInvoicePdf(array $invoice): void
         'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true),
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
         'SUMME_NETTO'           => number_format($tax['netto'], 2, ',', '.'),
-        'SUMME_BRUTTO'          => number_format($tax['brutto'], 2, ',', '.'),
+        // Im grünen Summenbalken IMMER positiv anzeigen, auch bei einer Gutschrift (negativer
+        // Saldo) -- Patrick, 26.09.2026: "steht dann auch 'Ihr Guthaben von €3,90'" ... "nicht
+        // als Minusbetrag, sondern dann als positiven Betrag". "Summe netto" in der Tabelle
+        // darüber zeigt bewusst weiterhin das Minus (SUMME_NETTO, unverändert) -- nur der
+        // Balken mit \summelabel ("Ihre Gutschrift") soll den Betrag positiv ausweisen.
+        'SUMME_BRUTTO'          => number_format(abs($tax['brutto']), 2, ',', '.'),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
@@ -8937,14 +8946,14 @@ function adminFileVariables(): array
             'RAW_EINSPEISUNG_POSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für die Einspeisung -- eine Zeile pro Zählpunkt (RAW, nicht escapen). Leer = Fallback auf EINSPEISUNG_KWH-Einzeiler',
             'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste (anteilig bei unterjährigem Beitritt)',
             'SUMME_NETTO' => 'Gesamtsumme netto',
-            'SUMME_BRUTTO' => 'Gesamtsumme brutto',
+            'SUMME_BRUTTO' => 'Gesamtsumme brutto -- bei einer Gutschrift (negativer Saldo) bewusst als positiver Betrag befüllt, siehe RAW_SUMME_LABEL',
             'IBAN' => 'IBAN der Energiegemeinschaft (für die Zahlung)',
             'BIC' => 'BIC der Energiegemeinschaft',
             'RAW_STEUER_ZEILE' => 'Vorformatierte USt-Zeile (RAW, nicht escapen)',
             'RAW_STEUER_TEXT' => 'Vorformatierter Steuerhinweis-Text (RAW, nicht escapen)',
             'RAW_ZUSATZPOSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für manuelle Zusatzpositionen, z.B. ein Rabatt (RAW, nicht escapen) -- siehe /portal/billing',
             'RAW_ZAHLUNG_TEXT' => 'Vorformatierter Zahlungstext: SEPA-Lastschrift-Vorabankündigung, Gutschrift-Hinweis oder leer (Vorlage zeigt dann die Standard-Überweisungsbitte) -- RAW, nicht escapen',
-            'RAW_SUMME_LABEL' => 'Beschriftung der Summe, z.B. "Ihr Guthaben" bei einer Gutschrift statt "Gesamtbetrag" (RAW, nicht escapen)',
+            'RAW_SUMME_LABEL' => 'Beschriftung der Summe, z.B. "Ihre Gutschrift" bei einer Gutschrift statt "Gesamtbetrag" (RAW, nicht escapen)',
         ],
         'bezugsvereinbarung.tex' => [
             'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',

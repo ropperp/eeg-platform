@@ -883,6 +883,21 @@ den importierten Zeitraum). Fix in `eda-parser/parser.py`: dieselbe Grenze wie i
 Zuordnung aber bereits korrekt, unklar ob die engere Verknüpfung zusätzlich gewünscht ist.
 Details: `CLAUDE.md`.
 
+## Rechnungs-PDF: Feedback nach der ersten echten Abrechnung (26.09.2026)
+
+Drei Kleinigkeiten nach Patricks erster echter Testabrechnung:
+
+1. **Gutschrift-Beschriftung/-Vorzeichen:** grüner Summenbalken zeigte "Ihr Guthaben" + negativen
+   Betrag -- jetzt "Ihre Gutschrift" + immer positiver Betrag (nur `SUMME_BRUTTO`, "Summe netto"
+   in der Tabelle bleibt bewusst negativ).
+2. **Rechnungsnummer gekürzt:** `RE-260001_RC108175_Muster_Erika` → nur noch `RE-260001` (RC-
+   Nummer/Nach-/Vorname entfernt, `Billing::generateDrafts()` + dadurch ungenutzte
+   `slugName()`-Hilfsfunktion entfernt). Bestehende Rechnungen behalten ihre alte Nummer.
+3. **Kopfzeilen-Layout (rechtsbündig) noch offen:** bewusst nicht blind geändert, Patrick will
+   nach Punkt 2 selbst nochmal draufschauen.
+
+Details: `CLAUDE.md`.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at
