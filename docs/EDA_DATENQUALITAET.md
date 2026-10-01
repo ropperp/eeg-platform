@@ -76,3 +76,16 @@ weiterhin manuell in der Abrechnungsübersicht gesetzt (eine Datei deckt nur ein
 Lauf aber ein ganzes Quartal aus drei Monatsdateien -- der automatische L3-Check in
 `Billing::datenqualitaetProblem()` sperrt die Freigabe aber ohnehin unabhängig davon, sobald
 irgendwo im Zeitraum noch L3-Werte liegen).
+
+**Seit 01.10.2026 zusätzlich monatsgenau:** EDA erlaubt auch einen frei gewählten, längeren
+Export-Zeitraum (z. B. ein ganzes Quartal in einer Datei statt drei Monatsdateien) -- in diesem
+Fall liefert die „Gesamtübersicht" pro Zählpunkt nur eine einzige, auf den gesamten Zeitraum
+abgewertete Qualitätszeile. Die „Detailübersicht" enthält dagegen (Abschnitt „Energiedaten je
+Zählpunkt", Spalten „Jahr"/„Monat") IMMER eine eigene Zeile je Kalendermonat, unabhängig vom
+gewählten Export-Zeitraum -- der Parser liest das zusätzlich aus und speichert es in der eigenen
+Tabelle `eda_measurement_quality_monthly` (siehe `migrate_20261001.sql`). Die Datenqualitäts-
+Detailansicht (`/portal/eda/upload` bzw. `/portal/eda/imports/:id/quality`) nutzt diese
+monatsgenaue Tabelle bevorzugt, sobald sie Einträge für den jeweiligen Zeitraum hat, und zeigt
+damit exakt an, welcher einzelne Monat (statt nur "irgendwo im Zeitraum") noch L3 ist -- fällt
+nur bei Importen von vor diesem Datum (ohne monatsgenaue Daten) auf die grobe Zeitraum-Ansicht
+zurück.

@@ -92,6 +92,12 @@ class LoadResult:
     # hat und nicht gar einen Monat vergessen hat").
     period_from: object
     period_to: object
+    # Monatsgenaue Datenqualität je Zählpunkt aus der Detailübersicht ("Energiedaten je
+    # Zählpunkt"-Abschnitt, siehe _parse_detailuebersicht()) -- unabhängig davon, ob die Datei
+    # einen Einzelmonat oder einen längeren, selbst gewählten Zeitraum (z.B. ein ganzes Quartal)
+    # abdeckt, liefert EDA hier IMMER eine eigene Zeile je Kalendermonat. Jedes Element:
+    # {"zaehlpunkt_nr", "month" (date, erster Tag des Monats), "quality", "completeness"}.
+    monthly_quality: list[dict]
 
 
 class EnergyDataSource(Protocol):
@@ -116,7 +122,7 @@ class XlsxDataSource:
             )
 
         overview = self._parse_gesamtuebersicht(xl, sheet_gesamt)
-        detail = self._parse_detailuebersicht(xl, sheet_detail)
+        detail, monthly_quality = self._parse_detailuebersicht(xl, sheet_detail)
         period_from, period_to = self._parse_auswertungszeitraum(xl, sheet_gesamt)
 
         result = []
@@ -137,7 +143,10 @@ class XlsxDataSource:
                 quality=meta["quality"],
                 timeseries=pd.DataFrame([row]),
             ))
-        return LoadResult(metering_points=result, period_from=period_from, period_to=period_to)
+        return LoadResult(
+            metering_points=result, period_from=period_from, period_to=period_to,
+            monthly_quality=monthly_quality,
+        )
 
     @staticmethod
     def _parse_auswertungszeitraum(xl: pd.ExcelFile, sheet_name: str) -> tuple:
@@ -255,12 +264,18 @@ class XlsxDataSource:
             }
         return result
 
-    def _parse_detailuebersicht(self, xl: pd.ExcelFile, sheet_name: str) -> dict:
-        """Liefert nur die Ergänzungswerte kwh_ueberschuss/kwh_restueberschuss je Zählpunkt (aus
-        den Detailspalten "Gesamt/Überschusserzeugung..." und "Restüberschuss..."). Die
+    def _parse_detailuebersicht(self, xl: pd.ExcelFile, sheet_name: str) -> tuple[dict, list[dict]]:
+        """Liefert (a) die Ergänzungswerte kwh_ueberschuss/kwh_restueberschuss je Zählpunkt (aus
+        den Detailspalten "Gesamt/Überschusserzeugung..." und "Restüberschuss...") -- die
         abrechnungsrelevanten Hauptwerte kommen bewusst aus der Gesamtübersicht (siehe
-        _parse_gesamtuebersicht), nicht von hier -- das erspart, "Eigendeckung"/"Restüberschuss"
-        selbst nachzurechnen, was EDA bereits fertig geliefert hat."""
+        _parse_gesamtuebersicht), nicht von hier, das erspart, "Eigendeckung"/"Restüberschuss"
+        selbst nachzurechnen, was EDA bereits fertig geliefert hat; UND (b) eine monatsgenaue
+        Datenqualitäts-Liste je Zählpunkt (siehe LoadResult.monthly_quality) -- die
+        "Detailübersicht" hat IMMER eine eigene Zeile je Kalendermonat (Spalten Jahr/Monat),
+        selbst wenn die Datei einen längeren, selbst gewählten Zeitraum (z.B. ein ganzes Quartal)
+        abdeckt, anders als die Gesamtübersicht (dort nur EINE Zeile für den kompletten
+        Zeitraum). Patrick, 01.10.2026: wollte sehen können, welcher MONAT konkret für ein L3
+        verantwortlich ist, statt nur eine für den ganzen Zeitraum abgewertete Gesamtzahl."""
         raw = pd.read_excel(xl, sheet_name=sheet_name, header=None)
         header_row = self._find_header_row(raw)
         df = pd.read_excel(xl, sheet_name=sheet_name, header=header_row)
@@ -268,10 +283,15 @@ class XlsxDataSource:
         col_zp = self._find_col(df.columns, ["Zählpunktnummer"])
         col_ueberschuss = self._find_col(df.columns, ["Gesamt/Überschusserzeugung", "Überschusserzeugung"])
         col_rest = self._find_col(df.columns, ["Restüberschuss"])
+        col_jahr = self._find_col(df.columns, ["Jahr"])
+        col_monat = self._find_col(df.columns, ["Monat"])
+        col_uebermittlung = self._find_col(df.columns, ["Datenübermittlung"])
+        col_qualitaet = self._find_col(df.columns, ["Datenqualität"])
         if not col_zp:
-            return {}
+            return {}, []
 
         result = {}
+        monthly_quality = []
         for _, row in df.iterrows():
             zp = row[col_zp]
             # Filtert automatisch die Beschreibungs-/Markerzeilen ("Summe der Energiedaten",
@@ -284,7 +304,18 @@ class XlsxDataSource:
                 "kwh_ueberschuss": float(row[col_ueberschuss]) if col_ueberschuss and not pd.isna(row[col_ueberschuss]) else None,
                 "kwh_restueberschuss": float(row[col_rest]) if col_rest and not pd.isna(row[col_rest]) else None,
             }
-        return result
+
+            if col_jahr and col_monat and col_qualitaet and not pd.isna(row[col_jahr]) and not pd.isna(row[col_monat]):
+                jahr = int(row[col_jahr])
+                monat = int(row[col_monat])
+                status = str(row[col_uebermittlung]).strip().lower() if col_uebermittlung else ""
+                monthly_quality.append({
+                    "zaehlpunkt_nr": zp,
+                    "month": f"{jahr:04d}-{monat:02d}-01",
+                    "quality": self._worst_quality(row[col_qualitaet]),
+                    "completeness": "COMPLETE" if status == "vollständig" else "INCOMPLETE",
+                })
+        return result, monthly_quality
 
 
 def _billing_period_finalized(conn, community_id, period_from, period_to) -> bool:
@@ -319,6 +350,7 @@ def import_to_db(
     user_id: str | None,
     file_period_from,
     file_period_to,
+    monthly_quality: list[dict] | None = None,
 ) -> dict:
     """
     Siehe docs/ESP_IDEEN.md Punkt 3: gleicht die im EDA-Export enthaltenen Zählpunkte mit dem
@@ -420,6 +452,29 @@ def import_to_db(
             f"{len(neu_angelegt)} neu angelegte, noch nicht zugeordnete Zählpunkte "
             "(siehe Abschnitt „Neu angelegt\" oben)."
         )
+
+    # Monatsgenaue Datenqualität (siehe _parse_detailuebersicht()) je Zählpunkt speichern --
+    # UPSERT, damit ein erneuter Import (egal ob derselbe oder ein überlappender Zeitraum) den
+    # zuletzt bekannten Stand je Monat einfach aktualisiert, ohne Duplikate oder einen eigenen
+    # Lösch-Schritt zu brauchen (anders als bei eda_measurements, UNIQUE(community_id,
+    # metering_point_id, month) reicht hier als Schutz).
+    if monthly_quality:
+        with conn.cursor() as cur:
+            for mq in monthly_quality:
+                mp_id = registered.get(mq["zaehlpunkt_nr"])
+                if not mp_id:
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO eda_measurement_quality_monthly
+                        (community_id, metering_point_id, month, quality, completeness, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, now())
+                    ON CONFLICT (community_id, metering_point_id, month)
+                    DO UPDATE SET quality = EXCLUDED.quality, completeness = EXCLUDED.completeness,
+                                  updated_at = now()
+                    """,
+                    (community_id, mp_id, mq["month"], mq["quality"], mq["completeness"])
+                )
 
     # Erneuter Import für einen Zeitraum, der schon Daten hat: erlaubt, SOLANGE dafür noch kein
     # abgeschlossener Abrechnungslauf existiert (siehe _billing_period_finalized() oben) -- z.B.
@@ -595,7 +650,7 @@ def main():
         loaded = source.load(args.file, community_id)
         result = import_to_db(
             conn, community_id, loaded.metering_points, os.path.basename(args.file), args.user_id,
-            loaded.period_from, loaded.period_to,
+            loaded.period_from, loaded.period_to, loaded.monthly_quality,
         )
         print(json.dumps(result, indent=2, ensure_ascii=False))
 

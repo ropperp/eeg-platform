@@ -1162,6 +1162,43 @@ seit Projektbeginn), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
 > Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten
 > `git pull && docker compose up -d --build` aktiv.
 
+> **Zweite Nachbesserung (01.10.2026): monatsgenaue Datenqualität -- die Information war die
+> ganze Zeit schon in der Datei, wurde nur nicht gelesen.** Patrick, direkt im Anschluss an die
+> obige Empfehlung: "Sieht man in der Monatsreport von den drei Monaten nicht auch die einzelnen
+> Monate [...] wo man heraussehen kann, welcher Monat oder welcher Tag jetzt wirklich schuld ist
+> via L3?" Per direkter `pandas`-Analyse der von Patrick hochgeladenen Quartalsdatei bestätigt:
+> die **„Detailübersicht"**-Sheet (Abschnitt „Energiedaten je Zählpunkt", Spalten „Jahr"/„Monat")
+> enthält -- unabhängig davon, ob ein Einzelmonat oder ein ganzes Quartal exportiert wurde --
+> IMMER eine eigene Zeile je Zählpunkt UND Kalendermonat, jede mit eigener Datenqualität. Für
+> Patricks konkrete Datei: **jeder einzelne Zählpunkt zeigte Juli="L1,L2" und August="L1,L2"
+> (sauber), nur September="L1,L2,L3"** -- die Empfehlung aus der ersten Nachbesserung (Juli/
+> August separat exportieren, um das zu sehen) war also technisch richtig, aber unnötig: dieselbe
+> Information steckt schon in der EINEN bereits hochgeladenen Quartalsdatei, nur in einem
+> bisher ungenutzten Sheet-Abschnitt.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261001.sql
+> docker compose up -d --build
+> ```
+> **Fix:** neue Tabelle `eda_measurement_quality_monthly` (Zählpunkt + Kalendermonat + Qualität +
+> Vollständigkeit, UPSERT bei jedem Import). `eda-parser/parser.py`s `_parse_detailuebersicht()`
+> liest jetzt zusätzlich diese Monatszeilen aus (`LoadResult.monthly_quality`), `import_to_db()`
+> schreibt sie in die neue Tabelle. `edaQualityReport()` (PHP) bevorzugt diese Tabelle, sobald sie
+> für den abgefragten Zeitraum Einträge hat -- zeigt dann pro L2/L3-Eintrag den ECHTEN, exakten
+> Kalendermonat statt nur der groben Zeitraum-Angabe aus der ersten Nachbesserung oben (die als
+> Fallback für ältere Importe von VOR diesem Update bestehen bleibt, weil für die noch keine
+> monatsgenauen Daten in der DB existieren). Ein TAGESGENAUER Stand (Patricks "oder welcher Tag")
+> liefert EDA in keinem der beiden Sheets -- nur Monatsgranularität ist möglich.
+>
+> **Für Patricks laufende Q3-Abrechnung:** einfach dieselbe bereits hochgeladene Quartalsdatei
+> nach diesem Update erneut hochladen (Duplikat-Überschreiben ist erlaubt, solange der Zeitraum
+> noch nicht abgerechnet ist) -- zeigt dann sofort korrekt "nur September betroffen" an, ohne
+> dass Juli/August zusätzlich einzeln exportiert werden müssen.
+>
+> Reine Code-/Migrations-Änderung, kein weiteres Setup-Skript nötig -- mit dem nächsten
+> `git pull && docker compose up -d --build` (bzw. der obigen Migration) aktiv.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,
