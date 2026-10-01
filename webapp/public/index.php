@@ -7893,6 +7893,54 @@ function edaImportsForCommunity(string $communityId): array
 function edaQualityReport(string $communityId, string $periodFrom, string $periodTo): array
 {
     DB::setCommunity($communityId);
+
+    // Bevorzugt die monatsgenaue Tabelle (seit 01.10.2026, siehe migrate_20261001.sql) -- liefert
+    // für JEDEN Zählpunkt eine eigene Zeile je Kalendermonat, unabhängig davon, ob die zugrunde
+    // liegende EDA-Datei einen Einzelmonat oder einen längeren, selbst gewählten Zeitraum (z.B.
+    // ein ganzes Quartal in einer Datei) abdeckte. Patrick, 01.10.2026: "Sieht man [...] nicht
+    // auch die einzelnen Monate [...] wo man heraussehen kann, welcher Monat [...] schuld ist?"
+    // -- ja, die EDA-Detailübersicht hat das schon immer geliefert, nur bisher nicht importiert.
+    $monthlyRows = DB::fetchAll(
+        "SELECT q.month, q.quality, mp.zaehlpunkt_nr, mp.type,
+                m.first_name, m.last_name, m.company_name
+         FROM eda_measurement_quality_monthly q
+         JOIN metering_points mp ON mp.id = q.metering_point_id
+         LEFT JOIN members m ON m.id = mp.member_id
+         WHERE q.community_id = ? AND q.month >= date_trunc('month', ?::date)
+           AND q.month <= date_trunc('month', ?::date)
+         ORDER BY CASE q.quality WHEN 'L3' THEN 1 WHEN 'L2' THEN 2 ELSE 3 END,
+                  m.last_name, m.first_name, q.month",
+        [$communityId, $periodFrom, $periodTo]
+    );
+
+    if (!empty($monthlyRows)) {
+        $counts = ['L1' => 0, 'L2' => 0, 'L3' => 0];
+        $details = [];
+        foreach ($monthlyRows as $r) {
+            $q = $r['quality'] ?? 'L1';
+            if (isset($counts[$q])) $counts[$q]++;
+            if ($q !== 'L1') {
+                $name = trim((string)($r['company_name'] ?? '')) ?: trim($r['first_name'] . ' ' . $r['last_name']);
+                $details[] = [
+                    'name'          => $name !== '' ? $name : '(nicht zugeordnet)',
+                    'zaehlpunkt_nr' => $r['zaehlpunkt_nr'],
+                    'typ'           => $r['type'] === 'producer' ? 'Einspeisung' : ($r['type'] === 'prosumer' ? 'Prosumer' : 'Bezug'),
+                    'monat'         => monatsLabel($r['month']),
+                    'quality'       => $q,
+                ];
+            }
+        }
+        return ['counts' => $counts, 'details' => $details, 'is_multi_month' => false];
+    }
+
+    // Fallback für Importe von VOR dem 01.10.2026 (es existiert noch keine monatsgenaue Zeile,
+    // weil der Import lief, bevor der Parser diese Tabelle befüllt hat) -- dieselbe, nur grobe
+    // Logik wie bisher: EINE Zeile je Zählpunkt für den KOMPLETTEN Zeitraum. Bei einem
+    // Mehrmonats-/Quartalsexport ist die Datenqualität dieser einen Zeile oft gemischt
+    // ("L1,L2,L3" -- siehe _worst_quality() im Parser) und wird zurecht auf L3 abgewertet, sobald
+    // irgendein Teil des Zeitraums noch nicht belastbar ist -- monatsLabel($r['time']) würde das
+    // fälschlich als "nur dieser eine Monat betroffen" lesen lassen, deshalb bei einem Zeitraum
+    // von mehr als ~35 Tagen die ECHTE Zeitspanne statt eines einzelnen Monatsnamens anzeigen.
     $rows = DB::fetchAll(
         "SELECT em.time, em.quality, mp.zaehlpunkt_nr, mp.type,
                 m.first_name, m.last_name, m.company_name
@@ -7905,18 +7953,6 @@ function edaQualityReport(string $communityId, string $periodFrom, string $perio
         [$communityId, $periodFrom, $periodTo]
     );
 
-    // EDA erlaubt neben dem üblichen Einzelmonat auch einen frei wählbaren, mehrmonatigen
-    // Export (z.B. ein ganzes Quartal in einer Datei) -- in dem Fall liefert die Gesamtübersicht
-    // pro Zählpunkt NUR EINE Zeile für den KOMPLETTEN gewählten Zeitraum (mit dem bis-Datum
-    // dieses Zeitraums als eda_measurements.time), nicht eine Zeile je Kalendermonat. Die
-    // Datenqualität dieser einen Zeile ist dann oft gemischt ("L1,L2,L3" -- siehe
-    // _worst_quality() im Parser) und wird zurecht auf L3 abgewertet, sobald irgendein Teil des
-    // Zeitraums noch nicht belastbar ist (meist die letzten, noch nicht abgeschlossenen Tage).
-    // monatsLabel($r['time']) würde das in diesem Fall fälschlich als "nur dieser eine Monat
-    // betroffen" lesen lassen (Patrick, 01.10.2026: ein Quartalsexport zeigte so "16x L3,
-    // September" an, obwohl die Zeile tatsächlich den ganzen Zeitraum 02.07.-30.09. betraf) --
-    // deshalb bei einem Zeitraum von mehr als ~35 Tagen bewusst die ECHTE Zeitspanne anzeigen
-    // statt eines einzelnen, irreführenden Monatsnamens.
     $spanDays = (strtotime($periodTo) - strtotime($periodFrom)) / 86400;
     $isMultiMonth = $spanDays > 35;
     $spanLabel = monatsLabel($periodFrom) === monatsLabel($periodTo)

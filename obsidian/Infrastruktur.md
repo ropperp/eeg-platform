@@ -960,6 +960,15 @@ einem Zeitraum über ~35 Tagen jetzt die echte Zeitspanne statt eines einzelnen 
 plus Warnhinweis mit Empfehlung, für eine monatsgenaue Aufschlüsselung stattdessen einzelne
 Monate zu exportieren. Betrifft nur die Anzeige, keinen Einfluss auf den Rechnungsbetrag.
 
+**Zweite Nachbesserung (01.10.2026):** Patrick wollte wissen, ob man nicht doch sieht, welcher
+Monat konkret schuld ist. Per Analyse der echten Datei bestätigt: die "Detailübersicht"-Sheet
+hat IMMER eine eigene Zeile je Zählpunkt UND Kalendermonat (unabhängig vom Export-Zeitraum) --
+für Patricks Datei zeigte sich: Juli/August überall sauber (L1,L2), nur September mit L3. Neue
+Tabelle `eda_measurement_quality_monthly` (Migration `migrate_20261001.sql`), Parser liest diese
+Monatszeilen jetzt zusätzlich aus, `edaQualityReport()` nutzt sie bevorzugt für eine exakte
+Monatsangabe statt der groben Zeitraum-Anzeige. Einfach dieselbe Datei erneut hochladen, um die
+monatsgenaue Ansicht zu aktivieren. Tagesgenau liefert EDA nicht, nur Monatsgranularität.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at
