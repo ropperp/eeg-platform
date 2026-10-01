@@ -1089,6 +1089,42 @@ nächsten `git pull && docker compose up -d --build` aktiv.
 > Reine Code-/Migrations-Änderung, kein weiteres Setup-Skript nötig -- mit dem nächsten
 > `git pull && docker compose up -d --build` (bzw. der obigen Migration + dem Cron-Eintrag) aktiv.
 
+### EDA-Datenqualitäts-Detailbericht (01.10.2026)
+Mit Quartalsende Q3 (Juli-September) stand die erste echte Quartalsabrechnung an. Patrick wollte
+vor der Freigabe selbst nachvollziehen können, ob die EDA-Daten dafür schon reif sind, statt
+erst beim (automatisch durch `Billing::datenqualitaetProblem()` ohnehin gesperrten) Freigabe-
+versuch davon zu erfahren: "kannst du mir [...] sagen, wie viele Daten fehlerhaft sind, also L3?
+Wie viele sind L2 und wie viele sind L1? Wenn Daten L2 oder L3 sind, mir sagen, von welchem
+Kunden und von welchem Zeitraum [...] ob ich jetzt wirklich die 60 Tage [...] habe, oder ob ich
+schon abrechnen kann."
+
+Bisher zeigte `/portal/eda/upload` pro Import nur eine Gesamtzahl ("X belastbar" = L1+L2
+zusammengefasst, "Y L3") -- ohne Aufschlüsselung nach L1/L2 getrennt und ohne zu sagen, WELCHE
+Zählpunkte/Mitglieder konkret betroffen sind.
+
+**Neue Funktion `edaQualityReport($communityId, $periodFrom, $periodTo)`**
+(`webapp/public/index.php`) liest `eda_measurements` für den Zeitraum aus und liefert sowohl die
+Zähler (L1/L2/L3 getrennt, nicht mehr zusammengefasst) als auch eine Detailliste jedes NICHT-L1-
+Datensatzes (Mitglied, Zählpunkt, Typ, Monat, Qualität) -- gemeinsamer Partial
+`webapp/src/views/partials/eda_quality_report.php`, genutzt an zwei Stellen:
+
+1. **Sofort nach jedem Upload** auf `/portal/eda/upload` (für den gerade importierten Monat).
+2. **Nachträglich für bereits bestehende Importe** über einen neuen "Details ansehen"-Link in
+   der "Bisherige Importe"-Tabelle (sobald L2 oder L3 vorkommt) -> neue Route
+   `GET /portal/eda/imports/:id/quality` + View `eda_import_quality.php` -- damit lassen sich
+   auch Juli und August (längst hochgeladen) nachträglich prüfen, ohne sie erneut hochzuladen.
+   Für den Demo-Zugang komplett gesperrt (`denyDemoPage()`, zeigt echte Mitgliedernamen).
+
+Die "Datenqualität"-Spalte in der Importliste zeigt jetzt ebenfalls L1/L2/L3 als drei getrennte
+Badges statt der bisherigen "belastbar"-Zusammenfassung. Für eine komplette Quartalsabrechnung
+(3 Monatsdateien) prüft Patrick damit einfach alle drei Monatsimporte einzeln durch -- eine
+eigene quartalsübergreifende Aggregatsicht gibt es bewusst (noch) nicht, da jeder Monatsimport
+ohnehin schon die komplette Aufschlüsselung für genau seinen Zeitraum liefert.
+
+Reine Code-Änderung (keine neue Tabelle/Spalte -- `eda_measurements.quality` existiert bereits
+seit Projektbeginn), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
+`git pull && docker compose up -d --build` aktiv.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,
