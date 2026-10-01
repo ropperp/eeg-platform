@@ -969,6 +969,16 @@ Monatszeilen jetzt zusätzlich aus, `edaQualityReport()` nutzt sie bevorzugt fü
 Monatsangabe statt der groben Zeitraum-Anzeige. Einfach dieselbe Datei erneut hochladen, um die
 monatsgenaue Ansicht zu aktivieren. Tagesgenau liefert EDA nicht, nur Monatsgranularität.
 
+**Dritte Nachbesserung (01.10.2026):** Patrick lud die Quartalsdatei erneut hoch, bevor
+`migrate_20261001.sql` tatsächlich auf seinem Server gelaufen war (fehlte in der letzten
+Anweisung) -- Absturz mit `UndefinedTable: relation "eda_measurement_quality_monthly" does not
+exist". Kein Datenverlust, da die Transaktion nie committet wurde. Fix: Migration nachholen,
+Datei erneut hochladen. Zweiter Fund aus demselben Traceback: die "aktiv"-Abfrage für die
+"Fehlender Zählpunkt"-Warnung hatte keinen `is_demo`-Filter -- die beiden fiktiven
+Demo-Zählpunkte (`DEMO-EINSPEISER1-001`/`DEMO-VERBRAUCHER1-001`) hätten bei JEDEM künftigen
+echten EDA-Import dauerhaft eine falsche Warnung ausgelöst. Fix: `AND m.is_demo = false`
+ergänzt. Details: `CLAUDE.md`.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at

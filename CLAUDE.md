@@ -1199,6 +1199,34 @@ seit Projektbeginn), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
 > Reine Code-/Migrations-Änderung, kein weiteres Setup-Skript nötig -- mit dem nächsten
 > `git pull && docker compose up -d --build` (bzw. der obigen Migration) aktiv.
 
+> **Dritte Nachbesserung (01.10.2026): Absturz beim ersten echten Test, weil die Migration auf
+> Patricks Server noch fehlte -- plus ein zweiter, dabei entdeckter Bug (Demo-Zählpunkte lösten
+> immer eine falsche "Fehlender Zählpunkt"-Warnung aus).** Patrick hat die oben beschriebene
+> Quartalsdatei direkt erneut hochgeladen, bevor `migrate_20261001.sql` tatsächlich auf seinem
+> Server gelaufen war (das fehlte in der letzten Anweisung an ihn) -- der Import-Lauf stürzte
+> deshalb mit `psycopg2.errors.UndefinedTable: relation "eda_measurement_quality_monthly" does
+> not exist` ab. Kein Datenverlust: `import_to_db()` erreicht `conn.commit()` erst ganz am Ende,
+> die Exception kam mitten in der neuen Monats-Insert-Schleife, PostgreSQL verwirft die
+> komplette, noch nicht committete Transaktion automatisch beim Verbindungsende -- der Import war
+> schlicht nie passiert, nichts Halbes/Kaputtes blieb in der DB zurück. Fix: einfach die Migration
+> nachholen (siehe Befehl oben) und die Datei erneut hochladen.
+>
+> **Zweiter Fund, aus derselben Fehlermeldung:** der Traceback zeigte u. a. `Fehlender
+> Zählpunkt: DEMO-EINSPEISER1-001` und `Fehlender Zählpunkt: DEMO-VERBRAUCHER1-001` --
+> die beiden fiktiven Demo-Zählpunkte (siehe Update vom 05./06.09.2026) sind bei uns zwar
+> `active = true`, tauchen aber naturgemäß NIE in einem echten EDA-Export auf. Die "aktiv"-Abfrage
+> in `eda-parser/parser.py` (Grundlage der "Fehlender Zählpunkt"-Warnung) hatte bisher keinen
+> `is_demo`-Filter -- hätte also bei JEDEM künftigen echten EDA-Import dauerhaft zwei
+> Fehlalarm-Warnungen erzeugt. Fix: `AND m.is_demo = false` in dieser Abfrage ergänzt (gleiches
+> Muster wie `Billing.php`/die Mitgliederstatistik, die Demo-Mitglieder bereits an anderer Stelle
+> ausschließen). Die übrigen beiden in Patricks Lauf gemeldeten Zählpunkte
+> (`AT007000095600000010190002587601A`, `AT0070000956010000000000000001464`) sind echte,
+> bestehende Zählpunkte -- das ist die Warnung wie vorgesehen, kein Bug; wert, dass Patrick selbst
+> kurz prüft, ob diese beiden Mitglieder/Zählpunkte im Exportzeitraum tatsächlich fehlen sollten.
+>
+> Reine Code-Änderung, kein weiteres Migrations-/Setup-Skript nötig -- mit dem nächsten
+> `git pull && docker compose up -d --build` aktiv.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,
