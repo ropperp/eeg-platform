@@ -7905,6 +7905,24 @@ function edaQualityReport(string $communityId, string $periodFrom, string $perio
         [$communityId, $periodFrom, $periodTo]
     );
 
+    // EDA erlaubt neben dem üblichen Einzelmonat auch einen frei wählbaren, mehrmonatigen
+    // Export (z.B. ein ganzes Quartal in einer Datei) -- in dem Fall liefert die Gesamtübersicht
+    // pro Zählpunkt NUR EINE Zeile für den KOMPLETTEN gewählten Zeitraum (mit dem bis-Datum
+    // dieses Zeitraums als eda_measurements.time), nicht eine Zeile je Kalendermonat. Die
+    // Datenqualität dieser einen Zeile ist dann oft gemischt ("L1,L2,L3" -- siehe
+    // _worst_quality() im Parser) und wird zurecht auf L3 abgewertet, sobald irgendein Teil des
+    // Zeitraums noch nicht belastbar ist (meist die letzten, noch nicht abgeschlossenen Tage).
+    // monatsLabel($r['time']) würde das in diesem Fall fälschlich als "nur dieser eine Monat
+    // betroffen" lesen lassen (Patrick, 01.10.2026: ein Quartalsexport zeigte so "16x L3,
+    // September" an, obwohl die Zeile tatsächlich den ganzen Zeitraum 02.07.-30.09. betraf) --
+    // deshalb bei einem Zeitraum von mehr als ~35 Tagen bewusst die ECHTE Zeitspanne anzeigen
+    // statt eines einzelnen, irreführenden Monatsnamens.
+    $spanDays = (strtotime($periodTo) - strtotime($periodFrom)) / 86400;
+    $isMultiMonth = $spanDays > 35;
+    $spanLabel = monatsLabel($periodFrom) === monatsLabel($periodTo)
+        ? monatsLabel($periodFrom)
+        : monatsLabel($periodFrom) . ' – ' . monatsLabel($periodTo);
+
     $counts = ['L1' => 0, 'L2' => 0, 'L3' => 0];
     $details = [];
     foreach ($rows as $r) {
@@ -7916,12 +7934,12 @@ function edaQualityReport(string $communityId, string $periodFrom, string $perio
                 'name'          => $name !== '' ? $name : '(nicht zugeordnet)',
                 'zaehlpunkt_nr' => $r['zaehlpunkt_nr'],
                 'typ'           => $r['type'] === 'producer' ? 'Einspeisung' : ($r['type'] === 'prosumer' ? 'Prosumer' : 'Bezug'),
-                'monat'         => monatsLabel($r['time']),
+                'monat'         => $isMultiMonth ? $spanLabel : monatsLabel($r['time']),
                 'quality'       => $q,
             ];
         }
     }
-    return ['counts' => $counts, 'details' => $details];
+    return ['counts' => $counts, 'details' => $details, 'is_multi_month' => $isMultiMonth];
 }
 
 /** Import-Historie der Viertelstundenwerte (zweiter Export-Typ, siehe

@@ -951,6 +951,15 @@ Quartalsabrechnung einfach alle drei Monatsimporte einzeln durchklicken.
 
 Reine Code-Änderung, kein Migrations-/Setup-Skript nötig. Details: `CLAUDE.md`.
 
+**Nachbesserung (01.10.2026):** Patrick lud statt drei Monatsdateien eine Datei mit
+selbstgewähltem Quartalszeitraum (01.07.-30.09.) hoch -- Bericht zeigte 16x L3, alle fälschlich
+mit "Monat: September" beschriftet. Ursache: EDA liefert bei einem Mehrmonatszeitraum pro
+Zählpunkt nur EINE Zeile für den ganzen Zeitraum (oft gemischte Qualität "L1,L2,L3", korrekt auf
+L3 abgewertet) -- kein Bug, aber irreführend beschriftet. Fix: `edaQualityReport()` zeigt bei
+einem Zeitraum über ~35 Tagen jetzt die echte Zeitspanne statt eines einzelnen Monatsnamens,
+plus Warnhinweis mit Empfehlung, für eine monatsgenaue Aufschlüsselung stattdessen einzelne
+Monate zu exportieren. Betrifft nur die Anzeige, keinen Einfluss auf den Rechnungsbetrag.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at

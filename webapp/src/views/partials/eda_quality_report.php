@@ -37,12 +37,26 @@ $total = $c['L1'] + $c['L2'] + $c['L3'];
       </div>
     <?php endif; ?>
 
+    <?php if (!empty($qualityReport['is_multi_month'])): ?>
+      <div class="alert alert-warning" style="margin-bottom:1rem;font-size:.85rem">
+        Dieser Import deckt mehr als einen Kalendermonat ab (z.B. ein ganzes Quartal statt eines
+        Einzelmonats) -- EDA liefert in diesem Fall pro Zählpunkt nur EINE Zeile für den
+        kompletten Zeitraum, deren Qualität bei gemischten Werten (z.B. "L1,L2,L3") auf den
+        schlechtesten enthaltenen Wert abgewertet wird. Ein L3 hier bedeutet also nicht
+        zwangsläufig, dass der GANZE Zeitraum schlecht ist -- meist betrifft es nur die letzten,
+        noch nicht abgeschlossenen Tage/Wochen. Für eine genauere Aufschlüsselung je Kalendermonat
+        (z.B. um zu sehen, dass Juli/August schon sauber sind und nur der aktuelle Monat noch
+        nicht) stattdessen die einzelnen Monate getrennt im EDA-Portal exportieren und hier
+        einzeln hochladen.
+      </div>
+    <?php endif; ?>
+
     <?php if (!empty($details)): ?>
       <h4 style="font-size:.9rem;margin-bottom:.5rem">Betroffene Zählpunkte (L2/L3)</h4>
       <div style="overflow-x:auto">
         <table style="font-size:.85rem;width:100%">
           <thead>
-            <tr><th>Qualität</th><th>Mitglied</th><th>Zählpunkt</th><th>Typ</th><th>Monat</th></tr>
+            <tr><th>Qualität</th><th>Mitglied</th><th>Zählpunkt</th><th>Typ</th><th><?= !empty($qualityReport['is_multi_month']) ? 'Zeitraum' : 'Monat' ?></th></tr>
           </thead>
           <tbody>
             <?php foreach ($details as $d): ?>
