@@ -395,6 +395,7 @@ def import_to_db(
             FROM metering_points mp
             JOIN members m ON m.id = mp.member_id
             WHERE mp.community_id = %s AND mp.active = true
+              AND m.is_demo = false
               AND m.member_since <= %s
               AND (m.member_until IS NULL OR m.member_until >= %s)
             """,

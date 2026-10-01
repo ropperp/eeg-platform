@@ -8,6 +8,30 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-01 — Claude Code — Claude Sonnet 5
+**Prompt:** "Jetzt ist das dritte Quartal vorbei [...] kannst du mir [...] sagen, wie viele Daten
+fehlerhaft sind, also L3? Wie viele sind L2 und wie viele sind L1? [...] von welchem Kunden und
+von welchem Zeitraum [...] ob ich jetzt wirklich die 60 Tage [...] habe, oder ob ich schon
+abrechnen kann." Danach: "Sieht man in der Monatsreport von den drei Monaten nicht auch die
+einzelnen Monate [...] welcher Monat oder welcher Tag jetzt wirklich schuld ist via L3?"
+Schließlich ein Absturz-Traceback beim erneuten Hochladen derselben Datei.
+**Auftrag:** Vor der ersten echten Quartalsabrechnung ein Werkzeug schaffen, mit dem Patrick die
+EDA-Datenqualität (L1/L2/L3) pro Zählpunkt und Monat selbst prüfen kann, statt die Freigabe
+blind zu versuchen -- anschließend einen dabei aufgetretenen Absturz sowie einen zusätzlich
+entdeckten Folgefehler beheben.
+**Ergebnis:** Drei PRs gemerged: #200 (neue Funktion `edaQualityReport()`, Route
+`/portal/eda/imports/:id/quality`, Partial `eda_quality_report.php`), #201 (Mehrmonats-Zeiträume
+zeigen die echte Zeitspanne statt eines irreführenden Einzelmonats), #202 (neue Tabelle
+`eda_measurement_quality_monthly` + Parser-Erweiterung für echte Monatsgranularität aus der
+Detailübersicht-Sheet). Vierter Fix (noch zu committen/pushen): Absturz
+`UndefinedTable: eda_measurement_quality_monthly` behoben durch Nachholen der fehlenden
+Migration `migrate_20261001.sql` auf Patricks Server (kein Datenverlust, Transaktion wurde nie
+committet) sowie ein dabei entdeckter `is_demo`-Filter-Fehler in der "Fehlender
+Zählpunkt"-Warnung von `eda-parser/parser.py` (hätte sonst dauerhaft Fehlalarme für die beiden
+fiktiven Demo-Zählpunkte erzeugt).
+
+---
+
 ## 2026-09-26 — Claude Code — Claude Sonnet 5
 **Prompt:** Fortsetzung des Security-Reviews vom Vortag über mehrere externe Nachtest-Reports
 ("Nächster Test noch mal durchgeführt", zwei weitere hochgeladene Blackbox-Nachtest-Dateien),
