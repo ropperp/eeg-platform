@@ -935,6 +935,22 @@ Reine Code-Änderung, kein Migrations-/Setup-Skript nötig.
 
 Migration `database/migrate_20260926.sql` + Cron-Eintrag nötig. Details: `CLAUDE.md`.
 
+## EDA-Datenqualitäts-Detailbericht (01.10.2026)
+
+Zum Start der ersten echten Quartalsabrechnung (Q3: Juli-September) wollte Patrick vor der
+Freigabe selbst prüfen können, ob die EDA-Daten schon reif sind -- bisher zeigte
+`/portal/eda/upload` pro Import nur eine Gesamtzahl ("X belastbar" = L1+L2 zusammen, "Y L3"),
+ohne Aufschlüsselung und ohne zu sagen, welche Mitglieder/Zählpunkte konkret betroffen sind.
+
+Neue Funktion `edaQualityReport()` liefert L1/L2/L3 getrennt gezählt plus eine Detailliste jedes
+L2/L3-Datensatzes (Mitglied, Zählpunkt, Monat). Angezeigt sofort nach jedem Upload UND über
+einen neuen "Details ansehen"-Link bei bereits bestehenden Importen (`/portal/eda/imports/:id/
+quality`) -- damit lassen sich auch längst hochgeladene Monate (Juli, August) nachträglich
+prüfen. Für den Demo-Zugang gesperrt (echte Mitgliedernamen). Für eine komplette
+Quartalsabrechnung einfach alle drei Monatsimporte einzeln durchklicken.
+
+Reine Code-Änderung, kein Migrations-/Setup-Skript nötig. Details: `CLAUDE.md`.
+
 ## Externer Sicherheits-Scan (25.09.2026): drei Lücken behoben, ein Befund widerlegt
 
 Patrick hat Cookiebot/Sitechecker + einen KI-Blackbox-Sicherheitsreport gegen stromfueralle.at

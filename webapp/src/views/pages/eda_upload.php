@@ -42,6 +42,9 @@
       </ul>
     </div>
   <?php endif; ?>
+  <?php if (!empty($qualityReport)): ?>
+    <?php require __DIR__ . '/../partials/eda_quality_report.php'; ?>
+  <?php endif; ?>
 <?php endif; ?>
 
 <div class="card">
@@ -89,7 +92,8 @@
           <?php foreach ($imports as $imp): ?>
             <?php
               $sb = ['ok' => 'green', 'warning' => 'yellow', 'error' => 'red'];
-              $belastbar = (int)$imp['quality_l1'] + (int)$imp['quality_l2'];
+              $l1 = (int)$imp['quality_l1'];
+              $l2 = (int)$imp['quality_l2'];
               $l3 = (int)$imp['quality_l3'];
             ?>
             <tr>
@@ -98,11 +102,15 @@
               <td><?= number_format((int)$imp['records_imported'], 0, ',', '.') ?></td>
               <td><span class="badge badge-<?= $sb[$imp['status']] ?? 'gray' ?>"><?= htmlspecialchars($imp['status']) ?></span></td>
               <td>
-                <?php if ($belastbar === 0 && $l3 === 0): ?>
+                <?php if ($l1 === 0 && $l2 === 0 && $l3 === 0): ?>
                   <span style="color:var(--gray-600)">—</span>
                 <?php else: ?>
-                  <?php if ($belastbar > 0): ?><span class="badge badge-green" style="font-size:.72rem" title="L1/L2 -- echt gemessen bzw. belastbarer Ersatzwert"><?= $belastbar ?> belastbar</span><?php endif; ?>
+                  <?php if ($l1 > 0): ?><span class="badge badge-green" style="font-size:.72rem" title="L1 -- echt gemessen"><?= $l1 ?> L1</span><?php endif; ?>
+                  <?php if ($l2 > 0): ?><span class="badge badge-yellow" style="font-size:.72rem" title="L2 -- belastbarer Ersatzwert"><?= $l2 ?> L2</span><?php endif; ?>
                   <?php if ($l3 > 0): ?><span class="badge badge-red" style="font-size:.72rem" title="L3 -- nicht belastbarer Ersatzwert, wird nicht abgerechnet"><?= $l3 ?> L3</span><?php endif; ?>
+                  <?php if ($l2 > 0 || $l3 > 0): ?>
+                    <br><a href="/portal/eda/imports/<?= $imp['id'] ?>/quality" style="font-size:.75rem">Details ansehen</a>
+                  <?php endif; ?>
                 <?php endif; ?>
               </td>
               <td>

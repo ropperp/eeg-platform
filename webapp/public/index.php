@@ -7880,6 +7880,50 @@ function edaImportsForCommunity(string $communityId): array
     );
 }
 
+/**
+ * Detaillierter Datenqualitäts-Bericht für einen EDA-Zeitraum (ein Monat ODER ein ganzer
+ * Abrechnungszeitraum) -- zählt L1/L2/L3 und listet JEDEN nicht belastbaren (L2/L3) Datensatz
+ * einzeln mit Mitglied, Zählpunkt und Monat auf. Patrick, 01.10.2026: "kannst du mir wirklich
+ * bitte eine Überprüfung machen und sagen, wie viele Daten fehlerhaft sind, also L3? Wie viele
+ * sind L2 und wie viele sind L1? Wenn Daten L2 oder L3 sind, mir sagen, von welchem Kunden und
+ * von welchem Zeitraum." -- genau diese Unterscheidung (Gesamtlauf -> Freigabe blockiert oder
+ * nicht, siehe Billing::datenqualitaetProblem()) macht hier als Detailliste sichtbar, WER/WELCHER
+ * ZEITRAUM konkret betroffen ist, statt nur die Gesamtzahl wie bisher in edaImportsForCommunity().
+ */
+function edaQualityReport(string $communityId, string $periodFrom, string $periodTo): array
+{
+    DB::setCommunity($communityId);
+    $rows = DB::fetchAll(
+        "SELECT em.time, em.quality, mp.zaehlpunkt_nr, mp.type,
+                m.first_name, m.last_name, m.company_name
+         FROM eda_measurements em
+         JOIN metering_points mp ON mp.id = em.metering_point_id
+         LEFT JOIN members m ON m.id = mp.member_id
+         WHERE em.community_id = ? AND em.time >= ? AND em.time <= ?
+         ORDER BY CASE em.quality WHEN 'L3' THEN 1 WHEN 'L2' THEN 2 ELSE 3 END,
+                  m.last_name, m.first_name, em.time",
+        [$communityId, $periodFrom, $periodTo]
+    );
+
+    $counts = ['L1' => 0, 'L2' => 0, 'L3' => 0];
+    $details = [];
+    foreach ($rows as $r) {
+        $q = $r['quality'] ?? 'L1';
+        if (isset($counts[$q])) $counts[$q]++;
+        if ($q !== 'L1') {
+            $name = trim((string)($r['company_name'] ?? '')) ?: trim($r['first_name'] . ' ' . $r['last_name']);
+            $details[] = [
+                'name'          => $name !== '' ? $name : '(nicht zugeordnet)',
+                'zaehlpunkt_nr' => $r['zaehlpunkt_nr'],
+                'typ'           => $r['type'] === 'producer' ? 'Einspeisung' : ($r['type'] === 'prosumer' ? 'Prosumer' : 'Bezug'),
+                'monat'         => monatsLabel($r['time']),
+                'quality'       => $q,
+            ];
+        }
+    }
+    return ['counts' => $counts, 'details' => $details];
+}
+
 /** Import-Historie der Viertelstundenwerte (zweiter Export-Typ, siehe
  *  eda-parser/parser_interval.py) -- eigene, schlankere Tabelle als edaImportsForCommunity()
  *  oben, da hier bewusst überlappende Zeiträume normal sind (siehe Kommentar in
@@ -7977,7 +8021,32 @@ $router->post('/portal/eda/upload', function () {
     // erzeugte) Import sofort in der Liste unten auftaucht, statt erst nach einem Reload.
     $imports = edaImportsForCommunity($communityId);
 
+    // Sofortige Datenqualitäts-Übersicht direkt nach dem Hochladen (Patrick, 01.10.2026) --
+    // nur möglich, wenn der Import erfolgreich war (sonst gibt es keinen period_from/period_to).
+    if (!empty($result['period_from']) && !empty($result['period_to'])) {
+        $qualityReport = edaQualityReport($communityId, $result['period_from'], $result['period_to']);
+    }
+
     require ROOT . '/src/views/pages/eda_upload.php';
+});
+
+/**
+ * Datenqualitäts-Detailbericht für einen einzelnen bereits hochgeladenen EDA-Import (aus der
+ * "Bisherige Importe"-Tabelle heraus aufrufbar, nicht nur direkt nach einem frischen Upload) --
+ * damit Patrick auch ältere Monate desselben Quartals nachträglich prüfen kann, ohne sie erneut
+ * hochladen zu müssen.
+ */
+$router->get('/portal/eda/imports/:id/quality', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    // Zeigt Mitgliedernamen + Zählpunkte -- gleiche Sensibilität wie die übrigen
+    // PII-Detailseiten, deshalb für den Demo-Zugang komplett gesperrt.
+    denyDemoPage('Dieser Demo-Zugang dient nur zur Ansicht. Aus Datenschutzgründen können hier keine echten Mitgliederdaten angezeigt werden.');
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $imp = DB::fetchOne('SELECT * FROM eda_imports WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$imp) { header('Location: /portal/eda/upload?error=' . urlencode('Import nicht gefunden.')); exit; }
+    $qualityReport = edaQualityReport($communityId, $imp['period_from'], $imp['period_to']);
+    require ROOT . '/src/views/pages/eda_import_quality.php';
 });
 
 /** Wie POST /portal/eda/upload, aber für den zweiten Export-Typ (Viertelstundenwerte,
