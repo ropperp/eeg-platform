@@ -1125,6 +1125,43 @@ Reine Code-Änderung (keine neue Tabelle/Spalte -- `eda_measurements.quality` ex
 seit Projektbeginn), kein Migrations-/Setup-Skript nötig -- mit dem nächsten
 `git pull && docker compose up -d --build` aktiv.
 
+> **Nachbesserung (01.10.2026): EDA-Mehrmonats-/Quartalsexport führt zu irreführender
+> "Monat"-Anzeige -- entdeckt bei Patricks erstem echten Q3-Testlauf.** Patrick hatte statt der
+> üblichen drei Monatsdateien EINE Datei mit frei gewähltem Zeitraum (01.07.-30.09.2026, ganzes
+> Quartal auf einmal) aus dem EDA-Portal exportiert und hochgeladen -- der neue Detailbericht
+> zeigte daraufhin 16 L3-Einträge, ALLE mit "Monat: September 2026", was auf den ersten Blick wie
+> ein Darstellungsfehler aussah. **Tatsächliche Ursache, per direkter Analyse der hochgeladenen
+> XLSX bestätigt:** EDA liefert bei einem selbst gewählten Mehrmonats-/Quartalszeitraum pro
+> Zählpunkt NUR EINE Zeile für den KOMPLETTEN Zeitraum (`Zeitraum`-Spalte z. B.
+> "02.07.2026-30.09.2026" statt einer eigenen Zeile je Kalendermonat), mit oft gemischter
+> Datenqualität in einer Zelle ("L1,L2,L3") -- der Parser wertet das schon seit jeher korrekt auf
+> den schlechtesten enthaltenen Wert ab (`_worst_quality()`), genau wie von der Datei selbst in
+> der Spaltenbeschreibung verlangt ("L1 und L2 abrechnungs-relevant, L3 nicht"). `eda_measurements.
+> time` speichert dabei das BIS-Datum des gesamten Zeitraums (hier 30.09., daher "September") --
+> kein Bug, aber bei einer derart breiten Zeile irreführend, weil sie fälschlich nahelegt, nur der
+> September sei betroffen, obwohl die Zeile den ganzen Quartalszeitraum repräsentiert. Kein
+> Einfluss auf den Rechnungsbetrag selbst (`Billing::generateDrafts()` summiert ohnehin nur über
+> den ganzen Zeitraum, egal ob als eine große oder drei kleinere Zeilen gespeichert) -- betrifft
+> ausschließlich die Darstellung/Granularität der Datenqualitätsprüfung.
+>
+> **Fix:** `edaQualityReport()` erkennt jetzt selbst, ob der abgefragte Zeitraum mehr als ~35 Tage
+> umfasst (`is_multi_month`); ist das der Fall, wird statt eines einzelnen (irreführenden)
+> Monatsnamens die ECHTE Zeitspanne angezeigt ("Juli – September 2026" bzw. Spaltenüberschrift
+> "Zeitraum" statt "Monat"), zusätzlich ein erklärender Warnhinweis im Bericht selbst, der
+> empfiehlt, für eine monatsgenaue Aufschlüsselung stattdessen die einzelnen Monate getrennt zu
+> exportieren/hochzuladen.
+>
+> **Empfehlung an Patrick für die laufende Q3-Abrechnung:** Juli und August zusätzlich/stattdessen
+> einzeln als Monatsdateien hochladen (beide über einen Monat alt, sehr wahrscheinlich schon
+> L1/L2) -- zeigt dann klar, dass nur der aktuelle Monat (September, naturgemäß noch nicht final
+> abgeschlossen) die Freigabe blockiert, statt scheinbar das ganze Quartal. Die Freigabe selbst
+> bleibt so oder so korrekt gesperrt, bis auch September nachweislich keine L3-Werte mehr hat --
+> das ändert sich durch getrennte Monatsdateien nicht, nur die Übersichtlichkeit, WAS genau noch
+> fehlt.
+>
+> Reine Code-Änderung, kein Migrations-/Setup-Skript nötig -- mit dem nächsten
+> `git pull && docker compose up -d --build` aktiv.
+
 ### Externer Sicherheits-Scan (25.09.2026): drei echte Lücken gefunden und behoben, ein
 ### gemeldeter Befund als Fehlalarm widerlegt
 Patrick hat auf eigene Initiative zwei kostenlose externe Scanner (Cookiebot Mobile-Scan,
