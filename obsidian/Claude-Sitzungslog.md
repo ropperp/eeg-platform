@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Bitte setzte mir alle 4 Punkte um. claude.md aufräumen und das. sammelüberweisung
+wär auch cool, wenn es geht. hab mein konto bei der Sparkasse." (Bezug: vier zuvor vom
+Diplomarbeit-Berater-Agent gefundene Abrechnungs-Bugs vor der Q3-Freigabe.)
+**Auftrag:** Vier Abrechnungs-Bugs beheben (Rechnungsdatum/Fälligkeit an Freigabe koppeln,
+Rechnungsnummern pro EEG statt plattformweit eindeutig + Lösch-Schutz für freigegebene Läufe,
+Rechnungen nach Freigabe als PDF einfrieren + Hash, Gutschrift-Erledigt-Felder synchronisieren),
+`CLAUDE.md` aufräumen (auf über 2000 Zeilen angewachsen) sowie eine SEPA-Sammelüberweisung
+(pain.001) für Gutschriften ergänzen, Sparkasse-kompatibel.
+**Ergebnis:** Alle vier Bugs behoben (`webapp/public/index.php`, `webapp/src/Billing.php`,
+Migration `migrate_20261002.sql` für eindeutige Rechnungsnummern pro EEG + PDF-Hash-Spalten).
+Neue Funktion `sepaPain001Xml()` (`webapp/src/functions.php`) + Route
+`/portal/billing/gutschriften/sepa-xml`, 4 neue Tests (138 insgesamt, alle grün).
+`CLAUDE.md` von 2295 auf 362 Zeilen gekürzt -- das komplette Vorfallstagebuch liegt jetzt in
+`docs/VORFAELLE.md`, die "Update"-Historie in `docs/BETRIEBSHANDBUCH.md`; `obsidian/
+Infrastruktur.md` entsprechend gespiegelt/gekürzt. Offen: MQTT-Demo-Simulator für die Messe in
+einer Woche (separater Auftrag, noch nicht umgesetzt).
+
+---
+
 ## 2026-10-01 — Claude Code — Claude Sonnet 5
 **Prompt:** "Jetzt ist das dritte Quartal vorbei [...] kannst du mir [...] sagen, wie viele Daten
 fehlerhaft sind, also L3? Wie viele sind L2 und wie viele sind L1? [...] von welchem Kunden und

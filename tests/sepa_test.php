@@ -46,3 +46,42 @@ test('Ergebnis ist wohlgeformtes XML', function () use ($creditor, $txns) {
     libxml_use_internal_errors($prev);
     assertTrue($ok, 'XML sollte parsebar sein');
 });
+
+// SEPA-Überweisung (Credit Transfer) pain.001 (sepaPain001Xml) -- Gutschriften-Sammelüberweisung.
+
+$payer = ['name' => 'EEG Test', 'iban' => 'AT61 1904 3002 3457 3201', 'bic' => 'BKAUATWW'];
+$creditTxns = [
+    ['end_to_end_id' => 'RE-260001', 'amount' => 3.90, 'creditor_name' => 'Max Muster',
+     'creditor_iban' => 'AT02 2011 1000 0000 1234', 'creditor_bic' => 'GIBAATWW', 'remittance' => 'Gutschrift RE-260001'],
+    ['end_to_end_id' => 'RE-260002', 'amount' => 12.50, 'creditor_name' => 'Eva Test',
+     'creditor_iban' => 'AT023200000000005678', 'creditor_bic' => '', 'remittance' => 'Gutschrift RE-260002'],
+];
+
+test('pain.001.001.03: Namespace, PmtMtd TRF, Summe, BIC', function () use ($payer, $creditTxns) {
+    $xml = sepaPain001Xml($payer, $creditTxns, '2026-08-01', 'MSG-CT1');
+    assertContains('pain.001.001.03', $xml);
+    assertContains('<PmtMtd>TRF</PmtMtd>', $xml);
+    assertContains('<CtrlSum>16.40</CtrlSum>', $xml);
+    assertContains('<NbOfTxs>2</NbOfTxs>', $xml);
+    assertContains('<BIC>GIBAATWW</BIC>', $xml);
+    assertContains('<ReqdExctnDt>2026-08-01</ReqdExctnDt>', $xml);
+});
+
+test('pain.001: Fehlende Creditor-BIC -> NOTPROVIDED', function () use ($payer, $creditTxns) {
+    $xml = sepaPain001Xml($payer, $creditTxns, '2026-08-01', 'MSG-CT2');
+    assertContains('<Othr><Id>NOTPROVIDED</Id></Othr>', $xml);
+});
+
+test('pain.001: IBAN-Leerzeichen werden entfernt (Zahler + Empfänger)', function () use ($payer, $creditTxns) {
+    $xml = sepaPain001Xml($payer, $creditTxns, '2026-08-01', 'MSG-CT3');
+    assertContains('<IBAN>AT611904300234573201</IBAN>', $xml);
+    assertContains('<IBAN>AT022011100000001234</IBAN>', $xml);
+});
+
+test('pain.001: Ergebnis ist wohlgeformtes XML', function () use ($payer, $creditTxns) {
+    $xml = sepaPain001Xml($payer, $creditTxns, '2026-08-01', 'MSG-CT4');
+    $prev = libxml_use_internal_errors(true);
+    $ok = simplexml_load_string($xml) !== false;
+    libxml_use_internal_errors($prev);
+    assertTrue($ok, 'XML sollte parsebar sein');
+});

@@ -9,10 +9,23 @@ ob_start();
   Für jedes Feld gibt es einen eigenen „Kopieren"-Button -- damit lässt sich der Wert direkt in
   das entsprechende Feld einer neuen Überweisung im Online-Banking einfügen, ohne ihn abtippen zu
   müssen. Sobald eine Überweisung erledigt ist, verschwindet die Gutschrift aus dieser Liste.
+  Wer stattdessen alle offenen Gutschriften auf einmal überweisen möchte: die SEPA-
+  Sammelüberweisung unten als Datei herunterladen und im eigenen Online-Banking hochladen --
+  dann entfällt das einzelne Abtippen ganz.
 </p>
 
 <?php if (isset($_GET['success'])): ?>
   <div class="alert alert-success"><?= htmlspecialchars($_GET['success']) ?></div>
+<?php endif; ?>
+<?php if (isset($_GET['error'])): ?>
+  <div class="alert alert-error"><?= htmlspecialchars($_GET['error']) ?></div>
+<?php endif; ?>
+
+<?php if (!empty($gutschriften)): ?>
+  <a href="/portal/billing/gutschriften/sepa-xml<?= $run ? '?run_id=' . htmlspecialchars($run['id']) : '' ?>"
+     class="btn btn-secondary" style="margin-bottom:1.5rem">
+    <?= icon('arrow-down') ?> SEPA-Sammelüberweisung (pain.001) herunterladen
+  </a>
 <?php endif; ?>
 
 <?php if (empty($gutschriften)): ?>

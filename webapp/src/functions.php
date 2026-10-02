@@ -627,6 +627,81 @@ function sepaPain008Xml(
 }
 
 /**
+ * Erzeugt eine SEPA-Sammelüberweisung (Credit Transfer) als pain.001.001.03-XML -- die Datei,
+ * die der Obmann in sein Online-Banking hochlädt, um alle offenen Gutschriften auf einmal statt
+ * einzeln von Hand zu überweisen (siehe /portal/billing/gutschriften/sepa-xml). pain.001.001.03
+ * ist bewusst die einzige unterstützte Version (anders als bei der Lastschrift keine '02'/'08'-
+ * Auswahl) -- sie ist die von öst. Banken (u.a. Sparkasse/George Business) am breitesten
+ * akzeptierte SEPA-Credit-Transfer-Version. Reine Funktion (kein DB/HTTP) -> automatisiert testbar.
+ *
+ * WICHTIG (Compliance): wie bei sepaPain008Xml() -- vor dem ersten echten Einreichen die Datei
+ * mit dem Prüf-/Testtool der eigenen Bank validieren.
+ *
+ * @param array $payer ['name','iban','bic'(optional)] -- das Konto, von dem überwiesen wird (EEG)
+ * @param array $txns Liste von ['end_to_end_id','amount'(float>0),'creditor_name','creditor_iban',
+ *                    'creditor_bic'(optional),'remittance']
+ * @param string $executionDate gewünschtes Ausführungsdatum (Y-m-d)
+ * @param string $msgId eindeutige Nachrichten-ID (Default: generiert)
+ */
+function sepaPain001Xml(array $payer, array $txns, string $executionDate, string $msgId = ''): string
+{
+    $x = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    $money = fn($v) => number_format((float)$v, 2, '.', '');
+    $ns = 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03';
+    $agent = function (?string $bic) use ($x): string {
+        $bic = trim((string)$bic);
+        return $bic !== ''
+            ? '<FinInstnId><BIC>' . $x($bic) . '</BIC></FinInstnId>'
+            : '<FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>';
+    };
+
+    $msgId = $msgId !== '' ? $msgId : ('SFA-' . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6));
+    $creDt = date('Y-m-d\TH:i:s');
+    $nbTx  = count($txns);
+    $ctrl  = $money(array_sum(array_map(fn($t) => (float)$t['amount'], $txns)));
+
+    $txXml = '';
+    foreach ($txns as $t) {
+        $txXml .=
+            '<CdtTrfTxInf>'
+          // EndToEndId auf 35 Zeichen begrenzt, gleiche Schema-Grenze wie bei pain.008.
+          .   '<PmtId><EndToEndId>' . $x(substr((string)($t['end_to_end_id'] ?? 'NOTPROVIDED'), 0, 35)) . '</EndToEndId></PmtId>'
+          .   '<Amt><InstdAmt Ccy="EUR">' . $money($t['amount']) . '</InstdAmt></Amt>'
+          .   '<CdtrAgt>' . $agent($t['creditor_bic'] ?? '') . '</CdtrAgt>'
+          .   '<Cdtr><Nm>' . $x($t['creditor_name']) . '</Nm></Cdtr>'
+          .   '<CdtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $t['creditor_iban'])) . '</IBAN></Id></CdtrAcct>'
+          .   '<RmtInf><Ustrd>' . $x($t['remittance'] ?? '') . '</Ustrd></RmtInf>'
+          . '</CdtTrfTxInf>';
+    }
+
+    return
+        '<?xml version="1.0" encoding="UTF-8"?>'
+      . '<Document xmlns="' . $ns . '" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+      . '<CstmrCdtTrfInitn>'
+      .   '<GrpHdr>'
+      .     '<MsgId>' . $x($msgId) . '</MsgId>'
+      .     '<CreDtTm>' . $creDt . '</CreDtTm>'
+      .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
+      .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
+      .     '<InitgPty><Nm>' . $x($payer['name']) . '</Nm></InitgPty>'
+      .   '</GrpHdr>'
+      .   '<PmtInf>'
+      .     '<PmtInfId>' . $x($msgId) . '-1</PmtInfId>'
+      .     '<PmtMtd>TRF</PmtMtd>'
+      .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
+      .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
+      .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>'
+      .     '<ReqdExctnDt>' . $x($executionDate) . '</ReqdExctnDt>'
+      .     '<Dbtr><Nm>' . $x($payer['name']) . '</Nm></Dbtr>'
+      .     '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $payer['iban'])) . '</IBAN></Id></DbtrAcct>'
+      .     '<DbtrAgt>' . $agent($payer['bic'] ?? '') . '</DbtrAgt>'
+      .     '<ChrgBr>SLEV</ChrgBr>'
+      .     $txXml
+      .   '</PmtInf>'
+      . '</CstmrCdtTrfInitn></Document>';
+}
+
+/**
  * Entfernt übrig gebliebene {{platzhalter}} aus einem Text. Sicherheitsnetz für den Mailversand:
  * verwendet eine Vorlage einen Platzhalter, den die auslösende Stelle nicht befüllt, soll beim
  * Empfänger lieber eine Lücke stehen als roher Vorlagen-Code („{{anrede}} {{nachname}},").

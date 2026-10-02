@@ -1809,11 +1809,12 @@ function loadInvoiceForPdf(string $invoiceId): ?array
                 m.salutation, m.titel, m.company_name, m.invoice_name,
                 m.kundennummer, m.mandatsreferenz, m.member_iban,
                 m.community_id AS member_community_id, m.user_id AS member_user_id,
-                br.quartal, br.period_from, br.period_to,
+                br.quartal, br.period_from, br.period_to, br.status AS run_status, br.released_at,
                 c.name AS eeg_name, c.address AS eeg_address, c.iban AS eeg_iban, c.bic AS eeg_bic,
                 c.zvr_number AS eeg_zvr, c.contact_phone AS eeg_contact_phone,
                 c.contact_email AS eeg_contact_email, c.bank_name AS eeg_bank_name,
                 c.account_holder AS eeg_account_holder, c.creditor_id AS eeg_creditor_id,
+                c.sepa_prenotification_days,
                 tc.bezug_ct_kwh, tc.einspeisung_ct_kwh, tc.mitgliedsbeitrag_eur,
                 tx.uid_number AS eeg_uid_number, tx.tax_model AS eeg_tax_model,
                 tx.tax_rate_percent AS eeg_tax_rate
@@ -1833,8 +1834,13 @@ function loadInvoiceForPdf(string $invoiceId): ?array
     );
 }
 
-/** Rendert eine per loadInvoiceForPdf() geladene Rechnung als PDF-Response (LaTeX). */
-function renderInvoicePdf(array $invoice): void
+/**
+ * Baut die LaTeX-Vars für eine per loadInvoiceForPdf() geladene Rechnung -- ausgelagert aus
+ * renderInvoicePdf(), damit sowohl das Live-Rendering (Entwurf, noch nicht freigegeben) als
+ * auch das einmalige Einfrieren bei der Freigabe (siehe freezeInvoicePdf()) dieselbe Logik
+ * verwenden. @return array{0: array, 1: string, 2: array} [vars, filename, assets]
+ */
+function invoicePdfPayload(array $invoice): array
 {
     $items = DB::fetchAll('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY type', [$invoice['id']]);
     // Bezug/Einspeisung können mehrere Positionen haben (eine pro Zählpunkt) -- als Listen
@@ -1890,7 +1896,19 @@ function renderInvoicePdf(array $invoice): void
     // identisch mit netto, bei Standard inkl. USt).
     $saldoVal  = (float)$tax['brutto'];
     $betragFmt = number_format(abs($saldoVal), 2, ',', '.');
-    $faellig   = date('d.m.Y', strtotime($invoice['created_at'] . ' +14 days'));
+    // Rechnungsdatum und Fälligkeit hängen an der FREIGABE, nicht am Moment der Entwurfs-
+    // berechnung (Billing::generateDrafts()) -- sonst stehen auf dem PDF Termine, die beim
+    // tatsächlichen Versand (oft Wochen später, z.B. während der L3-Wartezeit) schon vorbei
+    // sind, und die SEPA-Vorabinfo (sendSepaPrenotifications(), rechnet ebenfalls mit
+    // released_at + sepa_prenotification_days) würde ein anderes Datum nennen als die
+    // Rechnung selbst. Vor der Freigabe (kein released_at) ist es noch ein Entwurf -- zeigt
+    // "Entwurf" statt eines Datums, das sich bis zur echten Freigabe noch ändert.
+    $releasedAt = $invoice['released_at'] ?? null;
+    $rechnungsdatum = $releasedAt ? date('d.m.Y', strtotime($releasedAt)) : 'Entwurf';
+    $prenotifDays = (int)($invoice['sepa_prenotification_days'] ?? 14);
+    $faellig   = $releasedAt
+        ? date('d.m.Y', strtotime($releasedAt . ' +' . $prenotifDays . ' days'))
+        : 'Entwurf';
     $ibanEnd   = !empty($invoice['member_iban'])
         ? substr(preg_replace('/\s+/', '', $invoice['member_iban']), -4) : null;
 
@@ -1917,7 +1935,7 @@ function renderInvoicePdf(array $invoice): void
         $zahlungText = ''; // Vorlage zeigt dann automatisch die Überweisungsbitte
     }
 
-    streamLatexPdf('rechnung', [
+    $vars = [
         'EEG_NAME'              => $invoice['eeg_name'],
         'EEG_ADRESSE'           => $invoice['eeg_address'] ?? '',
         'EEG_STRASSE'           => $eegAdrTeile[0] ?? '',
@@ -1937,7 +1955,7 @@ function renderInvoicePdf(array $invoice): void
         'KUNDENNUMMER'          => $invoice['kundennummer'] !== null ? (string)$invoice['kundennummer'] : '',
         'MITGLIED_SEPA_MANDATSREFERENZ' => $invoice['mandatsreferenz'] ?? '',
         'RECHNUNGSNUMMER'       => $invoice['rechnungsnummer'],
-        'RECHNUNGSDATUM'        => date('d.m.Y', strtotime($invoice['created_at'])),
+        'RECHNUNGSDATUM'        => $rechnungsdatum,
         'ABRECHNUNGSZEITRAUM'   => date('d.m.Y', strtotime($invoice['period_from'])) . ' -- ' . date('d.m.Y', strtotime($invoice['period_to'])),
         'BEZUG_KWH'             => number_format($bezugKwh, 2, ',', '.'),
         'BEZUG_TARIF'           => $bezugTarif !== null ? number_format((float)$bezugTarif, 4, ',', '.') : '0,0000',
@@ -1965,7 +1983,58 @@ function renderInvoicePdf(array $invoice): void
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => $faellig,
-    ], $invoice['rechnungsnummer'] . '.pdf', communityLogoAsset($invoice['member_community_id']));
+    ];
+    return [$vars, $invoice['rechnungsnummer'] . '.pdf', communityLogoAsset($invoice['member_community_id'])];
+}
+
+/**
+ * Rendert eine per loadInvoiceForPdf() geladene Rechnung als PDF-Response. Eine bereits
+ * EINGEFRORENE Rechnung (freezeInvoicePdf() wurde bei der Freigabe aufgerufen, pdf_frozen_path
+ * gesetzt) liefert IMMER die damals abgelegte Datei aus, nie eine frisch gerenderte -- sonst
+ * würde eine spätere Änderung an Stammdaten/Logo/Vorlage rückwirkend eine bereits versendete,
+ * ggf. längst bezahlte Rechnung verändern. Nur ein noch nicht freigegebener Entwurf wird
+ * weiterhin bei jedem Abruf live aus den aktuellen invoice_items gerendert.
+ */
+function renderInvoicePdf(array $invoice): void
+{
+    if (!empty($invoice['pdf_frozen_path']) && is_file($invoice['pdf_frozen_path'])) {
+        $body = file_get_contents($invoice['pdf_frozen_path']);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . addslashes($invoice['rechnungsnummer'] . '.pdf') . '"');
+        header('Content-Length: ' . strlen($body));
+        echo $body;
+        return;
+    }
+    [$vars, $filename, $assets] = invoicePdfPayload($invoice);
+    streamLatexPdf('rechnung', $vars, $filename, $assets);
+}
+
+/**
+ * Rendert eine Rechnung EINMALIG und legt das PDF unveränderlich ab (storage/pdfs/invoices/,
+ * Teil des persistenten webapp-storage-Volumes) -- aufgerufen von Billing::finalize() für
+ * jede Rechnung des gerade freigegebenen Laufs. SHA-256-Hash in pdf_sha256 dient als Nachweis,
+ * dass die ausgelieferte Datei seither unverändert ist. Scheitert das Rendern (latex-service
+ * nicht erreichbar o.ä.), wird NICHT die Freigabe selbst blockiert -- stattdessen bleibt
+ * pdf_frozen_path leer und renderInvoicePdf() liefert bis zu einem erneuten, erfolgreichen
+ * Einfrieren weiterhin live gerendert aus (Fehler wird geloggt, damit er nicht unbemerkt bleibt).
+ */
+function freezeInvoicePdf(string $invoiceId): void
+{
+    $invoice = loadInvoiceForPdf($invoiceId);
+    if (!$invoice) return;
+    [$vars, , $assets] = invoicePdfPayload($invoice);
+    $error = null;
+    $body = generateLatexPdf('rechnung', $vars, $assets, $error);
+    if ($body === null) {
+        error_log('[freezeInvoicePdf] Rechnung ' . $invoice['rechnungsnummer'] . ' konnte nicht eingefroren werden: ' . $error);
+        return;
+    }
+    $dir = '/var/www/html/storage/pdfs/invoices';
+    if (!is_dir($dir)) mkdir($dir, 0775, true);
+    $path = $dir . '/' . $invoice['rechnungsnummer'] . '.pdf';
+    file_put_contents($path, $body);
+    DB::execute('UPDATE invoices SET pdf_frozen_path = ?, pdf_sha256 = ? WHERE id = ?',
+        [$path, hash('sha256', $body), $invoiceId]);
 }
 
 $router->get('/portal/invoices/:id/pdf', function ($params) {
@@ -6936,14 +7005,126 @@ $router->post('/portal/billing/gutschriften/:invoiceId/erledigt', function ($par
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
+    // Setzt BEIDE "erledigt"-Felder -- gutschrift_ausgezahlt_at (steuert diese Liste + die
+    // Login-Erinnerung) UND payment_status/paid_at (steuert die Jahresübersicht/Rechnungsliste,
+    // siehe /portal/billing/invoices/:id/mark-paid). Vorher setzte diese Route nur Ersteres --
+    // über die Rechnungsliste als "überwiesen" markierte Gutschriften verschwanden zwar aus der
+    // Jahresübersicht, blieben aber als "offen" in dieser Liste und der Login-Erinnerung hängen,
+    // und umgekehrt.
     DB::execute(
-        'UPDATE invoices SET gutschrift_ausgezahlt_at = now()
-         WHERE id = ? AND community_id = ? AND saldo_eur < 0 AND gutschrift_ausgezahlt_at IS NULL',
+        "UPDATE invoices SET gutschrift_ausgezahlt_at = now(), payment_status = 'ueberwiesen', paid_at = now()
+         WHERE id = ? AND community_id = ? AND saldo_eur < 0 AND gutschrift_ausgezahlt_at IS NULL",
         [$params['invoiceId'], $communityId]
     );
     logAudit($communityId, 'billing.gutschrift_erledigt', 'invoice', $params['invoiceId'], 'Gutschrift als überwiesen markiert');
     $runId = trim((string)($_POST['run_id'] ?? ''));
     header('Location: /portal/billing/gutschriften' . ($runId !== '' ? '?run_id=' . urlencode($runId) : ''));
+    exit;
+});
+
+/**
+ * Sammelt die offenen Gutschriften (siehe offeneGutschriften()) für eine SEPA-Sammelüberweisung
+ * (pain.001, Auszahlungs-Richtung) auf -- Pendant zu sepaCollectionData() (Lastschrift,
+ * Einzugs-Richtung). Gutschriften ohne gültige Empfänger-IBAN werden NICHT aufgenommen (sonst
+ * weist die Bank die komplette Datei zurück), sondern separat unter 'ohne_iban' gemeldet, damit
+ * der Obmann sie nicht stillschweigend übergeht (analog zu 'ohne_mandat' bei sepaCollectionData).
+ * Rückgabe: ['payer' => [...], 'txns' => [...], 'ohne_iban' => [...]].
+ */
+function sepaCreditTransferData(string $communityId, ?string $runId = null): array
+{
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $sql = 'SELECT i.rechnungsnummer, i.saldo_eur,
+                   m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel,
+                   m.kontoinhaber, m.member_iban, m.member_bic,
+                   tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
+            FROM invoices i
+            JOIN billing_runs br ON br.id = i.billing_run_id
+            JOIN members m ON m.id = i.member_id
+            LEFT JOIN LATERAL (
+                SELECT tax_model, tax_rate_percent FROM tax_config
+                WHERE community_id = ? AND valid_from <= br.period_from
+                ORDER BY valid_from DESC LIMIT 1
+            ) tx ON true
+            WHERE i.community_id = ? AND i.saldo_eur < 0 AND i.gutschrift_ausgezahlt_at IS NULL';
+    $params = [$communityId, $communityId];
+    if ($runId !== null) {
+        $sql .= ' AND i.billing_run_id = ?';
+        $params[] = $runId;
+    }
+    $rows = DB::fetchAll($sql, $params);
+
+    $txns = [];
+    $ohneIban = [];
+    foreach ($rows as $r) {
+        $anzeigeName = ($r['invoice_name'] ?? '')
+            ?: (($r['company_name'] ?? '')
+            ?: trim((!empty($r['titel']) ? $r['titel'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']));
+        $kontoinhaber = $r['kontoinhaber'] ?: $anzeigeName;
+        $iban = trim((string)$r['member_iban']);
+        // Gleiche Steuerlogik wie überall sonst bei Gutschriften (taxBreakdown() auf saldo_eur) --
+        // der hier überwiesene Betrag muss exakt dem "Ihre Gutschrift von ..."-Betrag auf dem
+        // PDF und der Kopierliste unter /portal/billing/gutschriften entsprechen.
+        $brutto = abs(taxBreakdown((float)$r['saldo_eur'], $r['eeg_tax_model'] ?? null, $r['eeg_tax_rate'] ?? null)['brutto']);
+        if ($iban === '' || !validateIban($iban)) {
+            $ohneIban[] = ['name' => $anzeigeName, 'rechnungsnummer' => $r['rechnungsnummer'], 'betrag' => $brutto];
+            continue;
+        }
+        $txns[] = [
+            'end_to_end_id' => $r['rechnungsnummer'],
+            'amount'        => $brutto,
+            'creditor_name' => $kontoinhaber,
+            'creditor_iban' => $iban,
+            'creditor_bic'  => trim((string)$r['member_bic']),
+            'remittance'    => $r['rechnungsnummer'],
+        ];
+    }
+    $payer = [
+        'name' => $community['account_holder'] ?? ($community['name'] ?? ''),
+        'iban' => trim((string)($community['iban'] ?? '')),
+        'bic'  => trim((string)($community['bic'] ?? '')),
+    ];
+    return ['payer' => $payer, 'txns' => $txns, 'ohne_iban' => $ohneIban];
+}
+
+/**
+ * SEPA-Sammelüberweisung (pain.001) für alle offenen Gutschriften herunterladen -- Pendant zur
+ * bestehenden Sammellastschrift (/portal/billing/:id/sepa-xml), nur für die AUSZAHLUNGS-Richtung
+ * und bewusst OHNE :id in der Route, analog zur Gutschriften-Übersicht selbst: optional auf
+ * einen einzelnen Lauf eingeschränkt (?run_id=), sonst über alle offenen Gutschriften der EEG.
+ */
+$router->get('/portal/billing/gutschriften/sepa-xml', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    // Enthält IBAN/Name ALLER Mitglieder mit offener Gutschrift auf einmal -- mindestens so
+    // sensibel wie die bestehende Sammellastschrift, siehe denyDemoFileDownload().
+    denyDemoFileDownload();
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $runId = trim((string)($_GET['run_id'] ?? '')) ?: null;
+    $backUrl = '/portal/billing/gutschriften' . ($runId !== null ? '?run_id=' . urlencode($runId) : '');
+    $errSep  = $runId !== null ? '&' : '?';
+    if ($runId !== null) {
+        $run = DB::fetchOne('SELECT id FROM billing_runs WHERE id = ? AND community_id = ?', [$runId, $communityId]);
+        if (!$run) { header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
+    }
+    $data = sepaCreditTransferData($communityId, $runId);
+    if ($data['payer']['iban'] === '') {
+        header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Bitte zuerst die EEG-IBAN in den Einstellungen hinterlegen.')); exit;
+    }
+    if (empty($data['txns'])) {
+        header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Keine Gutschriften mit gültiger Empfänger-IBAN offen.')); exit;
+    }
+    // Frühestens übermorgen ausführen lassen (gleiche Vorsicht wie bei der Sammellastschrift) --
+    // Patrick lädt die Datei danach selbst ins Sparkasse-Online-Banking hoch.
+    $exec  = date('Y-m-d', strtotime('+2 days'));
+    $msgId = 'SFA-GUT-' . date('YmdHis');
+    $xml = sepaPain001Xml($data['payer'], $data['txns'], $exec, $msgId);
+    logAudit($communityId, 'billing.sepa_credit_export', $runId !== null ? 'billing_run' : 'community', $runId ?? $communityId,
+        'SEPA-Überweisungs-XML (pain.001.001.03) mit ' . count($data['txns']) . ' Gutschrift(en) erzeugt');
+    $fname = 'Gutschriften-' . date('Ymd') . '-pain001.xml';
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $fname . '"');
+    header('Content-Length: ' . strlen($xml));
+    echo $xml;
     exit;
 });
 
@@ -7210,8 +7391,17 @@ $router->post('/portal/billing/invoices/:id/mark-paid', function ($params) {
         header('Location: /portal/billing/invoices?error=' . urlencode('Ungültiger Zahlungsstatus für diese Rechnung.')); exit;
     }
     $paidAt = in_array($status, ['eingezogen', 'ueberwiesen'], true) ? 'now()' : 'NULL';
-    DB::execute("UPDATE invoices SET payment_status = ?, paid_at = $paidAt WHERE id = ? AND community_id = ?",
-        [$status, $params['id'], $communityId]);
+    // gutschrift_ausgezahlt_at mitziehen (siehe POST .../gutschriften/:invoiceId/erledigt, die
+    // umgekehrte Route): "ueberwiesen" markiert eine Gutschrift zusätzlich als ausgezahlt --
+    // ohne das blieb sie weiter in /portal/billing/gutschriften und der Login-Erinnerung offen
+    // stehen, obwohl sie hier schon als bezahlt erfasst wurde. Ein Zurücksetzen auf
+    // "offen"/"fehlgeschlagen" macht die Auszahlung konsequent wieder rückgängig.
+    $gutschriftAt = $status === 'ueberwiesen' ? 'COALESCE(gutschrift_ausgezahlt_at, now())' : 'NULL';
+    DB::execute(
+        "UPDATE invoices SET payment_status = ?, paid_at = $paidAt, gutschrift_ausgezahlt_at = $gutschriftAt
+         WHERE id = ? AND community_id = ?",
+        [$status, $params['id'], $communityId]
+    );
     logAudit($communityId, 'billing.payment_status', 'invoice', $params['id'],
         'Zahlungsstatus von Rechnung ' . $inv['rechnungsnummer'] . ' auf "' . $status . '" gesetzt');
     header('Location: /portal/billing/invoices?success=1');
@@ -7437,8 +7627,16 @@ $router->post('/portal/billing/:id/delete', function ($params) {
     if (!Auth::isManager()) { http_response_code(403); echo 'Kein Zugriff.'; return; }
     $communityId = Auth::activeCommunityId();
     DB::setCommunity($communityId);
-    $run = DB::fetchOne('SELECT quartal FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    // Löscht kaskadierend die zugehörigen Rechnungen/Rechnungspositionen (siehe migrate_20260715.sql).
+    $run = DB::fetchOne('SELECT quartal, status FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
+    if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
+    // Ein bereits freigegebener Lauf darf nicht mehr gelöscht werden -- sonst verschwinden
+    // bereits verschickte/freigegebene Rechnungen rückwirkend samt ihrer Rechnungsnummer
+    // (kaskadierendes Löschen, siehe migrate_20260715.sql), was einer unerlaubten nachträglichen
+    // Stornierung ohne jede Spur gleichkäme. Ein noch nicht freigegebener Entwurf ('pending'/
+    // 'ready') bleibt löschbar, z.B. um einen versehentlich angelegten Testlauf zu entfernen.
+    if (in_array($run['status'], ['done', 'released'], true)) {
+        header('Location: /portal/billing?error=' . urlencode('Ein bereits freigegebener Abrechnungslauf kann nicht mehr gelöscht werden.')); exit;
+    }
     DB::execute('DELETE FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     logAudit($communityId, 'billing.delete', 'billing_run', $params['id'], 'Abrechnungslauf ' . ($run['quartal'] ?? '?') . ' gelöscht');
     header('Location: /portal/billing?success=1');
