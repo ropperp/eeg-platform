@@ -1331,3 +1331,56 @@ sowohl in Originalgröße (Vergleich mit dem Referenzbild) als auch in der tats�
 welcher Zielgröße das Ergebnis tatsächlich angezeigt wird -- volle Detailtreue und Lesbarkeit
 bei Icon-Größe stehen oft im Widerspruch, die Lösung ist meist eine reduzierte Wiederholungszahl
 bei gleicher Formensprache, nicht ein kategorisch anderes Icon.
+
+### Netz-Icon: fünfter Anlauf -- Linien-Icon mit stroke="currentColor" rendert in Safari anders als im Test (02.10.2026)
+Patrick, nach PR #214 (Linien-Icon mit `stroke="currentColor"`, in diesem Chat per Playwright/
+Chromium verifiziert): "Sieht doch immer anders aus." Auf Nachfrage bestätigt: das Icon sieht in
+seinem echten Browser (Safari, siehe Screenshot) anders aus als in den hier gezeigten
+Vorschau-Bildern.
+
+**Ursache (vermutet, nicht in Safari selbst nachstellbar -- diese Umgebung hat nur Chromium für
+Playwright installiert):** Das Icon aus PR #214 war das ERSTE Icon in der Sprite-Datei, das
+`stroke="currentColor"` + `fill="none"` statt des sonst durchgängig verwendeten Musters
+`fill="currentColor"` (über die globale `.icon{fill:currentColor}`-Regel in app.css, OHNE eigene
+fill/stroke-Attribute auf dem Pfad) nutzt. Safari/WebKit ist bekannt dafür, Cross-Browser-
+Eigenheiten bei `<use>` + referenziertem `<symbol>` + eigenen Fill/Stroke-Präsentationsattributen
+zu haben (u.a. Vererbung von `currentColor` durch die Use-Shadow-Grenze, Umgang mit
+Präsentationsattributen vs. geerbten Werten) -- in dieser Entwicklungsumgebung lässt sich das
+nicht gegentesten, da hier nur Chromium (über Playwright) zur Verfügung steht.
+
+**Fix:** Icon komplett auf das bewährte, plattformweit einheitliche Muster umgestellt -- jede
+vorher als `stroke`-Linie gezeichnete Strecke wird jetzt rechnerisch in ein gefülltes Rechteck
+("Quad") umgewandelt (klassische Stroke-zu-Fill-Konvertierung), Gelenkpunkte bekommen zur
+Vermeidung von Kerben an den Verbindungsstellen einen kleinen gefüllten Kreis (rundes Join).
+Das Icon besteht dadurch jetzt aus purem `fill`, ganz ohne eigenes `stroke`/`fill`-Attribut auf
+dem Pfad -- exakt dasselbe Rendering-Verfahren wie alle anderen, seit Monaten unauffällig
+funktionierenden Icons dieser Sprite-Datei (Sonne, Gebäude, etc.).
+
+**Merksatz:** in einem Icon-Set, das durchgängig auf EINE Technik setzt (hier: gefüllte
+Silhouetten über eine globale `currentColor`-Fill-Regel), nicht als einziges Icon auf eine
+andere Technik (hier: `stroke`) wechseln, auch wenn sie in der eigenen Testumgebung funktioniert
+-- Browser-Eigenheiten bei weniger gängigen Kombinationen (hier `<use>` + `stroke` +
+`currentColor`-Vererbung) lassen sich ohne Zugriff auf den jeweiligen Browser (hier: Safari)
+nicht zuverlässig vorab ausschließen. Bei Unsicherheit das bereits bewährte Verfahren
+nachbilden, statt ein neues einzuführen.
+
+### Netz-Icon: sechster Anlauf -- schlichter Holzmast statt Gittermast-Turm (02.10.2026)
+Patrick schickte mitten in der Sitzung ein weiteres, schlichteres Referenzbild (ein einzelner
+gerader Mast mit zwei Querarmen, Isolator-Knubbeln an den Enden, dünnen Streben darunter) mit:
+"Die Masten brauchen unten bitte noch ein paar Beine. Können wir bitte einfach diesen neuen
+Mast-Icon vielleicht einfacher [machen]."
+
+**Umsetzung:** Icon komplett neu aufgebaut -- weg vom sich verjüngenden Gittermast-Turm (zwei
+Beine, X-verstrebter Korpus) aus den PR #213/#214/#215, hin zu einem einzelnen geraden Mast mit
+zwei Querarmen (schmaler oben, breiter unten), kleinen Isolator-Punkten an den Enden und dünnen
+V-Streben darunter -- UND, wie gewünscht, ein paar kurze gespreizte Standbeine am unteren Ende.
+Erster Entwurf hatte deutlich zu dicke Querarme/Isolatoren (wirkte dadurch klobig/blob-artig,
+siehe erster Screenshot-Vergleich dieser Session) -- auf eine durchgängig dünne, gleichmäßige
+"Strichstärke" für Mast, Querarme, Streben UND Beine vereinheitlicht, das traf die gewünschte
+Leichtigkeit des Referenzbilds deutlich besser.
+
+**Technik unverändert aus dem vorherigen Fix (PR #215):** auch dieses Icon besteht nur aus
+gefüllten Flächen (jede Linie als gefülltes Rechteck, jedes Gelenk als kleiner gefüllter Kreis),
+kein `stroke`-Attribut -- vermeidet die in PR #215 gefundene Safari-Rendering-Diskrepanz von
+Anfang an. In der tatsächlichen 28px/64px-Kreis-Darstellung über die echte Sprite-Datei
+verifiziert.
