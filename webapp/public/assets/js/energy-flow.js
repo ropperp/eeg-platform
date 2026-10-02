@@ -89,7 +89,7 @@
     // Jede Verbindung besteht aus: einer stets sichtbaren dezenten Basislinie, einem
     // schimmernden Trail und dem Punkt selbst -- alle drei werden hier EINMAL erzeugt und
     // danach nur noch per Attribut aktualisiert (siehe Datei-Kommentar oben).
-    function makeConnector(gradId, color) {
+    function makeConnector(gradId, color, initialPhase) {
       var baseline = svgEl('path');
       baseline.setAttribute('class', 'eflow-baseline');
       svg.appendChild(baseline);
@@ -135,15 +135,22 @@
 
       return {
         baseline: baseline, trail: trail, dot: dot, grad: grad, stop1: stop1, stop2: stop2,
-        active: false, phase: 'in',
+        active: false, phase: initialPhase,
         p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 },
       };
     }
 
+    // PV ist IMMER Phase "rein" (speist in den EEG-Pool ein), Verbrauch IMMER Phase "raus" (ein
+    // Mitglied bezieht nur, speist nie zurück) -- nur Netz wechselt die Phase dynamisch je nach
+    // Vorzeichen, siehe applyValues(). Vorfall 02.10.2026 (Patrick: "das ist alles gleichzeitig"):
+    // hier stand für ALLE drei Verbindungen hart "in", weil applyValues() nur conn.netz.phase
+    // je Refresh aktualisiert hat -- conn.verbrauch.phase blieb dadurch für immer auf dem
+    // Default "in" stehen und lief fälschlich zeitgleich mit PV, statt wie vorgesehen erst NACH
+    // der "rein"-Phase zu starten.
     var conn = {
-      pv:        makeConnector('eflow-grad-pv-' + instanceCounter, '#eab308'),
-      verbrauch: makeConnector('eflow-grad-verbrauch-' + instanceCounter, '#3b82f6'),
-      netz:      makeConnector('eflow-grad-netz-' + instanceCounter, '#16a34a'),
+      pv:        makeConnector('eflow-grad-pv-' + instanceCounter, '#eab308', 'in'),
+      verbrauch: makeConnector('eflow-grad-verbrauch-' + instanceCounter, '#3b82f6', 'out'),
+      netz:      makeConnector('eflow-grad-netz-' + instanceCounter, '#16a34a', 'in'),
     };
 
     function setConnectorPath(c, p1, p2) {

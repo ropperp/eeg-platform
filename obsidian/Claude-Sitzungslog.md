@@ -9,6 +9,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Der Mast sieht aus wie ein Windrad, und das zuerst rein und dann raus, das ist es
+noch nicht. Das ist alles gleichzeitig." (mit Server-Screenshot des Live-Dashboards)
+**Auftrag:** Zwei Rückmeldungen zur letzten Sitzung: das neue Netz-Icon wirkt wie ein Windrad
+statt wie ein Strommast, und die "erst alle Flüsse rein in die EEG-Kugel, dann erst raus"-
+Reihenfolge ist in der Praxis NICHT zu sehen -- alles bewegt sich gleichzeitig.
+**Ergebnis:** Reihenfolge-Bug gefunden und behoben: `makeConnector()` (energy-flow.js) hat allen
+drei Verbindungen hart Phase "rein" gegeben, `applyValues()` hat je Refresh aber nur die
+Netz-Phase aktualisiert -- Verbrauch blieb dadurch fälschlich dauerhaft auf "rein" stehen und lief
+synchron mit PV statt wie vorgesehen erst danach. Fix: explizite initiale Phase je Verbindung
+(PV fest "rein", Verbrauch fest "raus", Netz weiterhin dynamisch). Mit einem Playwright-Test
+verifiziert (Opazitäts-Log über Zeit zeigt jetzt klar getrennte Phasen). Icon neu gezeichnet:
+die vorherigen diagonalen "Arme" ließen es bei Icon-Größe wie einen rotierenden Rotor aussehen --
+ersetzt durch einen klassischen waagrechten Querarm mit zwei Isolator-Tropfen an den Enden auf
+einem schlicht verjüngten Mast. Beides in docs/VORFAELLE.md dokumentiert. `php tests/run.php`
+(138 Tests) grün.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Also, das mit der Anzeige läuft schon mal ein bisschen besser. Was ich noch gern
 hätte, ist, dass immer zuerst alle Punkte [...] in die sogenannte Energiegemeinschaftskugel
 kommen. Erst wenn diese [...] eingetroffen sind, geht die Energie wieder zu den Verbrauchern
