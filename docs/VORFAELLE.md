@@ -1287,3 +1287,24 @@ das Element, das das Icon überhaupt erst als Strommast erkennbar macht.
 Einsatzgröße (hier 28px in einem 64px-Kreis) etwas völlig anderes suggerieren, v.a. bei radial-
 symmetrischen Elementen (Rotationsassoziation). Immer in der TATSÄCHLICHEN Zielgröße prüfen, nicht
 nur vergrößert.
+
+### Netz-Icon: dritter Anlauf -- einfaches Linien-Icon statt gefülltem Silhouetten-Icon (02.10.2026)
+Patrick, nach dem zweiten Icon-Versuch (PR #212): "Der Mast schaut immer scheiße aus. Bitte mach
+einfach einen schönen Strommasten. Von mir aus einen senkrechten Stab und einen quer oder zwei,
+die wie ein Zelt, ein spitzes Zelt, zusammenhängend oben, einen quer."
+
+**Ursache:** Beide bisherigen Versuche waren gefüllte Silhouetten-Icons (massive Flächen), analog
+zum Stil der übrigen Phosphor-Icons -- bei einem so schlanken, strebenreichen Motiv wie einem
+Hochspannungsmast wirkt eine ausgefüllte Fläche bei 28px aber zwangsläufig wie ein unförmiger
+Klecks statt wie ein Mast.
+
+**Fix:** Komplett neu als reines Strich-/Linien-Icon (`stroke`, `fill="none"`, kein
+Silhouetten-Pfad mehr) -- exakt Patricks Beschreibung: ein senkrechter Stab (Mitte), zwei
+schräge Streben, die oben spitz zusammenlaufen ("Zelt"), plus zwei waagrechte Querbalken.
+Deutlich klarer erkennbar als beide Vorversionen, weil es nicht mehr auf Flächen-Kontrast,
+sondern auf eine einfache Strichzeichnung setzt -- für ein derart schlankes Motiv die passendere
+Technik als ein gefülltes Silhouetten-Icon.
+
+**Merksatz:** nicht jedes Motiv passt zum Silhouetten-Stil des restigen Icon-Sets -- bei dünnen,
+strebenartigen Formen (Mast, Antenne, Gerüst) liefert ein Linien-Icon (`stroke` statt `fill`)
+bei kleiner Darstellungsgröße zuverlässiger ein erkennbares Ergebnis.

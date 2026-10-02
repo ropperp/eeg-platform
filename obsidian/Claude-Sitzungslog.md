@@ -9,6 +9,22 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Der Mast schaut immer scheiße aus. Bitte mach einfach einen schönen Strommasten.
+Von mir aus einen senkrechten Stab und einen quer oder zwei, die wie ein Zelt, ein spitzes Zelt,
+zusammenhängend oben, einen quer. Aber das schaut jetzt scheiße aus."
+**Auftrag:** Das Netz-Icon (bereits zum zweiten Mal überarbeitet) gefällt immer noch nicht --
+dritter Anlauf nach einer genauen verbalen Beschreibung: senkrechter Mittelstab, zwei oben
+spitz zusammenlaufende Schrägstreben ("Zelt"), ein oder zwei Querbalken.
+**Ergebnis:** Komplett neuer Ansatz -- statt eines gefüllten Silhouetten-Icons (wie die ersten
+beiden Versuche) jetzt ein reines Linien-Icon (`stroke` statt `fill`), exakt nach der
+beschriebenen Geometrie. Vor der Umsetzung mehrere Varianten mit Playwright in der tatsächlichen
+Zielgröße gerendert und verglichen, finale Fassung zusätzlich über die echte Sprite-Datei via
+`<use>` (über einen lokalen HTTP-Server statt file://, wegen Cross-Origin-Beschränkungen bei
+externen SVG-Fragment-Referenzen) in allen drei Farbzuständen verifiziert. Vorfall in
+docs/VORFAELLE.md dokumentiert (Merksatz: Linien-Icon statt Silhouette für schlanke,
+strebenartige Motive). `php tests/run.php` (138 Tests) grün.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Der Mast sieht aus wie ein Windrad, und das zuerst rein und dann raus, das ist es
 noch nicht. Das ist alles gleichzeitig." (mit Server-Screenshot des Live-Dashboards)
 **Auftrag:** Zwei Rückmeldungen zur letzten Sitzung: das neue Netz-Icon wirkt wie ein Windrad
