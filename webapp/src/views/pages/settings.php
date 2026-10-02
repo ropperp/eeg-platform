@@ -13,6 +13,21 @@
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Stammdaten</h3>
   <form method="post" action="/portal/settings/community">
+    <div class="form-group" style="margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--gray-200)">
+      <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+        <input type="checkbox" name="messe_demo_enabled" value="1" style="width:auto"
+               <?= !empty($community['messe_demo_enabled']) ? 'checked' : '' ?>>
+        <span>Simulierte Werte anzeigen (Messe-/Präsentations-Demo)</span>
+      </label>
+      <small style="color:var(--gray-600)">Fügt 20 fiktive Zählpunkte (8 Einspeiser, 12 Verbraucher) mit
+        realistisch schwankenden Live-Werten zu dieser EEG hinzu -- nützlich, solange noch nicht alle
+        Mitglieder eine eigene Ausleseeinheit haben, damit Energiefluss und Live-Anzeige trotzdem
+        lebendig wirken. Läuft dauerhaft im Hintergrund, kein Server-/Kommandozeilenzugriff nötig --
+        einfach hier aus-/einschalten. <strong>Ohne jede Auswirkung auf Abrechnungen</strong> (die
+        simulierten Werte gehören einem eigenen, von jedem Abrechnungslauf ausgeschlossenen
+        Platzhalter-Mitglied) -- auf allen Seiten, auf denen sie mitzählen, wird zusätzlich ein
+        deutlicher Hinweis angezeigt, dass es sich um Platzhalterdaten handelt.</small>
+    </div>
     <div class="grid-2">
       <div class="form-group">
         <label>Name der EEG</label>

@@ -317,52 +317,49 @@ Manuell testen: `cd /opt/eeg-platform && bash scripts/health_monitor.sh`.
 
 ---
 
-## Messe-/Präsentations-Demo (MQTT-Simulator, 02.10.2026)
+## Messe-/Präsentations-Demo (simulierte Werte, 02.10.2026)
 
-Patrick, 02.10.2026: "brauch in einer Woche einen guten Energiefluss um auf einer Messe eine
-Simulation zu zeigen [...] 8 Einspeiser und 12 Verbraucher [...] paar höhere und paar niedrigere
-[...] über mqtt trotzdem." Für genau diesen Zweck gibt es jetzt zwei Skripte -- erzeugen echte
-MQTT-Live-Nachrichten im exakten Firmware-Format, laufen also über den ganzen echten Pfad
-(mqtt-subscriber -> esp_measurements -> Energiefluss/Live-Dashboard/öffentliche Live-Anzeige),
-statt irgendwo im Frontend nur Zahlen vorzutäuschen:
+Patrick, 02.10.2026: "brauch [...] einen guten Energiefluss um auf einer Messe eine Simulation
+zu zeigen [...] 8 Einspeiser und 12 Verbraucher [...] über mqtt trotzdem" -- später am selben
+Tag weiterentwickelt zu einem dauerhaften Hintergrund-Schalter statt eines manuell gestarteten
+Kommandozeilen-Skripts: "Ich möchte es nicht in der Kommandozeile laufen lassen [...] Bitte lass
+es im Hintergrund laufen [...] einen kleinen Schalter [...] unter den Einstellungen [...] Ich
+werde diesen [...] generell mal laufen lassen [...] bis ich wirklich [...] Mitglieder mit den
+Ausleseeinheiten ausstatten werde."
 
-```bash
-# 1. Einmalig: 20 fiktive Zählpunkte (8 Einspeiser/12 Verbraucher, is_demo=true, nie
-#    abrechnungsrelevant) in der eigenen EEG anlegen -- Ausgabe zeigt Community-Slug + Zählernummern
-docker compose exec -T webapp php scripts/messe_demo_setup.php
+**Bedienung (Obmann-Einstellungen, ganz oben bei "Stammdaten"):** Checkbox "Simulierte Werte
+anzeigen (Messe-/Präsentations-Demo)" -- einfach an-/abschalten, kein Server-/
+Kommandozeilenzugriff nötig (`communities.messe_demo_enabled`, siehe `migrate_20261005.sql`).
 
-# 2. Simulator starten (lokal im Docker-Netz ODER von einem Messe-Laptop über die öffentliche
-#    TLS-Adresse, --insecure wegen selbstsigniertem Zertifikat wie beim ESP32 setInsecure())
-pip install paho-mqtt
-python3 scripts/messe_demo_simulator.py --community <slug-aus-Schritt-1> \
-    --host stromfueralle.at --port 8883 --user eeg-device --password "$MQTT_PASSWORD" --insecure
+**Technisch:** läuft als Daemon-Thread direkt im ohnehin dauerhaft laufenden
+`mqtt-subscriber`-Container (`demo_simulation_loop()` in `mqtt-subscriber/main.py`) -- kein
+separater Prozess, übersteht Reboots/Abstürze wie jeder andere Thread dieses Containers. Pollt
+alle 5s, welche EEGs `messe_demo_enabled = true` haben, legt bei Bedarf automatisch (idempotent)
+20 fiktive Zählpunkte (8 Einspeiser, 12 Verbraucher) unter einem eigenen `is_demo=true`-Mitglied
+an und publiziert echte MQTT-Live-Nachrichten im exakten Firmware-Format -- läuft also über den
+kompletten echten Pfad (mqtt-subscriber -> esp_measurements -> Energiefluss/Live-Dashboard/
+öffentliche Live-Anzeige), kein Frontend-Fake. `is_demo=true` schließt sie wie die bestehenden
+Demo-Login-Zählpunkte automatisch von jedem echten Abrechnungslauf aus
+(`Billing::generateDrafts()` filtert `m.is_demo = false`) -- ohne jede Auswirkung auf
+Abrechnungen.
 
-# 3. NACH der Messe unbedingt aufräumen, sonst verzerren die Fantasiewerte dauerhaft die echte
-#    Live-Anzeige (die 20 Zählpunkte haben KEIN mirror_source_metering_point_id, zählen also
-#    anders als die bestehenden 2 Demo-Login-Zählpunkte tatsächlich in die Community-Summe mit --
-#    genau das ist hier gewollt, für die Vorführung)
-docker compose exec -T webapp php scripts/messe_demo_teardown.php
-```
+**Tagesprofil, echtzeit-synchron** (Nachbesserung 02.10.2026, erst 20-Minuten-Raffung probiert,
+dann von Patrick verworfen: "Das möchte ich nicht haben. Es soll schon sein, dass der ganze
+Verlauf richtig funktioniert"): Einspeiser liefern 0 W vor 06:00/nach 20:00, dazwischen eine
+Sinuskurve mit Höchstwert um 13:00; Verbraucher haben nachts eine Kühlschrank-/Standby-Grundlast
+(nie 0) und je einen Buckel morgens, mittags und (am stärksten) abends -- 1:1 mit der echten
+Uhrzeit, kein Zeitraffer, weil der Schalter wochenlang durchlaufen soll.
 
-`scripts/messe_demo_simulator.py` braucht keine DB-/Webapp-Zugangsdaten, nur MQTT (`paho-mqtt`,
-Zugangsdaten aus `.env` oder per `--user`/`--password`) -- kann daher auch direkt von einem
-Laptop am Messestand laufen, unabhängig vom Server. Jeder der 20 Zählpunkte bekommt alle 5s
-(Default, wie eine echte Firmware) einen neuen Leistungswert, der sich an ein echtes
-**Tagesprofil** annähert (Nachbesserung 02.10.2026, Patrick: "eine Einspeisung, die nicht in der
-Nacht, sondern in den Sonnenstunden funktioniert [...] das Gleiche bei den Verbrauchern, vor
-allem Mittag/Abend, in der Nacht ein konstanter oder leicht schwankender [Grundlast-]Strom"):
-Einspeiser liefern 0 W vor 06:00/nach 20:00, dazwischen eine Sinuskurve mit Höchstwert um 13:00;
-Verbraucher haben nachts eine Kühlschrank-/Standby-Grundlast und je einen Buckel morgens,
-mittags und (am stärksten) abends. Damit man am Messestand nicht 24 echte Stunden auf
-Sonnenauf-/-untergang warten muss, dauert ein simulierter Tag standardmäßig nur **20 echte
-Minuten** (`--day-length-minutes`, mit `1440` echtzeit-synchron) -- `--start-hour 12.5` startet
-z.B. direkt in der simulierten Mittagszeit.
+**Sichtbarer Hinweis, wenn aktiv** (Patrick: "mach mir [...] einen Hinweis [...] dass diese
+Werte fiktive Werte sind [...] und diese jetzt noch nicht stimmen"): sowohl auf dem
+Energiefluss im Obmann-/Mitglied-Dashboard (`energy_flow.php`) als auch auf der öffentlichen
+Live-Anzeige (`/live/:slug`, über `demo_simulation` im `/api/live/:slug`-JSON) erscheint ein
+deutlicher gelber Hinweistext, solange der Schalter an ist.
 
-**Ein-/Ausschalten am Messestand:** einfach das Skript mit Strg+C beenden bzw. neu starten --
-mehr nicht, kein erneutes Setup nötig. Die simulierten Werte fallen nach dem Stoppen automatisch
-innerhalb von rund 2 Minuten wieder aus der Live-Summe/dem Energiefluss heraus (`communityLivePower()`
-zählt nur Messungen der letzten 2 Minuten). Sie zählen aber -- auch gestoppt -- bis zum
-`messe_demo_teardown.php` weiterhin als "registrierte Zählpunkte" in Zähler/Listen mit.
+**Zum Ausschalten:** Checkbox einfach wieder abwählen -- die 20 Zählpunkte bleiben als
+"registrierte Zählpunkte" bestehen (für ein schnelles Wieder-Einschalten später), zählen aber
+nach dem Abschalten innerhalb von ~2 Minuten nicht mehr in die Live-Summe mit
+(`communityLivePower()`/`/api/live/:slug` zählen nur Messungen der letzten 2 Minuten).
 
 ---
 

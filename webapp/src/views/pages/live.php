@@ -43,6 +43,11 @@ ob_start();
       <?= icon('warning-circle') ?> Hinweis: Nicht alle Zählpunkte sind gerade online. Die angezeigten
       Gesamtwerte können daher geringfügig von der tatsächlichen Situation abweichen.
     </p>
+    <p id="demo-disclaimer" style="display:none;margin:-1rem 0 1.5rem;font-size:.8rem;color:#b45309;text-align:center;font-weight:600">
+      <?= icon('warning-circle') ?> Hinweis: Ein Teil dieser Werte ist aktuell simuliert (Platzhalterdaten
+      zur Veranschaulichung, solange noch nicht alle Mitglieder eine eigene Ausleseeinheit haben) --
+      entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen Einspeisung.
+    </p>
 
     <div class="grid-2">
       <div class="card">
@@ -172,6 +177,7 @@ async function refresh() {
     document.getElementById('today-kwh').textContent = d.today_kwh.toLocaleString('de-AT') + ' kWh';
     document.getElementById('autarkie-pct').textContent = d.autarkie_pct + '%';
     document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
+    document.getElementById('demo-disclaimer').style.display = d.demo_simulation ? 'block' : 'none';
 
     drawGauge(d.autarkie_pct);
     drawChart(d.series);

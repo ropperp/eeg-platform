@@ -338,6 +338,20 @@ function communityLivePower(string $communityId): array
 }
 
 /**
+ * Ob für diese EEG die Messe-/Präsentations-Demo (siehe mqtt-subscriber/main.py,
+ * demo_simulation_loop()) aktiv ist -- Platform-Admin/Obmann-Einstellungen -> "Simulierte Werte
+ * anzeigen". Wird von jeder Stelle abgefragt, die die Community-weite Live-Summe zeigt (siehe
+ * energy_flow.php, /api/live/:slug), um dort einen deutlichen Hinweis einzublenden, dass ein
+ * Teil der angezeigten Werte fiktiv ist -- Patrick, 02.10.2026: "mach mir aber bei dieser
+ * Anzeige dann einen Hinweis [...] dass diese Werte fiktive Werte sind für die Veranschaulichung
+ * der späteren Webseite [...] und diese jetzt noch nicht stimmen."
+ */
+function communityMesseDemoEnabled(string $communityId): bool
+{
+    return (bool)(DB::fetchOne('SELECT messe_demo_enabled FROM communities WHERE id = ?', [$communityId])['messe_demo_enabled'] ?? false);
+}
+
+/**
  * Löst auf, in welcher/welchen Community(s) ein User-Account eine AKTIVE Mitgliedschaft hat --
  * ein Baustein von resolveAppRoleOptions() (App-Login). Fragt bewusst zuerst user_roles
  * (role='member', KEINE RLS -- siehe Auth::establishSession() für dasselbe Muster) statt direkt
@@ -1418,7 +1432,7 @@ $router->get('/live', function () {
 $router->get('/api/live/:slug', function ($params) {
     header('Content-Type: application/json');
     $slug = $params['slug'];
-    $community = DB::fetchOne('SELECT id FROM communities WHERE slug = ? AND active = true', [$slug]);
+    $community = DB::fetchOne('SELECT id, messe_demo_enabled FROM communities WHERE slug = ? AND active = true', [$slug]);
     if (!$community) { http_response_code(404); echo json_encode(['error' => 'Nicht gefunden']); return; }
 
     DB::setCommunity($community['id']);
@@ -1524,6 +1538,7 @@ $router->get('/api/live/:slug', function ($params) {
         'today_kwh'     => round(($today['today_wh'] ?? 0) / 1000, 2),
         'active_meters' => (int)($agg['active_meters'] ?? 0),
         'total_meters'  => (int)($totalMeters['cnt'] ?? 0),
+        'demo_simulation' => (bool)($community['messe_demo_enabled'] ?? false),
         'series'        => $series,
     ]);
 });
@@ -8703,7 +8718,8 @@ $router->post('/portal/settings/community', function () {
         'UPDATE communities SET name=?, address=?, iban=?, bic=?, zvr_number=?, marktpartner_id=?, dashboard_url=?,
                                  aufteilungsschluessel_info=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
-                                 sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=? WHERE id=?',
+                                 sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=?,
+                                 messe_demo_enabled=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -8724,6 +8740,7 @@ $router->post('/portal/settings/community', function () {
             // Als 'true'/'false' binden, nicht als PHP-bool: PDO (pgsql, emulate_prepares=off)
             // schickt PHP-false als leeren String '', den eine boolean-Spalte ablehnt (22P02).
             !empty($_POST['contracts_enabled']) ? 'true' : 'false',
+            !empty($_POST['messe_demo_enabled']) ? 'true' : 'false',
             $communityId,
         ]
     );
@@ -8737,6 +8754,7 @@ $router->post('/portal/settings/community', function () {
             'contact_email' => 'Kontakt-E-Mail', 'creditor_id' => 'Gläubiger-ID',
             'sepa_pain_version' => 'SEPA-Format', 'sepa_prenotification_days' => 'SEPA-Vorlauftage',
             'mahngebuehr_eur' => 'Mahngebühr', 'contracts_enabled' => 'Verträge aktiv',
+            'messe_demo_enabled' => 'Simulierte Werte (Messe-Demo)',
         ]),
         'EEG-Stammdaten:');
     header('Location: /portal/settings?success=1');

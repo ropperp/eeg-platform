@@ -65,6 +65,14 @@ $netzLabel    = $netzW > 0 ? 'Netz (Einspeisung)' : ($netzW < 0 ? 'Netz (Bezug)'
 ?>
 <div class="card">
   <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Energiefluss (Live)</h3>
+  <?php if (isset($communityId) && communityMesseDemoEnabled($communityId)): ?>
+    <p style="margin:-.25rem 0 1rem;font-size:.8rem;color:#b45309">
+      <?= icon('warning-circle') ?> Hinweis: Ein Teil dieser Werte ist aktuell <strong>simuliert</strong>
+      (Platzhalterdaten zur Veranschaulichung, solange noch nicht alle Mitglieder eine eigene
+      Ausleseeinheit haben) -- entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen
+      Einspeisung.
+    </p>
+  <?php endif; ?>
   <div class="eflow" id="eflow">
     <svg class="eflow-svg" id="eflow-svg"></svg>
     <div class="eflow-node" data-eflow-node="pv">
