@@ -1136,3 +1136,35 @@ müssen sie über alle Mandanten hinweg eindeutig UND unterscheidbar sein. Beide
 geht nur mit einem EEG-spezifischen Bestandteil in der Nummer selbst (wie das ursprüngliche
 `RC<Marktpartner-ID>`-Präfix) -- ohne einen solchen Bestandteil muss man sich für eines der
 beiden entscheiden, wie hier für (b).
+
+### Rechnungsnummern: dritte Kehrtwende am selben Tag -- jetzt pro EEG + RC-Nummer-Suffix (02.10.2026)
+Direkt im Anschluss an die zweite Kehrtwende oben (zurück auf plattformweit fortlaufend) kam
+noch am selben Tag die dritte: **Patrick:** "Leider machen wir es doch noch mal wieder zurück,
+sodass jede Energiegemeinschaft von 1 anfängt. Wir machen das ja im Namen der
+Energiegemeinschaft. Oder wir machen es doch mit der [...] RC-Nummer der jeweiligen
+Energiegemeinschaft, weil man dann wirklich die [Rechnungen] auseinanderhalten kann. Aber dann
+halt wirklich nur die RC-Nummer [...], weil den Namen [...] brauchen wir da nicht dabei."
+
+Die Lösung erfüllt beide bisherigen, scheinbar widersprüchlichen Anforderungen gleichzeitig:
+laufende Nummer wieder PRO EEG ab 0001 (jede EEG stellt ja in ihrem eigenen Namen aus, § 11 UStG
+verlangt lückenlose Zählung pro ausstellendem Verein) -- UND zusätzlich die Marktpartner-ID
+(RC-Nummer, OHNE Namen) als Suffix, z. B. `RE-260001_RC108175`. Da zwei EEGs nie dieselbe
+Marktpartner-ID haben, ist die komplette Nummer dadurch automatisch plattformweit eindeutig,
+ganz ohne einen gemeinsamen Zähler über alle EEGs hinweg -- Patricks eigentliches Bedürfnis
+("als Plattform unterscheiden können, welche Rechnung zu welcher EEG gehört") ist damit
+genauso erfüllt wie die lückenlose Pro-EEG-Zählung.
+
+**Fix:** `Billing::generateDrafts()` lädt jetzt die Marktpartner-ID der EEG und bricht mit einer
+klaren Fehlermeldung ab, falls sie noch nicht hinterlegt ist (verhindert, dass zwei EEGs ohne
+RC-Nummer sich eine kollidierende Nummer teilen könnten). Die laufende Nummer wird wieder PRO
+`community_id` ermittelt (MAX über `SUBSTRING(rechnungsnummer FROM ... FOR 4)` statt `RIGHT(...,
+4)`, weil `RIGHT` seit dem Suffix die letzten 4 Zeichen der RC-NUMMER statt der laufenden Nummer
+geliefert hätte), der Advisory-Lock ebenfalls wieder pro EEG statt global. Die globale
+`UNIQUE(rechnungsnummer)`-Constraint aus der zweiten Kehrtwende (`migrate_20261003.sql`) bleibt
+unverändert bestehen und wird durch den Suffix nie verletzt -- keine weitere Migration nötig.
+
+**Merksatz, diesmal hoffentlich endgültig:** ein EEG-spezifischer Bestandteil IN der
+Rechnungsnummer selbst (nicht eine plattformweite Zählung) ist der einzige Weg, der sowohl
+"jede EEG zählt lückenlos in ihrem eigenen Namen" als auch "jede Nummer ist plattformweit
+eindeutig/einer EEG zuordenbar" gleichzeitig erfüllt -- genau das war schon das allererste
+Format vom 06.08.2026 (nur mit zusätzlichem Namen, den es jetzt nicht mehr braucht).

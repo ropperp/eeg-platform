@@ -112,42 +112,58 @@ class Billing
             $tariff = self::getTariffForPeriod($run['community_id'], $run['period_from']);
             $tax    = self::getTaxForPeriod($run['community_id'], $run['period_from']);
 
-            // Rechnungsnummer-Schema: RE-<Jahr 2-stellig><laufende Nummer, 4-stellig>, z.B.
-            // "RE-260001". Ursprünglich (06.08.2026) noch um "_<Marktpartner-ID>_<Nachname>_
-            // <Vorname>" ergänzt -- auf Patricks Wunsch (26.09.2026, nach der ersten echten
-            // Abrechnung: "bitte machen wir da nur die Rechnungsnummer") wieder entfernt, macht
-            // die Nummer als SEPA-Verwendungszweck/EndToEndId kürzer und den Rechnungskopf
-            // übersichtlicher. Bereits vergebene, längere Nummern bestehender Rechnungen bleiben
-            // unverändert (kein rückwirkendes Umbenennen).
-            // Die laufende Nummer ist PLATTFORMWEIT (über alle EEGs) UND pro Jahr fortlaufend --
-            // bewusst NICHT pro EEG getrennt (das war ein zwischenzeitlicher Fix am 02.10.2026,
-            // von Patrick noch am selben Tag verworfen: "ich als Plattform für Strom für alle
-            // [...] könnte [sonst] nicht unterscheiden, welche Rechnung für die eine
-            // Energiegemeinschaft und welche für die andere ist [...] das werden wir schon
-            // plattformweit [...] und nicht für jede Energiegemeinschaft einzeln wieder von 1
-            // anfangen"). Als Plattformbetreiber über mehrere EEGs hinweg ist für Patrick die
-            // eindeutige Identifizierbarkeit JEDER einzelnen Rechnungsnummer wichtiger als eine
-            // lückenlose Zählung je einzelner EEG (rechtlich wäre Letzteres für jede EEG als
-            // eigenständigen Verein die sauberere Lösung -- siehe migrate_20261003.sql, das die
-            // (community_id, rechnungsnummer)-Eindeutigkeit vom 02.10. wieder auf eine einzige,
-            // globale UNIQUE(rechnungsnummer) zurücksetzt).
+            // Rechnungsnummer-Schema: RE-<Jahr 2-stellig><laufende Nummer, 4-stellig>_
+            // <Marktpartner-ID>, z.B. "RE-260001_RC108175". Geschichte dieses Formats (3
+            // Kehrtwenden an einem Tag, siehe docs/VORFAELLE.md für die volle Chronologie):
+            //  1. Ursprünglich (06.08.2026) zusätzlich noch um "_<Nachname>_<Vorname>" ergänzt.
+            //  2. Patrick, 26.09.2026, nach der ersten echten Abrechnung: "bitte machen wir da
+            //     nur die Rechnungsnummer" -- Marktpartner-ID UND Name entfernt, nur noch
+            //     "RE-260001". Darauf laufende Nummer je EEG gezählt (wie ursprünglich).
+            //  3. Patrick, 02.10.2026, Vormittag: "ich als Plattform [...] könnte [sonst] nicht
+            //     unterscheiden, welche Rechnung für die eine Energiegemeinschaft und welche für
+            //     die andere ist" -- auf plattformweit fortlaufend umgestellt (ein einziger
+            //     Zähler über alle EEGs), um Eindeutigkeit zu erzwingen.
+            //  4. Patrick, 02.10.2026, Nachmittag: "Leider machen wir es doch noch mal wieder
+            //     zurück, sodass jede Energiegemeinschaft von 1 anfängt. Wir machen das ja im
+            //     Namen der Energiegemeinschaft. Oder wir machen es doch mit der [...] RC-Nummer
+            //     der jeweiligen Energiegemeinschaft, weil man dann wirklich die [Rechnungen]
+            //     auseinanderhalten kann. Aber dann halt wirklich nur die RC-Nummer [...], weil
+            //     den Namen [...] brauchen wir da nicht dabei." -- genau DAS bildet das aktuelle
+            //     Schema ab: laufende Nummer wieder PRO EEG ab 0001 (lückenlos je Verein, § 11
+            //     UStG), UND die Marktpartner-ID als Suffix sorgt automatisch für plattformweite
+            //     Eindeutigkeit/Unterscheidbarkeit, ohne dass dafür ein gemeinsamer Zähler nötig
+            //     wäre (zwei EEGs haben nie dieselbe Marktpartner-ID).
+            $community = DB::fetchOne('SELECT marktpartner_id FROM communities WHERE id = ?', [$run['community_id']]);
+            $marktpartnerId = trim((string)($community['marktpartner_id'] ?? ''));
+            if ($marktpartnerId === '') {
+                throw new RuntimeException(
+                    'Für diese EEG ist noch keine Marktpartner-ID (RC-Nummer) hinterlegt -- bitte '
+                    . 'zuerst in den EEG-Einstellungen eintragen. Sie wird als Suffix der '
+                    . 'Rechnungsnummer verwendet, damit Rechnungen verschiedener EEGs auf der '
+                    . 'Plattform nie dieselbe Nummer bekommen.'
+                );
+            }
+
             // Advisory Lock (nur für die Dauer dieser Transaktion) serialisiert die Nummern-
-            // vergabe PLATTFORMWEIT -- verhindert, dass zwei gleichzeitig berechnete Läufe
-            // (egal welcher EEG) oder ein doppelter Klick auf "Neu berechnen" dieselbe Nummer
-            // vergeben.
-            DB::execute('SELECT pg_advisory_xact_lock(hashtext(?))', ['invoice_seq_global']);
+            // vergabe PRO EEG -- verhindert, dass zwei gleichzeitig berechnete Läufe DERSELBEN
+            // EEG (oder ein doppelter Klick auf "Neu berechnen") dieselbe Nummer vergeben.
+            // Zwischen verschiedenen EEGs kann es dank der unterschiedlichen Marktpartner-ID im
+            // Suffix ohnehin nie zu einer Kollision kommen.
+            DB::execute('SELECT pg_advisory_xact_lock(hashtext(?))', [$run['community_id'] . ':invoice_seq']);
 
             $jahr       = date('y');
             $numPrefix  = 'RE-' . $jahr;
             // MAX statt COUNT: COUNT(*) vergibt nach dem Löschen eines Laufs (z.B. "Neu
-            // berechnen" eines ANDEREN Laufs im selben Jahr, oder ein gelöschter Testlauf)
-            // dieselbe Nummer erneut -- mit verbotenen Dubletten als Folge. MAX bleibt stabil,
-            // auch wenn zwischendurch Rechnungen gelöscht wurden. Bewusst ohne
-            // "WHERE community_id = ?" -- die Nummer zählt plattformweit, nicht pro EEG.
+            // berechnen" eines ANDEREN Laufs derselben EEG im selben Jahr, oder ein gelöschter
+            // Testlauf) dieselbe Nummer erneut -- mit verbotenen Dubletten als Folge. MAX bleibt
+            // stabil, auch wenn zwischendurch Rechnungen gelöscht wurden. Die 4-stellige Sequenz
+            // wird per SUBSTRING direkt NACH dem "RE-<Jahr>"-Präfix herausgegriffen (nicht per
+            // RIGHT(...,4), das würde seit dem Marktpartner-ID-Suffix die letzten 4 Zeichen DER
+            // RC-NUMMER liefern statt der laufenden Nummer).
             $existing   = DB::fetchOne(
-                "SELECT MAX(CAST(RIGHT(rechnungsnummer, 4) AS INT)) AS maxseq
-                 FROM invoices WHERE rechnungsnummer LIKE ?",
-                [$numPrefix . '%']
+                "SELECT MAX(CAST(SUBSTRING(rechnungsnummer FROM ? FOR 4) AS INT)) AS maxseq
+                 FROM invoices WHERE community_id = ? AND rechnungsnummer LIKE ?",
+                [strlen($numPrefix) + 1, $run['community_id'], $numPrefix . '%']
             );
             $invoiceSeq = (int)($existing['maxseq'] ?? 0) + 1;
 
@@ -234,7 +250,7 @@ class Billing
                     $saldo += (float)$extra['amount_eur'];
                 }
 
-                $rechnungsnummer = $numPrefix . str_pad((string)$invoiceSeq++, 4, '0', STR_PAD_LEFT);
+                $rechnungsnummer = $numPrefix . str_pad((string)$invoiceSeq++, 4, '0', STR_PAD_LEFT) . '_' . $marktpartnerId;
 
                 DB::execute(
                     'INSERT INTO invoices (billing_run_id, community_id, member_id, rechnungsnummer, saldo_eur, pdf_path)
