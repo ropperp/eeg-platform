@@ -885,3 +885,32 @@ docker compose up -d --build
 > Volle Diagnose + Fix (`uploadRedirect()`-Helper statt `header('Location: ...')` in
 > Upload-Handlern) siehe "Bekannte Probleme" oben ("Datei-Upload in Safari schlägt mit 'request
 > body stream exhausted' fehl").
+
+> **Einmalig nach dem Update vom 02.-04.10.2026** (Abrechnungs-Fixes vor der Q3-Freigabe --
+> Rechnungsdatum/Fälligkeit an die Freigabe gekoppelt, Rechnungen nach Freigabe eingefroren,
+> Lösch-Schutz für freigegebene Läufe, SEPA-Sammelüberweisung für Gutschriften, Rechnungs-Mail
+> mit PDF-Anhang bei Freigabe -- siehe `docs/VORFAELLE.md`, Abschnitt "Rechnungsnummern pro EEG
+> statt plattformweit", für die Geschichte der zwischenzeitlich geänderten und wieder
+> zurückgesetzten Rechnungsnummern-Eindeutigkeit):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261002.sql
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261003.sql
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261004.sql
+> docker compose up -d --build
+> ```
+> Alle drei Migrationen sind idempotent und können auch auf einem bereits laufenden System ohne
+> Downtime nacheinander eingespielt werden (bauen nur Spalten/Constraints/eine Mail-Vorlage auf,
+> keine Daten werden gelöscht/umgeschrieben). `migrate_20261002.sql` legt dabei kurzzeitig auch
+> eine inzwischen durch `migrate_20261003.sql` wieder entfernte Constraint an -- beide müssen in
+> dieser Reihenfolge laufen, nicht nur die neuere allein.
+>
+> **Rechnungs-Mail mit PDF-Anhang (neu seit 04.10.2026):** bei jeder Freigabe eines
+> Abrechnungslaufs bekommt jetzt JEDES Mitglied mit E-Mail-Adresse UND erteilter Zustimmung
+> ("Zustellung von Rechnungen [...] per E-Mail") automatisch eine Mail mit der Rechnung als
+> PDF-Anhang -- unabhängig vom Saldo (Forderung, Gutschrift oder 0,00 €). Vorher ging bei der
+> Freigabe nur an Mitglieder mit einzuziehendem Saldo die separate SEPA-Vorabinfo raus,
+> Mitglieder mit Gutschrift oder ohne App-Login erfuhren von ihrer Rechnung nie automatisch.
+> Vorlage anpassbar unter Platform-Admin → Einstellungen → E-Mail-Vorlagen → "Rechnung verfügbar
+> (bei Freigabe)". Kein weiterer Schritt nötig, läuft automatisch mit der nächsten Freigabe.

@@ -299,6 +299,7 @@ function suggestMqttPassword() {
     'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
     'sepa_prenotification'  => 'SEPA-Vorabinformation (Pre-Notification)',
     'mahnung'               => 'Zahlungserinnerung / Mahnung',
+    'invoice_released'      => 'Rechnung verfügbar (bei Freigabe)',
   ];
   // Vorlagen für die Vorschau (Betreff + Body je key).
   $previewTemplates = [];
@@ -376,7 +377,8 @@ function suggestMqttPassword() {
     gebuehr_zeile: '<br>Mahngebühren: 5,00 €',
     ruecklast_hinweis: ' (die SEPA-Lastschrift wurde von Ihrer Bank zurückgebucht)',
     frist: '20.08.2026',
-    iban: 'AT31 2070 2000 0002 5460'
+    iban: 'AT31 2070 2000 0002 5460',
+    betrag_text: 'ein offener Betrag von <strong>68,55 €</strong>'
   };
 
   function mailPreviewFillVars(str) {
@@ -453,6 +455,8 @@ function suggestMqttPassword() {
     <code>{{abbuchung}}</code> (Abbuchungsdatum), <code>{{mandatsreferenz}}</code>, <code>{{creditor_id}}</code>.
     In der Mahnung zusätzlich: <code>{{mahnstufe_text}}</code>, <code>{{gesamt}}</code>, <code>{{gebuehr_zeile}}</code>,
     <code>{{ruecklast_hinweis}}</code>, <code>{{frist}}</code>, <code>{{iban}}</code>.
+    In "Rechnung verfügbar" zusätzlich: <code>{{rechnungsnummer}}</code>, <code>{{betrag_text}}</code>
+    (fertiger Satzteil "ein offener Betrag von ..." bzw. "eine Gutschrift von ...", je nach Saldo).
   </p>
   <?php $templateLabel = [
     'password_reset'       => 'Passwort zurücksetzen',
@@ -463,6 +467,7 @@ function suggestMqttPassword() {
     'contract_both'         => 'Vertrag: Bezug + Einspeisung gemeinsam',
     'sepa_prenotification'  => 'SEPA-Vorabinformation (Pre-Notification)',
     'mahnung'               => 'Zahlungserinnerung / Mahnung',
+    'invoice_released'      => 'Rechnung verfügbar (bei Freigabe)',
   ]; ?>
   <?php foreach ($mailTemplates as $t): ?>
     <form method="post" action="/admin/mail-templates" style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #e5e7eb">

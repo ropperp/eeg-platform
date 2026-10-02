@@ -9,6 +9,37 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Also, das mit den Rechnungsnummern: Das glaube ich ja nicht, dass wir das so machen
+können [...] Es muss ja für das System Strom für alle unterschiedliche Rechnungsnummern sein
+[...] das werden wir schon plattformweit Rechnungsnummern haben und nicht für jede
+Energiegemeinschaft einzeln wieder von 1 anfangen. [...] sag mir bitte noch mal, wie das dann
+mit den Gutschriften funktionieren wird [...] Was hast du jetzt noch mal gemeint mit
+Rechnungsdatum, Fälligkeitsdatum und den 14 Tagen? Ab dem Zeitpunkt, an dem die E-Mail mit den
+fertigen Rechnungen rausgeschickt wird, gelten die 14 Tage [...] Wie läuft das mit dem
+MQTT-Messesimulator aus? [...] dass dieser Simulator Tagesprofile richtig simuliert, zum
+Beispiel: eine Einspeisung, die nicht in der Nacht, sondern in den Sonnenstunden funktioniert
+[...] das Gleiche bei den Verbrauchern, vielleicht vor allem um die Mittagszeit, um die
+Abendzeit und in der Nacht, so, dass ein konstanter Strom oder ein leicht schwankender Strom von
+zum Beispiel Licht oder Kühlschränken so etwas läuft."
+**Auftrag:** Patrick widerspricht der zuvor pro EEG eindeutig gemachten Rechnungsnummerierung
+(muss als Plattformbetreiber über mehrere EEGs hinweg jede Nummer eindeutig zuordnen können) und
+klärt, dass die Fälligkeitsfrist tatsächlich erst mit dem E-Mail-Versand der Rechnung beginnen
+soll, nicht nur mit der Freigabe. Zusätzlich: der Messe-Simulator soll echte Tagesprofile
+(Sonnenstunden für Einspeiser, Lastspitzen morgens/mittags/abends für Verbraucher, nie 0 in der
+Nacht) abbilden statt zeitunabhängig zu schwanken.
+**Ergebnis:** `migrate_20261003.sql` setzt die Rechnungsnummern-Eindeutigkeit zurück auf
+plattformweit (global), `Billing::generateDrafts()` zählt wieder ohne Community-Filter.
+`migrate_20261004.sql` + neue Funktion `sendInvoiceReleasedEmails()`: bei der Freigabe bekommt
+jetzt JEDES Mitglied mit E-Mail+Zustimmung automatisch seine Rechnung als PDF-Anhang -- Freigabe
+und Versand fallen dadurch auf denselben Zeitpunkt, `released_at` bleibt also korrekt die
+Grundlage für Rechnungsdatum/Fälligkeit. `scripts/messe_demo_simulator.py` komplett auf
+Tagesprofile umgestellt (`producer_envelope()`/`consumer_envelope()`, simulierter Tag
+standardmäßig 20 Minuten statt 24h). Dokumentiert in `CLAUDE.md`, `docs/VORFAELLE.md`
+(Rechnungsnummern-Rückbau als eigener Vorfalls-Eintrag) und `docs/BETRIEBSHANDBUCH.md`.
+
+---
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "was ich noch umsetzten will ist, brauch in einer Woche einen Guten Energiefluss um
 auf einer Messe eine Simulation zu zeigen. einfach realistische, paar schwankende, Werte. So 8
 Einspeiser und 12 Verbraucher. Ein paar höhere und paar niedrigere. Einfach simulierte Werte.

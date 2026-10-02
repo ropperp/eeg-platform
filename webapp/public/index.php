@@ -4822,7 +4822,7 @@ $router->post('/api/v1/admin/settings/mail-templates', function () {
 
     $body = jsonBody();
     $key = (string)($body['key'] ?? '');
-    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both', 'sepa_prenotification', 'mahnung'], true)) {
+    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both', 'sepa_prenotification', 'mahnung', 'invoice_released'], true)) {
         http_response_code(400);
         echo json_encode(['error' => 'Unbekannte Vorlage.']);
         return;
@@ -6876,18 +6876,27 @@ $router->post('/portal/billing/release', function () {
     try {
         Billing::finalize($runId, Auth::userId());
         logAudit($communityId, 'billing.release', 'billing_run', $runId, 'Abrechnungslauf freigegeben');
-        // Mit der Freigabe gilt die Rechnung als erstellt -- für alle einzuziehenden Salden
-        // (saldo > 0) geht am selben Tag die SEPA-Vorabinformation (Pre-Notification) raus, in
-        // der das voraussichtliche Abbuchungsdatum (= Rechnungsdatum + Vorlauftage der EEG)
-        // angekündigt wird. Der Versand läuft in einem eigenen try, damit ein Mail-/DB-Problem
-        // die bereits erfolgreiche Freigabe nicht als "fehlgeschlagen" erscheinen lässt.
         $msg = 'Freigegeben.';
+        // Jede Rechnung dieses Laufs per Mail verschicken (eingefrorenes PDF als Anhang, siehe
+        // sendInvoiceReleasedEmails()) -- eigener try, damit ein Mail-/DB-Problem die bereits
+        // erfolgreiche Freigabe nicht als "fehlgeschlagen" erscheinen lässt.
+        try {
+            $mailCount = sendInvoiceReleasedEmails($communityId, $runId);
+            if ($mailCount > 0) $msg = 'Freigegeben. ' . $mailCount . ' Rechnung(en) per E-Mail versendet.';
+        } catch (Throwable $e) {
+            error_log('Rechnungs-Mail (Lauf ' . $runId . '): ' . $e->getMessage());
+            $msg = 'Freigegeben. Hinweis: Rechnungs-E-Mails konnten nicht versendet werden.';
+        }
+        // Zusätzlich für alle einzuziehenden Salden (saldo > 0) am selben Tag die SEPA-
+        // Vorabinformation (Pre-Notification), die zusätzlich zur Rechnungs-Mail oben das
+        // voraussichtliche Abbuchungsdatum (= Rechnungsdatum + Vorlauftage der EEG) ankündigt --
+        // ebenfalls ein eigener try, aus demselben Grund.
         try {
             $preInfo = sendSepaPrenotifications($communityId, $runId);
-            if ($preInfo > 0) $msg = 'Freigegeben. ' . $preInfo . ' SEPA-Vorabinformation(en) versendet.';
+            if ($preInfo > 0) $msg .= ' ' . $preInfo . ' SEPA-Vorabinformation(en) versendet.';
         } catch (Throwable $e) {
             error_log('SEPA-Vorabinfo (Lauf ' . $runId . '): ' . $e->getMessage());
-            $msg = 'Freigegeben. Hinweis: SEPA-Vorabinformationen konnten nicht versendet werden.';
+            $msg .= ' Hinweis: SEPA-Vorabinformationen konnten nicht versendet werden.';
         }
         // Direkt nach der Freigabe zur Gutschriften-Übersicht weiterleiten, falls in diesem Lauf
         // überhaupt Guthaben (saldo_eur < 0) entstanden sind -- Patrick, 26.09.2026: er will die
@@ -7210,6 +7219,92 @@ function sepaCollectionData(string $communityId, string $runId): array
         'creditor_id' => trim((string)($community['creditor_id'] ?? '')),
     ];
     return ['creditor' => $creditor, 'txns' => $txns, 'ohne_mandat' => $ohneMandat, 'community' => $community];
+}
+
+/**
+ * Versendet die Rechnung per E-Mail (eingefrorenes PDF, siehe freezeInvoicePdf(), als Anhang)
+ * für JEDE Rechnung eines freigegebenen Laufs -- unabhängig vom Saldo (Forderung, Gutschrift
+ * ODER 0,00 €). Schließt damit die Lücke, dass bisher NUR Mitglieder mit einzuziehendem Saldo
+ * (über die separate SEPA-Vorabinfo) überhaupt eine Mail bekamen -- Mitglieder mit Gutschrift
+ * oder ohne App-Login erfuhren von ihrer Rechnung bisher gar nicht automatisch, sondern nur
+ * wenn sie selbst ins Portal schauten.
+ *
+ * Patrick, 02.10.2026, zur Fälligkeit: "Ab dem Zeitpunkt, an dem die E-Mail mit den fertigen
+ * Rechnungen rausgeschickt wird, gelten die 14 Tage [...] erst, wenn wirklich freigegeben und
+ * abgesendet werden." Genau das bildet diese Funktion ab -- sie läuft als Teil DESSELBEN
+ * Freigabe-Vorgangs (direkt nach Billing::finalize(), siehe /portal/billing/release), der auch
+ * RECHNUNGSDATUM/ZAHLUNGSZIEL auf released_at setzt (renderInvoicePdf()) -- Freigabe und
+ * E-Mail-Versand fallen dadurch auf denselben Zeitpunkt, "freigegeben" bedeutet also faktisch
+ * "abgesendet". Scheitert der Versand für eine einzelne Rechnung (Mailfehler), bleibt
+ * email_sent_at für GENAU diese Rechnung leer -- RECHNUNGSDATUM/ZAHLUNGSZIEL auf dem PDF
+ * selbst ändern sich dadurch nicht (sie hängen an released_at, nicht an email_sent_at); das
+ * Mitglied kann die Rechnung aber jederzeit auch direkt im Portal einsehen, unabhängig vom
+ * Mail-Status. Gibt die Anzahl tatsächlich versendeter Mails zurück.
+ *
+ * Nur an Mitglieder mit E-Mail-Adresse UND zustimmung_email_kommunikation=true (dieselbe
+ * Zustimmung, die bei der Beitrittserklärung extra für "Zustellung von Rechnungen [...] per
+ * E-Mail" eingeholt wird) -- ohne diese Zustimmung bleibt der Weg übers Portal der einzige.
+ */
+function sendInvoiceReleasedEmails(string $communityId, string $runId): int
+{
+    DB::setCommunity($communityId);
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
+    $rows = DB::fetchAll(
+        "SELECT i.id, i.rechnungsnummer, i.saldo_eur, i.pdf_frozen_path,
+                m.first_name, m.last_name, m.company_name, m.salutation, m.titel,
+                m.email_anrede_mode, m.email, m.zustimmung_email_kommunikation,
+                tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
+           FROM invoices i
+           JOIN billing_runs br ON br.id = i.billing_run_id
+           JOIN members m ON m.id = i.member_id
+           LEFT JOIN LATERAL (
+               SELECT tax_model, tax_rate_percent FROM tax_config
+               WHERE community_id = i.community_id AND valid_from <= br.period_from
+               ORDER BY valid_from DESC LIMIT 1
+           ) tx ON true
+          WHERE i.billing_run_id = ? AND i.community_id = ? AND i.email_sent_at IS NULL",
+        [$runId, $communityId]
+    );
+    $sent = 0;
+    foreach ($rows as $r) {
+        if (empty($r['email']) || !$r['zustimmung_email_kommunikation']) continue;
+        // Ohne eingefrorenes PDF (z.B. weil freezeInvoicePdf() beim Freigeben scheiterte, siehe
+        // dort) lieber gar keine Mail als eine Mail ohne Anhang -- das Mitglied bekommt dann
+        // beim nächsten erfolgreichen Einfrieren (oder nie, falls das Problem bestehen bleibt)
+        // alternativ nur den Portal-Zugriff.
+        if (empty($r['pdf_frozen_path']) || !is_file($r['pdf_frozen_path'])) continue;
+        $brutto = taxBreakdown((float)$r['saldo_eur'], $r['eeg_tax_model'] ?? null, $r['eeg_tax_rate'] ?? null)['brutto'];
+        $anrede = mailSalutation($r);
+        $gutschrift = $brutto < 0;
+        $betragText = $gutschrift
+            ? 'eine Gutschrift von <strong>' . number_format(abs($brutto), 2, ',', '.') . ' €</strong>, die wir Ihnen auf Ihr Konto überweisen'
+            : 'ein offener Betrag von <strong>' . number_format(abs($brutto), 2, ',', '.') . ' €</strong>';
+        try {
+            $mail = renderMailTemplate('invoice_released', [
+                'anrede'          => htmlspecialchars($anrede['anrede']),
+                'nachname'        => htmlspecialchars($anrede['nachname']),
+                'eeg_name'        => htmlspecialchars((string)($community['name'] ?? '')),
+                'rechnungsnummer' => htmlspecialchars((string)$r['rechnungsnummer']),
+                'betrag_text'     => $betragText,
+            ],
+                'Ihre Rechnung {{rechnungsnummer}} – {{eeg_name}}',
+                '<p>{{anrede}} {{nachname}},</p>'
+                . '<p>im Anhang finden Sie Ihre Rechnung <strong>{{rechnungsnummer}}</strong> von {{eeg_name}}. '
+                . 'Darin ausgewiesen ist {{betrag_text}}.</p>'
+                . '<p>Sie können die Rechnung außerdem jederzeit im Mitgliederportal einsehen.</p>'
+            );
+            Mailer::send($r['email'], $mail['subject'], $mail['body'], [[
+                'name'        => $r['rechnungsnummer'] . '.pdf',
+                'contentType' => 'application/pdf',
+                'content'     => file_get_contents($r['pdf_frozen_path']),
+            ]]);
+            DB::execute('UPDATE invoices SET email_sent_at = now() WHERE id = ?', [$r['id']]);
+            $sent++;
+        } catch (Throwable $e) {
+            error_log('Rechnungs-Mail fehlgeschlagen für Rechnung ' . $r['rechnungsnummer'] . ': ' . $e->getMessage());
+        }
+    }
+    return $sent;
 }
 
 /**
@@ -9174,7 +9269,7 @@ $router->post('/admin/mail-templates', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     $key = $_POST['key'] ?? '';
-    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both', 'sepa_prenotification', 'mahnung'], true)) { http_response_code(400); return; }
+    if (!in_array($key, ['password_reset', 'invite', 'member_deactivated', 'contract_bezug', 'contract_einspeisung', 'contract_both', 'sepa_prenotification', 'mahnung', 'invoice_released'], true)) { http_response_code(400); return; }
     $tplBefore = DB::fetchOne('SELECT subject, body_html FROM platform_mail_templates WHERE key = ?', [$key]);
     DB::execute(
         'UPDATE platform_mail_templates SET subject = ?, body_html = ?, updated_at = now() WHERE key = ?',
