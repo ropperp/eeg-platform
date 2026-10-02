@@ -9,6 +9,21 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Bitte verwende die Maße. Beziehungsweise zeichne die jetzt nach, aber in dieser
+Form." (mit einem Referenzbild eines klassischen Hochspannungsmast-Icons: Gittermast, zwei
+Traversen mit Isolator-Girlanden, X-verstrebter sich verjüngender Turm)
+**Auftrag:** Das Netz-Icon (bereits dreimal überarbeitet) soll jetzt exakt dem mitgeschickten
+Referenzbild nachempfunden werden.
+**Ergebnis:** Pfad parametrisch per Python-Skript erzeugt (Traversen mit Isolator-Zacken,
+X-verstrebter Turm, verjüngende Beine) statt von Hand abgezählt. Volle Detailtreue zum
+Referenzbild erwies sich bei der tatsächlichen Einsatzgröße (28px) als unleserlich (mit
+Playwright verifiziert) -- deshalb dieselbe Formensprache beibehalten, aber Wiederholungszahl
+reduziert (2 Gitterfelder statt 4, 2 Isolator-Zacken statt 4). Ergebnis bei voller Größe nah am
+Referenzbild, bei Icon-Größe klar als Hochspannungsmast erkennbar. In allen drei Farbzuständen
+über die echte Sprite-Datei verifiziert. Vorfall in docs/VORFAELLE.md dokumentiert.
+`php tests/run.php` (138 Tests) grün.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Der Mast schaut immer scheiße aus. Bitte mach einfach einen schönen Strommasten.
 Von mir aus einen senkrechten Stab und einen quer oder zwei, die wie ein Zelt, ein spitzes Zelt,
 zusammenhängend oben, einen quer. Aber das schaut jetzt scheiße aus."
