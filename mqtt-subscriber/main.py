@@ -24,7 +24,9 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import os
+import random
 import threading
 import time
 import uuid
@@ -587,6 +589,170 @@ def reconfig_broadcast_loop(client: mqtt.Client) -> None:
         time.sleep(15)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Messe-/Präsentations-Demo: simulierte Live-Werte für EEGs mit communities.
+# messe_demo_enabled = true (Platform-Admin -> EEG-Einstellungen -> "Simulierte Werte
+# anzeigen"). Ursprünglich (02.10.2026, erster Entwurf) ein separat zu startendes
+# Kommandozeilen-Skript (scripts/messe_demo_simulator.py) -- Patrick, noch am selben Tag: "Ich
+# möchte es nicht in der Kommandozeile laufen lassen und mit Strg+C irgendwie bearbeiten, weil
+# der Terminal dann schließt [...] Bitte lass es im Hintergrund laufen [...] einen kleinen
+# Schalter [...] unter den Einstellungen". Läuft deshalb jetzt als Daemon-Thread genau hier, im
+# ohnehin dauerhaft laufenden mqtt-subscriber-Container -- kein separater Prozess, kein Start/
+# Stopp von Hand, übersteht Reboots/Absturz wie jeder andere Thread dieses Containers.
+#
+# Jede EEG mit aktivem Schalter bekommt automatisch (und idempotent -- beim nächsten Tick einer
+# bereits vollständig angelegten EEG passiert nichts) -- 20 fiktive Zählpunkte (8 Einspeiser, 12
+# Verbraucher) unter einem eigenen, is_demo=true-Mitglied -- is_demo schließt sie wie die
+# bestehenden Demo-Login-Identitäten automatisch von JEDEM echten Abrechnungslauf aus
+# (Billing::generateDrafts() filtert m.is_demo = false), Patrick: "Bitte haben diese Werte keine
+# Auswirkung auf Abrechnungen oder irgendetwas, weil dieses wirklich nur für die User ist."
+#
+# Tagesprofil ECHTZEIT (Patrick, 02.10.2026, zweite Nachbesserung: "Was hast du da gemeint mit
+# 24 Stunden sind eigentlich nur 20 echte Minuten? Das möchte ich nicht haben. Es soll schon
+# sein, dass der ganze Verlauf richtig funktioniert.") -- anders als der ursprüngliche
+# Messe-Entwurf (dort bewusst auf 20 echte Minuten gerafft, weil für eine einzelne
+# Stand-Vorführung gedacht) läuft die simulierte Stunde hier 1:1 mit der echten Uhrzeit, weil
+# der Schalter jetzt wochenlang durchlaufen soll, bis echte Mitglieder eigene Ausleseeinheiten
+# haben: Einspeiser liefern 0 W vor 06:00/nach 20:00 mit Sinuskurve und Höchstwert um 13:00,
+# Verbraucher haben nachts eine Kühlschrank-/Standby-Grundlast (nie 0) mit Buckeln morgens,
+# mittags und (am stärksten) abends -- siehe messe_producer_envelope()/messe_consumer_envelope().
+MESSE_PRODUCER_BASELINES_W = [600, 900, 1200, 1500, 1800, 2200, 2600, 3000]
+MESSE_CONSUMER_BASELINES_W = [80, 120, 150, 200, 250, 300, 350, 450, 550, 700, 900, 1200]
+MESSE_DEMO_EMAIL = "messe-demo@stromfueralle.local"
+MESSE_SUNRISE_H = 6.0
+MESSE_SUNSET_H = 20.0
+DEMO_TICK_INTERVAL_S = 5
+# Zustand je simuliertem Zählpunkt (aktuelle Leistung + Zählerstand), über Ticks hinweg erhalten
+# -- Key "<community_id>:<meter_code>". Rein In-Memory, geht bei einem Container-Neustart
+# verloren und beginnt dann einfach wieder sauber am jeweiligen Tagesprofil-Zielwert.
+_messe_meter_state: dict[str, dict] = {}
+
+
+def messe_meter_defs() -> list[tuple[str, str, float]]:
+    """[(art, zählernummer, baseline_w), ...] -- 8 Einspeiser + 12 Verbraucher, Baseline bewusst
+    breit gestreut ("ein paar höhere, ein paar niedrigere", Patrick 02.10.2026)."""
+    defs = []
+    for i, baseline in enumerate(MESSE_PRODUCER_BASELINES_W, start=1):
+        defs.append(("producer", f"90000001{i:02d}", float(baseline)))
+    for i, baseline in enumerate(MESSE_CONSUMER_BASELINES_W, start=1):
+        defs.append(("consumer", f"90000002{i:02d}", float(baseline)))
+    return defs
+
+
+def messe_producer_envelope(hour: float) -> float:
+    if hour <= MESSE_SUNRISE_H or hour >= MESSE_SUNSET_H:
+        return 0.0
+    x = math.pi * (hour - MESSE_SUNRISE_H) / (MESSE_SUNSET_H - MESSE_SUNRISE_H)
+    return math.sin(x)
+
+
+def messe_consumer_envelope(hour: float) -> float:
+    def bump(center: float, width: float, amp: float) -> float:
+        return amp * math.exp(-((hour - center) ** 2) / (2 * width ** 2))
+    return 0.35 + bump(7.5, 1.3, 0.25) + bump(12.5, 1.6, 0.30) + bump(19.0, 2.0, 0.55)
+
+
+def ensure_messe_demo_meters(conn, community_id: str) -> None:
+    """Legt bei Bedarf das Demo-Mitglied + die 20 fiktiven Zählpunkte für eine EEG an -- idempotent,
+    sicher bei jedem Tick erneut aufrufbar (prüft vor jedem Insert per SELECT)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM members WHERE community_id = %s AND email = %s",
+            (community_id, MESSE_DEMO_EMAIL)
+        )
+        row = cur.fetchone()
+        if row:
+            member_id = row[0]
+        else:
+            cur.execute(
+                """INSERT INTO members
+                       (community_id, first_name, last_name, address, zip, city, email,
+                        member_since, status, is_demo)
+                   VALUES (%s, 'Simulierte', 'Werte', 'Messeplatz 1', '9020', 'Klagenfurt', %s,
+                           CURRENT_DATE, 'active', true)
+                   RETURNING id""",
+                (community_id, MESSE_DEMO_EMAIL)
+            )
+            member_id = cur.fetchone()[0]
+            log.info("Messe-Demo: Mitglied für Community %s angelegt", community_id)
+
+        for kind, meter_code, _baseline in messe_meter_defs():
+            cur.execute(
+                "SELECT 1 FROM metering_points WHERE community_id = %s AND meter_code = %s",
+                (community_id, meter_code)
+            )
+            if cur.fetchone():
+                continue
+            suffix = meter_code[-2:]
+            zp = f"DEMO-MESSE-{'EINSPEISER' if kind == 'producer' else 'VERBRAUCHER'}-{suffix}"
+            cur.execute(
+                """INSERT INTO metering_points
+                       (community_id, member_id, zaehlpunkt_nr, meter_code, type, active, registered_at)
+                   VALUES (%s, %s, %s, %s, %s, true, CURRENT_DATE)""",
+                (community_id, member_id, zp, meter_code, kind)
+            )
+    conn.commit()
+
+
+def demo_simulation_tick(client: mqtt.Client) -> None:
+    pool = get_db_pool()
+    conn = pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, slug, marktpartner_id FROM communities WHERE messe_demo_enabled = true")
+            enabled = cur.fetchall()
+
+        now = time.localtime()
+        sim_hour = now.tm_hour + now.tm_min / 60 + now.tm_sec / 3600
+
+        for community_id, slug, marktpartner_id in enabled:
+            rc = (marktpartner_id or slug or "").strip().lower()
+            if not rc:
+                log.warning("Messe-Demo: Community %s hat weder Marktpartner-ID noch Slug -- übersprungen", community_id)
+                continue
+            try:
+                ensure_messe_demo_meters(conn, community_id)
+            except Exception as e:
+                log.error("Messe-Demo: Zählpunkte für Community %s konnten nicht angelegt werden: %s", community_id, e)
+                conn.rollback()
+                continue
+
+            for kind, meter_code, baseline_w in messe_meter_defs():
+                key = f"{community_id}:{meter_code}"
+                state = _messe_meter_state.setdefault(key, {"current_w": 0.0, "energy_wh": random.randint(500_000, 5_000_000)})
+
+                envelope = messe_producer_envelope(sim_hour) if kind == "producer" else messe_consumer_envelope(sim_hour)
+                target = baseline_w * envelope
+                noise = random.gauss(0, max(target, baseline_w * 0.05) * 0.08)
+                state["current_w"] = max(0.0, state["current_w"] + (target - state["current_w"]) * 0.3 + noise)
+
+                w = round(state["current_w"])
+                state["energy_wh"] += round(w * DEMO_TICK_INTERVAL_S / 3600)
+
+                payload = {
+                    "pp": w if kind == "consumer" else 0,
+                    "pm": w if kind == "producer" else 0,
+                    "ep": state["energy_wh"] if kind != "producer" else 0,
+                    "em": state["energy_wh"] if kind == "producer" else 0,
+                    "znr": meter_code,
+                }
+                client.publish(f"eeg/{rc}/meter/{meter_code}/live", json.dumps(payload), qos=0)
+    finally:
+        pool.putconn(conn)
+
+
+def demo_simulation_loop(client: mqtt.Client) -> None:
+    """Eigener Daemon-Thread, alle 5s (wie eine echte Firmware) -- publiziert simulierte
+    Live-Werte für jede EEG mit messe_demo_enabled=true, siehe Kommentarblock oben."""
+    while True:
+        try:
+            if _connected:
+                demo_simulation_tick(client)
+        except Exception as e:
+            log.error("Fehler bei Messe-Demo-Simulation: %s", e)
+        time.sleep(DEMO_TICK_INTERVAL_S)
+
+
 def main() -> None:
     # Warten bis DB bereit ist
     for attempt in range(30):
@@ -617,6 +783,8 @@ def main() -> None:
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     # MQTT-Fernkonfiguration-Broadcast-Thread starten (siehe reconfig_broadcast_loop()).
     threading.Thread(target=reconfig_broadcast_loop, args=(client,), daemon=True).start()
+    # Messe-/Präsentations-Demo-Simulation starten (siehe demo_simulation_loop()).
+    threading.Thread(target=demo_simulation_loop, args=(client,), daemon=True).start()
 
     while True:
         try:

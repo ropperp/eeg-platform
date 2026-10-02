@@ -1,0 +1,14 @@
+-- Migration 2026-10-05: Messe-/Präsentations-Demo als dauerhafter Hintergrund-Schalter statt
+-- manuell gestarteter Kommandozeilen-Skripte.
+--
+-- Patrick, 02.10.2026: "Bitte lass es im Hintergrund laufen. [...] baue [...] etwas ein, sodass
+-- ich als Admin unter den Einstellungen noch einen kleinen Schalter bekomme, um das ein- und
+-- auszuschalten. Ich möchte es nicht in der Kommandozeile laufen lassen [...] Ich werde diesen
+-- [...] generell mal laufen lassen [...] bis ich wirklich [...] Mitglieder mit den
+-- Ausleseeinheiten ausstatten werde, damit auch wirklich andere Mitglieder auch schon sehen."
+--
+-- Ein einfacher Boolean je EEG -- mqtt-subscriber (siehe main.py, demo_simulation_loop()) pollt
+-- diese Spalte alle paar Sekunden und simuliert/publiziert MQTT-Live-Werte für genau die EEGs,
+-- bei denen der Schalter an ist. Default false, damit kein bestehendes/neues Deployment
+-- ungewollt Fantasiewerte zeigt.
+ALTER TABLE communities ADD COLUMN IF NOT EXISTS messe_demo_enabled BOOLEAN NOT NULL DEFAULT false;

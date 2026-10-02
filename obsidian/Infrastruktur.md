@@ -204,17 +204,19 @@ dieser Vault-Spiegel war auf über 1000 Zeilen angewachsen). Bei einem neuen, no
 Symptom dort nachsehen -- die Pfad-/Mount-Übersicht (`docs/INFRASTRUKTUR_PFADE.md`) bleibt der
 erste Blick bei DB-/Daten-„weg"-Symptomen.
 
-## Messe-/Präsentations-Demo (MQTT-Simulator, 02.10.2026)
+## Messe-/Präsentations-Demo (simulierte Werte, 02.10.2026)
 
-Für eine Messe-Vorführung ("8 Einspeiser und 12 Verbraucher [...] über mqtt") gibt es
-`scripts/messe_demo_setup.php` (legt 20 fiktive, nie abrechnungsrelevante Zählpunkte an) +
-`scripts/messe_demo_simulator.py` (publiziert Live-Werte im echten Firmware-Format mit echtem
-Tagesprofil -- Einspeiser nur zwischen 06:00-20:00 mit Mittagsspitze, Verbraucher mit
-Nacht-Grundlast + Morgen-/Mittags-/Abendspitze, simulierter Tag standardmäßig in 20 echten
-Minuten statt 24h; läuft über den kompletten echten Pfad bis zur Live-Anzeige, kein
-Frontend-Fake). Ein-/Ausschalten = Skript starten/mit Strg+C beenden, kein erneutes Setup
-nötig. Nach der Messe `scripts/messe_demo_teardown.php` nicht vergessen, sonst zählen die 20
-Zählpunkte dauerhaft als "registriert" mit. Details: `CLAUDE.md`.
+Patrick wollte zunächst nur eine Messe-Vorführung ("8 Einspeiser und 12 Verbraucher [...] über
+mqtt"), dann aber einen dauerhaften Hintergrund-Schalter statt Kommandozeile: "Ich möchte es
+nicht in der Kommandozeile laufen lassen [...] Bitte lass es im Hintergrund laufen [...] einen
+kleinen Schalter [...] unter den Einstellungen." Jetzt: Checkbox "Simulierte Werte anzeigen" in
+den Obmann-Einstellungen (ganz oben) -- läuft als Daemon-Thread dauerhaft im
+`mqtt-subscriber`-Container, legt bei Bedarf automatisch 20 fiktive Zählpunkte (8 Einspeiser,
+12 Verbraucher, nie abrechnungsrelevant) an und publiziert echte MQTT-Werte mit echtem,
+echtzeit-synchronem Tagesprofil (Einspeiser nur 06:00-20:00 mit Mittagsspitze, Verbraucher mit
+Nacht-Grundlast + Morgen-/Mittags-/Abendspitze). Läuft über den kompletten echten Pfad bis zur
+Live-Anzeige, kein Frontend-Fake -- dort erscheint dafür ein deutlicher Hinweis, dass die Werte
+teilweise simuliert sind, solange der Schalter an ist. Details: `CLAUDE.md`.
 
 ## Claude-Sitzungslog (Selbstdokumentation)
 

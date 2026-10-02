@@ -9,6 +9,36 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Und das noch mal wegen dem Messesimulator: Was hast du da gemeint mit 24 Stunden
+sind eigentlich nur 20 echte Minuten? Das möchte ich nicht haben. Es soll schon sein, dass der
+ganze Verlauf richtig funktioniert. Ich werde diesen auch bis ich wirklich [...] Mitglieder mit
+den Ausleseeinheiten ausstatten werde, das generell mal laufen lassen [...] Bitte mach mir aber
+bei dieser Anzeige dann einen Hinweis [...] dass diese Werte fiktive Werte sind [...] und diese
+jetzt noch nicht stimmen." Gefolgt von: "Bitte lass es im Hintergrund laufen. Vielleicht baue
+auch etwas ein, sodass ich als Admin unter den Einstellungen noch einen kleinen Schalter
+bekomme, um das ein- und auszuschalten. Ich möchte es nicht in der Kommandozeile laufen lassen
+[...] Bitte einfach einen Schalter mit „Simulierte Werte anzeigen" [...] ganz oben bei den
+Energiegemeinschaftseinstellungen [...] Bitte haben diese Werte keine Auswirkung auf
+Abrechnungen oder irgendetwas."
+**Auftrag:** Kompletter Umbau des gerade erst gebauten Messe-Simulators: weg von manuell
+gestarteten Kommandozeilen-Skripten mit Zeitraffer, hin zu einem dauerhaften
+Hintergrund-Dienst mit echtzeit-synchronem Tagesverlauf, einem einfachen Ein/Aus-Schalter in
+den EEG-Einstellungen und einem sichtbaren Hinweis auf jeder Seite, die die simulierten Werte
+mitzählt.
+**Ergebnis:** `scripts/messe_demo_setup.php`/`teardown.php`/`simulator.py` entfernt, dafür
+`demo_simulation_loop()` direkt in `mqtt-subscriber/main.py` (eigener Daemon-Thread, wie
+`reconfig_broadcast_loop()`) -- pollt `communities.messe_demo_enabled`
+(`migrate_20261005.sql`), legt bei Bedarf automatisch 20 fiktive Zählpunkte an und publiziert
+echtzeit-synchrone Tagesprofile. Neue Checkbox "Simulierte Werte anzeigen" ganz oben in
+`/portal/settings`. Hinweistext auf `energy_flow.php` (Obmann-/Mitglied-Dashboard) und der
+öffentlichen Live-Seite (`/live/:slug`, über ein neues `demo_simulation`-Feld im
+`/api/live/:slug`-JSON), sobald der Schalter an ist. `is_demo=true` garantiert weiterhin keine
+Abrechnungsrelevanz. Dokumentiert in `CLAUDE.md`, `obsidian/Infrastruktur.md`,
+`docs/BETRIEBSHANDBUCH.md`.
+
+---
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Mit den lückenlosen Rechnungsnummern hast du recht. Leider machen wir es doch noch
 mal wieder zurück, sodass jede Energiegemeinschaft von 1 anfängt. Wir machen das ja im Namen
 der Energiegemeinschaft. Oder wir machen es doch mit der Rechnungsnummer-RC-Nummer der

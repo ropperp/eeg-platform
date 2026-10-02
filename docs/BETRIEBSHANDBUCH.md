@@ -914,3 +914,18 @@ docker compose up -d --build
 > Mitglieder mit Gutschrift oder ohne App-Login erfuhren von ihrer Rechnung nie automatisch.
 > Vorlage anpassbar unter Platform-Admin → Einstellungen → E-Mail-Vorlagen → "Rechnung verfügbar
 > (bei Freigabe)". Kein weiterer Schritt nötig, läuft automatisch mit der nächsten Freigabe.
+
+> **Einmalig nach dem Update vom 05.10.2026** (Messe-/Präsentations-Demo von Kommandozeilen-
+> Skripten auf einen dauerhaften Hintergrund-Schalter umgestellt -- siehe `CLAUDE.md`,
+> Abschnitt "Messe-/Präsentations-Demo"):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261005.sql
+> docker compose up -d --build
+> ```
+> Danach einfach in den Obmann-Einstellungen (ganz oben bei "Stammdaten") die Checkbox
+> "Simulierte Werte anzeigen" setzen -- kein weiterer Schritt nötig, der `mqtt-subscriber`-
+> Container übernimmt den Rest automatisch. Die früheren Skripte `scripts/messe_demo_setup.php`,
+> `scripts/messe_demo_simulator.py`, `scripts/messe_demo_teardown.php` sind entfernt (ersetzt
+> durch `demo_simulation_loop()` in `mqtt-subscriber/main.py`).
