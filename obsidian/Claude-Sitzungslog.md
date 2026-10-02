@@ -9,6 +9,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Mit den lückenlosen Rechnungsnummern hast du recht. Leider machen wir es doch noch
+mal wieder zurück, sodass jede Energiegemeinschaft von 1 anfängt. Wir machen das ja im Namen
+der Energiegemeinschaft. Oder wir machen es doch mit der Rechnungsnummer-RC-Nummer der
+jeweiligen Energiegemeinschaft, weil man dann wirklich die Dateien auseinanderhalten kann. Aber
+dann halt wirklich nur die RC-Nummer, die Zuordnungsnummer dazu, weil den Namen so etwas, den
+brauchen wir da nicht dabei."
+**Auftrag:** Dritte Kehrtwende zur Rechnungsnummerierung am selben Tag -- Patrick möchte beides
+gleichzeitig: lückenlose Zählung pro EEG ab 1 UND plattformweite Eindeutigkeit/Zuordenbarkeit,
+aber ohne den Mitgliedernamen wie im allerersten Format vom 06.08.2026.
+**Ergebnis:** `Billing::generateDrafts()` zählt wieder pro EEG (MAX über `community_id`), hängt
+aber die Marktpartner-ID (RC-Nummer, ohne Namen) als Suffix an -- Format jetzt
+`RE-260001_RC108175`. Bricht mit klarer Fehlermeldung ab, falls für die EEG noch keine
+Marktpartner-ID hinterlegt ist. Keine neue Migration nötig (die globale
+`UNIQUE(rechnungsnummer)`-Constraint aus der vorigen Kehrtwende bleibt gültig). Dokumentiert als
+dritter Eintrag derselben Geschichte in `docs/VORFAELLE.md`.
+
+---
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Also, das mit den Rechnungsnummern: Das glaube ich ja nicht, dass wir das so machen
 können [...] Es muss ja für das System Strom für alle unterschiedliche Rechnungsnummern sein
 [...] das werden wir schon plattformweit Rechnungsnummern haben und nicht für jede
