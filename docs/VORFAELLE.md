@@ -1258,3 +1258,32 @@ also so einen Strommasten").
 den Default `objectBoundingBox` verlassen, sobald die Form auch mal achsenparallel mit
 Breite/Höhe 0 vorkommen kann (senkrechte oder waagrechte Linie) -- `userSpaceOnUse` mit jeden
 Frame aktualisierten Koordinaten ist die robuste Variante, unabhängig von der Ausrichtung.
+
+### Energiefluss-Animation: "rein dann raus"-Reihenfolge lief doch gleichzeitig + Netz-Icon sah wie ein Windrad aus (02.10.2026)
+Patrick, nach einem Live-Test mit echtem Server-Screenshot: "Der Mast sieht aus wie ein Windrad,
+und das zuerst rein und dann raus, das ist es noch nicht. Das ist alles gleichzeitig."
+
+**Ursache Reihenfolge:** `makeConnector()` (`assets/js/energy-flow.js`) hat für ALLE drei
+Verbindungen hart `phase: 'in'` gesetzt. `applyValues()` hat bei jedem Datenrefresh nur
+`conn.netz.phase` passend zum Vorzeichen aktualisiert -- `conn.verbrauch.phase` blieb dadurch für
+immer auf dem Erzeugungs-Default `'in'` stehen, obwohl Verbrauch konzeptionell IMMER Phase "raus"
+sein muss (ein Mitglied bezieht nur, speist nie zurück in den Pool). PV und Verbrauch liefen
+dadurch fälschlich in derselben Phase gleichzeitig, statt dass Verbrauch auf das Eintreffen in
+der EEG-Kugel wartet. **Fix:** `makeConnector()` nimmt jetzt eine explizite initiale Phase
+entgegen (PV fest `'in'`, Verbrauch fest `'out'`, Netz weiterhin dynamisch durch `applyValues()`
+aktualisiert). Mit einem lokalen Playwright-Test verifiziert: PV bewegt sich jetzt allein zuerst,
+nach der Pause erst gemeinsam Netz+Verbrauch -- exakt wie beabsichtigt.
+
+**Ursache Icon:** Das erste `ph-pylon`-Icon (PR #211) hatte vier diagonale "Arme" mit kleinen
+Endstücken, symmetrisch um die Mastspitze angeordnet -- bei 28px Darstellungsgröße liest sich
+das als rotierender Rotor/Windrad statt als Hochspannungsmast. **Fix:** Icon neu gezeichnet ohne
+diagonale Elemente -- stattdessen ein klassischer waagrechter Querarm mit zwei kurzen
+Isolator-"Tropfen" an den Enden (wie bei einer echten Überlandleitung), auf einem schlicht
+verjüngten Mast mit Standfuß. Eine Zwischenfassung ganz ohne Querarm/Isolatoren (nur Mast) wurde
+verworfen, weil sie wie ein Verkehrshütchen aussah -- der Querarm ist also kein Zierrat, sondern
+das Element, das das Icon überhaupt erst als Strommast erkennbar macht.
+
+**Merksatz:** ein Icon, das bei voller Größe eindeutig aussieht, kann bei der tatsächlichen
+Einsatzgröße (hier 28px in einem 64px-Kreis) etwas völlig anderes suggerieren, v.a. bei radial-
+symmetrischen Elementen (Rotationsassoziation). Immer in der TATSÄCHLICHEN Zielgröße prüfen, nicht
+nur vergrößert.
