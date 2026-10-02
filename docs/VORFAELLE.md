@@ -1228,3 +1228,33 @@ unnötig kurz, obwohl die URL über `?v=<filemtime>` bereits dauerhaft inhalts-v
 der erste visuelle Eindruck der Startseite) verdient i. d. R. zusätzlich einen
 `<link rel="preload">`-Hinweis im `<head>` -- der Preload-Scanner behandelt `background-image`
 spürbar später als ein `<img src>` oder ein explizites Preload.
+
+### Energiefluss-Animation: Glow-Trail bei der PV-Verbindung unsichtbar (02.10.2026)
+Patrick, nach dem ersten Test der neuen rAF-Animation (PR #210): "Dieser Glow dahinter, sodass
+es so ein bisschen mehr animiert aussieht, den haben wir jetzt nicht. Wir haben jetzt nur die
+Kugel, die da hin- und herschwingt."
+
+**Ursache:** Der schimmernde Trail hinter dem Punkt ist eine `<line>` mit
+`stroke="url(#gradient)"`, der Gradient wurde aber ohne explizites `gradientUnits` erzeugt --
+Default ist `objectBoundingBox`, ein Verlauf, der sich IMMER an der Bounding-Box der
+gezeichneten Form orientiert (Standardrichtung waagrecht, x1=0%/x2=100%). Die PV->EEG-Verbindung
+steht layoutbedingt immer exakt SENKRECHT übereinander (PV-Kreis liegt direkt über dem
+EEG-Hub) -- die Bounding-Box des Trails hat für diese Verbindung also eine Breite von 0. Laut
+SVG-Spezifikation kollabiert ein Gradient mit identischem Start-/Endpunkt (hier: beide
+x-Koordinaten fallen bei Breite 0 zusammen) zu einem einzelnen Punkt und wird nur noch einfarbig
+(ohne jeden Verlauf/Fade) gerendert -- optisch kaum von "nichts da" zu unterscheiden, vor allem
+bei der ohnehin meist recht dezenten obersten Verbindung.
+
+**Fix:** `gradientUnits="userSpaceOnUse"` statt des Defaults, dazu werden `x1/y1/x2/y2` des
+Gradients jeden Animations-Frame explizit auf die AKTUELLEN Trail-Endpunkte gesetzt (dieselben
+Koordinaten wie die Trail-Linie selbst) -- funktioniert dadurch unabhängig von der
+Verbindungsrichtung (senkrecht/waagrecht/schräg). Zusätzlich Trail/Glow kräftiger gemacht
+(längerer Trail, größerer Punkt, stärkerer drop-shadow-Blur) und das Netz-Symbol von einem
+generischen Stecker-Icon auf ein selbst gezeichnetes Hochspannungsmast-Icon (`ph-pylon`)
+umgestellt (Patrick: "können wir auch das Netzsymbol so wie bei mir in der Loxone-App nehmen,
+also so einen Strommasten").
+
+**Merksatz:** bei einem SVG-Gradient, der eine PER-JS BEWEGTE Form (Linie/Pfad) einfärbt, NIE auf
+den Default `objectBoundingBox` verlassen, sobald die Form auch mal achsenparallel mit
+Breite/Höhe 0 vorkommen kann (senkrechte oder waagrechte Linie) -- `userSpaceOnUse` mit jeden
+Frame aktualisierten Koordinaten ist die robuste Variante, unabhängig von der Ausrichtung.

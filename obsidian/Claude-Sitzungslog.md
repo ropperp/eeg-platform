@@ -9,6 +9,29 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Also, das mit der Anzeige läuft schon mal ein bisschen besser. Was ich noch gern
+hätte, ist, dass immer zuerst alle Punkte [...] in die sogenannte Energiegemeinschaftskugel
+kommen. Erst wenn diese [...] eingetroffen sind, geht die Energie wieder zu den Verbrauchern
+raus. [...] Dieser Glow dahinter, sodass es so ein bisschen mehr animiert aussieht, den haben
+wir jetzt nicht. Wir haben jetzt nur die Kugel, die da hin- und herschwingt. [...] Vielleicht
+können wir auch das Netzsymbol so wie bei mir in der Loxone-App nehmen, also so einen
+Strommasten." (mit Screenshot einer Loxone-Energiefluss-Ansicht als Vorbild)
+**Auftrag:** Den in der letzten Sitzung eingeführten Glow-Trail der Energiefluss-Animation
+reparieren (war laut Rückmeldung gar nicht sichtbar), die bereits vorhandene "erst rein, dann
+raus"-Reihenfolge bestätigen/sicherstellen, und das Netz-Symbol durch ein Hochspannungsmast-Icon
+nach Vorbild einer Loxone-App-Ansicht ersetzen.
+**Ergebnis:** Ursache des fehlenden Glows gefunden: der Trail-Gradient nutzte den SVG-Default
+`objectBoundingBox`, der bei der (layoutbedingt immer exakt senkrechten) PV->EEG-Verbindung zu
+einem Punkt kollabierte und nur einfarbig statt als Verlauf gerendert wurde. Fix: explizites
+`gradientUnits="userSpaceOnUse"` mit jeden Frame aktualisierten Koordinaten (siehe
+docs/VORFAELLE.md). Trail/Glow zusätzlich kräftiger gemacht. Die "erst rein, dann raus"-Phasen-
+Logik war bereits korrekt implementiert, keine Änderung nötig. Neues, selbst gezeichnetes
+Icon `ph-pylon` (Hochspannungsmast) in der Sprite-Datei ergänzt und fürs Netz-Symbol eingesetzt
+(ersetzt das bisherige generische Stecker-Icon). `php tests/run.php` (138 Tests) grün, Fix mit
+einem lokalen Playwright-Screenshot-Vergleich verifiziert (Glow jetzt auch auf der vorher
+betroffenen senkrechten PV-Verbindung sichtbar).
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Ja, bitte so umsetzen." (Zustimmung zur zuvor vorgestellten Option 1: Umbau der
 Energiefluss-Animation auf einen requestAnimationFrame-Loop statt SMIL, siehe Diskussion im
 vorherigen Eintrag.)
