@@ -1308,3 +1308,26 @@ Technik als ein gefülltes Silhouetten-Icon.
 **Merksatz:** nicht jedes Motiv passt zum Silhouetten-Stil des restigen Icon-Sets -- bei dünnen,
 strebenartigen Formen (Mast, Antenne, Gerüst) liefert ein Linien-Icon (`stroke` statt `fill`)
 bei kleiner Darstellungsgröße zuverlässiger ein erkennbares Ergebnis.
+
+### Netz-Icon: vierter Anlauf -- detailliertes Referenzbild nachgezeichnet (02.10.2026)
+Patrick schickte ein Referenzbild eines klassischen Hochspannungsmast-Icons (Gittermast mit
+zwei Traversen, Isolator-Girlanden, X-verstrebtem sich verjüngendem Turm) mit der Bitte: "Bitte
+verwende die Maße. Beziehungsweise zeichne die jetzt nach, aber in dieser Form."
+
+**Vorgehen:** Das Referenzbild lässt sich nicht direkt in eine 28px-Kachel übernehmen -- bei
+voller Detailtreue (mehrere X-Gitterfelder, 3-4 Zacken pro Isolator) wird das Icon bei
+tatsächlicher Einsatzgröße zu einem unleserlichen dunklen Klecks (mit Playwright verifiziert,
+siehe Screenshot-Vergleich). Lösung: dieselbe Formensprache (Spitze oben, zwei Traversen mit
+Isolator-Zacken, X-verstrebter Turm mit zwei Beinen) beibehalten, aber die Wiederholungsanzahl
+reduziert (2 Gitterfelder statt 4, 2 Zacken pro Isolator statt 4) -- bei voller Größe optisch
+sehr nah am Referenzbild, bei 28px klar als Hochspannungsmast erkennbar statt als Klecks.
+Pfad-Koordinaten wurden parametrisch per Python-Skript erzeugt (nicht von Hand abgezählt), um
+Mast-Verjüngung, Traversen-Spannweite und Gitterfelder konsistent zu berechnen -- mit Playwright
+sowohl in Originalgröße (Vergleich mit dem Referenzbild) als auch in der tatsächlichen
+28px/64px-Kreis-Darstellung (alle drei Farbzustände, über die echte Sprite-Datei via `<use>`
+über einen lokalen HTTP-Server) verifiziert.
+
+**Merksatz:** bei einem als Vorlage gegebenen Referenzbild immer zuerst klären/prüfen, in
+welcher Zielgröße das Ergebnis tatsächlich angezeigt wird -- volle Detailtreue und Lesbarkeit
+bei Icon-Größe stehen oft im Widerspruch, die Lösung ist meist eine reduzierte Wiederholungszahl
+bei gleicher Formensprache, nicht ein kategorisch anderes Icon.
