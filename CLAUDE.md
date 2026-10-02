@@ -317,6 +317,42 @@ Manuell testen: `cd /opt/eeg-platform && bash scripts/health_monitor.sh`.
 
 ---
 
+## Messe-/Präsentations-Demo (MQTT-Simulator, 02.10.2026)
+
+Patrick, 02.10.2026: "brauch in einer Woche einen guten Energiefluss um auf einer Messe eine
+Simulation zu zeigen [...] 8 Einspeiser und 12 Verbraucher [...] paar höhere und paar niedrigere
+[...] über mqtt trotzdem." Für genau diesen Zweck gibt es jetzt zwei Skripte -- erzeugen echte
+MQTT-Live-Nachrichten im exakten Firmware-Format, laufen also über den ganzen echten Pfad
+(mqtt-subscriber -> esp_measurements -> Energiefluss/Live-Dashboard/öffentliche Live-Anzeige),
+statt irgendwo im Frontend nur Zahlen vorzutäuschen:
+
+```bash
+# 1. Einmalig: 20 fiktive Zählpunkte (8 Einspeiser/12 Verbraucher, is_demo=true, nie
+#    abrechnungsrelevant) in der eigenen EEG anlegen -- Ausgabe zeigt Community-Slug + Zählernummern
+docker compose exec -T webapp php scripts/messe_demo_setup.php
+
+# 2. Simulator starten (lokal im Docker-Netz ODER von einem Messe-Laptop über die öffentliche
+#    TLS-Adresse, --insecure wegen selbstsigniertem Zertifikat wie beim ESP32 setInsecure())
+pip install paho-mqtt
+python3 scripts/messe_demo_simulator.py --community <slug-aus-Schritt-1> \
+    --host stromfueralle.at --port 8883 --user eeg-device --password "$MQTT_PASSWORD" --insecure
+
+# 3. NACH der Messe unbedingt aufräumen, sonst verzerren die Fantasiewerte dauerhaft die echte
+#    Live-Anzeige (die 20 Zählpunkte haben KEIN mirror_source_metering_point_id, zählen also
+#    anders als die bestehenden 2 Demo-Login-Zählpunkte tatsächlich in die Community-Summe mit --
+#    genau das ist hier gewollt, für die Vorführung)
+docker compose exec -T webapp php scripts/messe_demo_teardown.php
+```
+
+`scripts/messe_demo_simulator.py` braucht keine DB-/Webapp-Zugangsdaten, nur MQTT (`paho-mqtt`,
+Zugangsdaten aus `.env` oder per `--user`/`--password`) -- kann daher auch direkt von einem
+Laptop am Messestand laufen, unabhängig vom Server. Jeder der 20 Zählpunkte bekommt alle 5s
+(Default, wie eine echte Firmware) einen neuen, per begrenztem Random-Walk um eine individuelle
+Baseline schwankenden Leistungswert -- bleibt "lebendig", ohne von der tatsächlichen Uhrzeit
+abhängig zu sein (am Messestand egal, ob Tag oder Abend).
+
+---
+
 ## Obsidian-Sync
 
 `/obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks lokalen Obsidian-Vault

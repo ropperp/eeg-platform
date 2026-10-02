@@ -204,6 +204,15 @@ dieser Vault-Spiegel war auf über 1000 Zeilen angewachsen). Bei einem neuen, no
 Symptom dort nachsehen -- die Pfad-/Mount-Übersicht (`docs/INFRASTRUKTUR_PFADE.md`) bleibt der
 erste Blick bei DB-/Daten-„weg"-Symptomen.
 
+## Messe-/Präsentations-Demo (MQTT-Simulator, 02.10.2026)
+
+Für eine Messe-Vorführung ("8 Einspeiser und 12 Verbraucher [...] über mqtt") gibt es
+`scripts/messe_demo_setup.php` (legt 20 fiktive, nie abrechnungsrelevante Zählpunkte an) +
+`scripts/messe_demo_simulator.py` (publiziert realistisch schwankende Live-Werte im echten
+Firmware-Format -- läuft über den kompletten echten Pfad bis zur Live-Anzeige, kein
+Frontend-Fake). Nach der Messe `scripts/messe_demo_teardown.php` nicht vergessen, sonst
+verzerren die Fantasiewerte dauerhaft die echte Live-Anzeige. Details: `CLAUDE.md`.
+
 ## Claude-Sitzungslog (Selbstdokumentation)
 
 Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,

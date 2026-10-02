@@ -9,6 +9,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "was ich noch umsetzten will ist, brauch in einer Woche einen Guten Energiefluss um
+auf einer Messe eine Simulation zu zeigen. einfach realistische, paar schwankende, Werte. So 8
+Einspeiser und 12 Verbraucher. Ein paar höhere und paar niedrigere. Einfach simulierte Werte.
+aber machen wir einfach über mqtt trozdem."
+**Auftrag:** Für eine Messe-/Diplomarbeits-Präsentation in einer Woche einen realistischen,
+lebendigen Energiefluss mit 20 simulierten Teilnehmern zeigen können -- ausdrücklich über echte
+MQTT-Nachrichten statt eines reinen Frontend-Mockups, damit der komplette echte Datenpfad
+vorgeführt wird.
+**Ergebnis:** Drei neue Skripte: `scripts/messe_demo_setup.php` (legt 20 fiktive, is_demo=true-
+Zählpunkte -- 8 Einspeiser/12 Verbraucher -- unter einem Demo-Mitglied in der eigenen EEG an,
+nie abrechnungsrelevant), `scripts/messe_demo_simulator.py` (publiziert alle 5s realistisch per
+Random-Walk schwankende Live-Werte im exakten ESP32-Firmware-MQTT-Format, pro Zählpunkt eigene
+Baseline), `scripts/messe_demo_teardown.php` (räumt nach der Messe wieder auf). Dokumentiert in
+`CLAUDE.md` + `obsidian/Infrastruktur.md`. Noch zu tun: vor der Messe einmal live gegen den
+echten Broker testen (hier nur Syntax-/Logik-geprüft, kein echter Broker verfügbar).
+
+---
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Bitte setzte mir alle 4 Punkte um. claude.md aufräumen und das. sammelüberweisung
 wär auch cool, wenn es geht. hab mein konto bei der Sparkasse." (Bezug: vier zuvor vom
 Diplomarbeit-Berater-Agent gefundene Abrechnungs-Bugs vor der Q3-Freigabe.)
