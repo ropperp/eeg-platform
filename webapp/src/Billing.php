@@ -119,28 +119,35 @@ class Billing
             // die Nummer als SEPA-Verwendungszweck/EndToEndId kürzer und den Rechnungskopf
             // übersichtlicher. Bereits vergebene, längere Nummern bestehender Rechnungen bleiben
             // unverändert (kein rückwirkendes Umbenennen).
-            // Die laufende Nummer ist je EEG (Marktpartner-ID) UND Jahr fortlaufend und beginnt bei
-            // 0001 -- pro EEG getrennt, weil jede EEG ein eigener Verein mit eigener, laut § 11 UStG
-            // lückenloser Rechnungsnummerierung ist (nicht plattformweit gemeinsam). Ermittelt über
-            // die Anzahl bereits vorhandener Rechnungen dieser EEG in diesem Jahr (nicht über eine
-            // eigene Zählertabelle) -- da "Neu berechnen" die eigenen Entwürfe dieses Laufs vorher
-            // löscht (siehe oben), zählen dabei nur ANDERE, bereits bestehende Rechnungen mit, die
-            // Nummern bleiben also bei mehrfachem Neuberechnen dieses Laufs stabil.
+            // Die laufende Nummer ist PLATTFORMWEIT (über alle EEGs) UND pro Jahr fortlaufend --
+            // bewusst NICHT pro EEG getrennt (das war ein zwischenzeitlicher Fix am 02.10.2026,
+            // von Patrick noch am selben Tag verworfen: "ich als Plattform für Strom für alle
+            // [...] könnte [sonst] nicht unterscheiden, welche Rechnung für die eine
+            // Energiegemeinschaft und welche für die andere ist [...] das werden wir schon
+            // plattformweit [...] und nicht für jede Energiegemeinschaft einzeln wieder von 1
+            // anfangen"). Als Plattformbetreiber über mehrere EEGs hinweg ist für Patrick die
+            // eindeutige Identifizierbarkeit JEDER einzelnen Rechnungsnummer wichtiger als eine
+            // lückenlose Zählung je einzelner EEG (rechtlich wäre Letzteres für jede EEG als
+            // eigenständigen Verein die sauberere Lösung -- siehe migrate_20261003.sql, das die
+            // (community_id, rechnungsnummer)-Eindeutigkeit vom 02.10. wieder auf eine einzige,
+            // globale UNIQUE(rechnungsnummer) zurücksetzt).
             // Advisory Lock (nur für die Dauer dieser Transaktion) serialisiert die Nummern-
-            // vergabe je EEG -- verhindert, dass zwei gleichzeitig berechnete Läufe derselben
-            // EEG (oder ein doppelter Klick auf "Neu berechnen") dieselbe Nummer vergeben.
-            DB::execute('SELECT pg_advisory_xact_lock(hashtext(?))', [$run['community_id'] . ':invoice_seq']);
+            // vergabe PLATTFORMWEIT -- verhindert, dass zwei gleichzeitig berechnete Läufe
+            // (egal welcher EEG) oder ein doppelter Klick auf "Neu berechnen" dieselbe Nummer
+            // vergeben.
+            DB::execute('SELECT pg_advisory_xact_lock(hashtext(?))', ['invoice_seq_global']);
 
             $jahr       = date('y');
             $numPrefix  = 'RE-' . $jahr;
             // MAX statt COUNT: COUNT(*) vergibt nach dem Löschen eines Laufs (z.B. "Neu
-            // berechnen" eines ANDEREN Laufs derselben EEG im selben Jahr, oder ein gelöschter
-            // Testlauf) dieselbe Nummer erneut -- mit laut § 11 UStG verbotenen Dubletten als
-            // Folge. MAX bleibt stabil, auch wenn zwischendurch Rechnungen gelöscht wurden.
+            // berechnen" eines ANDEREN Laufs im selben Jahr, oder ein gelöschter Testlauf)
+            // dieselbe Nummer erneut -- mit verbotenen Dubletten als Folge. MAX bleibt stabil,
+            // auch wenn zwischendurch Rechnungen gelöscht wurden. Bewusst ohne
+            // "WHERE community_id = ?" -- die Nummer zählt plattformweit, nicht pro EEG.
             $existing   = DB::fetchOne(
                 "SELECT MAX(CAST(RIGHT(rechnungsnummer, 4) AS INT)) AS maxseq
-                 FROM invoices WHERE community_id = ? AND rechnungsnummer LIKE ?",
-                [$run['community_id'], $numPrefix . '%']
+                 FROM invoices WHERE rechnungsnummer LIKE ?",
+                [$numPrefix . '%']
             );
             $invoiceSeq = (int)($existing['maxseq'] ?? 0) + 1;
 

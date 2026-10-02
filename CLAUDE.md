@@ -347,9 +347,22 @@ docker compose exec -T webapp php scripts/messe_demo_teardown.php
 `scripts/messe_demo_simulator.py` braucht keine DB-/Webapp-Zugangsdaten, nur MQTT (`paho-mqtt`,
 Zugangsdaten aus `.env` oder per `--user`/`--password`) -- kann daher auch direkt von einem
 Laptop am Messestand laufen, unabhängig vom Server. Jeder der 20 Zählpunkte bekommt alle 5s
-(Default, wie eine echte Firmware) einen neuen, per begrenztem Random-Walk um eine individuelle
-Baseline schwankenden Leistungswert -- bleibt "lebendig", ohne von der tatsächlichen Uhrzeit
-abhängig zu sein (am Messestand egal, ob Tag oder Abend).
+(Default, wie eine echte Firmware) einen neuen Leistungswert, der sich an ein echtes
+**Tagesprofil** annähert (Nachbesserung 02.10.2026, Patrick: "eine Einspeisung, die nicht in der
+Nacht, sondern in den Sonnenstunden funktioniert [...] das Gleiche bei den Verbrauchern, vor
+allem Mittag/Abend, in der Nacht ein konstanter oder leicht schwankender [Grundlast-]Strom"):
+Einspeiser liefern 0 W vor 06:00/nach 20:00, dazwischen eine Sinuskurve mit Höchstwert um 13:00;
+Verbraucher haben nachts eine Kühlschrank-/Standby-Grundlast und je einen Buckel morgens,
+mittags und (am stärksten) abends. Damit man am Messestand nicht 24 echte Stunden auf
+Sonnenauf-/-untergang warten muss, dauert ein simulierter Tag standardmäßig nur **20 echte
+Minuten** (`--day-length-minutes`, mit `1440` echtzeit-synchron) -- `--start-hour 12.5` startet
+z.B. direkt in der simulierten Mittagszeit.
+
+**Ein-/Ausschalten am Messestand:** einfach das Skript mit Strg+C beenden bzw. neu starten --
+mehr nicht, kein erneutes Setup nötig. Die simulierten Werte fallen nach dem Stoppen automatisch
+innerhalb von rund 2 Minuten wieder aus der Live-Summe/dem Energiefluss heraus (`communityLivePower()`
+zählt nur Messungen der letzten 2 Minuten). Sie zählen aber -- auch gestoppt -- bis zum
+`messe_demo_teardown.php` weiterhin als "registrierte Zählpunkte" in Zähler/Listen mit.
 
 ---
 

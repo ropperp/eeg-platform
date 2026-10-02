@@ -1102,3 +1102,37 @@ dieses Repos (externer Proxy-Host).
 > Zertifikat entfernt, siehe eigener Eintrag oben), aber `admin.`/`live.stromfueralle.at` stehen
 > weiterhin NICHT im Zertifikat, also `includeSubDomains` weiterhin nicht ergänzen, bis das
 > geklärt ist.
+
+### Rechnungsnummern pro EEG statt plattformweit -- noch am selben Tag wieder verworfen (02.10.2026)
+Im Rahmen der Abrechnungs-Fixes vom 02.10.2026 wurde `invoices.rechnungsnummer` zunächst von
+einer globalen `UNIQUE`-Constraint auf `UNIQUE(community_id, rechnungsnummer)` umgestellt --
+Beweggrund: seit das `RC<Marktpartner-ID>`-Präfix am 26.09.2026 aus der Nummer entfernt wurde
+(nur noch "RE-\<Jahr\>\<laufende Nummer\>"), hätte die erste Abrechnung einer zweiten EEG mit
+"RE-260001" theoretisch an einer bereits von einer anderen EEG vergebenen Nummer scheitern
+können -- und jede EEG ist als eigenständiger Verein ohnehin für ihre eigene, lückenlose
+Rechnungsnummerierung verantwortlich (§ 11 UStG).
+
+**Patrick, noch am selben Tag:** "ich als Plattform für Strom für alle [...] könnte [sonst]
+nicht unterscheiden, welche Rechnung für die eine Energiegemeinschaft und welche für die andere
+ist [...] das werden wir schon plattformweit [...] und nicht für jede Energiegemeinschaft
+einzeln wieder von 1 anfangen." Als Plattformbetreiber über mehrere EEGs hinweg ist für ihn die
+eindeutige Identifizierbarkeit jeder einzelnen Rechnungsnummer wichtiger als eine für jede EEG
+isoliert lückenlose Zählung -- eine bewusste, informierte Entscheidung trotz des damit
+verbundenen Nachteils (eine einzelne EEG sieht in ihren eigenen Rechnungsnummern ggf. Lücken,
+weil dazwischen Rechnungen anderer EEGs liegen).
+
+**Fix:** `migrate_20261003.sql` setzt die Constraint auf eine einzige, globale
+`UNIQUE(rechnungsnummer)` zurück. `Billing::generateDrafts()` ermittelt die laufende Nummer
+seither wieder OHNE `community_id`-Filter (plattformweit `MAX(...)` je Jahr), der Advisory-Lock
+zur Serialisierung ist ebenfalls global (`invoice_seq_global`) statt pro EEG. Betrifft nur die
+Zählung/Eindeutigkeit selbst -- an Format ("RE-\<Jahr\>\<lfd. Nr.\>") und den übrigen
+Abrechnungs-Fixes vom 02.10.2026 (Rechnungsdatum/Fälligkeit, PDF-Einfrieren, Lösch-Schutz)
+ändert sich nichts.
+
+**Merksatz:** bei einer Mehrmandanten-Plattform zwei unterschiedliche, teils widersprüchliche
+Anforderungen an Rechnungsnummern im Kopf behalten -- (a) aus Sicht der einzelnen EEG (eigener
+Verein) sollten sie lückenlos und nachvollziehbar sein, (b) aus Sicht des Plattformbetreibers
+müssen sie über alle Mandanten hinweg eindeutig UND unterscheidbar sein. Beides gleichzeitig
+geht nur mit einem EEG-spezifischen Bestandteil in der Nummer selbst (wie das ursprüngliche
+`RC<Marktpartner-ID>`-Präfix) -- ohne einen solchen Bestandteil muss man sich für eines der
+beiden entscheiden, wie hier für (b).

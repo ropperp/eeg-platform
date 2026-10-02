@@ -208,10 +208,13 @@ erste Blick bei DB-/Daten-„weg"-Symptomen.
 
 Für eine Messe-Vorführung ("8 Einspeiser und 12 Verbraucher [...] über mqtt") gibt es
 `scripts/messe_demo_setup.php` (legt 20 fiktive, nie abrechnungsrelevante Zählpunkte an) +
-`scripts/messe_demo_simulator.py` (publiziert realistisch schwankende Live-Werte im echten
-Firmware-Format -- läuft über den kompletten echten Pfad bis zur Live-Anzeige, kein
-Frontend-Fake). Nach der Messe `scripts/messe_demo_teardown.php` nicht vergessen, sonst
-verzerren die Fantasiewerte dauerhaft die echte Live-Anzeige. Details: `CLAUDE.md`.
+`scripts/messe_demo_simulator.py` (publiziert Live-Werte im echten Firmware-Format mit echtem
+Tagesprofil -- Einspeiser nur zwischen 06:00-20:00 mit Mittagsspitze, Verbraucher mit
+Nacht-Grundlast + Morgen-/Mittags-/Abendspitze, simulierter Tag standardmäßig in 20 echten
+Minuten statt 24h; läuft über den kompletten echten Pfad bis zur Live-Anzeige, kein
+Frontend-Fake). Ein-/Ausschalten = Skript starten/mit Strg+C beenden, kein erneutes Setup
+nötig. Nach der Messe `scripts/messe_demo_teardown.php` nicht vergessen, sonst zählen die 20
+Zählpunkte dauerhaft als "registriert" mit. Details: `CLAUDE.md`.
 
 ## Claude-Sitzungslog (Selbstdokumentation)
 
