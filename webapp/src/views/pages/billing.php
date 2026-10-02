@@ -153,7 +153,7 @@ ob_start();
             <a href="/portal/billing/<?= $run['id'] ?>/sepa-xml" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('arrow-down') ?> SEPA-XML</a>
             <a href="/portal/billing/gutschriften?run_id=<?= $run['id'] ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('bank') ?> Gutschriften</a>
           <?php endif; ?>
-          <?php if (Auth::isManager()): ?>
+          <?php if (Auth::isManager() && $run['status'] !== 'done'): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"
                   onsubmit="return confirmDangerDelete('Abrechnungslauf <?= htmlspecialchars(addslashes($run['quartal'])) ?> inkl. aller zugehörigen Rechnungen')">
               <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('trash') ?></button>

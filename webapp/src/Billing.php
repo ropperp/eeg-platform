@@ -126,13 +126,23 @@ class Billing
             // eigene Zählertabelle) -- da "Neu berechnen" die eigenen Entwürfe dieses Laufs vorher
             // löscht (siehe oben), zählen dabei nur ANDERE, bereits bestehende Rechnungen mit, die
             // Nummern bleiben also bei mehrfachem Neuberechnen dieses Laufs stabil.
+            // Advisory Lock (nur für die Dauer dieser Transaktion) serialisiert die Nummern-
+            // vergabe je EEG -- verhindert, dass zwei gleichzeitig berechnete Läufe derselben
+            // EEG (oder ein doppelter Klick auf "Neu berechnen") dieselbe Nummer vergeben.
+            DB::execute('SELECT pg_advisory_xact_lock(hashtext(?))', [$run['community_id'] . ':invoice_seq']);
+
             $jahr       = date('y');
             $numPrefix  = 'RE-' . $jahr;
+            // MAX statt COUNT: COUNT(*) vergibt nach dem Löschen eines Laufs (z.B. "Neu
+            // berechnen" eines ANDEREN Laufs derselben EEG im selben Jahr, oder ein gelöschter
+            // Testlauf) dieselbe Nummer erneut -- mit laut § 11 UStG verbotenen Dubletten als
+            // Folge. MAX bleibt stabil, auch wenn zwischendurch Rechnungen gelöscht wurden.
             $existing   = DB::fetchOne(
-                "SELECT COUNT(*) AS n FROM invoices WHERE community_id = ? AND rechnungsnummer LIKE ?",
+                "SELECT MAX(CAST(RIGHT(rechnungsnummer, 4) AS INT)) AS maxseq
+                 FROM invoices WHERE community_id = ? AND rechnungsnummer LIKE ?",
                 [$run['community_id'], $numPrefix . '%']
             );
-            $invoiceSeq = (int)($existing['n'] ?? 0) + 1;
+            $invoiceSeq = (int)($existing['maxseq'] ?? 0) + 1;
 
             // Manuelle Zusatzpositionen (z.B. einmaliger Rabatt) gelten für alle Rechnungen
             // dieses Laufs -- vom Manager vor der Freigabe über /portal/billing erfasst.
@@ -288,6 +298,17 @@ class Billing
             'UPDATE invoices SET sent_at = now() WHERE billing_run_id = ? AND sent_at IS NULL',
             [$billingRunId]
         );
+
+        // Jede Rechnung dieses Laufs einmalig rendern und unveränderlich ablegen (siehe
+        // freezeInvoicePdf() in index.php) -- ab jetzt zeigt das PDF IMMER diesen eingefrorenen
+        // Stand, egal ob sich später Stammdaten/Logo/Vorlage ändern. Ein einzelner
+        // Render-Fehler (z.B. latex-service kurz nicht erreichbar) darf die Freigabe selbst
+        // nicht verhindern -- freezeInvoicePdf() loggt den Fehler und die betroffene Rechnung
+        // bleibt bis zum nächsten erfolgreichen Einfrieren einfach live gerendert.
+        $invoiceIds = DB::fetchAll('SELECT id FROM invoices WHERE billing_run_id = ?', [$billingRunId]);
+        foreach ($invoiceIds as $row) {
+            freezeInvoicePdf($row['id']);
+        }
     }
 
     /**
