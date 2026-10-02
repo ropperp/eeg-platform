@@ -10,6 +10,9 @@
        um z.B. den Hero-Text erst dann per CSS auszublenden, wenn tatsächlich eine Animation
        (site-animations.js, unten) übernehmen wird. Ohne JS bleibt alles normal sichtbar. -->
   <script>document.documentElement.classList.add('js-anim');</script>
+  <?php if (!empty($extraHead)): ?>
+  <?= $extraHead ?>
+  <?php endif; ?>
 </head>
 <body>
 

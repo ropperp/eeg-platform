@@ -30,6 +30,8 @@ import random
 import threading
 import time
 import uuid
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
 import psycopg2
@@ -622,6 +624,17 @@ MESSE_DEMO_EMAIL = "messe-demo@stromfueralle.local"
 MESSE_SUNRISE_H = 6.0
 MESSE_SUNSET_H = 20.0
 DEMO_TICK_INTERVAL_S = 5
+# Vorfall 05.10.2026 (Patrick: "ich habe gerade 1.500 W Einspeisung [...] das kann nicht sein,
+# wenn [...] nur von 6 bis 22 Uhr eingespeist wird"): time.localtime() liest die Zeitzone DES
+# CONTAINERS, nicht die des Raspberry-Pi-Hosts -- das Basis-Image python:3.12-slim hat kein
+# System-tzdata installiert und kein TZ gesetzt, time.localtime() fiel deshalb stillschweigend
+# auf UTC zurück. Die simulierten Sonnenauf-/-untergangszeiten lagen dadurch 1-2h (je nach
+# Sommer-/Winterzeit) neben der tatsächlichen österreichischen Uhrzeit -- z.B. "19:30 Uhr UTC"
+# (noch Tageslicht laut Code) während es in Österreich bereits 21:30 Uhr (CEST, UTC+2) und
+# damit nach dem simulierten Sonnenuntergang war. Fix: explizit über zoneinfo in die richtige
+# Zeitzone umrechnen statt sich auf die (falsch konfigurierte) System-Zeitzone zu verlassen --
+# das `tzdata`-Pip-Paket (siehe requirements.txt) macht das unabhängig vom Basis-Image sicher.
+AUSTRIA_TZ = ZoneInfo("Europe/Vienna")
 # Zustand je simuliertem Zählpunkt (aktuelle Leistung + Zählerstand), über Ticks hinweg erhalten
 # -- Key "<community_id>:<meter_code>". Rein In-Memory, geht bei einem Container-Neustart
 # verloren und beginnt dann einfach wieder sauber am jeweiligen Tagesprofil-Zielwert.
@@ -702,8 +715,8 @@ def demo_simulation_tick(client: mqtt.Client) -> None:
             cur.execute("SELECT id, slug, marktpartner_id FROM communities WHERE messe_demo_enabled = true")
             enabled = cur.fetchall()
 
-        now = time.localtime()
-        sim_hour = now.tm_hour + now.tm_min / 60 + now.tm_sec / 3600
+        now = datetime.now(timezone.utc).astimezone(AUSTRIA_TZ)
+        sim_hour = now.hour + now.minute / 60 + now.second / 3600
 
         for community_id, slug, marktpartner_id in enabled:
             rc = (marktpartner_id or slug or "").strip().lower()

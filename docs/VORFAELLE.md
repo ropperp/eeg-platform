@@ -1168,3 +1168,63 @@ Rechnungsnummer selbst (nicht eine plattformweite Zählung) ist der einzige Weg,
 "jede EEG zählt lückenlos in ihrem eigenen Namen" als auch "jede Nummer ist plattformweit
 eindeutig/einer EEG zuordenbar" gleichzeitig erfüllt -- genau das war schon das allererste
 Format vom 06.08.2026 (nur mit zusätzlichem Namen, den es jetzt nicht mehr braucht).
+
+### Messe-Demo: Fiktive Einspeiser produzieren nachts -- Container lief in UTC statt Europe/Vienna (05.10.2026)
+Patrick, kurz nach dem ersten echten Test des neuen Hintergrund-Schalters: "Ich verstehe
+eigentlich nicht, warum jetzt die neuen Zugänge einspeisen. Ich weiß zum Beispiel, dass wir über
+die Über-Nacht-Einspeisung [...] circa gerade 700 W habe. Ich habe gerade 1.500 W Einspeisung.
+Das kann nicht sein, wenn bei den fiktiven Einspeisern nur von 6 bis 22 Uhr eingespeist wird."
+
+**Ursache:** `demo_simulation_tick()` (`mqtt-subscriber/main.py`) las die aktuelle Uhrzeit bisher
+über `time.localtime()` -- das liest die Zeitzone DES CONTAINERS, nicht die des Raspberry-Pi-
+Hosts. Das Basis-Image `python:3.12-slim` hat kein System-`tzdata`-Paket installiert und nirgends
+war `TZ` gesetzt, `time.localtime()` fiel deshalb stillschweigend auf UTC zurück. Bei einem Test
+um ca. 21:50 Uhr österreichischer Zeit (CEST, UTC+2) las der Code dadurch "19:50 Uhr" -- laut
+`messe_producer_envelope()` (Sonnenuntergang bei 20:00) noch ein kleiner, aber nicht
+verschwindender Tageslicht-Faktor (~3,8 %), macht über alle 8 fiktiven Einspeiser aufsummiert
+rund 500-550 W zusätzliche "Phantom-Einspeisung" -- passt ziemlich genau zur beobachteten
+Differenz (700 W echt gemessen vs. 1.500 W angezeigt gesamt).
+
+**Fix:** `mqtt-subscriber/requirements.txt` um das reine Python-Paket `tzdata` (IANA-Zeitzonen-
+datenbank, keine System-/apt-Abhängigkeit, funktioniert unabhängig vom Basis-Image) ergänzt,
+`demo_simulation_tick()` berechnet die Uhrzeit jetzt explizit über
+`datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Vienna"))` statt sich auf die
+(hier falsch konfigurierte) System-Zeitzone zu verlassen -- berücksichtigt automatisch auch den
+Sommer-/Winterzeit-Wechsel.
+
+**Merksatz:** in einem Docker-Container NIE von `time.localtime()`/`datetime.now()` ohne
+`tz=`-Argument ausgehen, wenn eine bestimmte Zeitzone (nicht UTC) gemeint ist -- schlanke
+Basis-Images (`-slim`, `-alpine`) haben standardmäßig kein `tzdata` installiert und laufen dann
+lautlos in UTC, ganz unabhängig davon, in welcher Zeitzone der Host tatsächlich steht. Explizit
+`zoneinfo.ZoneInfo(...)` verwenden (ggf. mit dem `tzdata`-Pip-Paket als Fallback) statt sich auf
+eine implizit korrekt konfigurierte System-Zeitzone zu verlassen.
+
+### Hero-Banner auf der Startseite lädt sichtbar langsam/grau nach (02.10.2026)
+Patrick: "Dieses [Hero-Banner] braucht immer ziemlich lange, bis es geladen wird, wenn ich die
+Seite aufrufe. [...] Weil das nämlich ziemlich schlimm aussieht, wenn's erst ein graues Bild ist
+und dann langsam erst die Farbe kommt."
+
+**Ursache:** das eigene Hero-Foto (`home.php`) hängt nur als CSS-`background-image` an `.hero` --
+solche `url()`-Referenzen entdeckt der Browser-Preload-Scanner erst beim Aufbau der CSSOM
+(nachdem das zugehörige `<style>` geparst und die Regel gematcht ist), nicht schon beim ersten,
+sehr frühen HTML-Scan wie bei einem `<img src>`. Zusätzlich stand auf der ausliefernden Route
+(`/hero-banner-image`, `webapp/public/index.php`) nur `Cache-Control: public, max-age=3600` --
+unnötig kurz, obwohl die URL über `?v=<filemtime>` bereits dauerhaft inhalts-versioniert ist
+(ändert sich automatisch bei neuem Upload) und unter derselben URL nie andere Bytes liefert.
+
+**Fix:**
+- `webapp/src/views/layouts/base.php`: neue, generische `$extraHead`-Konvention -- eine Seite
+  kann vor dem `ob_start()` beliebiges zusätzliches `<head>`-Markup setzen, `base.php` gibt es
+  (falls vorhanden) direkt vor `</head>` aus.
+- `webapp/src/views/pages/home.php`: setzt darüber, wenn ein eigenes Hero-Foto hochgeladen ist,
+  `<link rel="preload" as="image" fetchpriority="high" href="...">` auf exakt dieselbe
+  `?v=<filemtime>`-URL wie das `background-image` -- der Browser lädt das Bild dadurch parallel
+  zu allem anderen, statt erst nach dem CSS-Parsing.
+- `webapp/public/index.php` (`/hero-banner-image`): `Cache-Control` von `max-age=3600` auf
+  `public, max-age=31536000, immutable` verlängert -- gefahrlos, weil die URL bereits
+  inhalts-versioniert ist.
+
+**Merksatz:** ein per CSS-`background-image` eingebundenes, aber inhaltlich wichtiges Bild (hier:
+der erste visuelle Eindruck der Startseite) verdient i. d. R. zusätzlich einen
+`<link rel="preload">`-Hinweis im `<head>` -- der Preload-Scanner behandelt `background-image`
+spürbar später als ein `<img src>` oder ein explizites Preload.
