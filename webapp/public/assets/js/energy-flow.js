@@ -38,7 +38,7 @@
   var CYCLE_S = 2 * (PULSE_MOVE_S + PULSE_PAUSE_S);
   var OUT_START_S = PULSE_MOVE_S + PULSE_PAUSE_S;
   // Anteil der Bewegungsphase, den der Glow-Trail hinter dem Punkt bedeckt.
-  var TRAIL_FRACTION = 0.22;
+  var TRAIL_FRACTION = 0.32;
 
   // ─── Geometrie-Helfer (unverändert aus der Vorfassung übernommen) ─────────────────────────
   function nodeCircle(container, containerRect, name) {
@@ -96,6 +96,14 @@
 
       var grad = svgEl('linearGradient');
       grad.setAttribute('id', gradId);
+      // userSpaceOnUse statt des Default-objectBoundingBox: bei einer EXAKT senkrechten
+      // Verbindung (PV -> EEG steht immer genau senkrecht übereinander, siehe Layout) hat die
+      // Bounding-Box des Trails eine Breite von 0 -- der Default-Gradient (verläuft annahmegemäß
+      // waagrecht, x1=0%/x2=100%) kollabiert dadurch zu einem einzelnen Punkt und wird nur noch
+      // einfarbig (kein Verlauf mehr) gerendert. Mit userSpaceOnUse werden x1/y1/x2/y2 stattdessen
+      // jeden Frame explizit auf die tatsächlichen Trail-Endpunkte gesetzt (siehe frame()) --
+      // funktioniert dadurch unabhängig von der Linienrichtung (senkrecht/waagrecht/schräg).
+      grad.setAttribute('gradientUnits', 'userSpaceOnUse');
       var stop1 = svgEl('stop');
       stop1.setAttribute('offset', '0%');
       stop1.setAttribute('stop-opacity', '0');
@@ -118,7 +126,7 @@
       svg.appendChild(trail);
 
       var dot = svgEl('circle');
-      dot.setAttribute('r', 4.5);
+      dot.setAttribute('r', 5.5);
       dot.setAttribute('class', 'eflow-pulse');
       dot.setAttribute('fill', color);
       dot.style.color = color;
@@ -126,7 +134,7 @@
       svg.appendChild(dot);
 
       return {
-        baseline: baseline, trail: trail, dot: dot, stop1: stop1, stop2: stop2,
+        baseline: baseline, trail: trail, dot: dot, grad: grad, stop1: stop1, stop2: stop2,
         active: false, phase: 'in',
         p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 },
       };
@@ -242,6 +250,13 @@
         c.trail.setAttribute('x2', x);
         c.trail.setAttribute('y2', y);
         c.trail.setAttribute('opacity', opacity);
+        // Gradient-Vektor jeden Frame auf die AKTUELLEN Trail-Endpunkte legen (userSpaceOnUse,
+        // siehe makeConnector()) -- sonst bliebe der Verlauf bei einer senkrechten Verbindung
+        // (PV -> EEG) auf einen Punkt kollabiert und würde nur noch einfarbig gerendert.
+        c.grad.setAttribute('x1', tx);
+        c.grad.setAttribute('y1', ty);
+        c.grad.setAttribute('x2', x);
+        c.grad.setAttribute('y2', y);
       });
 
       requestAnimationFrame(frame);

@@ -536,8 +536,8 @@ footer {
    dahinter so einem schimmernden Strahl, sodass man es einfach besser erkennt") -- stroke ist
    ein per JS erzeugter linearGradient (transparent -> Verbindungsfarbe), color/currentColor
    steuert den Glow, damit Trail und Punkt in genau derselben Farbe leuchten. */
-.eflow-trail { fill:none; filter: drop-shadow(0 0 4px currentColor); }
-.eflow-pulse { filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 7px currentColor); }
+.eflow-trail { fill:none; filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 9px currentColor); }
+.eflow-pulse { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 10px currentColor); }
 /* .eflow-node besteht layouttechnisch NUR aus dem Kreis (Breite/Höhe = Kreisgröße) -- Wert/Label
    sitzen in .eflow-text darunter per position:absolute, tragen also nicht zur Höhe des Knotens
    bei. Wichtig für die Kreis-Ausrichtung: dadurch zentriert align-items:center in .eflow-middle
