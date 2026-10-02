@@ -9,6 +9,33 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Hat funktioniert, super, danke. Der Schalter ist jetzt da und funktioniert. [...]
+Wenn ich auf der Hauptwebseite draußen bin [...] dann gibt es die Möglichkeit [...] Live-Daten
+anzuzeigen. Hier wird aber noch kein Energieflussdiagramm angezeigt. Da hätte ich auch gern
+eins [...] Ich möchte bitte gerne die Energieflussdiagramme überarbeiten [...] Der Punkt, der da
+wandert: Ab und zu wird der gar nicht angezeigt, ab und zu wird da mitten im sogenannten
+„Fließen" unterbrochen [...] Zur aktuellen Einspeisung: Ich verstehe eigentlich nicht, warum
+jetzt die neuen Zugänge einspeisen [...] circa gerade 700 W [...] Ich habe gerade 1.500 W
+Einspeisung. Das kann nicht sein, wenn bei den fiktiven Einspeisern nur von 6 bis 22 Uhr
+eingespeist wird [...] Kannst du mir bitte auf der Hauptseite [...] etwas machen? Dieses
+[Hero-Banner] braucht immer ziemlich lange, bis es geladen wird [...] Kannst du da irgendwie
+machen, dass wir das irgendwie in den Browser-Cache hineinbekommen [...]"
+**Auftrag:** Vier Anliegen: (1) Zeitzonen-Bug im Messe-Simulator beheben, der nachts eine
+Phantom-Einspeisung verursachte; (2) Ladezeit des Hero-Banners auf der Startseite verbessern;
+(3) Energieflussdiagramm auch auf der öffentlichen Live-Seite anzeigen und die bestehende
+SMIL-Animation im Obmann-/Mitgliederbereich zuverlässiger und optisch ansprechender gestalten
+(Patrick hat dazu ausdrücklich eine Lösungsdiskussion gewünscht); (4) allgemeine
+Rückmeldung, dass der Messe-Demo-Schalter aus der letzten Sitzung funktioniert.
+**Ergebnis:** (1) `mqtt-subscriber/main.py` liest die Uhrzeit jetzt explizit über
+`zoneinfo.ZoneInfo("Europe/Vienna")` statt der (im Container fälschlich auf UTC stehenden)
+Systemzeit (`requirements.txt`: neues reines Python-Paket `tzdata`). (2) `home.php`/`base.php`
+(neue `$extraHead`-Konvention) ergänzen ein `<link rel="preload">` auf das Hero-Foto,
+`/hero-banner-image` liefert jetzt `Cache-Control: max-age=31536000, immutable` (URL ist bereits
+über `?v=<filemtime>` inhalts-versioniert). Beide Fixes in `docs/VORFAELLE.md` dokumentiert,
+`php tests/run.php` (138 Tests) grün. Punkt (3) -- Energiefluss-Animation -- steht noch aus,
+Lösungsoptionen werden Patrick vor der Umsetzung vorgestellt.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Und das noch mal wegen dem Messesimulator: Was hast du da gemeint mit 24 Stunden
 sind eigentlich nur 20 echte Minuten? Das möchte ich nicht haben. Es soll schon sein, dass der
 ganze Verlauf richtig funktioniert. Ich werde diesen auch bis ich wirklich [...] Mitglieder mit

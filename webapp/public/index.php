@@ -9930,12 +9930,17 @@ $router->get('/logo-:variant.png', function ($params) {
  * hochgeladen unter /admin/templates, dort mit Zoom/Verschieben auf die Ziel-Bildgröße des
  * Hero-Banners zugeschnitten (siehe rect-crop.js). 404, solange kein eigenes Bild hochgeladen
  * wurde -- home.php prüft das vorab und bindet die SVG-Illustration dann ganz normal weiter ein.
+ *
+ * Cache-Control lang + immutable (statt bisher nur 1h, Vorfall 02.10.2026 "Bild braucht lange,
+ * bis es geladen wird"): home.php hängt an die URL bereits ?v=<filemtime> an, die Adresse ändert
+ * sich also automatisch, sobald ein neues Foto hochgeladen wird -- unter DIESER exakten URL
+ * bleiben die Bytes für immer gleich, ein langes Cache-Limit ist daher gefahrlos.
  */
 $router->get('/hero-banner-image', function () {
     $path = adminFilePath('hero-banner.png');
     if (!$path) { http_response_code(404); return; }
     header('Content-Type: image/png');
-    header('Cache-Control: public, max-age=3600');
+    header('Cache-Control: public, max-age=31536000, immutable');
     header('Content-Length: ' . filesize($path));
     readfile($path);
     exit;

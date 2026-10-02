@@ -4,13 +4,23 @@ $pageTitle = 'Strom für alle — Gemeinschaftlich Energie erzeugen & teilen';
 // vor der mitgelieferten SVG-Illustration -- per Inline-<style>-Override, da app.css das Bild
 // nicht kennt (die Datei kann jederzeit ohne Deploy ausgetauscht werden).
 $customHeroBanner = adminFilePath('hero-banner.png');
+// Patrick, 02.10.2026: Hero-Banner wirkt beim Seitenaufruf lange grau, bevor das Foto erscheint.
+// Ursache: das Bild hängt nur als CSS-background-image an .hero (siehe unten) -- solche
+// url()-Referenzen entdeckt der Browser-Preload-Scanner erst beim Aufbau der CSSOM, nicht schon
+// beim ersten Scan des HTML wie bei einem <img src>. Ein <link rel="preload"> im <head> (muss
+// dafür VOR dem eigentlichen Seiteninhalt bekannt sein, siehe $extraHead/base.php) lässt den
+// Browser den Download parallel zu allem anderen anstoßen, statt erst nach dem CSS-Parsing.
+if ($customHeroBanner) {
+    $heroBannerUrl = '/hero-banner-image?v=' . filemtime($customHeroBanner);
+    $extraHead = '<link rel="preload" as="image" fetchpriority="high" href="' . htmlspecialchars($heroBannerUrl) . '">';
+}
 ob_start();
 ?>
 
 <?php if ($customHeroBanner): ?>
 <style>
-.hero { background-image: linear-gradient(180deg, rgba(4,16,12,.62) 0%, rgba(4,16,12,.32) 45%, rgba(4,16,12,.72) 100%), url('/hero-banner-image?v=<?= filemtime($customHeroBanner) ?>'); }
-[data-theme="dark"] .hero { background-image: linear-gradient(180deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.85) 100%), url('/hero-banner-image?v=<?= filemtime($customHeroBanner) ?>'); }
+.hero { background-image: linear-gradient(180deg, rgba(4,16,12,.62) 0%, rgba(4,16,12,.32) 45%, rgba(4,16,12,.72) 100%), url('<?= htmlspecialchars($heroBannerUrl) ?>'); }
+[data-theme="dark"] .hero { background-image: linear-gradient(180deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.85) 100%), url('<?= htmlspecialchars($heroBannerUrl) ?>'); }
 </style>
 <?php endif; ?>
 
