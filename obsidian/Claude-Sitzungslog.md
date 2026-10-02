@@ -9,6 +9,24 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Ja, bitte so umsetzen." (Zustimmung zur zuvor vorgestellten Option 1: Umbau der
+Energiefluss-Animation auf einen requestAnimationFrame-Loop statt SMIL, siehe Diskussion im
+vorherigen Eintrag.)
+**Auftrag:** Energiefluss-Animation (Obmann-/Mitglied-Portal) zuverlässig und visuell
+ansprechender machen (schimmernder Glow-Trail hinter dem wandernden Punkt, keine Unterbrechung
+mehr bei jedem 5s-Datenrefresh) sowie dieselbe Komponente neu auf der öffentlichen Live-Seite
+(`/live/:slug`) einführen, die bisher nur rohe Zahlen zeigte.
+**Ergebnis:** Die Animations-Logik liegt jetzt in `assets/js/energy-flow.js` (eigene, beim
+Seitenladen gestartete Zeitachse statt SMIL-Selbstreferenzen) -- ein Datenrefresh ändert nur
+noch, ob/in welche Richtung eine Verbindung aktiv ist, nie mehr die laufende Bewegung selbst.
+Diagramm-Markup in eine neue, von beiden Seiten gemeinsam genutzte Partial
+`partials/energy_flow_diagram.php` ausgelagert, CSS nach `app.css` verschoben (vorher
+Inline-`<style>` nur in `partials/energy_flow.php`). `pages/live.php` bindet die Partial jetzt
+ebenfalls ein. Mit einem lokalen Playwright-Testaufbau verifiziert, dass die Punktposition über
+simulierte Datenrefreshes hinweg kontinuierlich weiterläuft statt zurückzuspringen.
+`php tests/run.php` (138 Tests) grün.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Hat funktioniert, super, danke. Der Schalter ist jetzt da und funktioniert. [...]
 Wenn ich auf der Hauptwebseite draußen bin [...] dann gibt es die Möglichkeit [...] Live-Daten
 anzuzeigen. Hier wird aber noch kein Energieflussdiagramm angezeigt. Da hätte ich auch gern

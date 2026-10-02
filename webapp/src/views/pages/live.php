@@ -49,6 +49,15 @@ ob_start();
       entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen Einspeisung.
     </p>
 
+    <!-- Energiefluss-Diagramm (Patrick, 02.10.2026: "Hier wird aber noch kein
+         Energieflussdiagramm angezeigt. Da hätte ich auch gern eins") -- dieselbe Komponente wie
+         im Obmann-/Mitglied-Portal (partials/energy_flow.php), hier ohne Karten-Titel-Disclaimer
+         (die beiden Hinweise oben decken "Zählpunkte offline"/"simulierte Werte" schon ab). -->
+    <div class="card" style="margin-bottom:2rem">
+      <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Energiefluss</h3>
+      <?php $live = ['einsp_w' => 0, 'bezug_w' => 0]; require __DIR__ . '/../partials/energy_flow_diagram.php'; ?>
+    </div>
+
     <div class="grid-2">
       <div class="card">
         <h3 style="margin-bottom:1rem">Autarkie</h3>
@@ -87,6 +96,7 @@ ob_start();
 let currentSlug = null;
 let chart = null;
 let refreshTimer = null;
+const flow = window.EnergyFlow.init('eflow');
 
 // ─── Suche ───────────────────────────────────────────────
 const searchInput = document.getElementById('eeg-search');
@@ -178,6 +188,7 @@ async function refresh() {
     document.getElementById('autarkie-pct').textContent = d.autarkie_pct + '%';
     document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
     document.getElementById('demo-disclaimer').style.display = d.demo_simulation ? 'block' : 'none';
+    flow.update(d.einspeisung_w, d.bezug_w);
 
     drawGauge(d.autarkie_pct);
     drawChart(d.series);
