@@ -404,6 +404,7 @@
 </div>
 <?php endif; ?>
 
+<script src="/assets/js/password-toggle.js"></script>
 <script>
 // ─── Sidebar toggle ───────────────────────────────────────────────
 const SIDEBAR_KEY = 'sidebarCollapsed';

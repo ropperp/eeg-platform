@@ -8,6 +8,54 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-03 — Claude Code — Claude Sonnet 5
+**Prompt:** "ich habe gerade ein Mitglied, das sein Passwort vergeben möchte, durch meinen
+Link, der 24 Stunden gültig ist. Ein Wunsch wäre, dass man beim Passwort-Vergeben bitte ein
+Auge bekommt, wo man die Punkte in Klartext anzeigen lassen kann, um noch mal zu kontrollieren,
+was man eingetippt hat."
+**Auftrag:** Augen-Icon zum Ein-/Ausblenden des eingetippten Passworts bei der
+Passwort-Vergabe (24h-Link) ergänzen, damit man vor dem Absenden kontrollieren kann, was man
+eingetippt hat.
+**Ergebnis:** Neue, wiederverwendbare Komponente `assets/js/password-toggle.js` -- läuft
+automatisch über JEDES `input[type="password"]` auf der Seite (progressive Verbesserung, keine
+einzelne Seite muss angepasst werden), eingebunden in beide Layouts (`base.php`, `portal.php`)
+und greift dadurch plattformweit: Login, Passwort-vergeben-Link, Passwort ändern im Portal.
+Neues Icon `ph-eye-slash` (durchgestrichenes Auge) für den "verbergen"-Zustand ergänzt, aus dem
+bereits vorhandenen `ph-eye`-Pfad plus einem diagonalen Strich zusammengesetzt -- rein gefüllte
+Fläche, keine `stroke`-Attribute (vermeidet dieselbe Safari-Eigenheit wie beim Netz-Icon zuvor).
+Mit Playwright funktional verifiziert (Klick wechselt `type="password"`/`type="text"` und
+Icon unabhängig je Feld). `php tests/run.php` (138 Tests) grün.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Die Masten brauchen unten bitte noch ein paar Beine. Können wir bitte einfach
+diesen neuen Mast-Icon vielleicht einfacher [machen]." (mit einem Referenzbild eines schlichten
+Holzmasts: ein Mast, zwei Querarme mit Isolator-Knubbeln, dünne Streben)
+**Auftrag:** Netz-Icon nochmals überarbeiten -- weg vom Gittermast-Turm, hin zu einem
+schlichteren, einzelnen Mast nach neuem Referenzbild, zusätzlich mit ein paar Standbeinen am
+unteren Ende.
+**Ergebnis:** Icon komplett neu aufgebaut: ein gerader Mast mit zwei Querarmen (schmaler oben,
+breiter unten), kleinen Isolator-Punkten und dünnen V-Streben, plus drei gespreizten
+Standbeinen am Fuß. Erster Entwurf wirkte mit dicken Querarmen/Isolatoren klobig -- auf
+durchgängig dünne, gleichmäßige Strichstärke für alle Elemente vereinheitlicht. Technik aus dem
+vorherigen Safari-Fix beibehalten (reine gefüllte Flächen, kein `stroke`). In der tatsächlichen
+28px/64px-Darstellung über die echte Sprite-Datei verifiziert.
+
+## 2026-10-02 — Claude Code — Claude Sonnet 5
+**Prompt:** "Sieht doch immer anders aus." (mit Safari-Screenshot des Live-Dashboards)
+**Auftrag:** Nach Rückfrage bestätigt: das Netz-Icon sieht in Patricks echtem Browser (Safari)
+anders aus als in den hier per Playwright/Chromium gezeigten Vorschau-Bildern -- kein
+Geschmacksproblem mehr, sondern eine Cross-Browser-Rendering-Diskrepanz.
+**Ergebnis:** Ursache vermutet (in dieser Umgebung mangels Safari nicht direkt nachstellbar):
+das PR-#214-Icon war das erste in der Sprite-Datei mit `stroke="currentColor"` statt des sonst
+durchgängigen `fill="currentColor"`-Musters -- eine in Safari/WebKit für `<use>`+`<symbol>`
+bekannte Schwachstelle. Fix: Icon komplett in gefüllte Flächen umgewandelt (jede Linie wird
+rechnerisch zu einem gefüllten Rechteck, Gelenke bekommen einen kleinen gefüllten Kreis als
+rundes Join) -- rendert dadurch über dieselbe, bereits bei allen anderen Icons bewährte
+`fill`-Technik, ganz ohne eigenes stroke/fill-Attribut auf dem Pfad. In der tatsächlichen
+28px-Größe über die echte Sprite-Datei in allen drei Farbzuständen verifiziert. Vorfall in
+docs/VORFAELLE.md dokumentiert (Merksatz: bei einem einheitlichen Icon-Set nicht als einziges
+Icon eine andere Rendering-Technik verwenden). `php tests/run.php` (138 Tests) grün.
+
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Die Masten brauchen unten bitte noch ein paar Beine. Können wir bitte einfach
 diesen neuen Mast-Icon vielleicht einfacher [machen]." (mit einem Referenzbild eines schlichten
