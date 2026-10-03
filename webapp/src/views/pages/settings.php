@@ -418,7 +418,7 @@
       alert('Bitte unterschreiben Sie im Feld, bevor Sie speichern.');
       return;
     }
-    document.getElementById('signature_image_settings').value = canvas.toDataURL('image/png');
+    document.getElementById('signature_image_settings').value = trimSignatureCanvas(canvas);
   });
 })();
 </script>

@@ -417,8 +417,8 @@ ob_start();
       alert('Bitte unterschreiben Sie zusätzlich das SEPA-Lastschriftmandat.');
       return;
     }
-    document.getElementById('signature_image').value = sigPad.canvas.toDataURL('image/png');
-    document.getElementById('sepa_signature_image').value = sepaSigPad.canvas.toDataURL('image/png');
+    document.getElementById('signature_image').value = trimSignatureCanvas(sigPad.canvas);
+    document.getElementById('sepa_signature_image').value = trimSignatureCanvas(sepaSigPad.canvas);
   });
 })();
 </script>

@@ -9,6 +9,37 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-03 — Claude Code — Claude Sonnet 5
+**Prompt:** "kannst du bitte mir mal dieses PDF genauer ansehen? Ich habe mir mal angesehen,
+aber ich bin noch nicht so ganz zufrieden mit der automatischen Ausfüllung, wenn man's online
+macht. Zum Beispiel beim SEPA-Lastschriftmandat: Das schwarz herumgekritzelte Feld [...] wäre
+cool, wenn es ein bisschen weiter rechts wäre [...] Ganz unten, wo „Unterschrift“,
+„Kontoinhaber“, „Mitglied“ ist, schwebt die Unterschrift eigentlich. Hier wäre auch noch cool,
+wenn es mittig vom Strich und auf dem Strich aufliegen würde. [...] Das Gleiche bei Online:
+auch Ort und Datum [...] Datum gehört auch weiter auf die Linie runter. Vielleicht auch noch
+ganz oben bei Mitglieds- und Rechnungsdaten [...] ein bisschen größer macht, weil es sonst
+nicht gut lesbar ist, wenn es über online ausgefüllt wird." (mit eigenem Test-PDF als Anhang)
+**Auftrag:** Layout-Feinschliff an der Beitrittserklärung-PDF: Unterschriften mittig und auf
+der Linie statt daneben/darüber schwebend, Datum weiter auf die Ort/Datum-Linie, größere
+Schrift bei den Mitglieds-/Rechnungsdaten oben.
+**Ergebnis:** Root-Cause-Analyse ergab zwei getrennte Ursachen -- (1) die bisherige
+`\makebox[0pt][l]`-Technik verankerte Unterschrift-Bilder am LINKEN Rand ihrer Linie statt
+mittig; (2) die rohe 600x180px-Unterschrift-Canvas landete unbeschnitten in der PDF, wodurch
+die tatsächliche Tinte je nach Zeichenposition unvorhersehbar weit von Bild-Rand/Linie entfernt
+lag. Neues `\floatsig`-Makro (zentriert eine Null-Größen-Box auf eine beliebige Linienbreite)
+in allen DREI betroffenen Vorlagen ergänzt (Beitrittserklärung + beide Vertragsvorlagen, da
+identisches Muster), neue `trimSignatureCanvas()`-Funktion (`assets/js/signature-pad-trim.js`)
+schneidet Unterschrift-Canvases vor dem Speichern auf die gezeichnete Fläche zu -- eingebunden
+an allen drei Erfassungsstellen (Beitrittsformular, Vertragsunterschrift, Obmann-Profil). Vorab
+lokal mit TeX Live nachgebaut (Node-Harness, das service.js' Platzhalter-Ersetzung exakt
+nachbildet) und mit synthetischen Unterschrift-PNGs (unbeschnitten UND beschnitten) verifiziert,
+dass die neue Positionierung in beiden Fällen sichtbar besser ist. Schriftgröße der
+Mitglieds-/Rechnungsdaten-Tabelle von `\footnotesize` auf `\small` angehoben, Abstand bei
+"Ort, Datum" reduziert. Vorfall in docs/VORFAELLE.md dokumentiert. `php tests/run.php`
+(138 Tests) grün. **Hinweis an Patrick:** sein eigenes Test-PDF bleibt unverändert (die
+Beschneidung wirkt nur auf neu erfasste Unterschriften) -- zum Nachprüfen am besten eine neue
+Test-Beitrittserklärung mit frischer Unterschrift durchspielen.
+
+## 2026-10-03 — Claude Code — Claude Sonnet 5
 **Prompt:** "ich habe gerade ein Mitglied, das sein Passwort vergeben möchte, durch meinen
 Link, der 24 Stunden gültig ist. Ein Wunsch wäre, dass man beim Passwort-Vergeben bitte ein
 Auge bekommt, wo man die Punkte in Klartext anzeigen lassen kann, um noch mal zu kontrollieren,
@@ -25,36 +56,6 @@ bereits vorhandenen `ph-eye`-Pfad plus einem diagonalen Strich zusammengesetzt -
 Fläche, keine `stroke`-Attribute (vermeidet dieselbe Safari-Eigenheit wie beim Netz-Icon zuvor).
 Mit Playwright funktional verifiziert (Klick wechselt `type="password"`/`type="text"` und
 Icon unabhängig je Feld). `php tests/run.php` (138 Tests) grün.
-
-## 2026-10-02 — Claude Code — Claude Sonnet 5
-**Prompt:** "Die Masten brauchen unten bitte noch ein paar Beine. Können wir bitte einfach
-diesen neuen Mast-Icon vielleicht einfacher [machen]." (mit einem Referenzbild eines schlichten
-Holzmasts: ein Mast, zwei Querarme mit Isolator-Knubbeln, dünne Streben)
-**Auftrag:** Netz-Icon nochmals überarbeiten -- weg vom Gittermast-Turm, hin zu einem
-schlichteren, einzelnen Mast nach neuem Referenzbild, zusätzlich mit ein paar Standbeinen am
-unteren Ende.
-**Ergebnis:** Icon komplett neu aufgebaut: ein gerader Mast mit zwei Querarmen (schmaler oben,
-breiter unten), kleinen Isolator-Punkten und dünnen V-Streben, plus drei gespreizten
-Standbeinen am Fuß. Erster Entwurf wirkte mit dicken Querarmen/Isolatoren klobig -- auf
-durchgängig dünne, gleichmäßige Strichstärke für alle Elemente vereinheitlicht. Technik aus dem
-vorherigen Safari-Fix beibehalten (reine gefüllte Flächen, kein `stroke`). In der tatsächlichen
-28px/64px-Darstellung über die echte Sprite-Datei verifiziert.
-
-## 2026-10-02 — Claude Code — Claude Sonnet 5
-**Prompt:** "Sieht doch immer anders aus." (mit Safari-Screenshot des Live-Dashboards)
-**Auftrag:** Nach Rückfrage bestätigt: das Netz-Icon sieht in Patricks echtem Browser (Safari)
-anders aus als in den hier per Playwright/Chromium gezeigten Vorschau-Bildern -- kein
-Geschmacksproblem mehr, sondern eine Cross-Browser-Rendering-Diskrepanz.
-**Ergebnis:** Ursache vermutet (in dieser Umgebung mangels Safari nicht direkt nachstellbar):
-das PR-#214-Icon war das erste in der Sprite-Datei mit `stroke="currentColor"` statt des sonst
-durchgängigen `fill="currentColor"`-Musters -- eine in Safari/WebKit für `<use>`+`<symbol>`
-bekannte Schwachstelle. Fix: Icon komplett in gefüllte Flächen umgewandelt (jede Linie wird
-rechnerisch zu einem gefüllten Rechteck, Gelenke bekommen einen kleinen gefüllten Kreis als
-rundes Join) -- rendert dadurch über dieselbe, bereits bei allen anderen Icons bewährte
-`fill`-Technik, ganz ohne eigenes stroke/fill-Attribut auf dem Pfad. In der tatsächlichen
-28px-Größe über die echte Sprite-Datei in allen drei Farbzuständen verifiziert. Vorfall in
-docs/VORFAELLE.md dokumentiert (Merksatz: bei einem einheitlichen Icon-Set nicht als einziges
-Icon eine andere Rendering-Technik verwenden). `php tests/run.php` (138 Tests) grün.
 
 ## 2026-10-02 — Claude Code — Claude Sonnet 5
 **Prompt:** "Die Masten brauchen unten bitte noch ein paar Beine. Können wir bitte einfach

@@ -756,7 +756,7 @@ function eegSignatureAsset(?string $userId = null): array
         return ['var' => '', 'assets' => []];
     }
     return [
-        'var'    => '\\includegraphics[height=1.4cm]{unterschrift_eeg.png}',
+        'var'    => '\\floatsig{2.5cm}{2pt}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
         'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
     ];
 }
@@ -793,7 +793,7 @@ function memberSignatureAsset(?string $dataUri): array
         return ['var' => '', 'assets' => []];
     }
     return [
-        'var'    => '\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}',
+        'var'    => '\\floatsig{2.5cm}{2pt}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
         'assets' => ['unterschrift_mitglied.png' => $dataUri],
     ];
 }
@@ -7913,14 +7913,16 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     $speicherStatus = $a['speicher_status'] ?? '';
 
     // SEPA-Block: exakt im Kasten-Layout des Papierformulars, mit echten Werten.
-    // Unterschrift per 0x0-Box (wie in den Verträgen): schwebt über der Linie statt sie
-    // nach unten zu schieben -- Box bleibt dadurch kompakt, ob mit oder ohne Bild.
+    // Unterschrift per \floatsig (Vorlage): schwebt mittig über der Linie statt sie nach
+    // unten zu schieben -- Box bleibt dadurch kompakt, ob mit oder ohne Bild. War früher
+    // links an den Linienanfang verankert (Patrick, 03.10.2026: "wäre cool, wenn es ein
+    // bisschen weiter rechts wäre") -- \floatsig zentriert stattdessen über der ganzen Linie.
     $sepaAssets = [];
     if (trim($a['iban'] ?? '') !== '') {
         $sepaSigBox = '';
         if (!empty($a['sepa_signature_image'])) {
             $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
-            $sepaSigBox = '\\makebox[0pt][l]{\\raisebox{0.15\\baselineskip}[0pt][0pt]{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}}';
+            $sepaSigBox = '\\floatsig{3.25cm}{2pt}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
         }
         $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
         $sepaBlock =
@@ -8002,7 +8004,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'RAW_ZP_EINSPEISUNG_GRID'   => zpGridTikz($isTrue($a['einspeisung_gewuenscht']) ? $a['einspeisung_zaehlpunkt'] : null),
         'RAW_SEPA_BLOCK'            => $sepaBlock,
         'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
-        'RAW_UNTERSCHRIFT_BILD'     => '\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}',
+        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{3.25cm}{2pt}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
         'UNTERSCHRIEBEN_DATUM'      => $a['signed_at'] ? date('d.m.Y', strtotime($a['signed_at'])) : '--',
         'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
         'SIGNER_IP'                 => $a['signer_ip'] ?: '--',
