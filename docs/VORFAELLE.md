@@ -1384,3 +1384,51 @@ gefüllten Flächen (jede Linie als gefülltes Rechteck, jedes Gelenk als kleine
 kein `stroke`-Attribut -- vermeidet die in PR #215 gefundene Safari-Rendering-Diskrepanz von
 Anfang an. In der tatsächlichen 28px/64px-Kreis-Darstellung über die echte Sprite-Datei
 verifiziert.
+
+### Beitrittserklärung-PDF: Unterschriften "schweben" neben/über der Linie statt darauf zu sitzen (03.10.2026)
+Patrick schickte sein eigenes Test-PDF mit konkretem Feedback: die SEPA-Unterschrift (schwarz
+ausgekritzeltes Feld) sitzt zu weit links statt mittig auf ihrer Linie; die Haupt-Unterschrift
+unten ("Unterschrift (Kontoinhaber:in / Mitglied)") und das Datum bei "Ort, Datum" schweben
+sichtbar über ihrer Linie statt darauf aufzuliegen; zusätzlich sind die Mitglieds-/Rechnungsdaten
+oben (Name, Anschrift, Telefon, Geb.-Dat., E-Mail) bei Online-Ausfüllung schlecht lesbar.
+
+**Ursache Positionierung:** Die Unterschrift-Bilder wurden per `\makebox[0pt][l]{\raisebox{...}
+[0pt][0pt]{\includegraphics{...}}}` eingebunden -- eine bewusste Technik, damit das Bild über der
+Linie "schwebt" statt sie nach unten zu schieben (Breite UND Höhe 0, beeinflusst also den
+restlichen Satz nicht). `[l]` verankert das Bild dabei aber am LINKEN Rand der Null-Breiten-Box,
+also am Anfang der Linie -- nicht in deren Mitte.
+
+**Ursache Unterschrift-"Schweben":** Die Unterschrift-Canvas im Browser ist immer 600x180px groß,
+tatsächlich unterschrieben wird aber nur in einem kleinen Teil davon -- der Rest bleibt
+transparent (`clearRect()`, kein weißer Hintergrund im Bitmap). Ohne Zuschnitt landet das ganze,
+größtenteils leere 600x180-PNG in der PDF; wie weit die eigentliche Tinte von Bild-Ober-/Unterkante
+entfernt ist, hängt dadurch rein vom Zufall ab, wo genau der Unterschreibende innerhalb der
+Fläche gezeichnet hat -- nicht von der LaTeX-Positionierung.
+
+**Fix:**
+- Neues `\floatsig{<halbe Linienbreite>}{<Anhebung>}{<Bild>}`-Makro (in allen drei betroffenen
+  LaTeX-Vorlagen: `beitrittserklaerung_formular.tex`, `bezugsvereinbarung.tex`,
+  `einspeisevereinbarung.tex`) -- verschiebt den Null-Breiten-Anker auf die Linienmitte
+  (`\hspace`), zentriert das Bild dort (`\makebox[0pt][c]`) und macht die Verschiebung danach
+  wieder rückgängig, damit die nachfolgend gezeichnete `\rule` unverändert am linken Rand
+  beginnt. Ersetzt den alten, links-verankerten `\makebox[0pt][l]`-Mechanismus überall dort, wo
+  er vorkam (auch in den beiden Vertragsvorlagen, nicht nur in der Beitrittserklärung).
+- Neue gemeinsame Funktion `trimSignatureCanvas()` (`assets/js/signature-pad-trim.js`): schneidet
+  die Unterschrift-Canvas client-seitig auf die tatsächlich gezeichnete Fläche zu (Bounding-Box
+  der nicht-transparenten Pixel, plus etwas Rand), BEVOR sie als PNG gespeichert wird --
+  eingebunden an allen drei Stellen, an denen eine Unterschrift-Canvas erfasst wird
+  (Beitrittsformular, Vertragsunterschrift des Mitglieds, eigene Unterschrift im
+  Obmann-Profil/Einstellungen). Dadurch hat das gespeicherte PNG überhaupt erst eine
+  aussagekräftige Bounding-Box, auf die sich `\floatsig` sinnvoll zentrieren/andocken lässt.
+  **Wichtig:** betrifft nur NEU erfasste Unterschriften -- bereits gespeicherte (wie Patricks
+  eigenes Test-PDF) bleiben unbeschnitten, bis neu unterschrieben wird.
+- "Ort, Datum"-Zeile: Abstand zwischen Text und Linie von `0.35cm` auf `0.08cm` reduziert.
+- Mitglieds-/Rechnungsdaten-Tabelle: Schrift von `\footnotesize` auf `\small` angehoben.
+
+**Merksatz:** eine Null-Größen-Box (`\makebox[0pt]`), die bewusst keinen Platz im Satzspiegel
+beansprucht, lässt sich trotzdem frei im Raum positionieren -- `\hspace` VOR der Box verschiebt
+nur den (unsichtbaren) Anker, nicht den nachfolgenden Satzfluss, solange man die Verschiebung mit
+`\hspace{-...}` danach wieder aufhebt. Und: ein Bild, dessen eigene Bounding-Box viel transparenten
+Leerraum um den eigentlichen Inhalt enthält, lässt sich in LaTeX nicht zuverlässig zentrieren --
+das Zuschneiden gehört an die Quelle (hier: beim Erfassen im Browser), nicht in die
+Positionierungs-Logik der Vorlage.

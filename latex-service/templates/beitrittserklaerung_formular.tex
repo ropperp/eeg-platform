@@ -40,6 +40,16 @@
     \node[fill=turkisverlauf, text=white, rounded corners=2.5pt,
           inner xsep=8pt, inner ysep=3pt, font=\bfseries\small] {#1};
   \end{tikzpicture}\par\vspace{3pt}}
+% Unterschrift-Bild, das mittig ÜBER einer gleich im Anschluss gezeichneten Linie
+% "schwebt" (Patrick, 03.10.2026: "wäre cool, wenn es mittig vom Strich und auf dem
+% Strich aufliegen würde") -- #1 = halbe Linienbreite, #2 = Anhebung (wie weit die
+% Unterschrift über die Grundlinie angehoben wird), #3 = Bildbefehl (\includegraphics).
+% Technik: \hspace{#1} schiebt den Ankerpunkt auf die Linienmitte, \makebox[0pt][c]
+% zentriert das Bild DARAN ohne selbst Platz zu beanspruchen (Breite 0), \raisebox
+% mit [0pt][0pt] beansprucht ebenso keine Höhe (schiebt also nichts nach unten) --
+% \hspace{-#1} macht die Verschiebung danach rückgängig, damit die direkt
+% anschließend gezeichnete \rule wieder exakt am linken Rand beginnt.
+\newcommand{\floatsig}[3]{\hspace{#1}\raisebox{#2}[0pt][0pt]{\makebox[0pt][c]{#3}}\hspace{-#1}}
 
 \begin{document}
 
@@ -63,18 +73,18 @@
 \renewcommand{\arraystretch}{1}
 \begin{tabular}{|p{6.2cm}|p{5.6cm}|p{5.5cm}|}
 \hline
-\footnotesize <<<RAW_ANREDE_FRAU>>> Frau \quad <<<RAW_ANREDE_HERR>>> Herr \quad Titel: <<<TITEL>>> &
-\footnotesize Vorname: <<<VORNAME>>> &
-\footnotesize Nachname: <<<NACHNAME>>> \\[0.27cm]
+\small <<<RAW_ANREDE_FRAU>>> Frau \quad <<<RAW_ANREDE_HERR>>> Herr \quad Titel: <<<TITEL>>> &
+\small Vorname: <<<VORNAME>>> &
+\small Nachname: <<<NACHNAME>>> \\[0.3cm]
 \hline
-\multicolumn{3}{|p{18.1cm}|}{\footnotesize Anschrift: <<<ADRESSE>>>} \\[0.27cm]
+\multicolumn{3}{|p{18.1cm}|}{\small Anschrift: <<<ADRESSE>>>} \\[0.3cm]
 \hline
-\footnotesize Telefon: <<<TELEFON>>> &
-\footnotesize Geb.-Dat.: <<<GEBURTSDATUM>>> &
-\footnotesize Stromlieferant: <<<STROMLIEFERANT>>> \\[0.27cm]
+\small Telefon: <<<TELEFON>>> &
+\small Geb.-Dat.: <<<GEBURTSDATUM>>> &
+\small Stromlieferant: <<<STROMLIEFERANT>>> \\[0.3cm]
 \hline
-\multicolumn{2}{|p{12.2cm}|}{\footnotesize E-Mail: <<<EMAIL>>>} &
-\footnotesize Netzbetreiber: \textbf{Kärnten Netz GmbH} \\[0.27cm]
+\multicolumn{2}{|p{12.2cm}|}{\small E-Mail: <<<EMAIL>>>} &
+\small Netzbetreiber: \textbf{Kärnten Netz GmbH} \\[0.3cm]
 \hline
 \end{tabular}
 
@@ -135,13 +145,12 @@ Sind Sie bereits in einer anderen EEG/BEG? \quad <<<RAW_ANDERE_EEG_JA>>> Ja \qua
 \vfill
 \noindent
 \begin{minipage}[t]{7.5cm}
-  Online, <<<UNTERSCHRIEBEN_DATUM>>>\\[0.35cm]
+  Online, <<<UNTERSCHRIEBEN_DATUM>>>\\[0.08cm]
   \rule{7cm}{0.4pt}\\[1pt]
   {\small Ort, Datum}
 \end{minipage}\hfill
 \begin{minipage}[t]{7.5cm}
-  <<<RAW_UNTERSCHRIFT_BILD>>>\\[0.1cm]
-  \rule{6.5cm}{0.4pt}\\[1pt]
+  <<<RAW_UNTERSCHRIFT_BILD>>>\rule{6.5cm}{0.4pt}\\[1pt]
   {\small Unterschrift (Kontoinhaber:in / Mitglied)}
 \end{minipage}
 

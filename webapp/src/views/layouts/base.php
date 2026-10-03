@@ -63,6 +63,7 @@
 <script src="/assets/js/vendor/ScrollTrigger.min.js"></script>
 <script src="/assets/js/site-animations.js"></script>
 <script src="/assets/js/password-toggle.js"></script>
+<script src="/assets/js/signature-pad-trim.js"></script>
 <script>
 // CSRF-Schutz (OWASP-Audit 13.08.2026): fügt automatisch ein verstecktes Token-Feld in jedes
 // method="post"-Formular der Seite ein, statt jede der ~70 Formular-Views einzeln anzufassen.

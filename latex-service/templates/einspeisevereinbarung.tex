@@ -61,6 +61,13 @@
 
 \setlength{\parindent}{0pt}
 
+% Unterschrift-Bild, das mittig ÜBER einer gleich im Anschluss gezeichneten Linie "schwebt"
+% (Patrick, 03.10.2026, zur Beitrittserklärung: "wäre cool, wenn es mittig vom Strich und auf
+% dem Strich aufliegen würde" -- dieselbe Korrektur hier für Konsistenz übernommen, da beide
+% Unterschriftsspalten bisher denselben links-verankerten \makebox[0pt][l]-Mechanismus nutzten).
+% #1 = halbe Linienbreite, #2 = Anhebung über die Grundlinie, #3 = Bildbefehl (\includegraphics).
+\newcommand{\floatsig}[3]{\hspace{#1}\raisebox{#2}[0pt][0pt]{\makebox[0pt][c]{#3}}\hspace{-#1}}
+
 \begin{document}
 
 % =====================================================================
@@ -283,9 +290,7 @@ Der Vertrag wird in zweifacher Ausfertigung erstellt und unterfertigt, wovon der
 \begin{minipage}[t]{0.48\textwidth}
   Ort, Datum: <<<RAW_MITGLIED_ORT_DATUM>>>
   \par\vspace{3\baselineskip}
-  % Bild mit Höhe/Breite 0 einboxen: schiebt die Unterschriftslinie nicht mehr nach unten,
-  % sondern schwebt über ihr -- linke und rechte Spalte bleiben exakt auf gleicher Höhe
-  \makebox[0pt][l]{\raisebox{0.25\baselineskip}[0pt][0pt]{<<<RAW_MITGLIED_UNTERSCHRIFT_BILD>>>}}\rule{5cm}{0.4pt}\par
+  <<<RAW_MITGLIED_UNTERSCHRIFT_BILD>>>\rule{5cm}{0.4pt}\par
   Unterschrift Eigentümer:in\par
   <<<MITGLIED_NAME>>>
 \end{minipage}%
@@ -293,9 +298,7 @@ Der Vertrag wird in zweifacher Ausfertigung erstellt und unterfertigt, wovon der
 \begin{minipage}[t]{0.48\textwidth}
   Ort, Datum: <<<EEG_ORT>>>, <<<ERSTELLT_AM>>>
   \par\vspace{3\baselineskip}
-  % Bild mit Höhe/Breite 0 einboxen: schiebt die Unterschriftslinie nicht mehr nach unten,
-  % sondern schwebt über ihr -- linke und rechte Spalte bleiben exakt auf gleicher Höhe
-  \makebox[0pt][l]{\raisebox{0.25\baselineskip}[0pt][0pt]{<<<RAW_EEG_UNTERSCHRIFT_BILD>>>}}\rule{5cm}{0.4pt}\par
+  <<<RAW_EEG_UNTERSCHRIFT_BILD>>>\rule{5cm}{0.4pt}\par
   Unterschrift für die EEG\par
   <<<EEG_NAME>>>
 \end{minipage}
