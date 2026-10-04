@@ -744,6 +744,21 @@ function zpGridTikz(?string $zp): string
 }
 
 /**
+ * Anhebung für \floatsig (siehe LaTeX-Vorlagen), damit die im Browser sichtbare Führungslinie
+ * der Unterschrift-Canvas (assets/js/signature-pad-trim.js: SIGNATURE_GUIDE_Y=130,
+ * SIGNATURE_ABOVE_PX=95, SIGNATURE_BELOW_PX=35 -- fester Zuschnitt von 130px Höhe relativ zur
+ * Führungslinie) exakt auf der gedruckten Linie landet, statt das ganze Bild nur grob mittig
+ * zu zentrieren. Patrick, 04.10.2026: "wenn man unter die Linie kommt, ist es noch unter der
+ * Linie" -- der Anteil UNTERHALB der Führungslinie (35 von 130px = ~26,9 %) wird deshalb genau
+ * auf diesen Anteil der tatsächlichen Bildhöhe in der PDF umgerechnet, nicht pauschal angehoben.
+ * Ändert sich eine der drei JS-Konstanten, muss dieser Faktor (35/130) hier mitgezogen werden.
+ */
+function signatureRaise(float $heightCm): string
+{
+    return round($heightCm * 35 / 130, 2) . 'cm';
+}
+
+/**
  * Liefert die RAW_-Variable fürs Unterschriftsbild "Für die EEG" sowie das
  * zugehörige Bild-Asset für den angegebenen User (Default: der aktuell eingeloggte, i.d.R.
  * der Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte Unterschrift
@@ -756,7 +771,7 @@ function eegSignatureAsset(?string $userId = null): array
         return ['var' => '', 'assets' => []];
     }
     return [
-        'var'    => '\\floatsig{2.5cm}{2pt}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
+        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4) . '}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
         'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
     ];
 }
@@ -793,7 +808,7 @@ function memberSignatureAsset(?string $dataUri): array
         return ['var' => '', 'assets' => []];
     }
     return [
-        'var'    => '\\floatsig{2.5cm}{2pt}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
+        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4) . '}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
         'assets' => ['unterschrift_mitglied.png' => $dataUri],
     ];
 }
@@ -7922,7 +7937,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         $sepaSigBox = '';
         if (!empty($a['sepa_signature_image'])) {
             $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
-            $sepaSigBox = '\\floatsig{3.25cm}{2pt}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
+            $sepaSigBox = '\\floatsig{3.25cm}{' . signatureRaise(0.85) . '}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
         }
         $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
         $sepaBlock =
@@ -8004,7 +8019,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'RAW_ZP_EINSPEISUNG_GRID'   => zpGridTikz($isTrue($a['einspeisung_gewuenscht']) ? $a['einspeisung_zaehlpunkt'] : null),
         'RAW_SEPA_BLOCK'            => $sepaBlock,
         'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
-        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{3.25cm}{2pt}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
+        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{3.25cm}{' . signatureRaise(1.3) . '}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
         'UNTERSCHRIEBEN_DATUM'      => $a['signed_at'] ? date('d.m.Y', strtotime($a['signed_at'])) : '--',
         'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
         'SIGNER_IP'                 => $a['signer_ip'] ?: '--',

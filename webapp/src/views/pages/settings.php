@@ -257,9 +257,12 @@
   <?php endif; ?>
 
   <form method="post" action="/portal/settings/signature" id="signature-form">
-    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">Neu unterschreiben:</p>
-    <canvas id="sig-pad-settings" width="600" height="180"
-            style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:400px;height:120px;touch-action:none;background:#fff;display:block;margin-bottom:.5rem"></canvas>
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">Neu unterschreiben (bitte auf der gestrichelten Linie):</p>
+    <div class="sig-pad-wrap" style="max-width:400px;margin-bottom:.5rem">
+      <canvas id="sig-pad-settings" width="600" height="180"
+              style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:400px;height:120px;touch-action:none;background:#fff;display:block"></canvas>
+      <div class="sig-pad-guide"></div>
+    </div>
     <input type="hidden" name="signature_image" id="signature_image_settings">
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
       <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700)" onclick="clearSettingsSignature()">Löschen</button>

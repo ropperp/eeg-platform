@@ -8,6 +8,38 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-04 — Claude Code — Claude Sonnet 5
+**Prompt:** "Also, irgendwas passt noch nicht, weil jetzt irgendeine Zentimeterangabe auch bei
+der Unterschrift dabei ist. [...] Bitte wirklich schön zentriert haben, auf der Linie, und wenn
+das geht, den Hintergrund transparent haben, sodass man zum Beispiel so wie bei mir, wenn ich
+mit Ropper unterschreibe, die Ps unter die Linie gehen. [...] wir können auch einfach eine Linie
+im Unterschriftsfeld machen, auf der man fast ganz unten unterschreibt. Wenn man unter die Linie
+kommt, ist es noch unter der Linie." (mit drei frischen Test-PDFs plus der auf dem Server
+tatsächlich aktiven beitrittserklaerung_formular.tex als Anhang)
+**Auftrag:** Die drei Test-PDFs zeigten "3.25cm2pt" als sichtbaren Klartext über jeder
+Unterschrift -- offensichtlich ein neuer Bug. Zusätzlich der konkrete Wunsch, die Unterschrift
+nicht mehr nur grob mittig zu zentrieren, sondern über eine sichtbare Führungslinie im
+Unterschriftsfeld so zu positionieren, dass Unterlängen (wie das "p" in "Ropper") im PDF
+tatsächlich unter der gedruckten Linie erscheinen, wie beim echten Unterschreiben auf Papier.
+**Ergebnis:** Die mitgeschickte .tex-Datei entpuppte sich als der eigentliche Fund -- sie zeigte
+die ALTE Vorlage ganz ohne das `\floatsig`-Makro aus der letzten Sitzung. Ursache:
+`/opt/eeg/latex-templates` (persistentes Volume) hatte seit dem allerersten Server-Start Kopien
+ALLER Standard-Vorlagen und damit dauerhaft Vorrang vor der im Image mitgelieferten, aktuellen
+Fassung -- jedes künftige `git pull && docker compose up -d --build` landete dadurch nie bei den
+tatsächlich verwendeten Vorlagen. LaTeX gibt einen unbekannten Befehl mit Argumenten nicht als
+Fehler aus, sondern druckt dessen Argumente als Klartext -- daher "3.25cm2pt" statt eines
+auffälligen Fehlers. Fix: `latex-service/service.js` bekommt ein Zwei-Ebenen-Fallback (Volume vor
+Image-Standard, analog zu `adminFilePath()` für Logo/Hero-Banner), `entrypoint.sh`s pauschales
+Erstkopieren entfernt. Erfordert zusätzlich einen einmaligen manuellen Schritt auf dem Server
+(siehe docs/BETRIEBSHANDBUCH.md) -- kein Code kann das von hier aus nachholen. Zusätzlich: neue
+sichtbare Führungslinie im Unterschrift-Canvas (`.sig-pad-guide`), Zuschnitt
+(`signature-pad-trim.js`) jetzt an einem festen Fenster relativ zu dieser Linie statt an der
+dynamischen Tinten-Bounding-Box verankert, neue PHP-Funktion `signatureRaise()` berechnet die
+`\floatsig`-Anhebung proportional dazu. Mit einer synthetischen Testunterschrift (Hauptkörper auf
+der Linie + Schlaufe bewusst darunter) verifiziert: Hauptkörper liegt exakt auf der gedruckten
+Linie, Schlaufe hängt sichtbar darunter. Beide Vorfälle in docs/VORFAELLE.md dokumentiert.
+`php tests/run.php` (138 Tests) grün.
+
 ## 2026-10-03 — Claude Code — Claude Sonnet 5
 **Prompt:** "kannst du bitte mir mal dieses PDF genauer ansehen? Ich habe mir mal angesehen,
 aber ich bin noch nicht so ganz zufrieden mit der automatischen Ausfüllung, wenn man's online

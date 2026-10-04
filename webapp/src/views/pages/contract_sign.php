@@ -31,8 +31,11 @@ ob_start();
       <span>Ich habe die <?= htmlspecialchars(contractTypeLabel($type)) ?> oben gelesen und stimme ihr hiermit rechtsverbindlich zu.</span>
     </label>
 
-    <label style="font-size:.85rem;display:block;margin-bottom:.4rem">Unterschrift</label>
-    <canvas id="sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+    <label style="font-size:.85rem;display:block;margin-bottom:.4rem">Unterschrift (bitte auf der gestrichelten Linie)</label>
+    <div class="sig-pad-wrap">
+      <canvas id="sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+      <div class="sig-pad-guide"></div>
+    </div>
     <div style="margin:.5rem 0 1rem">
       <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature()">Löschen</button>
     </div>

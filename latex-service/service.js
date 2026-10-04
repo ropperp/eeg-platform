@@ -10,10 +10,37 @@ const os = require('os');
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 
-const API_KEY      = process.env.API_KEY || 'dev-key';
-const TEMPLATE_DIR = path.join(__dirname, 'templates');
+const API_KEY        = process.env.API_KEY || 'dev-key';
+const TEMPLATE_DIR    = path.join(__dirname, 'templates');          // persistentes Volume (Admin-Uploads)
+const TEMPLATE_DEFAULT_DIR = path.join(__dirname, 'templates-default'); // im Image, Rückfallebene
 const TMP_DIR      = path.join(os.tmpdir(), 'latex-jobs');
 fs.mkdirSync(TMP_DIR, { recursive: true });
+
+/**
+ * Pfad zur wirksamen Vorlage: das persistente Volume (Admin-Upload über /admin/templates) hat
+ * Vorrang, sonst die im Image mitgelieferte Standard-Fassung -- exakt dasselbe Zwei-Ebenen-Muster
+ * wie webapp/public/index.php's adminFilePath() für Logo/Hero-Banner.
+ *
+ * Vorfall 04.10.2026: entrypoint.sh hat früher beim ALLERERSTEN Start (leeres Volume) ALLE
+ * Standard-Vorlagen pauschal einmalig ins Volume kopiert -- jede Vorlage galt danach für immer
+ * als "im Volume vorhanden" und wurde dadurch bei jedem künftigen `git pull && docker compose up
+ * -d --build` komplett ignoriert, selbst wenn niemand sie je über /admin/templates angefasst
+ * hatte. Patrick bekam dadurch mehrfach gemergte Vorlagen-Fixes (u.a. die Unterschrift-
+ * Positionierung) nie auf dem Server zu sehen, ohne jeden Hinweis auf den Grund -- sichtbar erst,
+ * als ein inzwischen im PHP-Code neu eingeführtes LaTeX-Makro (`\floatsig`) auf der stehen
+ * gebliebenen alten Vorlage naturgemäß unbekannt war und LaTeX dessen Argumente ersatzweise als
+ * Klartext ausgab ("3.25cm2pt" direkt über der Unterschrift). Fix: Vorlagen werden nicht mehr
+ * blind ins Volume kopiert (siehe entrypoint.sh) -- stattdessen entscheidet diese Funktion live
+ * bei jeder PDF-Erzeugung, welche Fassung gilt. Admin-Uploads (die tatsächlich existieren)
+ * greifen dadurch weiterhin wie bisher, nie angefasste Vorlagen folgen ab sofort automatisch
+ * jedem Deploy.
+ */
+function resolveTemplatePath(template) {
+  const live = path.join(TEMPLATE_DIR, template + '.tex');
+  if (fs.existsSync(live)) return live;
+  const fallback = path.join(TEMPLATE_DEFAULT_DIR, template + '.tex');
+  return fs.existsSync(fallback) ? fallback : null;
+}
 
 // ─── LaTeX special-char escaping ───────────────────────────────────────────
 function escapeTex(str) {
@@ -63,8 +90,8 @@ app.post('/generate', requireApiKey, (req, res) => {
     }
   }
 
-  const tplFile = path.join(TEMPLATE_DIR, template + '.tex');
-  if (!fs.existsSync(tplFile)) {
+  const tplFile = resolveTemplatePath(template);
+  if (!tplFile) {
     return res.status(404).json({ error: `Template '${template}' not found` });
   }
 

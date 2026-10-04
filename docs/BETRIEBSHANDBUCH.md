@@ -929,3 +929,27 @@ docker compose up -d --build
 > Container übernimmt den Rest automatisch. Die früheren Skripte `scripts/messe_demo_setup.php`,
 > `scripts/messe_demo_simulator.py`, `scripts/messe_demo_teardown.php` sind entfernt (ersetzt
 > durch `demo_simulation_loop()` in `mqtt-subscriber/main.py`).
+
+> **Einmalig nach dem Update vom 04.10.2026 -- WICHTIG, sonst bleiben alle LaTeX-Vorlagen
+> eingefroren** (siehe `docs/VORFAELLE.md`, "Vorlagen-Fixes erreichten den Server nie"): das
+> persistente Volume `/opt/eeg/latex-templates` enthält seit dem allerersten Start Kopien ALLER
+> Standard-Vorlagen (Beitrittserklärung, Bezugs-/Einspeisevereinbarung, Rechnung) -- diese hatten
+> bisher IMMER Vorrang vor der im Image mitgelieferten, aktuellen Fassung, auch wenn nie jemand
+> sie über die Admin-Oberfläche (`/admin/templates`) tatsächlich angepasst hat. Ab diesem Update
+> fällt `latex-service` zwar automatisch auf die aktuelle Vorlage zurück, SOBALD die Datei im
+> Volume fehlt -- die bereits dort liegenden, eingefrorenen Kopien müssen dafür aber einmalig
+> von Hand entfernt werden (kein Code kann das von außen nachholen):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> mkdir -p /opt/eeg/latex-templates/_alte-vorlagen-backup-20261004
+> mv /opt/eeg/latex-templates/*.tex /opt/eeg/latex-templates/_alte-vorlagen-backup-20261004/ 2>/dev/null
+> docker compose up -d --build
+> ```
+> Verschiebt (statt löscht) die vier .tex-Dateien in einen Backup-Unterordner -- falls doch
+> einmal eine davon bewusst über `/admin/templates` angepasst wurde (unwahrscheinlich, aber
+> sicherheitshalber), liegt sie dort weiterhin griffbereit und kann bei Bedarf gezielt wieder
+> über dieselbe Admin-Seite hochgeladen werden. Nach diesem einmaligen Schritt ziehen künftige
+> `git pull && docker compose up -d --build`-Durchläufe Vorlagen-Änderungen automatisch nach,
+> ohne dass das je wieder manuell nachgeholt werden muss -- Logo/Hero-Banner/Templates, die
+> tatsächlich über `/admin/templates` hochgeladen wurden, bleiben davon unberührt.

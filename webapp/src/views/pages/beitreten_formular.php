@@ -224,8 +224,11 @@ ob_start();
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Unterschrift Beitrittserklärung</h3>
-      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">Bitte unterschreiben Sie mit Maus oder Finger im Feld unten.</p>
-      <canvas id="sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">Bitte unterschreiben Sie mit Maus oder Finger im Feld unten, auf der gestrichelten Linie.</p>
+      <div class="sig-pad-wrap">
+        <canvas id="sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+        <div class="sig-pad-guide"></div>
+      </div>
       <div style="margin-top:.5rem">
         <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature('sig-pad')">Löschen</button>
       </div>
@@ -238,7 +241,10 @@ ob_start();
         Zusätzlich zur Beitrittserklärung benötigen wir Ihre gesonderte Unterschrift für das
         SEPA-Lastschriftmandat (Einzug von Mitgliedsbeitrag und Rechnungsbeträgen).
       </p>
-      <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+      <div class="sig-pad-wrap">
+        <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>
+        <div class="sig-pad-guide"></div>
+      </div>
       <div style="margin-top:.5rem">
         <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature('sepa-sig-pad')">Löschen</button>
       </div>
