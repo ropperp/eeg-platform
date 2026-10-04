@@ -404,8 +404,8 @@
 </div>
 <?php endif; ?>
 
-<script src="/assets/js/password-toggle.js"></script>
-<script src="/assets/js/signature-pad-trim.js"></script>
+<script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
+<script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
 <script>
 // ─── Sidebar toggle ───────────────────────────────────────────────
 const SIDEBAR_KEY = 'sidebarCollapsed';

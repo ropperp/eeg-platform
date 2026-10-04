@@ -1506,3 +1506,35 @@ exakt auf der gedruckten Linie, Unterlängen erscheinen automatisch darunter.
 Führungslinie + eine Schlaufe, die bewusst unter die Führungslinie reicht, wie ein "p"):
 im gerenderten Test-PDF liegt der Hauptkörper exakt auf der gedruckten Linie, die Schlaufe
 hängt sichtbar darunter -- genau wie gewünscht.
+
+### Signatur-Fix am Server sichtbar wirkungslos, weil der Browser noch die alte signature-pad-trim.js auslieferte (04.10.2026)
+Patrick hatte den Volume-Fix (siehe oben) bereits erfolgreich auf dem Server eingespielt --
+"3.25cm2pt" war in seinem nächsten Test-PDF tatsächlich weg. Trotzdem lag die Unterschrift im
+nächsten Test (diesmal mit einem nachgezeichneten Rechteck zur genauen Kontrolle) weiterhin
+spürbar über der gedruckten Linie, nicht darauf: "Es hat sich noch nichts geändert."
+
+**Ursache:** `webapp/docker/nginx.conf` liefert alle `.js`/`.css`/Bild-Dateien mit
+`expires 30d; add_header Cache-Control "public, immutable";` aus -- ein für wiederkehrende
+Besucher sehr aggressives Caching, bei dem der Browser die Datei bis zu 30 Tage lang nicht
+einmal neu beim Server nachfragt. In `base.php` und `portal.php` hingen die `<script>`-Tags für
+`password-toggle.js` und `signature-pad-trim.js` dabei OHNE den im Projekt an anderer Stelle
+(`app.css`, Logos, Icon-Sprite, `energy-flow.js`) längst etablierten
+`?v=<?= @filemtime(...) ?>`-Cache-Bust-Parameter. Patricks Browser führte dadurch sehr
+wahrscheinlich weiterhin eine veraltete Fassung von `signature-pad-trim.js` aus (möglicherweise
+sogar noch die Runde-1-Fassung von der vorigen Sitzung, nicht die neue Führungslinien-Logik
+dieser Sitzung) -- unabhängig davon, wie oft der Server selbst korrekt neu gebaut wurde.
+
+**Fix:** dieselbe `?v=<?= @filemtime(ROOT . '/public/assets/js/<datei>') ?: time() ?>`-Syntax,
+die im Projekt bereits für andere statische Assets verwendet wird, auch für diese beiden
+`<script>`-Tags in `base.php` und `portal.php` ergänzt. Dadurch ändert sich die URL automatisch
+bei jeder Dateiänderung (der `filemtime()`-Zeitstempel ist Teil der URL) -- der Browser muss die
+neue Version zwingend frisch laden, unabhängig vom `immutable`-Cache-Header.
+
+**Merksatz:** diese nginx-Konfiguration cached JEDE `.js`/`.css`-Datei pauschal 30 Tage lang,
+`immutable`. Ein neu zu einem Layout hinzugefügtes `<script>`- oder `<link>`-Tag auf eine eigene
+(nicht per CDN/Vendor fremd verwaltete) Datei braucht deshalb von Anfang an den
+`?v=<?= @filemtime(...) ?: time() ?>`-Cache-Bust -- sonst erreicht jede spätere Änderung an
+genau dieser Datei wiederkehrende Besucher für bis zu 30 Tage nicht, ganz unabhängig davon, wie
+korrekt der Server-seitige Deploy tatsächlich war. Ein scheinbar wirkungsloser Fix ist deshalb
+immer auch ein Grund, diesen Cache-Bust-Parameter auf den beteiligten `<script>`/`<link>`-Tags
+zu prüfen, bevor man an der eigentlichen Logik weitersucht.
