@@ -942,14 +942,37 @@ docker compose up -d --build
 > ```bash
 > cd /opt/eeg-platform
 > git pull origin main
-> mkdir -p /opt/eeg/latex-templates/_alte-vorlagen-backup-20261004
-> mv /opt/eeg/latex-templates/*.tex /opt/eeg/latex-templates/_alte-vorlagen-backup-20261004/ 2>/dev/null
+> sudo mkdir -p /opt/eeg/latex-templates/_alte-vorlagen-backup-20261004
+> sudo mv /opt/eeg/latex-templates/beitrittserklaerung_formular.tex \
+>         /opt/eeg/latex-templates/bezugsvereinbarung.tex \
+>         /opt/eeg/latex-templates/einspeisevereinbarung.tex \
+>         /opt/eeg/latex-templates/_alte-vorlagen-backup-20261004/
 > docker compose up -d --build
 > ```
-> Verschiebt (statt löscht) die vier .tex-Dateien in einen Backup-Unterordner -- falls doch
-> einmal eine davon bewusst über `/admin/templates` angepasst wurde (unwahrscheinlich, aber
-> sicherheitshalber), liegt sie dort weiterhin griffbereit und kann bei Bedarf gezielt wieder
-> über dieselbe Admin-Seite hochgeladen werden. Nach diesem einmaligen Schritt ziehen künftige
-> `git pull && docker compose up -d --build`-Durchläufe Vorlagen-Änderungen automatisch nach,
-> ohne dass das je wieder manuell nachgeholt werden muss -- Logo/Hero-Banner/Templates, die
-> tatsächlich über `/admin/templates` hochgeladen wurden, bleiben davon unberührt.
+> **Korrektur (04.10.2026, nach Rückfrage bei Patrick):** hier stand ursprünglich ein
+> `mv .../*.tex ...`-Glob, der ALLE `.tex`-Dateien verschiebt -- also auch `rechnung.tex`.
+> Patrick hat aber bestätigt, dass `rechnung.tex` tatsächlich eine bewusst über
+> `/admin/templates` hochgeladene, eigene Anpassung ist (erkennbar am deutlich neueren mtime als
+> die drei übrigen Vorlagen). Der Befehl nennt die drei betroffenen Dateien deshalb jetzt
+> explizit statt eines Globs, damit `rechnung.tex` sicher unberührt bleibt. Außerdem jetzt mit
+> `sudo`: `/opt/eeg/latex-templates` gehört dem Container-User (uid/gid 82), nicht dem
+> SSH-Login-User -- ohne `sudo` schlagen `mkdir`/`mv` sonst mit "Permission denied" fehl, wie bei
+> Patricks erstem Versuch.
+>
+> Verschiebt (statt löscht) die drei .tex-Dateien in einen Backup-Unterordner -- falls eine davon
+> doch einmal bewusst angepasst wurde, liegt sie dort weiterhin griffbereit und kann bei Bedarf
+> gezielt wieder über dieselbe Admin-Seite hochgeladen werden. Nach diesem einmaligen Schritt
+> ziehen künftige `git pull && docker compose up -d --build`-Durchläufe Vorlagen-Änderungen
+> automatisch nach, ohne dass das je wieder manuell nachgeholt werden muss -- Logo/Hero-Banner/
+> Templates, die tatsächlich über `/admin/templates` hochgeladen wurden (inkl. `rechnung.tex`),
+> bleiben davon unberührt.
+>
+> **Nachbesserung (04.10.2026): zusätzlich Browser-Cache leeren/warten.** Nach obigem Schritt
+> blieb die Unterschrift in Patricks nächstem Test trotzdem noch über der Linie -- Ursache war
+> ein zweiter, unabhängiger Bug: `password-toggle.js`/`signature-pad-trim.js` hatten in
+> `base.php`/`portal.php` keinen Cache-Bust-Parameter, nginx liefert `.js`-Dateien aber mit
+> `Cache-Control: public, immutable; expires 30d` aus (siehe `docs/VORFAELLE.md`). Mit dem
+> Update vom 04.10.2026 (zweiter Teil) ist das behoben (`?v=<?= @filemtime(...) ?>` ergänzt) --
+> nach `git pull && docker compose up -d --build` reicht ein normaler Seitenaufruf, der Browser
+> lädt die neue Version automatisch über die geänderte URL nach, ein manuelles Cache-Leeren ist
+> nicht nötig.

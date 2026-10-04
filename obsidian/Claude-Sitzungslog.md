@@ -9,6 +9,33 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-04 — Claude Code — Claude Sonnet 5
+**Prompt:** "Es hat sich noch nichts geändert. Ich habe gerade mal eine gemacht. [...] Ich habe
+einmal bei den Unterschriften ein Rechteck um das Rechteck gemacht. [...] Bitte schau, dass wir
+das Unterschriftsfeld besser rauf platzieren. Die andere Möglichkeit ist noch: Gib jedem Obmann
+die Möglichkeit, das Unterschriftsfeld selbst auf der Beitrittserklärung zu platzieren."
+(mit Screenshot und Test-PDF, nach dem bereits eingespielten Volume-Fix der vorigen Sitzung)
+**Auftrag:** Patrick hatte den vorigen Fix (Volume-Freeze der LaTeX-Vorlagen) bereits korrekt
+ausgeführt -- "3.25cm2pt" war weg -- die Unterschrift lag in seinem neuesten Test aber trotzdem
+noch über statt auf der Linie.
+**Ergebnis:** Ursache war ein zweiter, unabhängiger Bug, nicht die Positionierungslogik selbst:
+`password-toggle.js`/`signature-pad-trim.js` hingen in `base.php`/`portal.php` ohne den im
+Projekt sonst überall üblichen `?v=<?= @filemtime(...) ?>`-Cache-Bust, nginx liefert `.js`-Dateien
+aber mit `Cache-Control: public, immutable; expires 30d` aus -- Patricks Browser führte dadurch
+sehr wahrscheinlich weiterhin eine veraltete Fassung der Zuschnitt-Logik aus, unabhängig davon,
+wie korrekt der Server-seitige Deploy war. Fix: Cache-Bust-Parameter für beide Skripte in beiden
+Layout-Dateien ergänzt. Zusätzlich den `BETRIEBSHANDBUCH.md`-Eintrag der vorigen Sitzung
+korrigiert: der dort ursprünglich genannte `mv *.tex`-Glob hätte versehentlich auch Patricks
+eigene, bewusst hochgeladene `rechnung.tex` verschoben -- jetzt werden die drei betroffenen
+Dateien explizit genannt, plus `sudo` ergänzt (der Ordner gehört uid/gid 82, nicht dem
+SSH-Login-User, was Patricks ersten Versuch hatte fehlschlagen lassen). Beides in
+`docs/VORFAELLE.md` bzw. `docs/BETRIEBSHANDBUCH.md` dokumentiert. Noch offen: Rückmeldung von
+Patrick nach erneutem Test mit einer normalen Unterschrift (nicht dem nachgezeichneten
+Testrechteck) steht aus; sein alternativer Vorschlag einer manuellen Obmann-seitigen
+Positionierung des Unterschriftsfelds wurde vorerst nicht umgesetzt.
+
+---
+
+## 2026-10-04 — Claude Code — Claude Sonnet 5
 **Prompt:** "Also, irgendwas passt noch nicht, weil jetzt irgendeine Zentimeterangabe auch bei
 der Unterschrift dabei ist. [...] Bitte wirklich schön zentriert haben, auf der Linie, und wenn
 das geht, den Hintergrund transparent haben, sodass man zum Beispiel so wie bei mir, wenn ich

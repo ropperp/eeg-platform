@@ -62,8 +62,8 @@
 <script src="/assets/js/vendor/gsap.min.js"></script>
 <script src="/assets/js/vendor/ScrollTrigger.min.js"></script>
 <script src="/assets/js/site-animations.js"></script>
-<script src="/assets/js/password-toggle.js"></script>
-<script src="/assets/js/signature-pad-trim.js"></script>
+<script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
+<script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
 <script>
 // CSRF-Schutz (OWASP-Audit 13.08.2026): fügt automatisch ein verstecktes Token-Feld in jedes
 // method="post"-Formular der Seite ein, statt jede der ~70 Formular-Views einzeln anzufassen.
