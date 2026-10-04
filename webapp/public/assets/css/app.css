@@ -584,3 +584,17 @@ footer {
 }
 .pw-toggle-btn:hover { color: var(--gray-800); background: var(--gray-100); }
 .pw-toggle-btn .icon { width: 1.1rem; height: 1.1rem; }
+
+/* ─── Unterschrift-Pad: sichtbare Führungslinie (siehe assets/js/signature-pad-trim.js,
+   SIGNATURE_GUIDE_Y=130px -- muss mit .sig-pad-guide's "top" hier übereinstimmen) -- Patrick,
+   04.10.2026: "eine Linie im Unterschriftsfeld [...] auf der man fast ganz unten unterschreibt.
+   Wenn man unter die Linie kommt, ist es noch unter der Linie." ─── */
+.sig-pad-wrap { position: relative; max-width: 600px; }
+.sig-pad-wrap canvas { display: block; }
+/* top in % statt fixer px, da settings.php denselben 600x180-Canvas bei anderer CSS-Höhe
+   (120px statt 180px) anzeigt -- 72.22% = 130/180, bleibt dadurch unabhängig von der
+   tatsächlichen Anzeigehöhe deckungsgleich mit SIGNATURE_GUIDE_Y in signature-pad-trim.js. */
+.sig-pad-guide {
+  position: absolute; left: 8px; right: 8px; top: 72.22%;
+  border-top: 1.5px dashed #9ca3af; pointer-events: none;
+}

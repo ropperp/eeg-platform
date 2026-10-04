@@ -1432,3 +1432,77 @@ nur den (unsichtbaren) Anker, nicht den nachfolgenden Satzfluss, solange man die
 Leerraum um den eigentlichen Inhalt enthält, lässt sich in LaTeX nicht zuverlässig zentrieren --
 das Zuschneiden gehört an die Quelle (hier: beim Erfassen im Browser), nicht in die
 Positionierungs-Logik der Vorlage.
+
+### Vorlagen-Fixes erreichten den Server nie -- persistentes Volume fror .tex-Dateien seit dem allerersten Start ein (04.10.2026)
+Patrick testete den Unterschrift-Fix aus dem vorherigen Vorfall erneut und schickte drei frische
+Test-PDFs (Ropper, Ostermann, "wd") sowie die auf seinem Server tatsächlich aktive
+`beitrittserklaerung_formular.tex` mit: "irgendwas passt noch nicht, weil jetzt irgendeine
+Zentimeterangabe auch bei der Unterschrift dabei ist." Alle drei PDFs zeigten tatsächlich
+"3.25cm2pt" als sichtbaren Klartext direkt über jeder Unterschrift.
+
+**Ursache:** `entrypoint.sh` (latex-service) hat beim ALLERERSTEN Start (leeres Volume
+`/opt/eeg/latex-templates`) früher pauschal ALLE mitgelieferten Standard-Vorlagen einmalig ins
+Volume kopiert, damit latex-service nicht ohne jede Vorlage dasteht. Das Volume hat seitdem
+Vorrang vor der im Image mitgelieferten Fassung -- unabhängig davon, ob ein Admin die jeweilige
+Datei je über `/admin/templates` tatsächlich angepasst hat. Jedes künftige
+`git pull && docker compose up -d --build` lieferte dadurch zwar ein neues Image mit frischen
+Standard-Vorlagen, das Volume blieb aber für IMMER auf dem Stand des allerersten Starts
+eingefroren -- `beitrittserklaerung_formular.tex` auf dem Server kannte das neu eingeführte
+`\floatsig`-Makro (siehe vorheriger Vorfall) deshalb schlicht nicht. LaTeX behandelt einen
+unbekannten Befehl mit Argumenten nicht als Fehler, der die PDF-Erzeugung abbricht, sondern gibt
+die Argumente ersatzweise als Klartext aus -- daher "3.25cm2pt" direkt im Dokument statt eines
+sofort sichtbaren Fehlers. Betraf vermutlich nicht nur die drei heute geänderten Vorlagen,
+sondern grundsätzlich jede .tex-Datei, die seit dem allerersten Start nie über die
+Admin-Oberfläche neu hochgeladen wurde -- jeder in der Vergangenheit gemergte Vorlagen-Fix könnte
+auf demselben Weg nie auf dem Produktivserver angekommen sein, ohne dass das bisher aufgefallen
+wäre.
+
+**Fix:**
+- `latex-service/service.js`: neue `resolveTemplatePath()` -- Volume hat Vorrang, fällt aber
+  jetzt live auf `templates-default` (im Image) zurück, wenn die angeforderte Datei im Volume
+  fehlt. Exakt dasselbe Zwei-Ebenen-Muster wie `adminFilePath()` in `webapp/public/index.php`
+  für Logo/Hero-Banner (das Problem existierte dort NICHT, weil dieses Muster dort von Anfang an
+  so gebaut war).
+- `entrypoint.sh`: das einmalige pauschale Hineinkopieren beim ersten Start entfernt -- mit dem
+  neuen Fallback in `service.js` überflüssig (und würde das Problem bei jeder Neuinstallation
+  sofort wieder reproduzieren).
+- **Einmaliger manueller Schritt auf dem Produktivserver nötig** (kein Code kann das von hier aus
+  nachholen): die bereits im Volume eingefrorenen, nie über die Admin-Oberfläche tatsächlich
+  angepassten .tex-Dateien müssen einmalig gelöscht werden, damit der neue Fallback überhaupt
+  greifen kann -- siehe `docs/BETRIEBSHANDBUCH.md`, Eintrag vom 04.10.2026.
+
+**Merksatz:** ein "Volume hat Vorrang vor Image"-Muster für Admin-Customization braucht IMMER
+einen Fallback beim tatsächlichen Lesezugriff (nicht nur eine einmalige Kopier-Aktion beim
+Containerstart) -- sonst "versteinert" jede Datei, die auch nur zufällig einmal ins Volume
+gelangt ist (und sei es nur, weil ein Setup-Skript sie dorthin kopiert hat), auf dem Stand genau
+dieses Zeitpunkts, für immer, ohne dass das irgendwo sichtbar wird. Admin-Customization-Dateien
+sollten nur dann im Volume landen, wenn sie tatsächlich über die dafür vorgesehene
+Upload-Funktion hochgeladen wurden -- nie durch einen pauschalen Kopiervorgang im Hintergrund.
+
+### Unterschrift-Zuschnitt zweite Runde: Führungslinie im Canvas statt reiner Tinten-Bounding-Box (04.10.2026)
+Zusätzlich zum obigen Vorfall wünschte sich Patrick eine konzeptionelle Verbesserung: "wenn ich
+mit Ropper unterschreibe, [sollen] die Ps unter die Linie gehen [...] wir können [...] eine Linie
+im Unterschriftsfeld machen, auf der man fast ganz unten unterschreibt. Wenn man unter die Linie
+kommt, ist es noch unter der Linie."
+
+**Vorherige Fassung (voriger Vorfall):** schnitt die Unterschrift-Canvas auf die Tinten-
+Bounding-Box zu und zentrierte diese Box komplett mittig auf die gedruckte Linie. Dadurch sitzt
+JEDE Unterschrift gleich mittig, unabhängig davon, ob sie eigentlich eher über oder unter einer
+gedachten Grundlinie verläuft -- Unterlängen (z. B. das "p" in "Ropper") wurden dadurch nicht
+wie beim echten Unterschreiben auf Papier unterhalb der Linie sichtbar.
+
+**Fix:** sichtbare, gestrichelte Führungslinie im Unterschrift-Canvas (`.sig-pad-wrap`/
+`.sig-pad-guide` in app.css, bei 72,22 % der Canvas-Höhe = Pixel 130 von 180 -- als Prozentwert,
+nicht fixer Pixelwert, weil `settings.php` denselben 600x180-Canvas bei abweichender CSS-Höhe
+anzeigt). Der Zuschnitt (`assets/js/signature-pad-trim.js`) verwendet jetzt ein FESTES Fenster
+relativ zu dieser Führungslinie (95px darüber, 35px darunter) statt der dynamischen
+Tinten-Bounding-Box -- nur falls die Tinte darüber hinausgeht, wird das Fenster erweitert, damit
+nie etwas abgeschnitten wird. Die neue PHP-Funktion `signatureRaise()` berechnet daraus die
+`\floatsig`-Anhebung proportional zur jeweiligen Bildhöhe (35/130 ≈ 26,9 % der Höhe) --
+dieselbe feste Position der Führungslinie INNERHALB des Zuschnitts landet dadurch bei jedem Bild
+exakt auf der gedruckten Linie, Unterlängen erscheinen automatisch darunter.
+
+**Verifiziert** mit einer synthetischen Testunterschrift (wellenförmiger Hauptkörper auf der
+Führungslinie + eine Schlaufe, die bewusst unter die Führungslinie reicht, wie ein "p"):
+im gerenderten Test-PDF liegt der Hauptkörper exakt auf der gedruckten Linie, die Schlaufe
+hängt sichtbar darunter -- genau wie gewünscht.
