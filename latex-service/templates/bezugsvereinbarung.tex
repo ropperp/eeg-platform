@@ -58,7 +58,11 @@
 % (Patrick, 03.10.2026, zur Beitrittserklärung: "wäre cool, wenn es mittig vom Strich und auf
 % dem Strich aufliegen würde" -- dieselbe Korrektur hier für Konsistenz übernommen, da beide
 % Unterschriftsspalten bisher denselben links-verankerten \makebox[0pt][l]-Mechanismus nutzten).
-% #1 = halbe Linienbreite, #2 = Anhebung über die Grundlinie, #3 = Bildbefehl (\includegraphics).
+% #1 = halbe Linienbreite, #2 = Versatz (NEGATIV senkt das Bild ab, POSITIV hebt es an --
+% siehe signatureRaise() in index.php: die Fuehrungslinie im Bild liegt oberhalb von dessen
+% Unterkante, die Unterkante sitzt bei #2=0 bereits auf der Grundlinie, daher braucht es
+% einen NEGATIVEN Versatz, um die Fuehrungslinie exakt auf die Grundlinie zu ziehen),
+% #3 = Bildbefehl (\includegraphics).
 \newcommand{\floatsig}[3]{\hspace{#1}\raisebox{#2}[0pt][0pt]{\makebox[0pt][c]{#3}}\hspace{-#1}}
 
 \begin{document}
