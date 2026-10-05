@@ -122,15 +122,26 @@
       </div>
       <div class="form-group" style="grid-column:1 / -1;border-top:1px solid var(--gray-200);padding-top:1rem">
         <label>Unterschrift-Position auf PDFs: Fein-Korrektur (cm)</label>
-        <input type="number" name="signature_offset_cm" step="0.1" min="-3" max="3"
-               style="max-width:160px"
-               value="<?= htmlspecialchars((string)($community['signature_offset_cm'] ?? '0')) ?>">
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+          <div>
+            <small style="color:var(--gray-600);display:block;margin-bottom:.2rem">Hoch (+) / Runter (-)</small>
+            <input type="number" name="signature_offset_cm" step="0.1" min="-3" max="3"
+                   style="max-width:160px"
+                   value="<?= htmlspecialchars((string)($community['signature_offset_cm'] ?? '0')) ?>">
+          </div>
+          <div>
+            <small style="color:var(--gray-600);display:block;margin-bottom:.2rem">Rechts (+) / Links (-)</small>
+            <input type="number" name="signature_offset_x_cm" step="0.1" min="-3" max="3"
+                   style="max-width:160px"
+                   value="<?= htmlspecialchars((string)($community['signature_offset_x_cm'] ?? '0')) ?>">
+          </div>
+        </div>
         <small style="color:var(--gray-600)">Positioniert jede digital erfasste Unterschrift auf der Beitrittserklärung und den
-          Verträgen zusätzlich zur automatischen Berechnung um diesen Wert nach oben (positiv) oder unten (negativ) --
-          z.&nbsp;B. <code>-0,3</code>, wenn die Unterschrift bei dir noch etwas zu hoch über der gedruckten Linie sitzt.
-          Am besten in kleinen Schritten (0,1&nbsp;cm) ändern und jeweils mit einer echten Test-Beitrittserklärung
-          gegenprüfen. Wirkt auf alle künftig erzeugten PDFs, ändert aber nichts an bereits ausgedruckten/gespeicherten
-          Dokumenten.</small>
+          Verträgen zusätzlich zur automatischen Berechnung um diese Werte -- z.&nbsp;B. <code>-0,3</code> hoch/runter,
+          wenn die Unterschrift noch etwas zu hoch über der gedruckten Linie sitzt, oder <code>0,5</code> links/rechts,
+          um sie seitlich zu verschieben. Am besten in kleinen Schritten (0,1&nbsp;cm) ändern und jeweils mit einer
+          echten Test-Beitrittserklärung gegenprüfen. Wirkt auf alle künftig erzeugten PDFs, ändert aber nichts an
+          bereits ausgedruckten/gespeicherten Dokumenten.</small>
       </div>
     </div>
     <button type="submit" class="btn btn-primary">Stammdaten speichern</button>

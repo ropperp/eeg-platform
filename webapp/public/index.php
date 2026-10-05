@@ -791,6 +791,37 @@ function communitySignatureOffsetCm(string $communityId): float
 }
 
 /**
+ * Wie communitySignatureOffsetCm(), aber für die horizontale Fein-Korrektur (links/rechts).
+ * Patrick, 05.10.2026: "Was ich aber dort noch gern hätte, ist auch ein Links- und
+ * Rechtsverschieben, bitte." -- positiv verschiebt nach rechts, negativ nach links.
+ */
+function communitySignatureOffsetXCm(string $communityId): float
+{
+    static $cache = [];
+    if (!array_key_exists($communityId, $cache)) {
+        $cache[$communityId] = (float)(
+            DB::fetchOne('SELECT signature_offset_x_cm FROM communities WHERE id = ?', [$communityId])['signature_offset_x_cm'] ?? 0
+        );
+    }
+    return $cache[$communityId];
+}
+
+/**
+ * Erste \floatsig-Zahl (die "halbe Linienbreite", siehe Makro-Kommentar in den .tex-Vorlagen):
+ * \floatsig verschiebt den Ankerpunkt für die zentrierte Unterschrift um genau diesen Wert nach
+ * rechts, zentriert dort das Bild, und verschiebt danach um denselben Wert zurück nach links --
+ * dadurch bleibt die nachfolgende \rule unbeeinflusst, ganz gleich, welcher Wert hier steht.
+ * Ein horizontaler Versatz lässt sich deshalb OHNE jede Änderung am \floatsig-Makro selbst
+ * einbauen: einfach zum Basiswert (halbe Linienbreite) addieren -- ein positiver Versatz
+ * verschiebt den Anker (und damit die Unterschrift) weiter nach rechts, ein negativer weiter
+ * nach links, exakt symmetrisch in beide \floatsig-Verschiebungen.
+ */
+function floatsigHalfWidth(float $baseHalfWidthCm, float $offsetXCm): string
+{
+    return round($baseHalfWidthCm + $offsetXCm, 2) . 'cm';
+}
+
+/**
  * Liefert die RAW_-Variable fürs Unterschriftsbild "Für die EEG" sowie das
  * zugehörige Bild-Asset für den angegebenen User (Default: der aktuell eingeloggte, i.d.R.
  * der Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte Unterschrift
@@ -803,9 +834,11 @@ function eegSignatureAsset(?string $userId = null, ?string $communityId = null):
     if (empty($user['signature_image'])) {
         return ['var' => '', 'assets' => []];
     }
-    $offset = communitySignatureOffsetCm($communityId ?? Auth::activeCommunityId());
+    $cid = $communityId ?? Auth::activeCommunityId();
+    $offset = communitySignatureOffsetCm($cid);
+    $offsetX = communitySignatureOffsetXCm($cid);
     return [
-        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4, $offset) . '}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
+        'var'    => '\\floatsig{' . floatsigHalfWidth(2.5, $offsetX) . '}{' . signatureRaise(1.4, $offset) . '}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
         'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
     ];
 }
@@ -842,8 +875,9 @@ function memberSignatureAsset(?string $dataUri, string $communityId = ''): array
         return ['var' => '', 'assets' => []];
     }
     $offset = $communityId !== '' ? communitySignatureOffsetCm($communityId) : 0.0;
+    $offsetX = $communityId !== '' ? communitySignatureOffsetXCm($communityId) : 0.0;
     return [
-        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4, $offset) . '}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
+        'var'    => '\\floatsig{' . floatsigHalfWidth(2.5, $offsetX) . '}{' . signatureRaise(1.4, $offset) . '}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
         'assets' => ['unterschrift_mitglied.png' => $dataUri],
     ];
 }
@@ -7968,12 +8002,13 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     // links an den Linienanfang verankert (Patrick, 03.10.2026: "wäre cool, wenn es ein
     // bisschen weiter rechts wäre") -- \floatsig zentriert stattdessen über der ganzen Linie.
     $sigOffset = communitySignatureOffsetCm($communityId);
+    $sigOffsetX = communitySignatureOffsetXCm($communityId);
     $sepaAssets = [];
     if (trim($a['iban'] ?? '') !== '') {
         $sepaSigBox = '';
         if (!empty($a['sepa_signature_image'])) {
             $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
-            $sepaSigBox = '\\floatsig{3.25cm}{' . signatureRaise(0.85, $sigOffset) . '}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
+            $sepaSigBox = '\\floatsig{' . floatsigHalfWidth(3.25, $sigOffsetX) . '}{' . signatureRaise(0.85, $sigOffset) . '}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
         }
         $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
         $sepaBlock =
@@ -8055,7 +8090,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'RAW_ZP_EINSPEISUNG_GRID'   => zpGridTikz($isTrue($a['einspeisung_gewuenscht']) ? $a['einspeisung_zaehlpunkt'] : null),
         'RAW_SEPA_BLOCK'            => $sepaBlock,
         'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
-        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{3.25cm}{' . signatureRaise(1.3, $sigOffset) . '}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
+        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{' . floatsigHalfWidth(3.25, $sigOffsetX) . '}{' . signatureRaise(1.3, $sigOffset) . '}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
         'UNTERSCHRIEBEN_DATUM'      => $a['signed_at'] ? date('d.m.Y', strtotime($a['signed_at'])) : '--',
         'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
         'SIGNER_IP'                 => $a['signer_ip'] ?: '--',
@@ -8772,7 +8807,7 @@ $router->post('/portal/settings/community', function () {
                                  aufteilungsschluessel_info=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
                                  sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=?,
-                                 messe_demo_enabled=?, signature_offset_cm=? WHERE id=?',
+                                 messe_demo_enabled=?, signature_offset_cm=?, signature_offset_x_cm=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -8795,6 +8830,7 @@ $router->post('/portal/settings/community', function () {
             !empty($_POST['contracts_enabled']) ? 'true' : 'false',
             !empty($_POST['messe_demo_enabled']) ? 'true' : 'false',
             max(-3, min(3, (float)str_replace(',', '.', $_POST['signature_offset_cm'] ?? '0'))),
+            max(-3, min(3, (float)str_replace(',', '.', $_POST['signature_offset_x_cm'] ?? '0'))),
             $communityId,
         ]
     );
@@ -8809,7 +8845,8 @@ $router->post('/portal/settings/community', function () {
             'sepa_pain_version' => 'SEPA-Format', 'sepa_prenotification_days' => 'SEPA-Vorlauftage',
             'mahngebuehr_eur' => 'Mahngebühr', 'contracts_enabled' => 'Verträge aktiv',
             'messe_demo_enabled' => 'Simulierte Werte (Messe-Demo)',
-            'signature_offset_cm' => 'Unterschrift-Fein-Korrektur (cm)',
+            'signature_offset_cm' => 'Unterschrift-Fein-Korrektur hoch/runter (cm)',
+            'signature_offset_x_cm' => 'Unterschrift-Fein-Korrektur links/rechts (cm)',
         ]),
         'EEG-Stammdaten:');
     header('Location: /portal/settings?success=1');
