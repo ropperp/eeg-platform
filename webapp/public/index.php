@@ -752,26 +752,60 @@ function zpGridTikz(?string $zp): string
  * Linie" -- der Anteil UNTERHALB der Führungslinie (35 von 130px = ~26,9 %) wird deshalb genau
  * auf diesen Anteil der tatsächlichen Bildhöhe in der PDF umgerechnet, nicht pauschal angehoben.
  * Ändert sich eine der drei JS-Konstanten, muss dieser Faktor (35/130) hier mitgezogen werden.
+ *
+ * Vorzeichen-Korrektur (05.10.2026): \includegraphics setzt die UNTERKANTE des Bildes auf die
+ * aktuelle Grundlinie (dieselbe Grundlinie, auf der auch \rule steht) -- die Führungslinie liegt
+ * innerhalb des Bildes aber ein Stück OBERHALB dieser Unterkante. Ohne jeden Versatz schwebt die
+ * Führungslinie deshalb bereits von sich aus über der gedruckten Linie; \raisebox muss das Bild
+ * folglich nach UNTEN ziehen (negativer Wert), nicht zusätzlich anheben. Die vorige Fassung
+ * dieser Funktion gab einen POSITIVEN Wert zurück und hat den Versatz dadurch verdoppelt, statt
+ * ihn aufzuheben -- das war die eigentliche Ursache dafür, dass die Unterschrift in jeder bis-
+ * herigen Testrunde zu hoch über der Linie saß (per lokalem \floatsig-Test mit einer farbig
+ * markierten Führungslinie empirisch verifiziert, siehe docs/VORFAELLE.md).
+ *
+ * $offsetCm: zusätzliche manuelle Fein-Korrektur je EEG (communities.signature_offset_cm, siehe
+ * Obmann-Einstellungen) -- positiv hebt die Unterschrift zusätzlich an, negativ senkt sie ab.
+ * Patrick, 05.10.2026: "Gib jedem Obmann die Möglichkeit, das Unterschriftsfeld selbst auf der
+ * Beitrittserklärung zu platzieren." Wird zum automatisch berechneten Versatz addiert, ist also
+ * eine reine Fein-Nachkorrektur oben drauf, kein Ersatz für die automatische Berechnung.
  */
-function signatureRaise(float $heightCm): string
+function signatureRaise(float $heightCm, float $offsetCm = 0.0): string
 {
-    return round($heightCm * 35 / 130, 2) . 'cm';
+    return round(-1 * $heightCm * 35 / 130 + $offsetCm, 2) . 'cm';
+}
+
+/**
+ * Manuelle Fein-Korrektur der Unterschrift-Position für eine EEG (siehe signatureRaise()).
+ * Statisch zwischengespeichert, weil pro erzeugter PDF mehrmals abgefragt (SEPA + Haupt-
+ * unterschrift, ggf. zusätzlich Vertrags-Unterschriften).
+ */
+function communitySignatureOffsetCm(string $communityId): float
+{
+    static $cache = [];
+    if (!array_key_exists($communityId, $cache)) {
+        $cache[$communityId] = (float)(
+            DB::fetchOne('SELECT signature_offset_cm FROM communities WHERE id = ?', [$communityId])['signature_offset_cm'] ?? 0
+        );
+    }
+    return $cache[$communityId];
 }
 
 /**
  * Liefert die RAW_-Variable fürs Unterschriftsbild "Für die EEG" sowie das
  * zugehörige Bild-Asset für den angegebenen User (Default: der aktuell eingeloggte, i.d.R.
  * der Obmann/die Obfrau, der/die den Vertrag gerade erzeugt). Ohne hinterlegte Unterschrift
- * bleibt die Zeile leer (nur die Unterschriftslinie).
+ * bleibt die Zeile leer (nur die Unterschriftslinie). $communityId nur nötig, falls er nicht aus
+ * Auth::activeCommunityId() übernommen werden soll (siehe communityManagerSignature()).
  */
-function eegSignatureAsset(?string $userId = null): array
+function eegSignatureAsset(?string $userId = null, ?string $communityId = null): array
 {
     $user = DB::fetchOne('SELECT signature_image FROM users WHERE id = ?', [$userId ?? Auth::userId()]);
     if (empty($user['signature_image'])) {
         return ['var' => '', 'assets' => []];
     }
+    $offset = communitySignatureOffsetCm($communityId ?? Auth::activeCommunityId());
     return [
-        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4) . '}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
+        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4, $offset) . '}{\\includegraphics[height=1.4cm]{unterschrift_eeg.png}}',
         'assets' => ['unterschrift_eeg.png' => $user['signature_image']],
     ];
 }
@@ -793,7 +827,7 @@ function communityManagerSignature(string $communityId): array
         [$communityId]
     );
     if (!$row) { return ['var' => '', 'assets' => []]; }
-    return eegSignatureAsset($row['id']);
+    return eegSignatureAsset($row['id'], $communityId);
 }
 
 /**
@@ -802,13 +836,14 @@ function communityManagerSignature(string $communityId): array
  * holen -- das Mitglied unterschreibt digital im Portal (siehe /portal/my/contract/:type/sign),
  * nicht über das Manager-Unterschriftsfeld in den Einstellungen.
  */
-function memberSignatureAsset(?string $dataUri): array
+function memberSignatureAsset(?string $dataUri, string $communityId = ''): array
 {
     if (empty($dataUri)) {
         return ['var' => '', 'assets' => []];
     }
+    $offset = $communityId !== '' ? communitySignatureOffsetCm($communityId) : 0.0;
     return [
-        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4) . '}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
+        'var'    => '\\floatsig{2.5cm}{' . signatureRaise(1.4, $offset) . '}{\\includegraphics[height=1.4cm]{unterschrift_mitglied.png}}',
         'assets' => ['unterschrift_mitglied.png' => $dataUri],
     ];
 }
@@ -2137,7 +2172,7 @@ $router->get('/portal/my/contract/bezug', function () {
     $tariff = contractTariff($member['community_id'], $member['contract_bezug_generated_at'] ?? null);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
     $signature = communityManagerSignature($member['community_id']);
-    $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null);
+    $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null, $member['community_id']);
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
     streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
@@ -2155,7 +2190,7 @@ $router->get('/portal/my/contract/einspeisung', function () {
     $tariff = contractTariff($member['community_id'], $member['contract_einspeisung_generated_at'] ?? null);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
     $signature = communityManagerSignature($member['community_id']);
-    $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null);
+    $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null, $member['community_id']);
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
     streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
@@ -3492,7 +3527,7 @@ $router->get('/api/v1/contracts/:type/pdf', function ($params) {
     $tariff = contractTariff($member['community_id'], $member['contract_' . $type . '_generated_at'] ?? null);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$member['community_id']]);
     $signature = communityManagerSignature($member['community_id']);
-    $memberSig = memberSignatureAsset($member['contract_' . $type . '_customer_signature'] ?? null);
+    $memberSig = memberSignatureAsset($member['contract_' . $type . '_customer_signature'] ?? null, $member['community_id']);
 
     if ($type === 'einspeisung') {
         $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
@@ -5920,7 +5955,7 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $signature = eegSignatureAsset();
-    $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null);
+    $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null, $member['community_id']);
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
     $ok = streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
@@ -6108,7 +6143,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
 
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $signature = eegSignatureAsset();
-    $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null);
+    $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null, $member['community_id']);
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
     $ok = streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
@@ -7932,12 +7967,13 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     // unten zu schieben -- Box bleibt dadurch kompakt, ob mit oder ohne Bild. War früher
     // links an den Linienanfang verankert (Patrick, 03.10.2026: "wäre cool, wenn es ein
     // bisschen weiter rechts wäre") -- \floatsig zentriert stattdessen über der ganzen Linie.
+    $sigOffset = communitySignatureOffsetCm($communityId);
     $sepaAssets = [];
     if (trim($a['iban'] ?? '') !== '') {
         $sepaSigBox = '';
         if (!empty($a['sepa_signature_image'])) {
             $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
-            $sepaSigBox = '\\floatsig{3.25cm}{' . signatureRaise(0.85) . '}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
+            $sepaSigBox = '\\floatsig{3.25cm}{' . signatureRaise(0.85, $sigOffset) . '}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
         }
         $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
         $sepaBlock =
@@ -8019,7 +8055,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'RAW_ZP_EINSPEISUNG_GRID'   => zpGridTikz($isTrue($a['einspeisung_gewuenscht']) ? $a['einspeisung_zaehlpunkt'] : null),
         'RAW_SEPA_BLOCK'            => $sepaBlock,
         'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
-        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{3.25cm}{' . signatureRaise(1.3) . '}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
+        'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{3.25cm}{' . signatureRaise(1.3, $sigOffset) . '}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
         'UNTERSCHRIEBEN_DATUM'      => $a['signed_at'] ? date('d.m.Y', strtotime($a['signed_at'])) : '--',
         'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
         'SIGNER_IP'                 => $a['signer_ip'] ?: '--',
@@ -8736,7 +8772,7 @@ $router->post('/portal/settings/community', function () {
                                  aufteilungsschluessel_info=?,
                                  bank_name=?, account_holder=?, contact_phone=?, contact_email=?, creditor_id=?,
                                  sepa_pain_version=?, sepa_prenotification_days=?, mahngebuehr_eur=?, contracts_enabled=?,
-                                 messe_demo_enabled=? WHERE id=?',
+                                 messe_demo_enabled=?, signature_offset_cm=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['address'] ?? ''),
@@ -8758,6 +8794,7 @@ $router->post('/portal/settings/community', function () {
             // schickt PHP-false als leeren String '', den eine boolean-Spalte ablehnt (22P02).
             !empty($_POST['contracts_enabled']) ? 'true' : 'false',
             !empty($_POST['messe_demo_enabled']) ? 'true' : 'false',
+            max(-3, min(3, (float)str_replace(',', '.', $_POST['signature_offset_cm'] ?? '0'))),
             $communityId,
         ]
     );
@@ -8772,6 +8809,7 @@ $router->post('/portal/settings/community', function () {
             'sepa_pain_version' => 'SEPA-Format', 'sepa_prenotification_days' => 'SEPA-Vorlauftage',
             'mahngebuehr_eur' => 'Mahngebühr', 'contracts_enabled' => 'Verträge aktiv',
             'messe_demo_enabled' => 'Simulierte Werte (Messe-Demo)',
+            'signature_offset_cm' => 'Unterschrift-Fein-Korrektur (cm)',
         ]),
         'EEG-Stammdaten:');
     header('Location: /portal/settings?success=1');

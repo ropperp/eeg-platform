@@ -42,8 +42,11 @@
   \end{tikzpicture}\par\vspace{3pt}}
 % Unterschrift-Bild, das mittig ÜBER einer gleich im Anschluss gezeichneten Linie
 % "schwebt" (Patrick, 03.10.2026: "wäre cool, wenn es mittig vom Strich und auf dem
-% Strich aufliegen würde") -- #1 = halbe Linienbreite, #2 = Anhebung (wie weit die
-% Unterschrift über die Grundlinie angehoben wird), #3 = Bildbefehl (\includegraphics).
+% Strich aufliegen würde") -- #1 = halbe Linienbreite, #2 = Versatz (NEGATIV senkt das
+% Bild ab, POSITIV hebt es an -- siehe signatureRaise() in index.php: die Führungslinie
+% im Bild liegt oberhalb von dessen Unterkante, die Unterkante sitzt bei #2=0 bereits
+% auf der Grundlinie, daher braucht es einen NEGATIVEN Versatz, um die Führungslinie
+% exakt auf die Grundlinie zu ziehen), #3 = Bildbefehl (\includegraphics).
 % Technik: \hspace{#1} schiebt den Ankerpunkt auf die Linienmitte, \makebox[0pt][c]
 % zentriert das Bild DARAN ohne selbst Platz zu beanspruchen (Breite 0), \raisebox
 % mit [0pt][0pt] beansprucht ebenso keine Höhe (schiebt also nichts nach unten) --

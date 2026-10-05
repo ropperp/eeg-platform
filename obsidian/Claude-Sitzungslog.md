@@ -8,6 +8,34 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-05 — Claude Code — Claude Sonnet 5
+**Prompt:** "Also, ganz passt das mit der Unterschrift noch immer nicht. Cool wäre schon, wenn
+ich das Feld auf der Beitrittserklärung echt positionieren kann. Dann ist es auch wirklich genau
+oben, wie ich es gern hätte, weil es jetzt immer zu hoch ist. Zentriert passt es gerade, aber die
+Höhe passt noch nicht. Vielleicht kannst du es ja doch einbauen, dass jeder Obmann für seine
+Beitrittserklärung das selber auswählen kann, wo er gern die Unterschrift haben möchte, um die am
+besten zu positionieren." (mit Test-PDF nach dem Cache-Bust-Fix der vorigen Sitzung)
+**Auftrag:** Trotz behobenem Cache-Bug lag die Unterschrift weiterhin zu hoch über der Linie --
+Patrick wünschte sich daraufhin primär eine manuelle, Obmann-seitige Positionierungsmöglichkeit
+als Fallback, da die automatische Berechnung über mehrere Runden hinweg nicht zuverlässig passte.
+**Ergebnis:** Vor der manuellen Lösung den eigentlichen Rechenfehler gefunden und mit einem
+eigenen `\floatsig`-Minimalbeispiel (farbig markierte Führungslinie) empirisch verifiziert:
+`signatureRaise()` gab seit ihrer Einführung ein POSITIVES Vorzeichen zurück, obwohl die Bild-
+Unterkante bei `\includegraphics` bereits auf der Grundlinie sitzt und die Führungslinie deshalb
+einen NEGATIVEN Versatz braucht -- der Versatz wurde dadurch bei jeder bisherigen Testrunde
+verdoppelt statt aufgehoben. Das war die tatsächliche Ursache des "immer zu hoch"-Musters über
+alle drei Testrunden hinweg, nicht die Vorlagen-Cache- oder Browser-Cache-Probleme der vorigen
+zwei Sitzungen (die waren beide real, haben das eigentliche Problem aber nur verdeckt). Fix in
+`signatureRaise()` (negiert) verifiziert mit dem echten `beitrittserklaerung_formular.tex` und
+einer synthetischen Testunterschrift mit Unterlängen-Schlaufe: Hauptkörper liegt jetzt exakt auf
+der Linie, Schlaufe hängt sichtbar darunter. Betraf alle drei Vorlagen (Beitrittserklärung inkl.
+SEPA, Bezugs-/Einspeisevereinbarung) gleichermaßen. Zusätzlich die gewünschte manuelle
+Fein-Korrektur umgesetzt: neue Spalte `communities.signature_offset_cm` (Obmann-Einstellungen →
+Stammdaten, -3 bis +3&nbsp;cm, positiv=höher), addiert sich zum automatisch berechneten Versatz.
+Migration `database/migrate_20261006.sql`. Ausführlich in `docs/VORFAELLE.md` dokumentiert.
+
+---
+
 ## 2026-10-04 — Claude Code — Claude Sonnet 5
 **Prompt:** "Es hat sich noch nichts geändert. Ich habe gerade mal eine gemacht. [...] Ich habe
 einmal bei den Unterschriften ein Rechteck um das Rechteck gemacht. [...] Bitte schau, dass wir

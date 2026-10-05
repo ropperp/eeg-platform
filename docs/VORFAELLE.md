@@ -1538,3 +1538,60 @@ genau dieser Datei wiederkehrende Besucher für bis zu 30 Tage nicht, ganz unabh
 korrekt der Server-seitige Deploy tatsächlich war. Ein scheinbar wirkungsloser Fix ist deshalb
 immer auch ein Grund, diesen Cache-Bust-Parameter auf den beteiligten `<script>`/`<link>`-Tags
 zu prüfen, bevor man an der eigentlichen Logik weitersucht.
+
+### Unterschrift dritte Runde: `signatureRaise()` hatte das Vorzeichen vertauscht -- Versatz wurde verdoppelt statt aufgehoben (05.10.2026)
+Trotz behobenem Cache-Bug (siehe oben) und bestätigt korrektem Server-Deploy blieb die
+Unterschrift in Patricks nächstem Test weiterhin spürbar über der gedruckten Linie ("Es passt
+noch immer nicht [...] Zentriert passt es gerade, aber die Höhe passt noch nicht [...] ist jetzt
+immer zu hoch"). Diesmal also kein Deploy-/Cache-Problem mehr, sondern tatsächlich die Formel
+selbst.
+
+**Ursache (mit einem eigenen `\floatsig`-Minimalbeispiel empirisch verifiziert, nicht nur
+hergeleitet):** `\includegraphics` setzt beim Einbetten in den Fließtext die UNTERKANTE des
+Bildes auf die aktuelle Grundlinie -- dieselbe Grundlinie, auf der auch die gedruckte `\rule`
+steht. Die sichtbare Führungslinie liegt aber ein Stück OBERHALB dieser Bild-Unterkante (siehe
+`signature-pad-trim.js`: `SIGNATURE_BELOW_PX=35` von `130`px Fensterhöhe = die Führungslinie
+sitzt bei ca. 27&nbsp;% der Bildhöhe, von der Unterkante aus gemessen). Ganz ohne Versatz
+(`raise=0`) schwebt die Führungslinie dadurch bereits von sich aus über der gedruckten Linie --
+`\raisebox` muss das Bild also nach UNTEN ziehen (negativer Wert), um die Führungslinie auf die
+Linie zu bringen, nicht zusätzlich anheben. `signatureRaise()` gab seit seiner Einführung (siehe
+vorhergehender Vorfall) aber einen POSITIVEN Wert zurück -- der Versatz wurde dadurch bei jeder
+einzelnen bisherigen Testrunde verdoppelt statt aufgehoben.
+
+Verifiziert mit einem eigenständigen `.tex`-Testdokument: ein Bild mit einer farbig markierten
+Führungslinie (rot) und Bildrändern (blau=oben, grün=unten) wurde dreimal mit `\floatsig`
+platziert -- `raise=0` (Bild-Unterkante/grün exakt auf dem Strich, bestätigt obige Baseline-
+Annahme), `raise=+D` (die bisherige Formel-Richtung -- alles schwebt noch höher), `raise=-D`
+(invertiertes Vorzeichen -- die rote Führungslinie landet exakt auf dem Strich). Anschließend
+mit dem ECHTEN Template (`beitrittserklaerung_formular.tex`) und einer synthetischen
+Testunterschrift (Hauptkörper + absichtliche Unterlängen-Schlaufe) gegengeprüft: Hauptkörper
+liegt jetzt exakt auf der gedruckten Linie, die Schlaufe hängt sichtbar darunter -- genau das
+Zielbild aus der vorigen Sitzung, diesmal mit korrektem Vorzeichen tatsächlich erreicht.
+
+**Fix:** `signatureRaise()` in `webapp/public/index.php` negiert den berechneten Versatz jetzt
+(`-1 * $heightCm * 35/130`), statt ihn positiv zurückzugeben. Betraf alle drei Vorlagen
+gleichermaßen (Beitrittserklärung inkl. SEPA-Mandat, Bezugsvereinbarung, Einspeisevereinbarung),
+da alle denselben Mechanismus nutzen -- mit dem Vorzeichen-Fix ist die Unterschrift jetzt auf
+allen dreien automatisch korrekt positioniert, ganz ohne manuelles Eingreifen.
+
+**Zusätzlich (Patrick, 05.10.2026): manuelle Fein-Korrektur pro EEG ergänzt.** "Gib jedem Obmann
+die Möglichkeit, das Unterschriftsfeld selbst auf der Beitrittserklärung zu platzieren [...] um
+die am besten zu positionieren." Auch wenn der obige Vorzeichen-Fix die automatische
+Positionierung bereits korrekt macht, variieren echte Unterschriften (anders als die
+synthetische Testunterschrift) in Größe, Neigung und wie weit Ober-/Unterlängen tatsächlich
+reichen -- ein kleiner manueller Spielraum pro EEG macht das Ergebnis für jeden Obmann feiner
+auf den eigenen Geschmack abstimmbar. Neue Spalte `communities.signature_offset_cm` (NUMERIC,
+Default 0, Bereich -3 bis +3cm, siehe `database/migrate_20261006.sql`), einstellbar unter
+Obmann-Einstellungen → Stammdaten → "Unterschrift-Position auf PDFs: Fein-Korrektur (cm)" --
+positiv hebt zusätzlich an, negativ senkt zusätzlich ab. Wird in `signatureRaise()` einfach zum
+automatisch berechneten Versatz addiert (`communitySignatureOffsetCm()`, statisch gecacht pro
+Request) und wirkt auf alle vier Unterschriftsplatzierungen (SEPA, Beitrittserklärung-
+Hauptunterschrift, sowie "Für die EEG" und "Fürs Mitglied" in beiden Vertragstypen).
+
+**Merksatz:** bei `\raisebox` um ein `\includegraphics`-Bild IMMER zuerst empirisch (ein
+Minimalbeispiel mit farbig markierten Referenzpunkten, kein bloßes Nachdenken über die
+LaTeX-Spezifikation) prüfen, in welche Richtung ein positiver Wert tatsächlich wirkt, BEVOR eine
+Formel für den nötigen Versatz hergeleitet wird -- ein Vorzeichenfehler bei einer rein additiven
+Korrektur fällt nicht durch einen Kompilierfehler auf, sondern nur durch ein doppelt so großes
+(statt aufgehobenes) Symptom, das sich leicht mit "die Formel ist nur noch nicht fein genug
+kalibriert" verwechseln lässt.
