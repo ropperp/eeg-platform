@@ -9,6 +9,25 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-05 — Claude Code — Claude Sonnet 5
+**Prompt:** "Ja, okay, das Automatische läuft echt schon gut. Was ich aber dort noch gern hätte,
+ist auch ein Links- und Rechtsverschieben, bitte."
+**Auftrag:** Die automatische Höhen-Korrektur aus der vorigen Sitzung passt jetzt -- zusätzlich
+zur bereits vorhandenen Hoch/Runter-Fein-Korrektur auch eine Links/Rechts-Fein-Korrektur für die
+Unterschrift-Position auf PDFs ergänzen.
+**Ergebnis:** Neue Spalte `communities.signature_offset_x_cm` (Obmann-Einstellungen →
+Stammdaten, -3 bis +3&nbsp;cm, positiv=rechts, negativ=links), analog zur bestehenden
+Hoch/Runter-Korrektur direkt daneben platziert. Technisch simpel: `\floatsig`s erster Parameter
+(die "halbe Linienbreite", über die der Anker zur Linienmitte verschoben und symmetrisch wieder
+zurückgeschoben wird) wird jetzt um den Fein-Korrektur-Wert ergänzt (`floatsigHalfWidth()`) --
+keine Änderung am `\floatsig`-Makro selbst nötig, da die Verschiebung ohnehin symmetrisch
+(hin und wieder zurück) ist und ein beliebiger Wert dafür eingesetzt werden kann, ohne die
+nachfolgende `\rule` zu beeinflussen. Mit dem echten Template und einer synthetischen
+Testunterschrift (roter Mittelmarker) bei -3cm (Maximalwert) visuell bestätigt: Unterschrift
+sitzt sichtbar weiter links. Migration `database/migrate_20261007.sql`.
+
+---
+
+## 2026-10-05 — Claude Code — Claude Sonnet 5
 **Prompt:** "Also, ganz passt das mit der Unterschrift noch immer nicht. Cool wäre schon, wenn
 ich das Feld auf der Beitrittserklärung echt positionieren kann. Dann ist es auch wirklich genau
 oben, wie ich es gern hätte, weil es jetzt immer zu hoch ist. Zentriert passt es gerade, aber die
