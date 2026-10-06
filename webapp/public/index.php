@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-foreach (['DB', 'Auth', 'RateLimiter', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push'] as $class) {
+foreach (['DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -1519,6 +1519,13 @@ $router->get('/api/live/:slug', function ($params) {
     $community = DB::fetchOne('SELECT id, messe_demo_enabled FROM communities WHERE slug = ? AND active = true', [$slug]);
     if (!$community) { http_response_code(404); echo json_encode(['error' => 'Nicht gefunden']); return; }
 
+    // Kurzzeit-Cache (siehe LiveStatsCache.php): v.a. für mehrere gleichzeitige Besucher
+    // derselben EEG innerhalb desselben 5-Sekunden-Poll-Fensters (Patrick, 06.10.2026:
+    // "das werden wir irgendwo zwischenspeichern [...] und von mir aus immer die Werte
+    // aktualisieren"). TTL liegt unter dem Poll-Intervall, Werte sind dadurch nie merklich alt.
+    $cached = LiveStatsCache::get($community['id']);
+    if ($cached !== null) { echo json_encode($cached); return; }
+
     DB::setCommunity($community['id']);
 
     // mirror_source_metering_point_id IS NULL: Demo-Zählpunkte (siehe migrate_20260906.sql) aus
@@ -1561,19 +1568,30 @@ $router->get('/api/live/:slug', function ($params) {
     // Zählpunkt gar keine Messung vor heute (allererste Messung überhaupt ist von heute), lässt
     // sich "heute" nicht sinnvoll von "insgesamt" trennen -- dann 0 statt einer falsch hohen
     // Zahl (kompletter historischer Zählerstand als "heute" ausgegeben).
+    //
+    // Performance-Fix (Patrick, 06.10.2026: "das dauert 5 bis 10 Sekunden"): "jetzt" und
+    // "basis" hatten ursprünglich GAR KEINE oder nur eine einseitige Zeitgrenze -- DISTINCT ON
+    // musste dadurch pro Zählpunkt die GESAMTE Mess-Historie seit Inbetriebnahme durchsuchen
+    // (esp_measurements ist ein TimescaleDB-Hypertable, wächst durch Messungen alle paar
+    // Sekunden kontinuierlich). Mit einer zusätzlichen UNTEREN Zeitgrenze kann Postgres/
+    // TimescaleDB per Chunk-Exclusion von vornherein alle älteren Chunks überspringen, statt
+    // sie zu scannen. 2 bzw. 3 Tage sind großzügig bemessen (ein Zählpunkt, der so lange gar
+    // nichts gemeldet hat, gilt ohnehin schon als "nicht aktiv", siehe total_meters/
+    // active_meters unten) -- liefert in jedem realistischen Fall exakt dasselbe Ergebnis wie
+    // zuvor, nur ohne den unbeschränkten Scan.
     $today = DB::fetchOne(
         "WITH jetzt AS (
             SELECT DISTINCT ON (em.metering_point_id) em.metering_point_id, em.energy_einspeisung_wh AS jetzt_wh
             FROM esp_measurements em
             JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
-            WHERE em.community_id = ?
+            WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 days'
             ORDER BY em.metering_point_id, em.time DESC
          ),
          basis AS (
             SELECT DISTINCT ON (em.metering_point_id) em.metering_point_id, em.energy_einspeisung_wh AS basis_wh
             FROM esp_measurements em
             JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
-            WHERE em.community_id = ? AND em.time < CURRENT_DATE
+            WHERE em.community_id = ? AND em.time < CURRENT_DATE AND em.time >= CURRENT_DATE - INTERVAL '3 days'
             ORDER BY em.metering_point_id, em.time DESC
          )
          SELECT COALESCE(SUM(GREATEST(j.jetzt_wh - COALESCE(b.basis_wh, j.jetzt_wh), 0)), 0) AS today_wh
@@ -1615,7 +1633,7 @@ $router->get('/api/live/:slug', function ($params) {
         [$community['id']]
     );
 
-    echo json_encode([
+    $payload = [
         'bezug_w'       => $bezug,
         'einspeisung_w' => $einsp,
         'autarkie_pct'  => $autarkie,
@@ -1624,7 +1642,9 @@ $router->get('/api/live/:slug', function ($params) {
         'total_meters'  => (int)($totalMeters['cnt'] ?? 0),
         'demo_simulation' => (bool)($community['messe_demo_enabled'] ?? false),
         'series'        => $series,
-    ]);
+    ];
+    LiveStatsCache::set($community['id'], $payload);
+    echo json_encode($payload);
 });
 
 $router->get('/api/communities/search', function () {

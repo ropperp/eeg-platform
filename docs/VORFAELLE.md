@@ -1595,3 +1595,46 @@ Formel für den nötigen Versatz hergeleitet wird -- ein Vorzeichenfehler bei ei
 Korrektur fällt nicht durch einen Kompilierfehler auf, sondern nur durch ein doppelt so großes
 (statt aufgehobenes) Symptom, das sich leicht mit "die Formel ist nur noch nicht fein genug
 kalibriert" verwechseln lässt.
+
+### Öffentliche Live-Anzeige (/api/live/:slug) brauchte 5-10 Sekunden (06.10.2026)
+Patrick (nach dem Lade-Spinner-Fix derselben Seite, siehe oben "Signatur-Fix am Server sichtbar
+wirkungslos..."-Vorfall für den Spinner selbst): "dass diese Seite echt 5 bis 10 Sekunden laden
+muss [...] um ein paar Werte aus einer Datenbank zu holen für den heutigen Tag, oder? Das werden
+wir irgendwie irgendwo zwischenspeichern [...] und von mir aus immer die Werte aktualisieren."
+
+**Ursache:** die "Energie heute"-Berechnung in `/api/live/:slug` (`webapp/public/index.php`)
+ermittelt den heutigen Energie-Zuwachs als Differenz aus dem aktuellsten Zählerstand ("jetzt")
+und dem letzten Zählerstand VOR heute ("basis") -- beide über `DISTINCT ON (metering_point_id)
+... ORDER BY metering_point_id, time DESC` ermittelt. Beide Teil-Abfragen hatten aber **keine
+oder nur eine einseitige Zeitgrenze**: "jetzt" durchsuchte ohne jede Einschränkung die GESAMTE
+Mess-Historie seit Inbetriebnahme, "basis" nur mit einer oberen Grenze (`time < CURRENT_DATE`),
+ebenfalls ohne untere Grenze. `esp_measurements` ist ein TimescaleDB-Hypertable, das durch
+Messungen alle paar Sekunden pro Zählpunkt kontinuierlich wächst -- ohne untere Zeitgrenze kann
+Postgres/TimescaleDB keine Chunks von vornherein ausschließen (Chunk Exclusion) und musste
+praktisch die komplette, seit Monaten wachsende Historie jedes einzelnen Zählpunkts durchsuchen,
+bei JEDEM Aufruf dieser öffentlichen Route erneut.
+
+**Fix:**
+- Beide Teil-Abfragen bekommen eine zusätzliche UNTERE Zeitgrenze (`jetzt`: `time >= now() -
+  INTERVAL '2 days'`, `basis`: zusätzlich `time >= CURRENT_DATE - INTERVAL '3 days'`) --
+  großzügig genug, um in jedem realistischen Fall exakt dasselbe Ergebnis wie zuvor zu liefern
+  (ein Zählpunkt, der so lange gar nichts gemeldet hat, gilt ohnehin schon als "nicht aktiv",
+  siehe `active_meters`/`total_meters` weiter unten in derselben Route), ermöglicht Postgres/
+  TimescaleDB aber jetzt, alle älteren Chunks von vornherein zu überspringen statt sie zu
+  scannen.
+- Zusätzlich ein kurzlebiger Redis-Cache (`LiveStatsCache.php`, TTL 3s, unter dem
+  5-Sekunden-Poll-Intervall des Frontends) für die komplette JSON-Antwort dieser Route --
+  entlastet vor allem den Fall, dass mehrere Besucher dieselbe EEG gleichzeitig ansehen (z.B.
+  Messe-/Präsentationsbetrieb, siehe CLAUDE.md "Messe-Demo"): die zweite, dritte, ... Anfrage
+  innerhalb desselben kurzen Fensters bekommt die Werte direkt aus Redis statt erneut alle
+  Aggregat-Queries laufen zu lassen. Fail-open bei Redis-Ausfall (gleiches Muster wie
+  `RateLimiter.php`) -- fällt Redis aus, wird einfach wieder jedes Mal frisch berechnet, kein
+  Totalausfall der Live-Anzeige wegen eines reinen Performance-Caches.
+
+**Merksatz:** `DISTINCT ON`/"letzter bekannter Wert pro Gruppe"-Abfragen auf einem TimescaleDB-
+Hypertable brauchen IMMER eine explizite untere Zeitgrenze, auch wenn fachlich "irgendwann in
+der Vergangenheit" gemeint ist -- sonst scannt die Datenbank bei JEDEM Aufruf die komplette,
+stetig wachsende Historie, und die Abfrage wird mit der Zeit immer langsamer, ohne dass sich am
+Code je etwas geändert hat (was genau erklärt, warum das hier erst nach Monaten auffiel). Eine
+großzügige, aber trotzdem bewusst gewählte Grenze (hier: einige Tage) ändert das fachliche
+Ergebnis in der Praxis nicht, aktiviert aber Chunk Exclusion.
