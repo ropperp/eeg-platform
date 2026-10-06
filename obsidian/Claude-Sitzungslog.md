@@ -9,6 +9,29 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-10-06 — Claude Code — Claude Sonnet 5
+**Prompt:** "Das mit dem Laden [...] funktioniert super gut [...] Nur, dass diese Seite echt 5
+bis 10 Sekunden laden muss [...] um ein paar Werte aus einer Datenbank zu holen für den
+heutigen Tag, oder? Das werden wir irgendwie irgendwo zwischenspeichern, um es schneller
+abrufbar zu haben, und von mir aus immer die Werte aktualisieren, aber so geht das nicht, weil
+wir eine schnelle Webseite [...] sind."
+**Auftrag:** Der Lade-Spinner der vorigen Sitzung hat das eigentliche Geschwindigkeitsproblem
+der `/api/live/:slug`-Route nur sichtbar gemacht, nicht behoben -- Patrick möchte jetzt die
+Antwortzeit selbst verringern, explizit durch Zwischenspeicherung.
+**Ergebnis:** Ursache gefunden: die "Energie heute"-Berechnung in `index.php` durchsuchte über
+`DISTINCT ON` OHNE jede oder nur mit einer einseitigen Zeitgrenze die komplette Mess-Historie
+des TimescaleDB-Hypertables `esp_measurements` (wächst seit Monaten durch Messungen alle paar
+Sekunden) -- ohne untere Zeitgrenze kann die Datenbank keine Chunks ausschließen und musste bei
+jedem Aufruf praktisch die gesamte Historie scannen. Fix: beide Teilabfragen ("jetzt"/"basis")
+bekommen eine großzügige, aber bewusst gewählte untere Zeitgrenze (2 bzw. 3 Tage), aktiviert
+Chunk Exclusion, ändert das Ergebnis in der Praxis nicht. Zusätzlich wie gewünscht ein
+kurzlebiger Redis-Cache (`webapp/src/LiveStatsCache.php`, TTL 3s, unter dem 5-Sekunden-Poll-
+Intervall) für die komplette Antwort -- entlastet vor allem mehrere gleichzeitige Besucher
+derselben EEG. Fail-open bei Redis-Ausfall, gleiches Muster wie `RateLimiter.php`. In
+`docs/VORFAELLE.md` ausführlich dokumentiert.
+
+---
+
+## 2026-10-06 — Claude Code — Claude Sonnet 5
 **Prompt:** "Was ich jetzt noch für die Plattform gern hätte, ist, wenn man die Live-Anzeige auf
 der normalen Webseite ansehen möchte [...] dann dauert das ab und zu 5 Sekunden und maximal
 manchmal bis zu 10 Sekunden, bis die ganzen Werte überhaupt geladen werden. Vielleicht können wir
@@ -27,25 +50,6 @@ Rand, respektiert `prefers-reduced-motion`). Mit einer über Playwright/Chromium
 statischen Vorschau (mit dem echten `app.css`) visuell in Hell- und Dunkelmodus geprüft. Zusätzlich
 eine Rundmail zum neuen EnWG und zur Gebietserweiterung entworfen (nur im Chat, nicht Teil dieses
 Commits) sowie die BCC-/Datenschutz-Frage zur Sammelmail beantwortet.
-
----
-
-## 2026-10-05 — Claude Code — Claude Sonnet 5
-**Prompt:** "Ja, okay, das Automatische läuft echt schon gut. Was ich aber dort noch gern hätte,
-ist auch ein Links- und Rechtsverschieben, bitte."
-**Auftrag:** Die automatische Höhen-Korrektur aus der vorigen Sitzung passt jetzt -- zusätzlich
-zur bereits vorhandenen Hoch/Runter-Fein-Korrektur auch eine Links/Rechts-Fein-Korrektur für die
-Unterschrift-Position auf PDFs ergänzen.
-**Ergebnis:** Neue Spalte `communities.signature_offset_x_cm` (Obmann-Einstellungen →
-Stammdaten, -3 bis +3&nbsp;cm, positiv=rechts, negativ=links), analog zur bestehenden
-Hoch/Runter-Korrektur direkt daneben platziert. Technisch simpel: `\floatsig`s erster Parameter
-(die "halbe Linienbreite", über die der Anker zur Linienmitte verschoben und symmetrisch wieder
-zurückgeschoben wird) wird jetzt um den Fein-Korrektur-Wert ergänzt (`floatsigHalfWidth()`) --
-keine Änderung am `\floatsig`-Makro selbst nötig, da die Verschiebung ohnehin symmetrisch
-(hin und wieder zurück) ist und ein beliebiger Wert dafür eingesetzt werden kann, ohne die
-nachfolgende `\rule` zu beeinflussen. Mit dem echten Template und einer synthetischen
-Testunterschrift (roter Mittelmarker) bei -3cm (Maximalwert) visuell bestätigt: Unterschrift
-sitzt sichtbar weiter links. Migration `database/migrate_20261007.sql`.
 
 ---
 
