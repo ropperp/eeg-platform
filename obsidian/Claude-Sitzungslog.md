@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-06 — Claude Code — Claude Sonnet 5
+**Prompt:** "Was ich jetzt noch für die Plattform gern hätte, ist, wenn man die Live-Anzeige auf
+der normalen Webseite ansehen möchte [...] dann dauert das ab und zu 5 Sekunden und maximal
+manchmal bis zu 10 Sekunden, bis die ganzen Werte überhaupt geladen werden. Vielleicht können wir
+da einen Ladebalken oder irgendwas darstellen, damit man überhaupt weiß, dass die Daten geladen
+werden. Denn ich bin mir ab und zu selbst nicht sicher: Funktioniert die Suche jetzt, oder
+funktioniert das nicht?"
+**Auftrag:** Beim ersten Laden einer Energiegemeinschaft auf der öffentlichen `/live`-Seite (egal
+ob per Suche oder über den "Live-Anzeige"/"Echtzeit-Daten ansehen"-Link bei den Pilotprojekten)
+blieb die Seite für die Dauer des `/api/live/:slug`-Abrufs (5-10s) optisch unverändert -- kein
+Hinweis, ob gerade geladen wird oder die Suche nicht funktioniert.
+**Ergebnis:** Neue Lade-Anzeige (Spinner + "Daten werden geladen …") in `live.php`, die nur beim
+ERSTEN Laden einer neu ausgewählten EEG erscheint (`loadDashboard()`/`showLiveLoading()`), nicht
+bei den anschließenden automatischen 5-Sekunden-Refreshes (sonst würde das Dashboard dabei alle
+5s kurz verschwinden). Neue wiederverwendbare `.spinner`-CSS-Klasse in `app.css` (rotierender
+Rand, respektiert `prefers-reduced-motion`). Mit einer über Playwright/Chromium gerenderten
+statischen Vorschau (mit dem echten `app.css`) visuell in Hell- und Dunkelmodus geprüft. Zusätzlich
+eine Rundmail zum neuen EnWG und zur Gebietserweiterung entworfen (nur im Chat, nicht Teil dieses
+Commits) sowie die BCC-/Datenschutz-Frage zur Sammelmail beantwortet.
+
+---
+
 ## 2026-10-05 — Claude Code — Claude Sonnet 5
 **Prompt:** "Ja, okay, das Automatische läuft echt schon gut. Was ich aber dort noch gern hätte,
 ist auch ein Links- und Rechtsverschieben, bitte."
