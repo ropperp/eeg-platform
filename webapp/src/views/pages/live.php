@@ -85,6 +85,17 @@ ob_start();
     <p>Geben Sie den Namen einer Energiegemeinschaft ein um die Echtzeit-Daten zu sehen.</p>
   </div>
 
+  <!-- Lade-Anzeige während des ersten Abrufs (siehe app.css: .spinner). Patrick, 06.10.2026:
+       "dauert das ab und zu 5 Sekunden und maximal manchmal bis zu 10 Sekunden, bis die ganzen
+       Werte überhaupt geladen werden [...] bin mir ab und zu selbst nicht sicher: Funktioniert
+       die Suche jetzt, oder funktioniert das nicht?" -- nur beim ERSTEN Laden einer EEG gezeigt
+       (loadDashboard()), nicht bei den anschließenden automatischen 5-Sekunden-Refreshes, damit
+       das Dashboard dabei nicht alle 5s kurz verschwindet. -->
+  <div id="live-loading" style="display:none;text-align:center;padding:4rem;color:var(--gray-600)">
+    <div class="spinner"></div>
+    <p style="margin-top:1rem">Daten werden geladen …</p>
+  </div>
+
   <div id="live-error" style="display:none;text-align:center;padding:4rem;color:#dc2626">
     <div style="font-size:3rem;margin-bottom:1rem"><?= icon('warning-circle') ?></div>
     <p id="live-error-text"></p>
@@ -153,8 +164,19 @@ searchInput.addEventListener('keydown', async (e) => {
 async function loadDashboard(slug) {
   currentSlug = slug;
   if (refreshTimer) clearInterval(refreshTimer);
+  showLiveLoading();
   await refresh();
   refreshTimer = setInterval(refresh, 5000);
+}
+
+// Lade-Anzeige nur vor dem ERSTEN Abruf einer neu ausgewählten EEG (siehe live-loading-Div
+// oben) -- die anschließenden automatischen Refreshes laufen im Hintergrund weiter, ohne das
+// sichtbare Dashboard zu verdecken.
+function showLiveLoading() {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('no-selection').style.display = 'none';
+  document.getElementById('live-error').style.display = 'none';
+  document.getElementById('live-loading').style.display = 'block';
 }
 
 // Zeigt eine sichtbare Fehlermeldung statt stillschweigend nichts zu tun (Patrick, 24.08.2026:
@@ -163,6 +185,7 @@ async function loadDashboard(slug) {
 function showLiveError(msg) {
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('no-selection').style.display = 'none';
+  document.getElementById('live-loading').style.display = 'none';
   document.getElementById('live-error-text').textContent = msg;
   document.getElementById('live-error').style.display = 'block';
 }
@@ -180,6 +203,7 @@ async function refresh() {
     const d = await res.json();
 
     document.getElementById('live-error').style.display = 'none';
+    document.getElementById('live-loading').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
     document.getElementById('no-selection').style.display = 'none';
     document.getElementById('bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
