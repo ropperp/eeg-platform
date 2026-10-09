@@ -89,15 +89,27 @@ docker compose up -d --build
 >    eintragen (Feld leer = Automatik aus). Bei jeder EEG (Platform-Admin → EEG bearbeiten)
 >    optional die EDA-Login-Zugangsdaten hinterlegen (nur zur zentralen Aufbewahrung,
 >    verschlüsselt wie WLAN-Passwörter -- nicht für einen automatisierten Login).
-> 5. Cron-Eintrag auf dem Host (einmal täglich reicht, EDA-Exporte fallen ohnehin nur monatlich an):
+> 5. Cron-Eintrag auf dem Host (alle 15 Minuten -- siehe Nachbesserung 09.10.2026 unten für die
+>    Begründung):
 >    ```bash
->    ( crontab -l 2>/dev/null; echo "0 7 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
+>    ( crontab -l 2>/dev/null; echo "0,15,30,45 * * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
 >    ```
 > Zum Testen ohne auf den Cron zu warten: Platform-Admin → Einstellungen → "Jetzt
 > prüfen". Kann eine Mail nicht automatisch verarbeitet werden (z. B. Community nicht
 > zuordenbar, Download schlägt fehl), bleibt sie ungelesen im Postfach und es geht eine
 > Alarm-Mail an die Backup-Alarm-Adressen -- Fallback bleibt in jedem Fall der manuelle Upload
 > über `/portal/eda/upload`.
+>
+> **Nachbesserung (09.10.2026): Cron-Intervall von einmal täglich auf alle 15 Minuten erhöht.**
+> Patrick: "Ich habe jetzt schon ein paar Mal was gehabt, und da hat sich das aktuellste
+> Excel-File nicht automatisch geholt. Wie oft wird das ausgeführt?" -- bei nur einem Lauf pro
+> Tag (07:00) wirkt ein Export, der NACH 07:00 im Postfach ankommt, bis zum nächsten Tag wie
+> "nicht automatisch geholt", obwohl er schlicht noch nicht dran war. Das Postfach zu prüfen ist
+> ein reiner, günstiger Microsoft-Graph-Lesezugriff -- ein kürzeres Intervall kostet nichts
+> Nennenswertes, auch wenn echte EDA-Exporte selbst weiterhin nur einmal im Monat anfallen. Wer
+> noch den alten, einmal-täglichen Cron-Eintrag hat: den alten `crontab -e`-Eintrag für
+> `eda_auto_import.php` einfach durch die obige Zeile ersetzen (oder `crontab -l`/`crontab -e`
+> von Hand anpassen, falls mehrere Einträge in derselben Zeile zusammengefasst wurden).
 >
 > **EDA-Exportmail-Format verifiziert (Patrick, 13.08.2026, anhand einer echten Mail):**
 > Absender `no-reply@eda.at`, Betreff `EDA Portal – Energiedatenreport RC108175` (Marktpartner-ID

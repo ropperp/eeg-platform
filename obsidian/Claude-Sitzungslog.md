@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-09 — Claude Code — Claude Sonnet 5 (zweite Nachbesserung)
+**Prompt:** "Ja, du hast recht. Das ist ein anderer Report, ein Detailreport, den ich für die
+Darstellung der Diagramme von den Mitgliedern nehme. Was ich aber noch machen wollte [...] Wie
+oft wird eigentlich noch mal der EDA-Eingang da geprüft? Ich habe jetzt schon ein paar Mal was
+gehabt, und da hat sich das aktuellste Excel-File nicht automatisch geholt. Wie oft wird das
+ausgeführt, alle Minute oder so?"
+**Auftrag:** Der vorige EDA-Parser-Fehler war wie vermutet kein Bug (Detailreport ist ein
+bewusst gewählter, anderer Report-Typ für Mitglieder-Diagramme, nicht für den Auto-Import
+gedacht) -- stattdessen die Frage, wie oft das Postfach geprüft wird, nachdem mehrfach ein
+aktuelles Excel-File nicht automatisch abgeholt wurde.
+**Ergebnis:** `scripts/eda_auto_import.php` war für nur EINMAL TÄGLICH (07:00) dokumentiert --
+ein Export, der danach im Postfach ankommt, wirkt dadurch bis zum nächsten Tag wie "nicht
+automatisch geholt", obwohl er nur noch nicht dran war. Cron-Intervall auf alle 15 Minuten
+erhöht (`0,15,30,45 * * * *` -- das sonst übliche `*/15 * * * *`-Kurzschreibweise hätte im
+PHP-Kommentar den Block selbst vorzeitig beendet, da `*/` dort als Kommentarende gilt).
+Mailbox-Check ist ein reiner, günstiger Microsoft-Graph-Lesezugriff, ein kürzeres Intervall
+kostet nichts Nennenswertes. `docs/BETRIEBSHANDBUCH.md` entsprechend aktualisiert, inkl. Hinweis
+für Patrick, den alten Cron-Eintrag zu ersetzen.
+
+---
+
 ## 2026-10-09 — Claude Code — Claude Sonnet 5 (Nachbesserung)
 **Prompt:** "Zur Berechnung der Echtzeitdaten [...] Da bitte die Echtzeitdaten schon auch alle 5
 Sekunden aktualisieren lassen. Oder von mir aus lassen wir das alle 10 Sekunden, aber die 15
