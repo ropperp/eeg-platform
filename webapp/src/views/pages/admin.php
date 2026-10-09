@@ -3,7 +3,10 @@
 <h2 style="margin-bottom:1.5rem"><?= icon('wrench') ?> Plattform-Administration</h2>
 
 <?php if (isset($_GET['success'])): ?>
-  <div class="alert alert-success" style="margin-bottom:1rem">Gespeichert.</div>
+  <div class="alert alert-success" style="margin-bottom:1rem"><?= htmlspecialchars(is_string($_GET['success']) && $_GET['success'] !== '1' ? $_GET['success'] : 'Gespeichert.') ?></div>
+<?php endif; ?>
+<?php if (!empty($_GET['error'])): ?>
+  <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
 <?php endif; ?>
 
 <div class="grid-2" style="margin-bottom:2rem">
@@ -76,7 +79,12 @@
     <?php foreach ($users as $u): ?>
       <tr>
         <td><?= htmlspecialchars($u['email']) ?></td>
-        <td><?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?></td>
+        <td>
+          <?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?>
+          <?php if (!empty($u['founder_admin'])): ?>
+            <span class="badge badge-green" style="margin-left:.35rem" title="Kann von niemandem entfernt werden">Ersteller-Admin</span>
+          <?php endif; ?>
+        </td>
         <td style="font-size:.8rem">
           <?php foreach ($u['roles'] as $r): ?>
             <span class="badge badge-<?= $r['role'] === 'platform_admin' ? 'green' : 'yellow' ?>" style="margin-right:.25rem">
@@ -98,5 +106,37 @@
     </tbody>
   </table>
 </div>
+
+<?php if (Auth::isFounderAdmin()): ?>
+<!-- Nur der Ersteller-Admin darf die Platform-Admin-Rollenverteilung selbst verändern
+     (Patrick, 09.10.2026: "Bis halt auf die Rollenverteilung") -- Unteradmins sehen diese
+     Karte gar nicht erst. -->
+<div class="card">
+  <h3 style="margin-bottom:.5rem"><?= icon('shield-check') ?> Neuen Platform-Admin (Unteradmin) einladen</h3>
+  <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:1rem">
+    Existiert bereits ein Login mit dieser E-Mail (z.B. ein bestehender Obmann-Account), bekommt
+    genau dieser Account zusätzlich Platform-Admin-Zugang -- kein zweiter Account nötig, Vor-/
+    Nachname werden dann ignoriert. Bei einer neuen E-Mail wird ein Account angelegt und ein
+    Link zum Passwort-Setzen per Mail verschickt (48 Stunden gültig).
+  </p>
+  <form method="post" action="/admin/platform-admins/invite">
+    <div class="grid-2">
+      <div class="form-group" style="grid-column:1 / -1">
+        <label>E-Mail</label>
+        <input type="email" name="email" required placeholder="kollege@beispiel.at">
+      </div>
+      <div class="form-group">
+        <label>Vorname (nur bei neuem Account)</label>
+        <input type="text" name="first_name">
+      </div>
+      <div class="form-group">
+        <label>Nachname (nur bei neuem Account)</label>
+        <input type="text" name="last_name">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Platform-Admin-Zugang einrichten</button>
+  </form>
+</div>
+<?php endif; ?>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

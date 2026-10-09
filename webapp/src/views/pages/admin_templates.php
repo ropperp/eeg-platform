@@ -49,16 +49,17 @@
     </div>
   <?php endif; ?>
 
-  <?php if ($t['filename'] === 'hero-banner.png'): ?>
+  <?php if ($t['filename'] === 'hero-banner.jpg'): ?>
     <!-- Sonderfall: Hero-Banner braucht einen Zuschnitt auf die Ziel-Bildgröße (1600x640,
          Seitenverhältnis des Hero-Bereichs) statt des generischen Datei-Uploads -- sonst würde
          ein beliebiges Foto verzerrt oder mit Rand angezeigt. Zoom/Verschieben wie beim
-         Profilbild-Zuschnitt (avatar-crop.js), nur rechteckig statt quadratisch. -->
+         Profilbild-Zuschnitt (avatar-crop.js), nur rechteckig statt quadratisch.
+         Als JPEG statt PNG gespeichert (Patrick, 09.10.2026: Ladezeit) -- siehe rect-crop.js. -->
     <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">
       Wird beim Speichern auf <strong>1600 × 640 Pixel</strong> zugeschnitten (Seitenverhältnis
       des Hero-Bereichs auf der Startseite) -- mit Zoom-Regler und Ziehen den Ausschnitt wählen.
     </p>
-    <form method="post" action="/admin/templates/hero-banner.png/upload" enctype="multipart/form-data">
+    <form method="post" action="/admin/templates/hero-banner.jpg/upload" enctype="multipart/form-data">
       <input type="file" id="hero-file-input" name="file" accept="image/*" required style="margin-bottom:.75rem">
       <div id="hero-crop-wrapper" style="display:none;margin-bottom:.75rem">
         <div style="max-width:100%;overflow:hidden;border-radius:8px;border:1px solid var(--gray-200);display:inline-block">
@@ -79,7 +80,7 @@
         wrapperId: 'hero-crop-wrapper',
         canvasId: 'hero-crop-canvas',
         zoomId: 'hero-crop-zoom',
-        outputName: 'hero-banner.png',
+        outputName: 'hero-banner.jpg',
       });
     </script>
   <?php else: ?>

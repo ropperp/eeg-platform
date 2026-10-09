@@ -34,7 +34,7 @@ ob_start();
       </tr>
       <tr>
         <td>Ausleseeinheit für Smart Meter (P1-Schnittstelle)</td>
-        <td class="price">in Vorbereitung – voraussichtlich ca. 20,00 €</td>
+        <td class="price">in Vorbereitung – voraussichtlich ca. 30,00 €</td>
       </tr>
     </tbody>
   </table>

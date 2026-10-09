@@ -976,3 +976,28 @@ docker compose up -d --build
 > nach `git pull && docker compose up -d --build` reicht ein normaler Seitenaufruf, der Browser
 > lädt die neue Version automatisch über die geänderte URL nach, ein manuelles Cache-Leeren ist
 > nicht nötig.
+
+> **Einmalig nach dem Update vom 09.10.2026 -- zwei unabhängige Schritte:**
+>
+> **1. Hero-Banner-Foto einmal neu hochladen (falls eines hinterlegt ist).** Das Hero-Banner
+> wird seit diesem Update als `hero-banner.jpg` statt `hero-banner.png` gespeichert (siehe
+> `docs/VORFAELLE.md`, "Hero-Banner-Foto lädt weiterhin langsam") -- ein eventuell bereits
+> hochgeladenes Foto liegt danach unter dem alten Dateinamen und wird nicht mehr gefunden
+> (Startseite zeigt dann wieder die mitgelieferte SVG-Illustration, kein Fehler, nur das eigene
+> Foto fehlt). Einfach unter Platform-Admin → Dateien → Hero-Banner (Startseite) das Foto
+> einmal neu hochladen/zuschneiden, dann passt es wieder dauerhaft.
+>
+> **2. Datenbank-Migrationen einspielen** (neue Tabellen `community_live_stats`/
+> `community_power_minutely` für die Live-Anzeigen-Performance, siehe `docs/VORFAELLE.md`, sowie
+> `users.founder_admin` fürs Ersteller-Admin/Unteradmin-System):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261009.sql
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261009b.sql
+> docker compose up -d --build
+> ```
+> `migrate_20261009.sql` markiert automatisch den bisher einzigen Platform-Admin (dich) als
+> Ersteller-Admin -- kein weiterer Schritt nötig, außer du willst gleich danach unter
+> Platform-Admin → Benutzer & Rollen → "Neuen Platform-Admin einladen" deine Diplomarbeits-
+> Kollegen als Unteradmins einladen.

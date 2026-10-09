@@ -766,6 +766,147 @@ def demo_simulation_loop(client: mqtt.Client) -> None:
         time.sleep(DEMO_TICK_INTERVAL_S)
 
 
+# Wie oft die Live-Kennzahlen jeder EEG neu berechnet werden (siehe refresh_live_stats_for_community()).
+LIVE_STATS_INTERVAL_S = 15
+
+
+def refresh_live_stats_for_community(conn, community_id: str) -> None:
+    """Berechnet bezug_w/einsp_w/today_wh/autarkie_pct/active_meters/total_meters für EINE EEG
+    neu und schreibt sie in community_live_stats (eine Zeile je EEG, per UPSERT aktuell
+    gehalten) -- dieselbe Aggregation, die bis 09.10.2026 bei JEDEM einzelnen Aufruf von
+    /api/live/:slug live über esp_measurements lief (webapp/public/index.php). Patrick,
+    09.10.2026: "Die Autarkie kann immer vorberechnet werden und beim Aufruf nur aus einem
+    gespeicherten Wert herausgelesen werden [...] Das kann nicht sein, dass es wieder fast 5
+    Sekunden dauert." Läuft hier im Hintergrund (live_stats_loop(), alle ~15s für jede EEG),
+    die Webapp liest nur noch die fertige Zeile.
+
+    Schreibt zusätzlich den aktuellen Minuten-Bucket in community_power_minutely fort (siehe
+    dortigen Migrationskommentar) -- die Grundlage für den "Verlauf letzte 2 Stunden"-Chart der
+    Live-Anzeige, ohne dass die Webapp dafür esp_measurements selbst abfragen muss.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
+                COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
+                COUNT(*)                                AS active_meters
+            FROM (
+                SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w
+                FROM esp_measurements em
+                JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+                WHERE em.community_id = %s AND em.time >= now() - INTERVAL '2 minutes'
+                ORDER BY em.metering_point_id, em.time DESC
+            ) latest
+            """,
+            (community_id,),
+        )
+        total_bezug_w, total_einspeisung_w, active_meters = cur.fetchone()
+
+        # Zeitgrenzen wie im ursprünglichen PHP-Fix (Vorfall "5-10 Sekunden", 06.10.2026) --
+        # großzügig genug, um in jedem realistischen Fall dasselbe Ergebnis wie ein unbeschränkter
+        # Scan zu liefern, aktiviert aber TimescaleDBs Chunk Exclusion.
+        cur.execute(
+            """
+            WITH jetzt AS (
+                SELECT DISTINCT ON (em.metering_point_id) em.metering_point_id, em.energy_einspeisung_wh AS jetzt_wh
+                FROM esp_measurements em
+                JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+                WHERE em.community_id = %s AND em.time >= now() - INTERVAL '2 days'
+                ORDER BY em.metering_point_id, em.time DESC
+            ),
+            basis AS (
+                SELECT DISTINCT ON (em.metering_point_id) em.metering_point_id, em.energy_einspeisung_wh AS basis_wh
+                FROM esp_measurements em
+                JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
+                WHERE em.community_id = %s AND em.time < CURRENT_DATE AND em.time >= CURRENT_DATE - INTERVAL '3 days'
+                ORDER BY em.metering_point_id, em.time DESC
+            )
+            SELECT COALESCE(SUM(GREATEST(j.jetzt_wh - COALESCE(b.basis_wh, j.jetzt_wh), 0)), 0) AS today_wh
+            FROM jetzt j LEFT JOIN basis b ON b.metering_point_id = j.metering_point_id
+            """,
+            (community_id, community_id),
+        )
+        (today_wh,) = cur.fetchone()
+
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM metering_points
+            WHERE community_id = %s AND active = true AND meter_code IS NOT NULL AND esp_last_seen_at IS NOT NULL
+              AND mirror_source_metering_point_id IS NULL
+            """,
+            (community_id,),
+        )
+        (total_meters,) = cur.fetchone()
+
+        bezug_w = int(total_bezug_w or 0)
+        einspeisung_w = int(total_einspeisung_w or 0)
+        autarkie_pct = min(100, round(einspeisung_w / bezug_w * 100)) if bezug_w > 0 else 0
+
+        cur.execute(
+            """
+            INSERT INTO community_live_stats
+                (community_id, bezug_w, einspeisung_w, today_wh, autarkie_pct, active_meters, total_meters, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+            ON CONFLICT (community_id) DO UPDATE SET
+                bezug_w = EXCLUDED.bezug_w,
+                einspeisung_w = EXCLUDED.einspeisung_w,
+                today_wh = EXCLUDED.today_wh,
+                autarkie_pct = EXCLUDED.autarkie_pct,
+                active_meters = EXCLUDED.active_meters,
+                total_meters = EXCLUDED.total_meters,
+                updated_at = now()
+            """,
+            (community_id, bezug_w, einspeisung_w, today_wh, autarkie_pct, int(active_meters or 0), int(total_meters or 0)),
+        )
+
+        # Minutenwert (Patrick, 09.10.2026: "ob wir da eh alle Minuten vielleicht einen Wert
+        # nehmen [...] dann sind das eh nicht so viele [...] das geht") -- der aktuelle Bucket
+        # wird bei jedem Durchlauf überschrieben (upsert), enthält also immer den zuletzt
+        # berechneten Wert dieser Minute (kein echter Durchschnitt) -- für die grobe
+        # Verlaufsanzeige ausreichend, Patricks eigener Vorschlag.
+        cur.execute(
+            """
+            INSERT INTO community_power_minutely (community_id, bucket, bezug_w, einspeisung_w)
+            VALUES (%s, date_trunc('minute', now()), %s, %s)
+            ON CONFLICT (community_id, bucket) DO UPDATE SET
+                bezug_w = EXCLUDED.bezug_w,
+                einspeisung_w = EXCLUDED.einspeisung_w
+            """,
+            (community_id, bezug_w, einspeisung_w),
+        )
+        cur.execute(
+            "DELETE FROM community_power_minutely WHERE community_id = %s AND bucket < now() - INTERVAL '3 hours'",
+            (community_id,),
+        )
+    conn.commit()
+
+
+def live_stats_loop() -> None:
+    """Eigener Daemon-Thread: läuft unabhängig von der MQTT-Verbindung (reine DB-Arbeit) und
+    berechnet die Live-Kennzahlen jeder aktiven EEG alle LIVE_STATS_INTERVAL_S Sekunden neu
+    (siehe refresh_live_stats_for_community())."""
+    while True:
+        try:
+            pool = get_db_pool()
+            conn = pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM communities WHERE active = true")
+                    community_ids = [str(row[0]) for row in cur.fetchall()]
+                for community_id in community_ids:
+                    try:
+                        refresh_live_stats_for_community(conn, community_id)
+                    except Exception as e:
+                        conn.rollback()
+                        log.error("Live-Stats-Berechnung fehlgeschlagen für Community %s: %s", community_id, e)
+            finally:
+                pool.putconn(conn)
+        except Exception as e:
+            log.error("Fehler im Live-Stats-Thread: %s", e)
+        time.sleep(LIVE_STATS_INTERVAL_S)
+
+
 def main() -> None:
     # Warten bis DB bereit ist
     for attempt in range(30):
@@ -798,6 +939,8 @@ def main() -> None:
     threading.Thread(target=reconfig_broadcast_loop, args=(client,), daemon=True).start()
     # Messe-/Präsentations-Demo-Simulation starten (siehe demo_simulation_loop()).
     threading.Thread(target=demo_simulation_loop, args=(client,), daemon=True).start()
+    # Live-Kennzahlen-Vorberechnung starten (siehe live_stats_loop()).
+    threading.Thread(target=live_stats_loop, daemon=True).start()
 
     while True:
         try:

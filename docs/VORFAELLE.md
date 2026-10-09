@@ -1229,6 +1229,34 @@ der erste visuelle Eindruck der Startseite) verdient i. d. R. zusätzlich einen
 `<link rel="preload">`-Hinweis im `<head>` -- der Preload-Scanner behandelt `background-image`
 spürbar später als ein `<img src>` oder ein explizites Preload.
 
+**Nachbesserung (09.10.2026): trotz Preload + langem Cache weiterhin langsam -- die eigentliche
+Ursache war die Dateigröße, nicht die Lade-Reihenfolge.** Patrick: "Wenn ich die Seite neu lade,
+dauert es immer, bis das Bild lädt. Es lädt von oben runter, ist erst grau [...] Das Bild ist ja
+eigentlich gar nicht so groß. Warum dauert das so lange?"
+
+Das Hero-Banner-Upload-Formular (`admin_templates.php`) nutzt einen eigenen Zoom/Verschieben-
+Zuschnitt (`rect-crop.js`) auf exakt 1600×640px -- die Zielgröße war also die ganze Zeit schon
+klein genug. Der eigentliche Fehler: `canvas.toBlob()` exportierte den Zuschnitt verlustfrei als
+PNG (`'image/png'`, ohne Qualitätsstufe möglich). Für ein FOTO (viele Farbverläufe, Bildrauschen,
+keine Transparenz nötig) ist ein verlustfreies PNG um ein Vielfaches größer als ein qualitativ
+kaum unterscheidbares JPEG -- das erklärt das "lädt von oben runter"-Bild: eine große Datei, die
+trotz Preload/Cache beim allerersten Download (bzw. nach einem Hard-Reload) sichtbar Zeit
+braucht.
+
+**Fix:** `rect-crop.js` exportiert jetzt standardmäßig als JPEG (`canvas.toBlob(cb, 'image/jpeg',
+0.85)`) statt PNG -- über `opts.mimeType`/`opts.quality` weiterhin übersteuerbar, falls ein
+künftiger Anwendungsfall doch verlustfreie Transparenz braucht. Der gespeicherte Dateiname
+wechselt konsistent von `hero-banner.png` auf `hero-banner.jpg` (Registry in `index.php`,
+Formular-Action, `/hero-banner-image`-Route inkl. `Content-Type`, `home.php`) -- die generische
+Download-Route (`/admin/templates/:name/download`) leitet den `Content-Type` jetzt von der
+tatsächlichen Dateiendung ab statt pauschal von `image/png` für alle `type=image`-Einträge.
+
+**Merksatz:** ein `<canvas>`-Export (`toBlob`/`toDataURL`) für ein FOTO sollte so gut wie immer
+`'image/jpeg'` mit einer Qualitätsstufe (z. B. 0,82-0,88) verwenden, nicht das Default-`'image/
+png'` -- PNG ist verlustfrei und dadurch für Fotos (im Gegensatz zu Screenshots/Icons/Text)
+regelmäßig 5-10x größer, ganz unabhängig davon, wie klein die Zielauflösung bereits ist oder wie
+gut Preload/Caching schon eingestellt sind.
+
 ### Energiefluss-Animation: Glow-Trail bei der PV-Verbindung unsichtbar (02.10.2026)
 Patrick, nach dem ersten Test der neuen rAF-Animation (PR #210): "Dieser Glow dahinter, sodass
 es so ein bisschen mehr animiert aussieht, den haben wir jetzt nicht. Wir haben jetzt nur die
@@ -1638,3 +1666,49 @@ stetig wachsende Historie, und die Abfrage wird mit der Zeit immer langsamer, oh
 Code je etwas geändert hat (was genau erklärt, warum das hier erst nach Monaten auffiel). Eine
 großzügige, aber trotzdem bewusst gewählte Grenze (hier: einige Tage) ändert das fachliche
 Ergebnis in der Praxis nicht, aktiviert aber Chunk Exclusion.
+
+### Live-Anzeige trotz Zeitgrenzen+Cache weiterhin "fast 5 Sekunden" (09.10.2026)
+Der Zeitgrenzen-/Cache-Fix vom 06.10.2026 (siehe oben) half, reichte Patrick aber nicht: "Das
+kann nicht sein, dass es wieder fast 5 Sekunden dauert. Es steht zwar jetzt 'Daten werden
+geladen' [...], aber das müsste ein bisschen schneller gehen." Er lieferte dabei selbst die
+richtige Architektur: "Die Autarkie kann immer vorberechnet werden und beim Aufruf nur aus
+einem gespeicherten Wert herausgelesen werden [...] ob wir da eh alle Minuten vielleicht einen
+Wert nehmen [...] dann sind das eh nicht so viele [...] das geht."
+
+**Ursache:** selbst mit Zeitgrenzen bleibt `/api/live/:slug` eine Live-Aggregation über
+`esp_measurements` bei JEDEM einzelnen HTTP-Request -- bei vielen Zählpunkten/häufigen
+Messungen (alle paar Sekunden pro Zählpunkt) ist das auf der Raspberry-Pi-Hardware des
+Produktivservers spürbar, auch wenn jede einzelne Abfrage für sich genommen schon "schnell"
+ist. Der Redis-Cache (06.10.2026) half nur gegen GLEICHZEITIGE Anfragen innerhalb desselben
+3-Sekunden-Fensters, nicht gegen den eigentlichen Rechenaufwand selbst.
+
+**Fix -- Vorberechnung statt Live-Aggregation:** `mqtt-subscriber` (der ohnehin dauerhaft
+laufende Hintergrunddienst, der jede MQTT-Messung schon entgegennimmt) bekommt einen neuen
+Hintergrund-Thread `live_stats_loop()`, der alle ~15s für JEDE EEG dieselbe Aggregation
+(bezug_w/einspeisung_w/today_wh/autarkie_pct/active_meters/total_meters) einmal zentral
+berechnet und in eine neue Tabelle `community_live_stats` schreibt (eine Zeile je EEG, per
+UPSERT aktuell gehalten) -- siehe `database/migrate_20261009b.sql`. `/api/live/:slug`
+(`webapp/public/index.php`) liest diese fertige Zeile jetzt nur noch, statt die Aggregation bei
+jedem Seitenaufruf selbst zu rechnen.
+
+**Verlaufs-Chart:** genau wie von Patrick vorgeschlagen -- `community_power_minutely` hält nur
+noch 1 Wert pro Minute (also max. 120 Zeilen für 2 Stunden) statt den kompletten 2-Stunden-
+Rohdaten-Bereich bei jedem Aufruf neu zu bucketen. `live_stats_loop()` überschreibt den
+aktuellen Minuten-Bucket laufend (letzter Messwert dieser Minute, kein echter Durchschnitt --
+für die grobe Verlaufsanzeige bewusst in Kauf genommen) und löscht alles älter als 3 Stunden
+gleich mit.
+
+**Sicherheitsnetz:** `/api/live/:slug` prüft `community_live_stats.updated_at` -- ist die Zeile
+älter als 2 Minuten oder fehlt sie ganz (z.B. `mqtt-subscriber` gerade erst gestartet oder
+abgestürzt), fällt die Route automatisch auf die alte, direkte Live-Berechnung vom 06.10.2026
+zurück (unverändert als Fallback erhalten), statt veraltete oder leere Werte auszuliefern.
+
+**Verifiziert** mit einem lokal aufgesetzten PostgreSQL-Testaufbau (gleiches Schema wie
+`community_live_stats`/`community_power_minutely`, Beispiel-Messdaten für "jetzt" und "vor
+heute"): alle neuen Abfragen (Aggregation, UPSERT, Lesezugriff) liefern die erwarteten Werte.
+
+**Merksatz:** Zeitgrenzen (06.10.2026) beheben einen UNBESCHRÄNKTEN Scan -- sie machen eine
+Abfrage aber nicht beliebig billig. Wird dieselbe (wenn auch schon optimierte) Aggregation bei
+JEDEM einzelnen Request neu gerechnet, lohnt sich auf begrenzter Hardware (Raspberry Pi) der
+nächste Schritt: den Rechenaufwand aus dem Request-Pfad komplett herausnehmen und periodisch im
+Hintergrund vorberechnen, wo ohnehin schon ein Dauer-Prozess (hier: `mqtt-subscriber`) läuft.

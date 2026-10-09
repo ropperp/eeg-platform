@@ -3,7 +3,7 @@ $pageTitle = 'Strom für alle — Gemeinschaftlich Energie erzeugen & teilen';
 // Eigenes Hero-Foto (unter /admin/templates hochgeladen, siehe /hero-banner-image) hat Vorrang
 // vor der mitgelieferten SVG-Illustration -- per Inline-<style>-Override, da app.css das Bild
 // nicht kennt (die Datei kann jederzeit ohne Deploy ausgetauscht werden).
-$customHeroBanner = adminFilePath('hero-banner.png');
+$customHeroBanner = adminFilePath('hero-banner.jpg');
 // Patrick, 02.10.2026: Hero-Banner wirkt beim Seitenaufruf lange grau, bevor das Foto erscheint.
 // Ursache: das Bild hängt nur als CSS-background-image an .hero (siehe unten) -- solche
 // url()-Referenzen entdeckt der Browser-Preload-Scanner erst beim Aufbau der CSSOM, nicht schon
