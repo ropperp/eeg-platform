@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-09 — Claude Code — Claude Sonnet 5 (Nachbesserung)
+**Prompt:** "Zur Berechnung der Echtzeitdaten [...] Da bitte die Echtzeitdaten schon auch alle 5
+Sekunden aktualisieren lassen. Oder von mir aus lassen wir das alle 10 Sekunden, aber die 15
+sind ein bisschen zu viel [...] Ich möchte ja schon zu meinen Mitgliedern fair sein." (plus
+Rückmeldung, dass die "Unteradmin einladen"-Karte nicht sichtbar ist, und ein weitergeleiteter
+automatischer EDA-Import-Fehler zu einer EDA-Datei mit unerwarteten Sheet-Namen)
+**Auftrag:** Vorberechnungs-Intervall der vorigen Sitzung (15s) war Patrick zu träge für
+"Echtzeitdaten"; zusätzlich zwei offene Punkte zu klären.
+**Ergebnis:** `LIVE_STATS_INTERVAL_S` in `mqtt-subscriber/main.py` von 15 auf 10 Sekunden
+gesenkt (Patricks eigener Kompromissvorschlag). Die fehlende "Unteradmin einladen"-Karte ist
+kein Code-Fehler (im gemergten Stand korrekt verdrahtet, `Auth::isFounderAdmin()` wird in
+`admin.php` richtig geprüft) -- `founder_admin` wird nur beim LOGIN in die Session geladen
+(`Auth::establishSession()`), Patricks Session lief aber schon vor diesem Deploy und wurde nie
+neu aufgebaut. Ihm empfohlen, sich einmal aus- und wieder einzuloggen. Der EDA-Parser-Fehler
+("Detailreport" mit Sheets 'Übersicht'/'Energiedaten' statt der erwarteten monatlichen
+'Gesamtübersicht'/'Detailübersicht') wurde bewusst NICHT blind im Code "repariert" -- zu hohes
+Risiko für falsch interpretierte Abrechnungsdaten ohne Einsicht in die tatsächliche Datei;
+stattdessen nachgefragt, ob das ein anderer, absichtlich gewählter Report-Typ war oder der
+Netzbetreiber sein Standard-Exportformat geändert hat.
+
+---
+
 ## 2026-10-09 — Claude Code — Claude Sonnet 5
 **Prompt:** "Ändere bitte alle Preise der Ausleseeinheit von 20 auf voraussichtlich 30€. Außerdem
 bitte gib dem Admin die Möglichkeit, auch normale Mitglieder anzulegen, die zum Beispiel auch
