@@ -8,6 +8,50 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-09 — Claude Code — Claude Sonnet 5
+**Prompt:** "Ändere bitte alle Preise der Ausleseeinheit von 20 auf voraussichtlich 30€. Außerdem
+bitte gib dem Admin die Möglichkeit, auch normale Mitglieder anzulegen, die zum Beispiel auch
+Adminzugänge haben [...] Meine ist die Ersteller-Admin-Adresse, und dann gibt es noch
+Unteradmins. Sie können mir nicht die Berechtigung wegnehmen [...] Trotzdem haben sie alle
+Admin-Berechtigungen sonst. Bis halt auf die Rollenverteilung. Außerdem dauert noch immer das
+Laden der Daten für die Energiegemeinschaft ewig [...] Die Autarkie kann immer vorberechnet
+werden und beim Aufruf nur aus einem gespeicherten Wert herausgelesen werden [...] Außerdem auf
+der Hauptseite: Wenn ich die Seite neu lade, dauert es immer, bis das Bild lädt [...] Warum
+dauert das so lange?"
+**Auftrag:** Vier unabhängige Punkte: (1) Preisanpassung Ausleseeinheit, (2) Ersteller-Admin/
+Unteradmin-Rollensystem für die beiden anderen Diplomarbeits-Mitschüler, (3) die Live-Anzeige
+war trotz des Fixes vom 06.10. immer noch spürbar langsam, (4) Hero-Banner-Foto lädt weiterhin
+langsam nach einem Reload.
+**Ergebnis:**
+- Preis in `legal_preisliste.php` von 20,00 € auf 30,00 € geändert.
+- Neues Ersteller-Admin/Unteradmin-System: `users.founder_admin` (migrate_20261009.sql, markiert
+  automatisch den bisherigen einzigen Platform-Admin), `Auth::isFounderAdmin()`. Nur der
+  Ersteller-Admin darf die Platform-Admin-Rolle vergeben/entfernen; die eigene Platform-Admin-
+  Rolle des Ersteller-Admins ist für niemanden entfernbar (auch nicht für ihn selbst). Neue
+  Einladungs-Funktion (`/admin/platform-admins/invite`, nur im Admin-Bereich sichtbar) --
+  bestehender Account bekommt die Rolle direkt dazu, ein neuer Account bekommt einen
+  Passwort-Setzen-Link per Mail (48h gültig). Unteradmins haben sonst alle Platform-Admin-Rechte.
+- Live-Anzeige: Ursache war, dass selbst die zeitbegrenzte Aggregation vom 06.10. bei JEDEM
+  einzelnen Request neu gerechnet wurde. Patricks eigener Architektur-Vorschlag umgesetzt:
+  `mqtt-subscriber` bekommt einen neuen Hintergrund-Thread (`live_stats_loop()`, alle ~15s),
+  der die Kennzahlen für jede EEG zentral vorberechnet und in eine neue Tabelle
+  `community_live_stats` schreibt (migrate_20261009b.sql) -- `/api/live/:slug` liest nur noch
+  diese fertige Zeile. Verlaufs-Chart auf 1 Wert/Minute reduziert (`community_power_minutely`,
+  max. 120 Zeilen statt Live-Bucketing über die Rohdaten), genau wie von Patrick vorgeschlagen.
+  Sicherheitsnetz: bei fehlenden/veralteten Vorberechnungen (z.B. mqtt-subscriber gerade erst
+  gestartet) fällt die Route automatisch auf die alte Live-Berechnung zurück. Neue SQL-Queries
+  gegen einen lokal aufgesetzten PostgreSQL-Testaufbau verifiziert.
+- Hero-Banner: eigentliche Ursache war nicht die Lade-Reihenfolge (die war schon behoben),
+  sondern dass der Zuschnitt (`rect-crop.js`) als verlustfreies PNG exportiert wurde -- für ein
+  Foto um ein Vielfaches größer als ein kaum unterscheidbares JPEG. Jetzt JPEG-Export
+  (Qualität 0,85), Dateiname konsistent auf `hero-banner.jpg` umgestellt (Registry, Routen,
+  `home.php`), Content-Type der generischen Download-Route leitet sich jetzt von der
+  Dateiendung ab statt pauschal `image/png` für alle Bild-Einträge.
+- Alle vier Vorfälle/Fixes in `docs/VORFAELLE.md` dokumentiert, Einmalig-Schritte (zwei neue
+  Migrationen + einmaliges Neu-Hochladen des Hero-Banner-Fotos) in `docs/BETRIEBSHANDBUCH.md`.
+
+---
+
 ## 2026-10-06 — Claude Code — Claude Sonnet 5
 **Prompt:** "Das mit dem Laden [...] funktioniert super gut [...] Nur, dass diese Seite echt 5
 bis 10 Sekunden laden muss [...] um ein paar Werte aus einer Datenbank zu holen für den

@@ -1528,6 +1528,44 @@ $router->get('/api/live/:slug', function ($params) {
 
     DB::setCommunity($community['id']);
 
+    // Vorberechnete Werte bevorzugen (Patrick, 09.10.2026: "Die Autarkie kann immer vorberechnet
+    // werden und beim Aufruf nur aus einem gespeicherten Wert herausgelesen werden [...] aktuelle
+    // Erzeugung, den aktuellen Verbrauch [...] Erzeugung heute [...] Das kann nicht sein, dass es
+    // wieder fast 5 Sekunden dauert") -- mqtt-subscriber (live_stats_loop(), main.py) berechnet
+    // dieselben Kennzahlen seither bereits alle ~15s im Hintergrund für JEDE EEG und schreibt sie
+    // in community_live_stats/community_power_minutely. Dieser Request liest dann nur noch eine
+    // einzelne, schon fertige Zeile -- keine eigene Aggregation über esp_measurements mehr nötig.
+    // "updated_at"-Frische-Prüfung als Sicherheitsnetz: läuft mqtt-subscriber gerade nicht (Absturz/
+    // Neustart), fällt dieser Request auf die alte, direkte Live-Berechnung weiter unten zurück,
+    // statt veraltete oder fehlende Werte auszuliefern.
+    $precomputed = DB::fetchOne(
+        "SELECT bezug_w, einspeisung_w, today_wh, autarkie_pct, active_meters, total_meters
+         FROM community_live_stats WHERE community_id = ? AND updated_at >= now() - INTERVAL '2 minutes'",
+        [$community['id']]
+    );
+    if ($precomputed) {
+        $series = DB::fetchAll(
+            "SELECT bucket, bezug_w, einspeisung_w FROM community_power_minutely
+             WHERE community_id = ? AND bucket >= now() - INTERVAL '2 hours' ORDER BY bucket",
+            [$community['id']]
+        );
+        $payload = [
+            'bezug_w'       => (int)$precomputed['bezug_w'],
+            'einspeisung_w' => (int)$precomputed['einspeisung_w'],
+            'autarkie_pct'  => (int)$precomputed['autarkie_pct'],
+            'today_kwh'     => round(((float)$precomputed['today_wh']) / 1000, 2),
+            'active_meters' => (int)$precomputed['active_meters'],
+            'total_meters'  => (int)$precomputed['total_meters'],
+            'demo_simulation' => (bool)($community['messe_demo_enabled'] ?? false),
+            'series'        => $series,
+        ];
+        LiveStatsCache::set($community['id'], $payload);
+        echo json_encode($payload);
+        return;
+    }
+
+    // Sicherheitsnetz: keine (aktuellen) vorberechneten Werte für diese EEG vorhanden (z.B.
+    // mqtt-subscriber gerade erst gestartet) -- wie bisher direkt live berechnen.
     // mirror_source_metering_point_id IS NULL: Demo-Zählpunkte (siehe migrate_20260906.sql) aus
     // JEDER Community-weiten Summe ausschließen -- ihre Live-Werte sind nur eine Live-Spiegelung
     // eines ANDEREN, bereits selbst enthaltenen Zählpunkts, würden also doppelt zählen (Patrick,
@@ -8936,7 +8974,7 @@ $router->get('/admin', function () {
     if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
     $communities = DB::fetchAll('SELECT * FROM communities ORDER BY name');
     $userCount   = DB::fetchOne('SELECT COUNT(*) AS cnt FROM users')['cnt'];
-    $rawUsers    = DB::fetchAll('SELECT id, email, first_name, last_name, active, is_demo FROM users ORDER BY last_name, first_name');
+    $rawUsers    = DB::fetchAll('SELECT id, email, first_name, last_name, active, is_demo, founder_admin FROM users ORDER BY last_name, first_name');
     $allRoles    = DB::fetchAll('SELECT ur.user_id, ur.role, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id');
     $roleMap = [];
     foreach ($allRoles as $r) { $roleMap[$r['user_id']][] = $r; }
@@ -8944,6 +8982,89 @@ $router->get('/admin', function () {
     $rawUsers = demoMaskUsers($rawUsers, Auth::isDemo());
     $users = array_map(fn($u) => array_merge($u, ['roles' => $roleMap[$u['id']] ?? []]), $rawUsers);
     require ROOT . '/src/views/pages/admin.php';
+});
+
+/**
+ * Neuen Platform-Admin ("Unteradmin") einladen -- Patrick, 09.10.2026: "ich möchte nicht meinen
+ * Zugang denen geben, sondern die sollen einen eigenen bekommen [...] Meine ist die
+ * Ersteller-Admin-Adresse, und dann gibt es noch Unteradmins [...] Bis halt auf die
+ * Rollenverteilung" -- deshalb Auth::isFounderAdmin() statt nur isPlatformAdmin(): nur der
+ * Ersteller-Admin darf die Platform-Admin-Rollenverteilung selbst verändern, ein Unteradmin hat
+ * sonst dieselben Rechte wie jeder andere Platform-Admin.
+ *
+ * Existiert bereits ein Login mit dieser E-Mail (z.B. ein bestehender Obmann/Kassier-Account),
+ * bekommt genau dieser Account zusätzlich die platform_admin-Rolle -- kein zweiter, paralleler
+ * Account nötig. Nur bei einer komplett neuen E-Mail wird ein neuer Account angelegt (mit
+ * zufälligem, niemandem bekannten Platzhalter-Passwort) und ein Link zum Passwort-Setzen
+ * verschickt, gültig 48 Stunden.
+ */
+$router->post('/admin/platform-admins/invite', function () {
+    Auth::requireLogin();
+    if (!Auth::isFounderAdmin()) { http_response_code(403); echo 'Nur der Ersteller-Admin darf neue Platform-Admins einladen.'; return; }
+
+    $email = strtolower(trim($_POST['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header('Location: /admin?error=' . urlencode('Bitte eine gültige E-Mail-Adresse angeben.'));
+        exit;
+    }
+
+    $existing = DB::fetchOne('SELECT id, first_name FROM users WHERE email = ?', [$email]);
+
+    if ($existing) {
+        $userId = $existing['id'];
+        try {
+            $mail = [
+                'subject' => 'Platform-Admin-Zugang – Strom für alle',
+                'body' => '<p>Hallo ' . htmlspecialchars($existing['first_name']) . ',</p>'
+                    . '<p>du hast mit deinem bestehenden Login (<strong>' . htmlspecialchars($email) . '</strong>)'
+                    . ' jetzt zusätzlich Platform-Admin-Zugang zur Strom-für-alle-Plattform bekommen.</p>'
+                    . '<p>Einfach wie gewohnt einloggen -- oben rechts lässt sich zwischen deinen Rollen wechseln.</p>',
+            ];
+            Mailer::send($email, $mail['subject'], $mail['body']);
+        } catch (\Throwable $e) {
+            error_log('[platform_admin_invite_mail] ' . $e->getMessage());
+        }
+    } else {
+        $firstName = trim($_POST['first_name'] ?? '');
+        $lastName = trim($_POST['last_name'] ?? '');
+        if ($firstName === '' || $lastName === '') {
+            header('Location: /admin?error=' . urlencode('Für einen neuen Account bitte Vor- und Nachname angeben.'));
+            exit;
+        }
+        // Zufälliges, niemandem bekanntes Platzhalter-Passwort -- der eingeladene Unteradmin
+        // vergibt sein eigenes über den Reset-Link in der Einladungs-Mail (siehe unten).
+        $placeholderHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT, ['cost' => 12]);
+        DB::execute(
+            'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
+            [$email, $placeholderHash, $firstName, $lastName]
+        );
+        $existing = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
+        $userId = $existing['id'];
+
+        $token = Auth::createResetToken($email, 172800); // 48 Stunden
+        try {
+            $link = htmlspecialchars(passwordResetLink($token));
+            $mail = [
+                'subject' => 'Einladung als Platform-Admin – Strom für alle',
+                'body' => '<p>Hallo ' . htmlspecialchars($firstName) . ',</p>'
+                    . '<p>du wurdest als Platform-Admin zur Strom-für-alle-Plattform eingeladen.</p>'
+                    . '<p>Über folgenden Link kannst du innerhalb der nächsten 48 Stunden dein Passwort vergeben'
+                    . ' und dich danach einloggen:</p>'
+                    . '<p><a href="' . $link . '">' . $link . '</a></p>',
+            ];
+            Mailer::send($email, $mail['subject'], $mail['body']);
+        } catch (\Throwable $e) {
+            error_log('[platform_admin_invite_mail] ' . $e->getMessage());
+        }
+    }
+
+    DB::execute(
+        'INSERT INTO user_roles (community_id, user_id, role) VALUES (NULL, ?, ?) ON CONFLICT DO NOTHING',
+        [$userId, 'platform_admin']
+    );
+    logAudit(null, 'platform_admin.invite', 'user', $userId, 'Als Platform-Admin (Unteradmin) eingeladen: ' . $email);
+    header('Location: /admin?success=' . urlencode('Platform-Admin-Zugang für ' . $email . ' eingerichtet.'));
+    exit;
 });
 
 $router->post('/admin/communities', function () {
@@ -9012,7 +9133,7 @@ $router->get('/admin/communities/:id', function ($params) {
 $router->get('/admin/users/:id', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
-    $user        = DB::fetchOne('SELECT id, email, first_name, last_name, active, is_demo FROM users WHERE id = ?', [$params['id']]);
+    $user        = DB::fetchOne('SELECT id, email, first_name, last_name, active, is_demo, founder_admin FROM users WHERE id = ?', [$params['id']]);
     if (!$user) { http_response_code(404); return; }
     $roles       = DB::fetchAll('SELECT ur.*, c.name AS community_name FROM user_roles ur LEFT JOIN communities c ON c.id = ur.community_id WHERE ur.user_id = ?', [$params['id']]);
     $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
@@ -9050,6 +9171,14 @@ $router->post('/admin/users/:id/roles', function ($params) {
     $communityId = $_POST['community_id'] ?? null;
     $role = $_POST['role'] ?? '';
     if (!in_array($role, ['platform_admin', 'manager', 'member'])) { http_response_code(400); return; }
+    // Platform-Admin-Rollenverteilung ist Ersteller-Admin-exklusiv (Patrick, 09.10.2026) --
+    // Unteradmins dürfen zwar z.B. manager-/member-Rollen anderer Accounts verwalten (normale
+    // Support-Arbeit), aber keine neuen Platform-Admins ernennen.
+    if ($role === 'platform_admin' && !Auth::isFounderAdmin()) {
+        http_response_code(403);
+        echo 'Nur der Ersteller-Admin darf die Platform-Admin-Rolle vergeben.';
+        return;
+    }
     // member_id nur bei role='member' relevant -- disambiguiert mehrere Mitglied-Identitäten
     // desselben Logins in derselben Community (Demo-Logins, siehe migrate_20260905.sql). Für den
     // normalen Fall (ein Mitglied hat genau einen members-Datensatz je Community) leer lassen --
@@ -9067,6 +9196,25 @@ $router->post('/admin/users/:id/roles', function ($params) {
 $router->post('/admin/users/:id/roles/delete', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+
+    $targetRole = DB::fetchOne('SELECT ur.role, u.founder_admin FROM user_roles ur JOIN users u ON u.id = ur.user_id WHERE ur.id = ?', [$_POST['role_id']]);
+    if ($targetRole && $targetRole['role'] === 'platform_admin') {
+        // Platform-Admin-Rollenverteilung ist Ersteller-Admin-exklusiv (siehe .../roles POST
+        // oben). Die eigene Platform-Admin-Rolle des Ersteller-Admins lässt sich darüber hinaus
+        // NIE entfernen, auch nicht durch den Ersteller-Admin selbst -- sonst könnte sich
+        // niemand mehr aussperren-sicher ins Backoffice einloggen (Patrick, 09.10.2026: "Sie
+        // können mir nicht die Berechtigung wegnehmen").
+        if (!Auth::isFounderAdmin()) {
+            http_response_code(403);
+            echo 'Nur der Ersteller-Admin darf eine Platform-Admin-Rolle entfernen.';
+            return;
+        }
+        if ($targetRole['founder_admin']) {
+            http_response_code(400);
+            echo 'Die Platform-Admin-Rolle des Ersteller-Admins kann nicht entfernt werden.';
+            return;
+        }
+    }
 
     // Es muss immer mindestens eine platform_admin-Rolle übrig bleiben, sonst kann sich
     // niemand mehr ins Admin-Backoffice einloggen.
@@ -9091,8 +9239,15 @@ $router->post('/admin/users/:id/delete', function ($params) {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
     if ($params['id'] === Auth::userId()) { http_response_code(400); echo 'Der eigene Account kann nicht gelöscht werden.'; return; }
-    $user = DB::fetchOne('SELECT id FROM users WHERE id = ?', [$params['id']]);
+    $user = DB::fetchOne('SELECT id, founder_admin FROM users WHERE id = ?', [$params['id']]);
     if (!$user) { http_response_code(404); return; }
+    // Der Ersteller-Admin-Account selbst ist nie löschbar (siehe .../roles/delete oben --
+    // dieselbe Begründung gilt erst recht fürs komplette Konto).
+    if ($user['founder_admin']) {
+        http_response_code(400);
+        echo 'Der Ersteller-Admin-Account kann nicht gelöscht werden.';
+        return;
+    }
 
     // Es muss immer mindestens ein platform_admin übrig bleiben, sonst kann sich niemand mehr
     // ins Admin-Backoffice einloggen -- keine hartkodierte E-Mail, sondern generisch "letzter
@@ -9581,7 +9736,7 @@ function adminFileRegistry(): array
         'infoblatt.pdf'                    => ['label' => 'Infoblatt (Website)', 'type' => 'pdf'],
         'logo-light.png'                   => ['label' => 'Logo (Light-Mode)', 'type' => 'image'],
         'logo-dark.png'                    => ['label' => 'Logo (Dark-Mode)', 'type' => 'image'],
-        'hero-banner.png'                  => ['label' => 'Hero-Banner (Startseite)', 'type' => 'image'],
+        'hero-banner.jpg'                   => ['label' => 'Hero-Banner (Startseite)', 'type' => 'image'],
     ];
 }
 
@@ -9963,8 +10118,12 @@ $router->get('/admin/templates/:name/download', function ($params) {
     $path = adminFilePath($params['name']);
     if (!$path) { http_response_code(404); echo 'Datei nicht gefunden'; return; }
 
-    $contentTypes = ['pdf' => 'application/pdf', 'image' => 'image/png', 'tex' => 'text/plain; charset=UTF-8'];
-    header('Content-Type: ' . $contentTypes[$registry[$params['name']]['type']]);
+    // Content-Type anhand der Dateiendung (nicht pauschal nach "type"=image) -- seit dem
+    // Hero-Banner-JPEG-Fix (09.10.2026) sind "image"-Dateien nicht mehr einheitlich PNG
+    // (logo-*.png bleiben PNG, hero-banner.jpg ist JPEG).
+    $extToContentType = ['pdf' => 'application/pdf', 'tex' => 'text/plain; charset=UTF-8', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'];
+    $ext = strtolower(pathinfo($params['name'], PATHINFO_EXTENSION));
+    header('Content-Type: ' . ($extToContentType[$ext] ?? 'application/octet-stream'));
     header('Content-Disposition: attachment; filename="' . $params['name'] . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path);
@@ -10047,11 +10206,16 @@ $router->get('/logo-:variant.png', function ($params) {
  * bis es geladen wird"): home.php hängt an die URL bereits ?v=<filemtime> an, die Adresse ändert
  * sich also automatisch, sobald ein neues Foto hochgeladen wird -- unter DIESER exakten URL
  * bleiben die Bytes für immer gleich, ein langes Cache-Limit ist daher gefahrlos.
+ *
+ * JPEG statt PNG (Patrick, 09.10.2026, Nachbesserung zum selben Vorfall: trotz langem Cache
+ * dauerte ein Reload bzw. der allererste Aufruf weiterhin spürbar -- Ursache war gar nicht das
+ * Caching, sondern dass rect-crop.js den Zuschnitt bis dahin verlustfrei als PNG exportierte,
+ * für ein FOTO um ein Vielfaches größer als ein qualitativ kaum unterscheidbares JPEG).
  */
 $router->get('/hero-banner-image', function () {
-    $path = adminFilePath('hero-banner.png');
+    $path = adminFilePath('hero-banner.jpg');
     if (!$path) { http_response_code(404); return; }
-    header('Content-Type: image/png');
+    header('Content-Type: image/jpeg');
     header('Cache-Control: public, max-age=31536000, immutable');
     header('Content-Length: ' . filesize($path));
     readfile($path);

@@ -5,9 +5,18 @@
  * und Ziehen mit Maus/Finger der Bildausschnitt zentriert werden kann. Der Ausschnitt füllt
  * die Zielfläche immer vollständig aus (wie CSS object-fit:cover), nie mit Rand/Verzerrung.
  *
- * Beim Absenden wird der zugeschnittene Ausschnitt als PNG in exakt Ziel-Breite×Höhe anstelle
- * der Originaldatei hochgeladen -- der Server bekommt ganz normal eine Datei im "file"-Feld,
- * keine Backend-Änderung nötig. Ohne JavaScript wird einfach die Originaldatei hochgeladen.
+ * Beim Absenden wird der zugeschnittene Ausschnitt in exakt Ziel-Breite×Höhe anstelle der
+ * Originaldatei hochgeladen -- der Server bekommt ganz normal eine Datei im "file"-Feld, keine
+ * Backend-Änderung nötig. Ohne JavaScript wird einfach die Originaldatei hochgeladen.
+ *
+ * Standardmäßig als JPEG (nicht PNG) exportiert (Patrick, 09.10.2026, zum Hero-Banner-Foto:
+ * "dauert es immer, bis das Bild lädt [...] das Bild ist ja eigentlich gar nicht so groß. Warum
+ * dauert das so lange?") -- die Ziel-Pixelmaße (z.B. 1600x640) waren schon vorher klein genug,
+ * der eigentliche Grund war das Dateiformat: canvas.toBlob() exportierte bisher verlustfrei als
+ * PNG, das für ein FOTO (viele Farbverläufe/Bildrauschen, keine Transparenz nötig) um ein
+ * Vielfaches größer ist als ein qualitativ kaum unterscheidbares JPEG. Über opts.mimeType/
+ * opts.quality trotzdem übersteuerbar, falls ein künftiger Anwendungsfall doch Transparenz
+ * braucht (z.B. opts.mimeType: 'image/png').
  */
 function initRectCropper(opts) {
   const fileInput = document.getElementById(opts.fileInputId);
@@ -88,16 +97,18 @@ function initRectCropper(opts) {
   canvas.addEventListener('touchend', endDrag);
 
   let submitting = false;
+  const mimeType = opts.mimeType || 'image/jpeg';
+  const quality = opts.quality ?? 0.85;
   form.addEventListener('submit', function (e) {
     if (submitting || !img) return; // kein Bild gewählt/geladen -> normaler Upload ohne Zuschnitt
     e.preventDefault();
     canvas.toBlob(function (blob) {
-      const croppedFile = new File([blob], opts.outputName || 'cropped.png', { type: 'image/png' });
+      const croppedFile = new File([blob], opts.outputName || 'cropped.jpg', { type: mimeType });
       const dt = new DataTransfer();
       dt.items.add(croppedFile);
       fileInput.files = dt.files;
       submitting = true;
       form.submit();
-    }, 'image/png');
+    }, mimeType, quality);
   });
 }

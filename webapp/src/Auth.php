@@ -113,7 +113,7 @@ class Auth
      */
     public static function establishSession(string $userId): void
     {
-        $user = DB::fetchOne('SELECT id, first_name, last_name, email, is_demo FROM users WHERE id = ?', [$userId]);
+        $user = DB::fetchOne('SELECT id, first_name, last_name, email, is_demo, founder_admin FROM users WHERE id = ?', [$userId]);
         if (!$user) return;
         $roles = DB::fetchAll(self::ROLES_QUERY, [$user['id']]);
         if (array_filter($roles, fn($r) => !empty($r['member_id']))) {
@@ -123,6 +123,7 @@ class Auth
         $_SESSION['user_name']   = $user['first_name'] . ' ' . $user['last_name'];
         $_SESSION['user_email']  = $user['email'];
         $_SESSION['is_demo']     = (bool)$user['is_demo'];
+        $_SESSION['is_founder_admin'] = (bool)$user['founder_admin'];
         $_SESSION['roles']       = $roles;
         $_SESSION['active_role'] = self::pickDefaultRole($roles);
         // attachMemberNames() kann DB::setCommunity() auf die zuletzt geprüfte Rolle stehen
@@ -210,6 +211,19 @@ class Auth
     public static function isPlatformAdmin(): bool
     {
         return ($_SESSION['active_role']['role'] ?? null) === 'platform_admin';
+    }
+
+    /**
+     * Ersteller-Admin (users.founder_admin) vs. Unteradmin (Patrick, 09.10.2026): Unteradmins
+     * haben alle Platform-Admin-Berechtigungen, dürfen aber NICHT die Platform-Admin-
+     * Rollenverteilung selbst verändern (keine neuen Platform-Admins anlegen, keine
+     * Platform-Admin-Rolle entfernen) -- nur der Ersteller-Admin darf das. Prüft wie
+     * isPlatformAdmin() nur die aktuell AKTIVE Rolle, nicht ob der Account irgendwo founder_admin
+     * ist, während gerade auf eine andere Rolle umgeschaltet wurde.
+     */
+    public static function isFounderAdmin(): bool
+    {
+        return self::isPlatformAdmin() && (bool)($_SESSION['is_founder_admin'] ?? false);
     }
 
     public static function isManager(): bool

@@ -4,6 +4,9 @@
   <a href="/admin" style="color:var(--gray-600);text-decoration:none">← Admin</a>
   <h2 style="margin:0"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></h2>
   <code style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($user['email']) ?></code>
+  <?php if (!empty($user['founder_admin'])): ?>
+    <span class="badge badge-green" title="Kann von niemandem entfernt werden">Ersteller-Admin</span>
+  <?php endif; ?>
 </div>
 
 <?php if (isset($_GET['success'])): ?>
@@ -25,11 +28,17 @@
           <td><?= htmlspecialchars($r['community_name'] ?? '—') ?></td>
           <td><?= isset($r['member_name']) ? htmlspecialchars($r['member_name']) : '—' ?></td>
           <td>
+            <?php if ($r['role'] === 'platform_admin' && !empty($user['founder_admin'])): ?>
+              <span style="font-size:.8rem;color:var(--gray-600)" title="Die Platform-Admin-Rolle des Ersteller-Admins kann nicht entfernt werden">gesperrt</span>
+            <?php elseif ($r['role'] === 'platform_admin' && !Auth::isFounderAdmin()): ?>
+              <span style="font-size:.8rem;color:var(--gray-600)" title="Nur der Ersteller-Admin darf eine Platform-Admin-Rolle entfernen">—</span>
+            <?php else: ?>
             <form method="post" action="/admin/users/<?= $user['id'] ?>/roles/delete" style="display:inline">
               <input type="hidden" name="role_id" value="<?= $r['id'] ?>">
               <button type="submit" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.8rem"
                       onclick="return confirm('Rolle entfernen?')">Entfernen</button>
             </form>
+            <?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>
@@ -48,7 +57,9 @@
         <select name="role" id="role-field" onchange="onRoleFieldChange()">
           <option value="manager">manager (EEG-Verwalter)</option>
           <option value="member">member (EEG-Mitglied)</option>
+          <?php if (Auth::isFounderAdmin()): ?>
           <option value="platform_admin">platform_admin (Plattform-Admin)</option>
+          <?php endif; ?>
         </select>
         <p style="font-size:.75rem;color:var(--gray-600);margin-top:.35rem">
           Bei "member" erscheint darunter ein zusätzliches Feld "Mitglied-Identität" -- für
@@ -98,7 +109,7 @@
   onCommunityFieldChange();
 </script>
 
-<?php if ($user['id'] !== Auth::userId()): ?>
+<?php if ($user['id'] !== Auth::userId() && empty($user['founder_admin'])): ?>
 <div class="card" style="margin-top:1.5rem;border:1px solid #fecaca">
   <h3 style="margin-bottom:1rem;color:#b91c1c">Gefahrenzone</h3>
   <form method="post" action="/admin/users/<?= $user['id'] ?>/delete"
