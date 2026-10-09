@@ -1684,7 +1684,7 @@ ist. Der Redis-Cache (06.10.2026) half nur gegen GLEICHZEITIGE Anfragen innerhal
 
 **Fix -- Vorberechnung statt Live-Aggregation:** `mqtt-subscriber` (der ohnehin dauerhaft
 laufende Hintergrunddienst, der jede MQTT-Messung schon entgegennimmt) bekommt einen neuen
-Hintergrund-Thread `live_stats_loop()`, der alle ~15s für JEDE EEG dieselbe Aggregation
+Hintergrund-Thread `live_stats_loop()`, der alle ~10s für JEDE EEG dieselbe Aggregation
 (bezug_w/einspeisung_w/today_wh/autarkie_pct/active_meters/total_meters) einmal zentral
 berechnet und in eine neue Tabelle `community_live_stats` schreibt (eine Zeile je EEG, per
 UPSERT aktuell gehalten) -- siehe `database/migrate_20261009b.sql`. `/api/live/:slug`
@@ -1712,3 +1712,11 @@ Abfrage aber nicht beliebig billig. Wird dieselbe (wenn auch schon optimierte) A
 JEDEM einzelnen Request neu gerechnet, lohnt sich auf begrenzter Hardware (Raspberry Pi) der
 nächste Schritt: den Rechenaufwand aus dem Request-Pfad komplett herausnehmen und periodisch im
 Hintergrund vorberechnen, wo ohnehin schon ein Dauer-Prozess (hier: `mqtt-subscriber`) läuft.
+
+**Nachbesserung (09.10.2026, Intervall):** erste Fassung lief alle 15s. Patrick: "Da bitte die
+Echtzeitdaten schon auch alle 5 Sekunden aktualisieren lassen. Oder von mir aus lassen wir das
+alle 10 Sekunden, aber die 15 sind ein bisschen zu viel. Da haben wir wenigstens 6 Zyklen in 1
+Minute, sodass die Werte wohl auch Echtzeitdaten heißen können [...] Ich möchte ja schon zu
+meinen Mitgliedern fair sein." -- `LIVE_STATS_INTERVAL_S` in `mqtt-subscriber/main.py` auf 10
+gesenkt (Kompromiss zwischen "alle 5s" und spürbarer Hintergrundlast auf der Pi-Hardware bei
+mehreren EEGs gleichzeitig, von Patrick selbst als Fallback genannt).

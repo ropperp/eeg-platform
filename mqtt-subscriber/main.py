@@ -767,7 +767,10 @@ def demo_simulation_loop(client: mqtt.Client) -> None:
 
 
 # Wie oft die Live-Kennzahlen jeder EEG neu berechnet werden (siehe refresh_live_stats_for_community()).
-LIVE_STATS_INTERVAL_S = 15
+# Patrick, 09.10.2026: "Da bitte die Echtzeitdaten schon auch alle 5 Sekunden aktualisieren
+# lassen. Oder von mir aus lassen wir das alle 10 Sekunden, aber die 15 sind ein bisschen zu
+# viel [...] 6 Zyklen in 1 Minute, sodass die Werte wohl auch Echtzeitdaten heißen können."
+LIVE_STATS_INTERVAL_S = 10
 
 
 def refresh_live_stats_for_community(conn, community_id: str) -> None:
