@@ -5,9 +5,9 @@ declare(strict_types=1);
 /**
  * Liest das zentrale EDA-Postfach (platform_mail_config.eda_import_mailbox_address, z.B.
  * eda@stromfueralle.at) über Microsoft Graph aus, lädt die im EDA-Anwenderportal per Mail
- * verschickte Exportdatei automatisch herunter und übergibt sie an eda-parser/parser.py --
- * ersetzt für den monatlichen Regelfall das manuelle Herunterladen + Hochladen über
- * /portal/eda/upload (das bleibt als Fallback bestehen, z.B. für Nachimporte).
+ * verschickte Exportdatei automatisch herunter und übergibt sie an den passenden Parser --
+ * ersetzt für den Regelfall das manuelle Herunterladen + Hochladen über /portal/eda/upload
+ * bzw. /portal/eda/upload-interval (beide bleiben als Fallback bestehen, z.B. für Nachimporte).
  *
  * WICHTIG -- was hier NICHT automatisiert wird: das Anfordern/Auslösen des Exports im
  * EDA-Anwenderportal selbst (Login + Klick auf "Export") bleibt ein manueller Schritt, dessen
@@ -23,6 +23,19 @@ declare(strict_types=1);
  * ändert. Verlangt der Link doch einmal eine aktive Portal-Session, schlägt der Download fehl
  * und es gibt eine Alarm-Mail -- die betroffene Mail bleibt dann ungelesen für die manuelle
  * Prüfung.
+ *
+ * ZWEI EDA-Export-Typen teilen sich dasselbe Postfach (Patrick, 09.10.2026, nach einem
+ * fehlgeschlagenen Auto-Import-Versuch: "Das ist ein anderer Report, ein Detailreport, den ich
+ * für die Darstellung der Diagramme von den Mitgliedern nehme [...] Können wir da auch machen,
+ * dass er [...] alle 15 Minuten überprüft und mir auch den Detail-Report hochlädt?"):
+ * - "EDA Portal – Energiedatenreport <ID>" -- der monatliche, abrechnungsrelevante Report
+ *   (Sheets "Gesamtübersicht"/"Detailübersicht") -- siehe eda-parser/parser.py.
+ * - "EDA Portal – Detailreport <ID> <von> – <bis>" -- Viertelstundenwerte für die
+ *   Mitglieder-Diagramme (Sheet "Energiedaten", beliebiger Datumsbereich statt Kalendermonat)
+ *   -- siehe eda-parser/parser_interval.py, bisher nur über /portal/eda/upload-interval von
+ *   Hand hochgeladen. Am Betreff unterscheidbar (stripos($subject, 'Detailreport'), siehe
+ *   processMessage()) -- braucht KEINEN eigenen Cron-Job, derselbe Postfach-Check (alle 15
+ *   Minuten, siehe scripts/eda_auto_import.php) deckt jetzt beide Typen ab.
  */
 class EdaAutoImporter
 {
@@ -100,33 +113,41 @@ class EdaAutoImporter
         $savePath = '/var/www/html/storage/uploads/' . uniqid('eda_auto_') . '_' . basename($filename);
         file_put_contents($savePath, $content);
 
+        // Report-Typ am Betreff unterscheiden (siehe Klassen-Kommentar oben) -- "Detailreport"
+        // braucht den Viertelstundenwerte-Parser (parser_interval.py), alles andere (der
+        // reguläre monatliche "Energiedatenreport") wie bisher den Abrechnungs-Parser.
+        $isIntervalReport = stripos($subject, 'Detailreport') !== false;
+        $importLabel = $isIntervalReport ? 'Viertelstundenwerte-Import' : 'EDA-Import';
+
         // stdout (JSON) und stderr (Logzeilen) sauber getrennt -- siehe EdaParserRunner.php:
         // ein simples "2>&1" hätte json_decode() auf jedem Lauf fehlschlagen lassen, sobald der
         // Parser mindestens eine Logzeile ausgegeben hat (immer der Fall), auch bei vollem Erfolg.
-        $parserResult = EdaParserRunner::run($savePath, $community['slug']);
+        $parserResult = $isIntervalReport
+            ? EdaParserRunner::runInterval($savePath, $community['slug'])
+            : EdaParserRunner::run($savePath, $community['slug']);
         $result = json_decode($parserResult['stdout'], true);
 
         if ($result === null) {
             $diag = EdaParserRunner::diagnostics($parserResult);
-            self::fail($mailbox, $id, $subject, 'Parser-Fehler für ' . $community['name'] . ': ' . substr($diag, 0, 4000));
+            self::fail($mailbox, $id, $subject, "Parser-Fehler ({$importLabel}) für " . $community['name'] . ': ' . substr($diag, 0, 4000));
             DB::execute(
                 'INSERT INTO audit_log (community_id, aktion, beschreibung, ist_fehler) VALUES (?, ?, ?, true)',
-                [$community['id'], 'eda.auto_import_error', 'Automatischer EDA-Import fehlgeschlagen: ' . substr($diag, 0, 4000)]
+                [$community['id'], $isIntervalReport ? 'eda.interval_import_error' : 'eda.auto_import_error', "Automatischer {$importLabel} fehlgeschlagen: " . substr($diag, 0, 4000)]
             );
-            return "FEHLER [{$subject}]: Parser-Fehler für {$community['name']}";
+            return "FEHLER [{$subject}]: Parser-Fehler ({$importLabel}) für {$community['name']}";
         }
 
         DB::execute(
             'INSERT INTO audit_log (community_id, aktion, beschreibung) VALUES (?, ?, ?)',
             [
                 $community['id'],
-                'eda.auto_import',
-                'Automatischer EDA-Import (Postfach): ' . ($result['records'] ?? '?') . ' Datensätze importiert'
+                $isIntervalReport ? 'eda.interval_import' : 'eda.auto_import',
+                "Automatischer {$importLabel} (Postfach): " . ($result['records'] ?? '?') . ' Datensätze importiert'
                     . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''),
             ]
         );
         GraphMailReader::markRead($mailbox, $id);
-        return "OK [{$subject}]: {$community['name']}, " . ($result['records'] ?? '?') . ' Datensätze';
+        return "OK [{$subject}]: {$community['name']} ({$importLabel}), " . ($result['records'] ?? '?') . ' Datensätze';
     }
 
     /**

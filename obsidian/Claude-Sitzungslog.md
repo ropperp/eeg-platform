@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-09 — Claude Code — Claude Sonnet 5 (dritte Nachbesserung)
+**Prompt:** "Können wir aber auch noch so einen Job machen, der auch die normalen Detail-Reports
+überprüft? Die lade ich ja auch regelmäßig hoch, damit jedes Mitglied, da noch die
+Ausleseeinheiten nicht drinnen sind, automatisch nachsehen kann, wie viel es gemeinschaftlich
+genutzt wurde, oder den Verbrauch generell sieht. Den muss ich aber immer nachträglich auf der
+Seite eintragen, damit man diese Daten sieht. Können wir da auch machen, dass er von mir aus
+alle 15 Minuten überprüft und mir auch den Detail-Report hochlädt? Diese 15-Minuten-Daten sind
+ja für das Diagramm da, und wir können da bitte auch noch einen Job machen."
+**Auftrag:** Neben dem monatlichen Energiedatenreport soll auch der zweite, regelmäßig von Hand
+hochgeladene "Detailreport" (Viertelstundenwerte für die Mitglieder-Diagramme) automatisch aus
+dem EDA-Postfach importiert werden, idealerweise im selben 15-Minuten-Takt.
+**Ergebnis:** Kein neuer Cron-Job nötig -- `EdaAutoImporter::processMessage()` unterscheidet die
+beiden Report-Typen jetzt am Betreff (`stripos($subject, 'Detailreport')`) und ruft je nachdem
+den bereits existierenden, bisher nur über `/portal/eda/upload-interval` erreichbaren
+Viertelstundenwerte-Parser (`EdaParserRunner::runInterval()`/`parser_interval.py`) statt des
+Abrechnungs-Parsers auf. Der schon alle 15 Minuten laufende Postfach-Check deckt damit beide
+Typen ab. `webapp/src/EdaAutoImporter.php` angepasst (Docstring + `processMessage()`,
+Audit-Log-Aktionen `eda.interval_import`/`eda.interval_import_error`), `docs/BETRIEBSHANDBUCH.md`
+ergänzt. `php -l` und `php tests/run.php` (138/138) grün.
+
+---
+
 ## 2026-10-09 — Claude Code — Claude Sonnet 5 (zweite Nachbesserung)
 **Prompt:** "Ja, du hast recht. Das ist ein anderer Report, ein Detailreport, den ich für die
 Darstellung der Diagramme von den Mitgliedern nehme. Was ich aber noch machen wollte [...] Wie

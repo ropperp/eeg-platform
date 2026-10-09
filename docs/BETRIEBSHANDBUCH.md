@@ -111,6 +111,19 @@ docker compose up -d --build
 > `eda_auto_import.php` einfach durch die obige Zeile ersetzen (oder `crontab -l`/`crontab -e`
 > von Hand anpassen, falls mehrere Einträge in derselben Zeile zusammengefasst wurden).
 >
+> **Nachbesserung (09.10.2026): auch der "Detailreport" (Viertelstundenwerte für die
+> Mitglieder-Diagramme) wird jetzt automatisch importiert, kein zusätzlicher Cron-Job nötig.**
+> Patrick lädt neben dem monatlichen "Energiedatenreport" regelmäßig von Hand noch einen zweiten,
+> andersartigen Report hoch (bisher nur über `/portal/eda/upload-interval`): "Den lade ich ja auch
+> regelmäßig hoch, damit jedes Mitglied, da noch die Ausleseeinheiten nicht drinnen sind,
+> automatisch nachsehen kann [...] Können wir da auch machen, dass er alle 15 Minuten überprüft
+> und mir auch den Detail-Report hochlädt?" `EdaAutoImporter::processMessage()` unterscheidet die
+> beiden Typen jetzt am Betreff (`stripos($subject, 'Detailreport')`) und ruft je nachdem
+> `EdaParserRunner::run()` (Energiedatenreport, Sheets "Gesamtübersicht"/"Detailübersicht") oder
+> `EdaParserRunner::runInterval()` (Detailreport, Sheet "Energiedaten") auf -- derselbe, bereits
+> alle 15 Minuten laufende Postfach-Check (siehe oben) deckt damit beide Report-Typen ab, ohne
+> einen eigenen Cron-Eintrag zu brauchen.
+>
 > **EDA-Exportmail-Format verifiziert (Patrick, 13.08.2026, anhand einer echten Mail):**
 > Absender `no-reply@eda.at`, Betreff `EDA Portal – Energiedatenreport RC108175` (Marktpartner-ID
 > steht auch im Betreff, nicht nur im Dateinamen), kein Anhang -- stattdessen ein signierter,
