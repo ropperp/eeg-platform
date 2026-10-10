@@ -381,27 +381,51 @@ auch `/obsidian/Infrastruktur.md` entsprechend aktualisieren.**
 Patrick möchte nachvollziehen können, welches Claude-Modell wann mit welchem Auftrag
 gearbeitet hat — er braucht das für die Dokumentation seiner Diplomarbeit. Deshalb schreibt
 **jede** Claude-Arbeitssitzung (Claude Code, Claude Chat, Cowork) am Ende einen kurzen
-Log-Eintrag, der **immer** Datum, Modell und den ursprünglichen Prompt festhält.
+Log-Eintrag mit Datum, Modell, zusammengefasstem Auftrag und verbessertem Prompt.
 
-**Format je Eintrag** (neueste zuerst):
+> **Datenschutz (Patrick, 10.10.2026):** Dieses Repo ist **öffentlich**. Deshalb steht im Log
+> **kein wörtlicher Prompt** mehr (Spracheingaben enthalten Satzfetzen, Namen, Privates), sondern
+> nur eine **Zusammenfassung** und ein **verbesserter Prompt**. Keine Passwörter, Tokens,
+> Zugangsdaten, E-Mail-Adressen oder Personendaten (Familie, Mitglieder, Kunden) eintragen.
+> Ältere Einträge mit wörtlichem Prompt bleiben unverändert stehen.
+
+### Vor jeder Recherche zuerst nachsehen
+
+Bevor Claude für eine Frage im Web oder im Code recherchiert, durchsucht es zuerst die
+bisherigen Einträge (`obsidian/Claude-Sitzungslog.md`, `obsidian/Problemstellungen.md`):
+
+1. **Treffer:** Datum und Kurzinhalt des alten Eintrags nennen (ein Satz), dann die neue Frage
+   darauf aufbauend beantworten, statt neu zu recherchieren.
+2. **Kein Treffer:** normal recherchieren.
+
+### Format je Eintrag (neueste zuerst)
 
 ```markdown
 ## JJJJ-MM-TT HH:MM — <Werkzeug> — <Modell>
-**Prompt:** <ursprünglicher Prompt/Auftrag des Nutzers, möglichst wörtlich zitiert — das ist
-der Teil, den Patrick für die Diplomarbeit-Dokumentation braucht, deshalb nicht umformulieren>
-**Auftrag:** <Anliegen des Nutzers, sprachlich geglättet und professionell
-zusammengefasst — zusätzlich zum wörtlichen Prompt, nicht statt ihm; 1–3 Sätze>
+**Auftrag:** <Anliegen des Nutzers, sprachlich geglättet und professionell zusammengefasst;
+1–3 Sätze, KEIN wörtliches Zitat>
+**Verbesserter Prompt:** <so hätte man den Auftrag formulieren können, um direkt zum Ergebnis
+zu kommen; knapp, präzise, ohne Privates>
 **Ergebnis:** <was gemacht wurde: Commits, Dateien, offene Punkte; 1–3 Sätze>
+**Fehler/Lehre:** <nur falls etwas schiefging: was, warum, wie man es beim nächsten Mal
+vermeidet; sonst weglassen>
 ```
 
 - Werkzeug: `Claude Code` / `Claude Chat` / `Cowork`
-- Modell: so genau wie bekannt, z. B. `Claude Fable 5`, `Claude Opus 4.8`
+- Modell: so genau wie bekannt, z. B. `Claude Sonnet 5.5`, `Claude Fable 5.1`
 
-**Wohin schreiben:**
+### Wann speichern
+
+Wenn eine Aufgabe abgeschlossen wirkt, Patrick kurz fragen, ob der Eintrag jetzt gespeichert
+werden soll oder ob noch weitergearbeitet wird. Wird nach dem Speichern weitergearbeitet, den
+**bestehenden** Eintrag der Sitzung auf den neuen Stand bringen (nicht neu anlegen).
+
+### Wohin schreiben
 - **Claude Code** (arbeitet in diesem Repo): Eintrag oben in `obsidian/Claude-Sitzungslog.md`
   einfügen und zusammen mit den übrigen Änderungen committen/pushen. Die Datei liegt bewusst
   unter `obsidian/` und wird dadurch per täglichem Sync automatisch in Patricks
-  Obsidian-Vault gespiegelt.
+  Obsidian-Vault gespiegelt. Zusätzlich legt eine geplante Aufgabe täglich aus diesem Log je
+  Tag eine eigene Notiz im Vault an (`Claude Chats/Einträge/`, verlinkt mit `Claude Hub`).
 - **Cowork / Claude Chat** (haben Obsidian-Zugriff, committen/pushen NICHT in dieses Repo):
   Eintrag direkt in den Vault schreiben: `eeg-platform-notes/logs/JJJJ-MM-TT.md`
   (eine Datei pro Tag; existiert sie schon, Eintrag anhängen). Der Ordner `logs/` existiert

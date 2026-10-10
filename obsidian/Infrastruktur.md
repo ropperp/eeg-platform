@@ -221,8 +221,10 @@ teilweise simuliert sind, solange der Schalter an ist. Details: `CLAUDE.md`.
 ## Claude-Sitzungslog (Selbstdokumentation)
 
 Jede Claude-Sitzung (Claude Code / Claude Chat / Cowork) dokumentiert am Ende Datum,
-verwendetes Modell, den **ursprünglichen Prompt möglichst wörtlich** (Patrick braucht das für
-die Diplomarbeit-Dokumentation) sowie zusätzlich den professionell zusammengefassten Auftrag:
+verwendetes Modell, den zusammengefassten Auftrag, einen verbesserten Prompt, das Ergebnis und
+ggf. Fehler/Lehren. **Kein wörtlicher Prompt mehr** (Repo ist öffentlich, Stand 10.10.2026).
+Vor jeder Recherche wird zuerst das Log durchsucht (Treffer: Datum + Kurzinhalt nennen).
 Claude Code schreibt in `obsidian/Claude-Sitzungslog.md` im Repo (wird in den Vault
 gespiegelt), Cowork/Chat direkt in den Vault unter `eeg-platform-notes/logs/JJJJ-MM-TT.md`.
+Eine geplante Aufgabe legt täglich je Tag eine Notiz in `Claude Chats/Einträge/` an.
 Details: Abschnitt „Selbstdokumentation" in `CLAUDE.md`.

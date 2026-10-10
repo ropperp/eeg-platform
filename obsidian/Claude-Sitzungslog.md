@@ -8,6 +8,17 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-10 21:15 — Claude Code (Cloud-Sitzung) — Claude Sonnet 5.5
+**Auftrag:** Die Selbstdokumentation soll datenschutzfreundlicher werden, weil das Repo öffentlich
+ist: Zusammenfassung statt wörtlichem Prompt, Suche im Log vor jeder Recherche, Speichern auf
+Nachfrage, dazu ein Eintrag je Tag im Obsidian-Vault über eine geplante Aufgabe.
+**Verbesserter Prompt:** "Ändere den Abschnitt Selbstdokumentation in CLAUDE.md: keine
+wörtlichen Prompts mehr, stattdessen Auftrag und verbesserten Prompt; vor jeder Recherche zuerst
+das Sitzungslog durchsuchen; am Ende nach dem Speichern fragen. Lege eine tägliche geplante
+Aufgabe an, die das Log je Tag als eigene Notiz in den Obsidian-Vault schreibt."
+**Ergebnis:** Abschnitt in `CLAUDE.md` und Spiegel in `obsidian/Infrastruktur.md` angepasst;
+ältere Einträge bleiben unverändert. Geplante Aufgabe für den Vault separat eingerichtet.
+
 ## 2026-10-10 — Claude Code — Claude Sonnet 5 (zweite Nachbesserung: Lesestatus als Signal)
 **Prompt:** "Also, ich habe es probiert. Den Monatsbericht, den hat er mir anscheinend
 übernommen gehabt. Die sind auch immer 13 im Status L3. Ich kann immer keine Abrechnung machen,
