@@ -1720,3 +1720,51 @@ Minute, sodass die Werte wohl auch Echtzeitdaten heißen können [...] Ich möch
 meinen Mitgliedern fair sein." -- `LIVE_STATS_INTERVAL_S` in `mqtt-subscriber/main.py` auf 10
 gesenkt (Kompromiss zwischen "alle 5s" und spürbarer Hintergrundlast auf der Pi-Hardware bei
 mehreren EEGs gleichzeitig, von Patrick selbst als Fallback genannt).
+
+### EDA-Auto-Import schrieb trotz korrektem Cron NIE eine Mail als gelesen (10.10.2026)
+Trotz korrekt eingerichtetem 15-Minuten-Cron (siehe oben, 09.10.2026) und funktionierendem
+Docker/Postgres blieben zwei EDA-Mails (ein Detailreport, ein Energiedatenreport) über einen
+vollen Tag unverarbeitet im Postfach liegen -- Patrick: "Die sind aber seit gestern nicht
+hochgeladen worden auf die Webseite [...] unter Imports sind immer die vier Detailreports von
+mir, die ich hochgeladen habe, und keiner der monatlichen Reports."
+
+**Diagnose:** `/var/log/eeg-eda-import.log` existierte überhaupt nicht (kein einziger Eintrag,
+obwohl der Cron seit einem Tag alle 15 Minuten hätte laufen müssen) -- das deutete zunächst auf
+ein Cron-/Berechtigungsproblem hin. Der manuelle Testlauf von Hand (`cd /opt/eeg-platform &&
+docker compose exec -T webapp php < scripts/eda_auto_import.php`) zeigte aber: Cron, Docker und
+die Verzeichnisberechtigungen waren die ganze Zeit in Ordnung -- das Skript lief tatsächlich bis
+zum Parser durch (der Import war inhaltlich bereits erfolgreich!), stürzte aber DANACH beim
+Protokollieren ab:
+```
+PDOException: SQLSTATE[42501]: Insufficient privilege: 7 ERROR: new row violates row-level
+security policy for table "audit_log"
+```
+
+**Ursache:** `EdaAutoImporter.php` läuft als eigenständiger PHP-CLI-Prozess (`scripts/
+eda_auto_import.php`), nicht über eine normale HTTP-Request-Lifecycle. `DB.php` dokumentiert
+selbst (Klassenkommentar): "Vor jeder Abfrage mit Community-Kontext wird app.community_id
+gesetzt [...] Muss vor jeder mandantenspezifischen Abfrage aufgerufen werden" (`DB::
+setCommunity()`) -- bei einer normalen Web-Anfrage passiert das irgendwo im Request-Lifecycle
+automatisch mit, im CLI-Skript aber nie. Jeder `audit_log`-INSERT mit gesetzter `community_id`
+verletzte deshalb die (laut `migrate_20260716.sql`-Kommentar für `audit_log` eigentlich NICHT
+vorgesehene, aber auf Patricks Server laut `migrate_20260909.sql` ohnehin aus einer frühen,
+abweichenden Schema-Fassung stammende) RLS-Policy -- ein uncaught `PDOException`, der den
+kompletten PHP-Prozess beendete, BEVOR `GraphMailReader::markRead()` je erreicht wurde. Die Mail
+blieb also für immer ungelesen, und derselbe (vorderste, älteste) Eintrag in der Ungelesen-Liste
+wurde bei JEDEM der seitherigen ~96 Cron-Durchläufe (alle 15 Minuten über einen Tag) erneut
+versucht und erneut heruntergeladen/geparst -- nur um exakt an derselben Stelle wieder
+abzustürzen, ohne dass je eine zweite, eigentlich unproblematische Mail im selben Postfach auch
+nur versucht wurde.
+
+**Fix:** `DB::setCommunity($community['id'])` direkt nach dem Auffinden der EEG eingefügt --
+genau der im Projekt etablierte Pattern für jede community-gebundene DB-Operation. Zusätzlich
+`EdaAutoImporter::run()` robuster gemacht: die Verarbeitung jeder einzelnen Mail läuft jetzt in
+einem eigenen try/catch, damit ein unerwarteter Fehler bei EINER Mail nicht mehr alle anderen,
+an sich unproblematischen Mails im selben Lauf mitreißt.
+
+**Merksatz:** Ein CLI-Skript, das dieselben Model-/DB-Klassen wie die Webapp nutzt, bekommt NICHT
+automatisch denselben Request-Kontext (hier: `app.community_id` für RLS) -- jede
+community-gebundene DB-Operation braucht ihren eigenen expliziten `DB::setCommunity()`-Aufruf,
+auch wenn der restliche Code 1:1 wie im Web-Kontext aussieht. Und: ein Loop über mehrere
+unabhängige Elemente (hier: Mails) sollte einen Fehler bei einem Element nie den gesamten Lauf
+abbrechen lassen -- sonst reicht EIN kaputter Fall, um alles andere dauerhaft zu blockieren.

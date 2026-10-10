@@ -61,7 +61,18 @@ class EdaAutoImporter
 
         $log = [];
         foreach ($messages as $msg) {
-            $log[] = self::processMessage($mailbox, $msg);
+            // Eine einzelne Mail darf den ganzen Lauf nicht abschießen -- sonst verhindert EIN
+            // unerwarteter Fehler (z.B. der RLS-Vorfall vom 10.10.2026, siehe VORFAELLE.md), dass
+            // überhaupt irgendeine andere, an sich unproblematische Mail im selben Lauf verarbeitet
+            // wird, und zwar bei JEDEM folgenden Cron-Durchlauf erneut, solange die fehlerhafte
+            // Mail (vorne in der ungelesen-Liste) ungelesen bleibt.
+            try {
+                $log[] = self::processMessage($mailbox, $msg);
+            } catch (\Throwable $e) {
+                $subject = $msg['subject'] ?? '(ohne Betreff)';
+                self::fail($mailbox, $msg['id'] ?? '', $subject, 'Unerwarteter Fehler: ' . $e->getMessage());
+                $log[] = "FEHLER [{$subject}]: Unerwarteter Fehler: " . $e->getMessage();
+            }
         }
         return $log;
     }
@@ -109,6 +120,14 @@ class EdaAutoImporter
             self::fail($mailbox, $id, $subject, "Keine EEG mit Marktpartner-ID '{$marktpartnerId}' gefunden (Datei: {$filename}).");
             return "FEHLER [{$subject}]: keine EEG für Marktpartner-ID {$marktpartnerId}";
         }
+        // Dieses Skript läuft als eigenständiger CLI-Prozess (scripts/eda_auto_import.php), nicht
+        // über eine normale HTTP-Request-Lifecycle, in der app.community_id längst irgendwo gesetzt
+        // worden wäre (siehe DB.php-Klassenkommentar: "Muss vor jeder mandantenspezifischen Abfrage
+        // aufgerufen werden"). Ohne das hier schlägt jeder folgende community-gebundene
+        // DB::execute()-Aufruf (v.a. der audit_log-INSERT unten) mit
+        // "new row violates row-level security policy" fehl -- genau das Symptom, das dazu führte,
+        // dass seit Einrichtung des Crons KEIN einziger Auto-Import je als gelesen markiert wurde.
+        DB::setCommunity($community['id']);
 
         $savePath = '/var/www/html/storage/uploads/' . uniqid('eda_auto_') . '_' . basename($filename);
         file_put_contents($savePath, $content);
