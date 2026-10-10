@@ -8,6 +8,27 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-10 — Claude Code — Claude Sonnet 5 (Nachbesserung: eigentliche Ursache gefunden)
+**Prompt:** (Fortsetzung desselben Themas) Patrick lieferte auf Bitte die Ausgabe dreier
+Diagnose-Befehle: `tail -20 /var/log/eeg-health.log`, `ls -ld /opt/eeg-platform && whoami`, sowie
+den EDA-Auto-Import-Befehl von Hand ausgeführt -- Letzterer endete mit `PHP Fatal error:
+Uncaught PDOException: SQLSTATE[42501]: Insufficient privilege [...] new row violates row-level
+security policy for table "audit_log"`.
+**Auftrag:** Anhand dieser Diagnose-Ausgabe die tatsächliche Ursache finden, warum der (korrekt
+eingerichtete) Cron seit einem Tag nichts automatisch importiert hatte.
+**Ergebnis:** Cron, Docker und Verzeichnisberechtigungen waren die ganze Zeit in Ordnung -- der
+Import lief inhaltlich sogar erfolgreich durch, stürzte aber danach beim Schreiben des
+Audit-Log-Eintrags ab, weil `EdaAutoImporter.php` (läuft als eigenständiges CLI-Skript, nicht im
+normalen Web-Request-Kontext) nie `DB::setCommunity()` aufrief -- ohne den in `DB.php`
+dokumentierten RLS-Kontext schlug jeder community-gebundene `audit_log`-INSERT fehl, als
+uncaught Exception, die den ganzen Lauf noch vor `markRead()` abbrach. Fix: `DB::setCommunity
+($community['id'])` direkt nach dem Auffinden der EEG ergänzt; zusätzlich die Verarbeitung jeder
+einzelnen Mail in `EdaAutoImporter::run()` in ein eigenes try/catch gepackt, damit ein Fehler bei
+einer Mail nicht mehr alle anderen im selben Lauf blockiert. Ausführlich dokumentiert in
+`docs/VORFAELLE.md`. `php -l`/`php tests/run.php` (138/138) grün.
+
+---
+
 ## 2026-10-10 — Claude Code — Claude Sonnet 5
 **Prompt:** "Also, wie du siehst, habe ich zwei ungelesene E-Mails: einmal einen Detailreport und
 einmal einen monatlichen Report, und die sind aber seit gestern nicht hochgeladen worden auf die
