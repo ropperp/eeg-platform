@@ -36,6 +36,15 @@ declare(strict_types=1);
  *   Hand hochgeladen. Am Betreff unterscheidbar (stripos($subject, 'Detailreport'), siehe
  *   processMessage()) -- braucht KEINEN eigenen Cron-Job, derselbe Postfach-Check (alle 15
  *   Minuten, siehe scripts/eda_auto_import.php) deckt jetzt beide Typen ab.
+ *
+ * LESESTATUS als Sichtbarkeits-Signal (Patrick, 10.10.2026): die Mail wird bereits direkt nach
+ * erfolgreichem DOWNLOAD als gelesen markiert, nicht erst nach erfolgreichem Import -- so ist am
+ * Lesestatus im Postfach sofort erkennbar, ob die Mail überhaupt gefunden/geöffnet wurde,
+ * unabhängig davon, ob der Import danach noch an etwas anderem scheitert (Community-Zuordnung,
+ * Parser). Nur wenn schon der Download selbst fehlschlägt, bleibt die Mail ungelesen. Über einen
+ * Fehlschlag NACH dem Download informiert weiterhin die Alarm-Mail aus fail() -- dafür gibt es
+ * dann aber keinen erneuten automatischen Versuch mehr (die Mail gilt ja als gesehen), nur noch
+ * den manuellen Fallback über /portal/eda/upload(-interval).
  */
 class EdaAutoImporter
 {
@@ -97,6 +106,17 @@ class EdaAutoImporter
             self::fail($mailbox, $id, $subject, 'Datei konnte nicht ermittelt/heruntergeladen werden: ' . $e->getMessage());
             return "FEHLER [{$subject}]: " . $e->getMessage();
         }
+
+        // Sobald die Datei heruntergeladen ist, gilt die Mail als "gesehen" -- unabhängig davon,
+        // ob der Import danach noch an etwas anderem scheitert (Community-Zuordnung, Parser).
+        // Patrick, 10.10.2026, nachdem ein erfolgreicher RLS-Fix trotzdem nicht sofort erkennbar
+        // war: "Kannst du, wenn du die Datei runterlädst, auch die E-Mail auf 'gelesen' setzen?
+        // Dann weiß ich, ob meine Webseite [...] auch wirklich die Datei oder die E-Mail gelesen
+        // und gefunden hat." -- vorher wurde erst ganz am Ende (nach erfolgreichem Parser-Lauf)
+        // als gelesen markiert, wodurch ein Fehlschlag mitten im Import (z.B. Parser-Fehler) von
+        // außen nicht von "Mail wurde nie gefunden" zu unterscheiden war. Über Fehlschläge
+        // danach informiert weiterhin die Alarm-Mail aus fail().
+        GraphMailReader::markRead($mailbox, $id);
 
         $marktpartnerId = self::extractMarktpartnerId($filename);
         // Fallback/Gegenprobe: der Betreff enthält laut echter EDA-Mail ebenfalls die
@@ -165,7 +185,6 @@ class EdaAutoImporter
                     . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''),
             ]
         );
-        GraphMailReader::markRead($mailbox, $id);
         self::notifySuccess($mailbox, $subject, $community['name'], $importLabel, $result);
         return "OK [{$subject}]: {$community['name']} ({$importLabel}), " . ($result['records'] ?? '?') . ' Datensätze';
     }
@@ -266,8 +285,13 @@ class EdaAutoImporter
 
     /**
      * Alarm-Mail bei nicht automatisch lösbaren Fällen (Community-Zuordnung, Download, Parser).
-     * Die Mail bleibt bewusst ungelesen -- kein erneuter automatischer Versuch, bis jemand
-     * nachgesehen hat (verhindert eine stille Endlosschleife bei einem dauerhaft kaputten Fall).
+     * Schlägt schon der Download selbst fehl, bleibt die Mail ungelesen (processMessage()
+     * markiert erst NACH erfolgreichem Download als gelesen) -- alle späteren Fehler (ab
+     * Community-Zuordnung) treffen eine bereits gelesene Mail, es gibt dafür keinen erneuten
+     * automatischen Versuch mehr. Bewusst so: Patrick soll am Lesestatus im Postfach sofort
+     * erkennen, ob die Datei überhaupt gefunden/heruntergeladen wurde (10.10.2026: "Dann weiß
+     * ich, ob meine Webseite [...] auch wirklich die Datei oder die E-Mail gelesen und gefunden
+     * hat") -- über den eigentlichen Fehler informiert ohnehin diese Alarm-Mail.
      */
     private static function fail(string $mailbox, string $messageId, string $subject, string $reason): void
     {
@@ -275,8 +299,8 @@ class EdaAutoImporter
             . '<p><strong>Postfach:</strong> ' . htmlspecialchars($mailbox) . '<br>'
             . '<strong>Betreff:</strong> ' . htmlspecialchars($subject) . '<br>'
             . '<strong>Grund:</strong> ' . htmlspecialchars($reason) . '</p>'
-            . '<p>Die Mail bleibt ungelesen im Postfach, bis das Problem behoben oder die Datei manuell über '
-            . '/portal/eda/upload importiert wurde.</p>';
+            . '<p>Bitte bei Bedarf manuell über /portal/eda/upload bzw. /portal/eda/upload-interval '
+            . '(Viertelstundenwerte) nachholen.</p>';
 
         foreach (self::alertRecipients() as $to) {
             try { Mailer::send($to, 'EDA-Auto-Import fehlgeschlagen: ' . $subject, $body); } catch (\Throwable $e) { /* siehe error_log */ }
