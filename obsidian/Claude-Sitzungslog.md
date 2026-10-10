@@ -8,6 +8,30 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-10 — Claude Code — Claude Sonnet 5
+**Prompt:** "Also, wie du siehst, habe ich zwei ungelesene E-Mails: einmal einen Detailreport und
+einmal einen monatlichen Report, und die sind aber seit gestern nicht hochgeladen worden auf die
+Webseite. Unter Imports sind immer die vier Detailreports von mir, die ich hochgeladen habe, und
+keiner der monatlichen Reports. Kannst du da bitte mal nachschauen, was da los ist? Und auch bei
+jedem Report Board, egal, welche Hookline, irgendwie unter dem Postfach reinschreiben, dass ich
+auch weiß, dass etwas passiert wurde und dass was gemacht wurde."
+**Auftrag:** Zwei EDA-Mails (Detailreport + Energiedatenreport) liegen seit einem Tag
+unverarbeitet im Postfach, obwohl der 15-Minuten-Cron seit der letzten Sitzung laufen sollte --
+Ursache klären, plus für jeden künftigen Import (Erfolg wie Fehlschlag) eine sichtbare
+Rückmeldung, nicht nur bei einem Fehler.
+**Ergebnis:** Code-seitig: `EdaAutoImporter` verschickt jetzt auch bei jedem ERFOLGREICHEN Import
+eine Bestätigungsmail (`notifySuccess()`, gleiche Empfänger wie die bestehende Alarm-Mail bei
+Fehlern) -- bisher gab es nur bei einem Fehlschlag eine Mail, ein erfolgreicher Lauf war von
+außen nicht von "noch nicht dran gewesen" zu unterscheiden. Die eigentliche Ursache (warum seit
+gestern GAR NICHTS automatisch verarbeitet wurde) liegt vermutlich außerhalb des Repos (Cron auf
+dem Produktivserver evtl. doch noch nicht eingerichtet) -- Patrick gebeten, den Cron-Eintrag
+(`crontab -l`) sowie `/var/log/eeg-eda-import.log` zu prüfen und zusätzlich den "Jetzt
+prüfen"-Button (Platform-Admin → Einstellungen) zu nutzen, der die beiden aktuell feststeckenden
+Mails sofort verarbeitet und das Ergebnis direkt anzeigt. `php -l`/`php tests/run.php` (138/138)
+grün.
+
+---
+
 ## 2026-10-09 — Claude Code — Claude Sonnet 5 (dritte Nachbesserung)
 **Prompt:** "Können wir aber auch noch so einen Job machen, der auch die normalen Detail-Reports
 überprüft? Die lade ich ja auch regelmäßig hoch, damit jedes Mitglied, da noch die

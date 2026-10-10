@@ -147,6 +147,7 @@ class EdaAutoImporter
             ]
         );
         GraphMailReader::markRead($mailbox, $id);
+        self::notifySuccess($mailbox, $subject, $community['name'], $importLabel, $result);
         return "OK [{$subject}]: {$community['name']} ({$importLabel}), " . ($result['records'] ?? '?') . ' Datensätze';
     }
 
@@ -218,11 +219,11 @@ class EdaAutoImporter
     }
 
     /**
-     * Alarm-Mail bei nicht automatisch lösbaren Fällen (Community-Zuordnung, Download, Parser).
-     * Die Mail bleibt bewusst ungelesen -- kein erneuter automatischer Versuch, bis jemand
-     * nachgesehen hat (verhindert eine stille Endlosschleife bei einem dauerhaft kaputten Fall).
+     * Empfänger für Alarm- UND Erfolgs-Mails (siehe fail()/notifySuccess()) -- dieselbe Adresse,
+     * die auch der Backup-Alarm nutzt: zuerst die beiden konfigurierten Alarm-Adressen, sonst der
+     * erste Platform-Admin als Fallback.
      */
-    private static function fail(string $mailbox, string $messageId, string $subject, string $reason): void
+    private static function alertRecipients(): array
     {
         $recipients = [];
         try {
@@ -241,7 +242,16 @@ class EdaAutoImporter
                 if (!empty($row['email'])) $recipients[] = $row['email'];
             } catch (\Throwable $e) { /* keinen Empfänger gefunden -- unten geloggt */ }
         }
+        return array_unique($recipients);
+    }
 
+    /**
+     * Alarm-Mail bei nicht automatisch lösbaren Fällen (Community-Zuordnung, Download, Parser).
+     * Die Mail bleibt bewusst ungelesen -- kein erneuter automatischer Versuch, bis jemand
+     * nachgesehen hat (verhindert eine stille Endlosschleife bei einem dauerhaft kaputten Fall).
+     */
+    private static function fail(string $mailbox, string $messageId, string $subject, string $reason): void
+    {
         $body = '<p><strong>Automatischer EDA-Import konnte eine Mail nicht verarbeiten.</strong></p>'
             . '<p><strong>Postfach:</strong> ' . htmlspecialchars($mailbox) . '<br>'
             . '<strong>Betreff:</strong> ' . htmlspecialchars($subject) . '<br>'
@@ -249,9 +259,36 @@ class EdaAutoImporter
             . '<p>Die Mail bleibt ungelesen im Postfach, bis das Problem behoben oder die Datei manuell über '
             . '/portal/eda/upload importiert wurde.</p>';
 
-        foreach (array_unique($recipients) as $to) {
+        foreach (self::alertRecipients() as $to) {
             try { Mailer::send($to, 'EDA-Auto-Import fehlgeschlagen: ' . $subject, $body); } catch (\Throwable $e) { /* siehe error_log */ }
         }
         error_log('[eda_auto_import] ' . $subject . ': ' . $reason);
+    }
+
+    /**
+     * Bestätigungs-Mail bei JEDEM erfolgreichen Import -- unabhängig vom Report-Typ (Patrick,
+     * 10.10.2026, nachdem zwei Reports tagelang unbemerkt im Postfach liegen blieben: "bei jedem
+     * Report, egal welche [Betreffzeile], irgendwie [...] reinschreiben, dass ich auch weiß, dass
+     * etwas passiert wurde und dass was gemacht wurde"). Bisher gab es nur bei einem FEHLER eine
+     * Mail -- ein erfolgreicher Lauf war von außen nicht von "noch nicht dran gewesen" zu
+     * unterscheiden.
+     */
+    private static function notifySuccess(string $mailbox, string $subject, string $communityName, string $importLabel, array $result): void
+    {
+        $records = $result['records'] ?? '?';
+        $warnings = $result['warnings'] ?? [];
+        $body = "<p><strong>Automatischer {$importLabel} erfolgreich.</strong></p>"
+            . '<p><strong>Postfach:</strong> ' . htmlspecialchars($mailbox) . '<br>'
+            . '<strong>Betreff:</strong> ' . htmlspecialchars($subject) . '<br>'
+            . '<strong>EEG:</strong> ' . htmlspecialchars($communityName) . '<br>'
+            . '<strong>Datensätze:</strong> ' . htmlspecialchars((string)$records) . '</p>';
+        if (!empty($warnings)) {
+            $body .= '<p><strong>Warnungen (' . count($warnings) . '):</strong><br>'
+                . implode('<br>', array_map('htmlspecialchars', array_map('strval', $warnings))) . '</p>';
+        }
+
+        foreach (self::alertRecipients() as $to) {
+            try { Mailer::send($to, "{$importLabel} erfolgreich: {$subject}", $body); } catch (\Throwable $e) { /* siehe error_log, kein harter Fehler */ }
+        }
     }
 }
