@@ -1768,3 +1768,15 @@ community-gebundene DB-Operation braucht ihren eigenen expliziten `DB::setCommun
 auch wenn der restliche Code 1:1 wie im Web-Kontext aussieht. Und: ein Loop über mehrere
 unabhängige Elemente (hier: Mails) sollte einen Fehler bei einem Element nie den gesamten Lauf
 abbrechen lassen -- sonst reicht EIN kaputter Fall, um alles andere dauerhaft zu blockieren.
+
+**Nachbesserung (10.10.2026, Lesestatus als Sichtbarkeits-Signal):** auch nach dem RLS-Fix blieb
+für Patrick unklar, ob ein einzelner Report vom System überhaupt gefunden wurde oder nicht --
+Patrick: "Kannst du, wenn du die Datei runterlädst, auch die E-Mail auf 'gelesen' setzen? Dann
+weiß ich, ob meine Webseite [...] auch wirklich die Datei oder die E-Mail gelesen und gefunden
+hat." Bisher wurde eine Mail erst ganz am Ende (nach erfolgreichem Parser-Lauf) als gelesen
+markiert -- ein Fehlschlag mitten im Import war am Lesestatus also nicht von "Mail nie gefunden"
+zu unterscheiden. `EdaAutoImporter::processMessage()` markiert jetzt direkt nach erfolgreichem
+Dateidownload als gelesen, unabhängig vom weiteren Ausgang -- nur wenn schon der Download selbst
+scheitert, bleibt die Mail ungelesen. Über einen Fehlschlag danach informiert weiterhin die
+Alarm-Mail aus `fail()`, dafür gibt es aber keinen automatischen Wiederholungsversuch mehr (die
+Mail gilt ja als gesehen) -- nur noch den manuellen Fallback über `/portal/eda/upload(-interval)`.

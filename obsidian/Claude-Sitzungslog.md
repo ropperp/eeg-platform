@@ -8,6 +8,28 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-10 — Claude Code — Claude Sonnet 5 (zweite Nachbesserung: Lesestatus als Signal)
+**Prompt:** "Also, ich habe es probiert. Den Monatsbericht, den hat er mir anscheinend
+übernommen gehabt. Die sind auch immer 13 im Status L3. Ich kann immer keine Abrechnung machen,
+aber das ist mal egal. Was es mir geht, ist, dass zum Beispiel der Detail-Report, den ich auch
+gestern zum gleichen Zeitpunkt angefordert habe bei EDA, nicht übernommen wurde. Was noch
+eventuell eine coole Sache wäre: Kannst du, wenn du die Datei runterlädst, auch die E-Mail auf
+'gelesen' setzen? Dann weiß ich, ob meine Webseite unter anderem auch wirklich die Datei oder die
+E-Mail gelesen und gefunden hat. Wenn zwei E-Mails vorhanden sind, dass er erst die eine macht
+und dann die zweite."
+**Auftrag:** Der RLS-Fix hat den Monatsreport durchgebracht, der Detailreport blieb aber weiter
+unklar (übernommen oder gar nicht gefunden?) -- Patrick möchte am Lesestatus im Postfach direkt
+erkennen können, ob eine Mail überhaupt gefunden/verarbeitet wurde.
+**Ergebnis:** `EdaAutoImporter::processMessage()` markiert eine Mail jetzt direkt nach
+erfolgreichem Dateidownload als gelesen, nicht erst nach komplett erfolgreichem Import -- so ist
+am Lesestatus sofort erkennbar, ob die Mail gefunden wurde, unabhängig vom weiteren Ausgang. Nur
+wenn schon der Download selbst scheitert, bleibt sie ungelesen. Die zweite Anforderung (erst die
+eine Mail verarbeiten, dann die zweite, auch wenn eine davon fehlschlägt) war durch den
+try/catch-Fix aus der vorigen Nachbesserung bereits erledigt. `docs/VORFAELLE.md` ergänzt.
+`php -l`/`php tests/run.php` (138/138) grün.
+
+---
+
 ## 2026-10-10 — Claude Code — Claude Sonnet 5 (Nachbesserung: eigentliche Ursache gefunden)
 **Prompt:** (Fortsetzung desselben Themas) Patrick lieferte auf Bitte die Ausgabe dreier
 Diagnose-Befehle: `tail -20 /var/log/eeg-health.log`, `ls -ld /opt/eeg-platform && whoami`, sowie
