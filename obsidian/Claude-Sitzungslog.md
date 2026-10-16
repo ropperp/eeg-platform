@@ -8,6 +8,22 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-16 21:20 — Claude Code — Claude Sonnet 5
+**Auftrag:** Ein Quartals-Abrechnungslauf ließ sich trotz vollständig importierter und bereits
+auf L2-Qualität geprüfter EDA-Daten nicht freigeben -- die Vollständigkeitsprüfung meldete zwei
+Monate fälschlich als fehlend.
+**Verbesserter Prompt:** "Die Abrechnungsfreigabe für [Zeitraum] blockiert mit 'fehlt:
+[Monate]', obwohl laut Importliste alles erfolgreich und vollständig importiert wurde -- bitte
+Ursache finden und beheben."
+**Ergebnis:** Ursache gefunden: `Billing::missingMonths()` berücksichtigte bei einem Import, der
+mehrere Monate in einer Datei abdeckt (ein Quartals-Export statt drei Monatsdateien), nur den
+ersten Monat. Fix in `webapp/src/Billing.php` (PR #231), ausführlich in `docs/VORFAELLE.md`
+dokumentiert. `php -l`/`php tests/run.php` (138/138) grün.
+**Fehler/Lehre:** Eine Funktion, die nur den Start eines Zeitraum-Paars auswertet, bricht lautlos,
+sobald die Annahme "ein Import = ein Monat" nicht mehr zutrifft.
+
+---
+
 ## 2026-10-10 21:15 — Claude Code (Cloud-Sitzung) — Claude Sonnet 5.5
 **Auftrag:** Die Selbstdokumentation soll datenschutzfreundlicher werden, weil das Repo öffentlich
 ist: Zusammenfassung statt wörtlichem Prompt, Suche im Log vor jeder Recherche, Speichern auf
