@@ -6785,8 +6785,10 @@ $router->get('/portal/billing', function () {
     // Fehlende Monatsimporte je Lauf schon in der Übersicht sichtbar machen, nicht erst als
     // Fehlermeldung beim Freigabe-Versuch (siehe Billing::missingMonths(), Patrick 05.08.2026).
     $missingMonthsByRun = [];
+    $qualityByRun = [];
     foreach ($runs as $run) {
         $missingMonthsByRun[$run['id']] = Billing::missingMonths($communityId, $run['period_from'], $run['period_to']);
+        $qualityByRun[$run['id']] = Billing::edaQualitySummary($communityId, $run['period_from'], $run['period_to']);
     }
     require ROOT . '/src/views/pages/billing.php';
 });
@@ -7291,27 +7293,6 @@ $router->get('/portal/billing/gutschriften/sepa-xml', function () {
     header('Content-Disposition: attachment; filename="' . $fname . '"');
     header('Content-Length: ' . strlen($xml));
     echo $xml;
-    exit;
-});
-
-/**
- * EDA-Datenqualitäts-Status eines Abrechnungslaufs setzen (aus dem Monatsbericht/Eder-XLSX
- * übernommen). Ersetzt zusammen mit dem automatischen L3-Check die alte 60-Tage-Frist als
- * Freigabe-Kriterium (siehe Billing::datenqualitaetProblem()).
- */
-$router->post('/portal/billing/:id/eda-status', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$run) { header('Location: /portal/billing?error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
-    try {
-        Billing::setEdaStatus($params['id'], $_POST['eda_status'] ?? 'unbekannt');
-        logAudit($communityId, 'billing.eda_status', 'billing_run', $params['id'], 'EDA-Datenstatus auf "' . ($_POST['eda_status'] ?? '') . '" gesetzt');
-        header('Location: /portal/billing?success=1');
-    } catch (Throwable $e) {
-        header('Location: /portal/billing?error=' . urlencode($e->getMessage()));
-    }
     exit;
 });
 

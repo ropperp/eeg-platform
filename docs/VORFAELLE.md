@@ -1818,3 +1818,63 @@ EINEN Wert tatsächlich ausliest, sollte sie entweder explizit dokumentieren, wa
 (z.B. "deckt laut Vertrag immer nur einen Monat ab"), oder defensiv beide Werte berücksichtigen --
 sobald sich die zugrunde liegende Annahme (hier: "eine Datei = ein Kalendermonat") in der Praxis
 als nicht mehr zwingend herausstellt, bricht sonst lautlos genau diese Annahme.
+
+### EDA-Datenqualität in der Abrechnung: von Hand setzen entfernt, automatisch ermittelt (16.10.2026)
+Patrick musste bei jedem Abrechnungslauf in der Spalte "EDA-Datenqualität" selbst "vollständig"
+oder "unvollständig" auswählen und per Button setzen, obwohl die Plattform die L1/L2/L3-Qualität
+längst aus den importierten Daten kennt (derselbe automatische L3-Check blockiert die Freigabe
+ja schon) -- Patrick: "Wenn du eigentlich prüfst, ob L1-, L2- oder L3-Werte drinnen sind, dann
+prüfst du es ja eh schon. Kannst du mir [...] nicht gleich sagen, welche Datenqualität die Daten
+haben?"
+
+**Fund:** `migrate_20261001.sql` hatte schon `eda_measurement_quality_monthly.completeness`
+(COMPLETE/INCOMPLETE je Zählpunkt und Monat, direkt aus der EDA-Spalte "Status
+Datenübermittlung") eingeführt -- der Parser befüllt die Spalte seither bei jedem Import, aber
+KEINE einzige PHP-Stelle las sie jemals aus. Der manuelle `eda_status`-Dropdown auf
+`billing_runs` (seit `migrate_20260805.sql`) blieb dadurch die einzige Quelle für dieses
+Kriterium, obwohl die eigentlich nötigen Daten längst automatisch vorlagen.
+
+**Fix:** Neue Methode `Billing::edaQualitySummary()` liest `eda_measurement_quality_monthly` für
+den Abrechnungszeitraum aus und leitet daraus denselben vollständig/unvollständig-Status
+automatisch ab (plus L1/L2/L3-Zähler für die Anzeige) -- `unbekannt`, falls noch keine
+monatsgenauen Daten vorliegen (Altimporte von vor dem 01.10.2026), blockiert wie bisher nicht.
+`Billing::datenqualitaetProblem()` nutzt das jetzt statt des manuellen Felds.
+`billing_runs.eda_status`, `Billing::setEdaStatus()` und die Route
+`/portal/billing/:id/eda-status` sind entfernt (keine anderen Aufrufer mehr) -- die Spalte in der
+DB bleibt unangetastet (kein Migrations-Rückbau nötig, rein historisch).
+
+**Nebenbei (gleicher Anlass):** "Test-Vorschau" (Beispiel-Rechnung) und "SEPA-Test-XML" auf
+`/portal/billing` stehen jetzt ganz unten statt ganz oben -- Werkzeuge für die Ersteinrichtung
+bzw. gelegentliche Prüfung, kein täglicher Bedarf (Patrick: "wenn dann die Abrechnung
+funktioniert, braucht man keine Tests und keine Vorschau mehr").
+
+### Rollen-Wechsel merkt sich den Zustand nicht über Login hinweg (16.10.2026)
+Patrick ist gleichzeitig Platform-Admin UND Obmann mehrerer EEGs -- nach jedem Logout/Login
+sprang die aktive Rolle aber immer zurück auf Platform-Admin, selbst wenn er zuvor bewusst als
+Obmann einer bestimmten EEG gearbeitet hatte: "Wenn ich mich jetzt als Obmann anmelde, dann
+möchte ich, wenn ich mich wieder einlogge, wieder als Obmann sein und nicht als Admin."
+
+**Ursache:** `Auth::establishSession()` wählte bei JEDEM Login über `pickDefaultRole()` immer
+dieselbe feste Priorität (platform_admin > manager > member), unabhängig davon, welche Rolle in
+der vorigen Sitzung zuletzt aktiv war.
+
+**Fix:** Neue Spalten `users.last_active_community_id`/`last_active_role`/`last_active_member_id`
+(`migrate_20261016.sql`) -- `Auth::switchRole()` persistiert die aktive Rolle jetzt zusätzlich
+zur Session in die DB, `establishSession()` versucht beim Login zuerst, genau diese Rolle
+wiederherzustellen, und fällt nur auf `pickDefaultRole()` zurück, falls sie nicht mehr existiert
+(z.B. Rolle inzwischen entzogen) oder noch nie gewechselt wurde.
+
+**Dabei entdeckt (noch nicht ausgelöst, aber mit demselben Refactor gleich mit behoben):** der
+Vergleich in `switchRole()` prüfte `$r['community_id'] === $communityId` ungefiltert -- für
+platform_admin ist `community_id` in der DB aber echtes `NULL`, während das Rollen-Dropdown
+(`layouts/portal.php`) dafür eine leere Zeichenkette `''` postet. `null === ''` ist in PHP
+IMMER falsch, ein Wechsel ZURÜCK auf Platform-Admin über das Dropdown wäre dadurch potenziell nie
+angekommen (nur nie aufgefallen, weil ein Logout/Login bisher ohnehin automatisch auf
+Platform-Admin zurückfiel -- mit dem heutigen Fix wäre das nicht mehr der Fall gewesen). Neue
+Hilfsfunktion `Auth::findRole()` normalisiert `NULL`/`''` als gleichwertig und wird jetzt sowohl
+von `switchRole()` als auch von der neuen Login-Wiederherstellung genutzt.
+
+**Merksatz:** Beim Vergleich von Fremdschlüssel-Werten, die sowohl aus der DB (`NULL`) als auch
+aus einem HTML-Formular (`''`) stammen können, IMMER auf Gleichwertigkeit normalisieren, bevor
+mit `===` verglichen wird -- sonst trifft der Vergleich für genau den Fall nie zu, der in der DB
+als `NULL` steht.

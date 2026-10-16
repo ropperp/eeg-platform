@@ -30,29 +30,6 @@ ob_start();
   </div>
 </div>
 
-<div class="card" style="margin-bottom:1rem">
-  <h3 style="margin-bottom:.25rem"><?= icon('flask') ?> Test-Vorschau</h3>
-  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
-    Zeigt, wie eine Rechnung aussieht -- mit Platzhalter-Werten statt echten Mitgliedsdaten. Erzeugt keinen
-    Datenbankeintrag, ideal um das Layout bzw. eine neue LaTeX-Vorlage zu prüfen.
-  </p>
-  <a href="/portal/billing/preview" target="_blank" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
-    Beispiel-Rechnung ansehen (PDF)
-  </a>
-</div>
-
-<div class="card" style="margin-bottom:1rem">
-  <h3 style="margin-bottom:.25rem"><?= icon('bank') ?> SEPA-Test-XML</h3>
-  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
-    Erzeugt eine SEPA-Lastschriftdatei (<code>pain.008</code>) mit <strong>Beispieldaten</strong> — zum Hochladen ins
-    Prüf-/Banking-Tool deiner Bank, noch <strong>bevor</strong> echte Abrechnungsdaten vorliegen. Verwendet eure
-    hinterlegte Gläubiger-ID/IBAN (falls gesetzt); es entsteht kein Datenbankeintrag und keine echte Abbuchung.
-  </p>
-  <a href="/portal/billing/sepa-test-xml" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
-    <?= icon('arrow-down') ?> SEPA-Test-XML herunterladen
-  </a>
-</div>
-
 <!-- Suche -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center">
@@ -82,8 +59,9 @@ ob_start();
     <tbody>
     <?php foreach ($runs as $run): ?>
       <?php
-        $edaStatus = $run['eda_status'] ?? 'unbekannt';
-        $edaLabel  = ['unbekannt' => 'noch nicht geprüft', 'vollstaendig' => 'vollständig (belastbar)', 'unvollstaendig' => 'unvollständig'][$edaStatus] ?? $edaStatus;
+        $quality   = $qualityByRun[$run['id']] ?? ['status' => 'unbekannt', 'l1' => 0, 'l2' => 0, 'l3' => 0];
+        $edaStatus = $quality['status'];
+        $edaLabel  = ['unbekannt' => 'noch keine Daten', 'vollstaendig' => 'vollständig (belastbar)', 'unvollstaendig' => 'unvollständig'][$edaStatus] ?? $edaStatus;
         $edaBadge  = ['unbekannt' => 'gray', 'vollstaendig' => 'green', 'unvollstaendig' => 'yellow'][$edaStatus] ?? 'gray';
         $missingMonths = $missingMonthsByRun[$run['id']] ?? [];
         // Freigabe ist erlaubt, sobald für jeden Monat ein EDA-Import vorliegt UND die Daten
@@ -111,15 +89,12 @@ ob_start();
         </td>
         <td>
           <span class="badge badge-<?= $edaBadge ?>"><?= htmlspecialchars($edaLabel) ?></span>
-          <?php if ($run['status'] !== 'done'): ?>
-            <form method="post" action="/portal/billing/<?= $run['id'] ?>/eda-status" style="display:inline-flex;gap:.3rem;margin-top:.35rem">
-              <select name="eda_status" style="padding:.2rem .4rem;border:1px solid var(--gray-200);border-radius:5px;font-size:.75rem">
-                <?php foreach (['unbekannt' => 'noch nicht geprüft', 'vollstaendig' => 'vollständig (belastbar)', 'unvollstaendig' => 'unvollständig'] as $val => $lbl): ?>
-                  <option value="<?= $val ?>" <?= $edaStatus === $val ? 'selected' : '' ?>><?= $lbl ?></option>
-                <?php endforeach; ?>
-              </select>
-              <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.2rem .5rem;font-size:.72rem">Setzen</button>
-            </form>
+          <?php if ($quality['l1'] || $quality['l2'] || $quality['l3']): ?>
+            <div style="margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap">
+              <?php if ($quality['l1'] > 0): ?><span class="badge badge-green" style="font-size:.7rem" title="L1 -- echt gemessen"><?= $quality['l1'] ?> L1</span><?php endif; ?>
+              <?php if ($quality['l2'] > 0): ?><span class="badge badge-yellow" style="font-size:.7rem" title="L2 -- belastbarer Ersatzwert"><?= $quality['l2'] ?> L2</span><?php endif; ?>
+              <?php if ($quality['l3'] > 0): ?><span class="badge badge-red" style="font-size:.7rem" title="L3 -- nicht belastbarer Ersatzwert, wird nicht abgerechnet"><?= $quality['l3'] ?> L3</span><?php endif; ?>
+            </div>
           <?php endif; ?>
         </td>
         <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
@@ -253,8 +228,9 @@ function filterBilling() {
   </ul>
   <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:.5rem">
     Freigegeben werden kann, sobald der EDA-Monatsbericht den Zeitraum als <strong>vollständig</strong>
-    meldet und keine L3-Werte mehr vorliegen. Den Gesamtstatus aus dem Bericht trägst du oben in der Spalte
-    „EDA-Datenqualität" ein; die Prüfung auf verbliebene L3-Werte läuft zusätzlich automatisch bei der Freigabe.
+    meldet und keine L3-Werte mehr vorliegen. Beides ermittelt die Plattform automatisch aus den
+    bereits importierten Daten -- die Spalte „EDA-Datenqualität" zeigt direkt den aktuellen Stand
+    (inkl. Anzahl L1/L2/L3-Werte), ohne dass du das selbst nachschauen oder eintragen musst.
   </p>
   <p style="font-size:.875rem;color:var(--gray-600)">
     Zusätzlich prüft die Plattform automatisch, ob für <strong>jeden Kalendermonat</strong> im
@@ -262,6 +238,33 @@ function filterBilling() {
     fehlt einer, erscheint das oben als roter Hinweis „fehlt: …" und die Freigabe bleibt gesperrt,
     damit nie versehentlich ein vergessener Monat mit 0 statt den echten Werten verrechnet wird.
   </p>
+</div>
+
+<!-- Test-Vorschau/SEPA-Test-XML bewusst ganz unten -- Werkzeuge für die Ersteinrichtung bzw.
+     gelegentliche Layout-/Banking-Prüfung, nicht für den laufenden Betrieb (Patrick, 16.10.2026:
+     "Den Test braucht man vielleicht einmal, zweimal, aber wenn dann die Abrechnung
+     funktioniert, braucht man keine Tests und keine Vorschau mehr"). -->
+<div class="card" style="margin-top:1.5rem">
+  <h3 style="margin-bottom:.25rem"><?= icon('flask') ?> Test-Vorschau</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
+    Zeigt, wie eine Rechnung aussieht -- mit Platzhalter-Werten statt echten Mitgliedsdaten. Erzeugt keinen
+    Datenbankeintrag, ideal um das Layout bzw. eine neue LaTeX-Vorlage zu prüfen.
+  </p>
+  <a href="/portal/billing/preview" target="_blank" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
+    Beispiel-Rechnung ansehen (PDF)
+  </a>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h3 style="margin-bottom:.25rem"><?= icon('bank') ?> SEPA-Test-XML</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.75rem">
+    Erzeugt eine SEPA-Lastschriftdatei (<code>pain.008</code>) mit <strong>Beispieldaten</strong> — zum Hochladen ins
+    Prüf-/Banking-Tool deiner Bank, noch <strong>bevor</strong> echte Abrechnungsdaten vorliegen. Verwendet eure
+    hinterlegte Gläubiger-ID/IBAN (falls gesetzt); es entsteht kein Datenbankeintrag und keine echte Abbuchung.
+  </p>
+  <a href="/portal/billing/sepa-test-xml" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
+    <?= icon('arrow-down') ?> SEPA-Test-XML herunterladen
+  </a>
 </div>
 
 <?php
