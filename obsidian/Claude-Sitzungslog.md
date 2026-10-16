@@ -8,6 +8,26 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-16 22:00 — Claude Code — Claude Sonnet 5
+**Auftrag:** Drei kleinere Verbesserungswünsche zur Abrechnungsseite: die EDA-Datenqualität soll
+automatisch erkannt statt manuell ausgewählt werden, selten gebrauchte Test-Werkzeuge sollen
+weiter unten stehen, und beim erneuten Einloggen soll die zuletzt aktive Rolle (z.B. Obmann
+statt Platform-Admin) erhalten bleiben.
+**Verbesserter Prompt:** "Kannst du die EDA-Datenqualität in der Abrechnungsübersicht automatisch
+aus den bereits importierten Daten anzeigen statt sie manuell auswählen zu lassen? Außerdem
+Test-Vorschau und SEPA-Test-XML auf der Abrechnungsseite ans Ende verschieben, und dafür sorgen,
+dass die zuletzt aktive Rolle nach einem Login erhalten bleibt, statt immer auf Platform-Admin
+zurückzufallen."
+**Ergebnis:** `Billing::edaQualitySummary()` liest die längst vorhandene, aber bisher nie
+ausgelesene monatsgenaue Datenqualität automatisch aus; der manuelle Status samt zugehöriger
+Route wurde entfernt. Test-Werkzeuge ans Seitenende verschoben. Neue Spalten an `users`
+speichern die zuletzt aktive Rolle, die beim nächsten Login bevorzugt wiederhergestellt wird;
+dabei einen Null/Leerstring-Vergleichsfehler beim Rollenwechsel behoben. PR #233 gemergt,
+ausführlich in `docs/VORFAELLE.md` dokumentiert, Migrationsschritt in `docs/BETRIEBSHANDBUCH.md`.
+`php -l`/`php tests/run.php` (138/138) grün.
+
+---
+
 ## 2026-10-16 21:20 — Claude Code — Claude Sonnet 5
 **Auftrag:** Ein Quartals-Abrechnungslauf ließ sich trotz vollständig importierter und bereits
 auf L2-Qualität geprüfter EDA-Daten nicht freigeben -- die Vollständigkeitsprüfung meldete zwei
