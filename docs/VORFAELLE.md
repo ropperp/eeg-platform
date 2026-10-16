@@ -1780,3 +1780,41 @@ Dateidownload als gelesen, unabhängig vom weiteren Ausgang -- nur wenn schon de
 scheitert, bleibt die Mail ungelesen. Über einen Fehlschlag danach informiert weiterhin die
 Alarm-Mail aus `fail()`, dafür gibt es aber keinen automatischen Wiederholungsversuch mehr (die
 Mail gilt ja als gesehen) -- nur noch den manuellen Fallback über `/portal/eda/upload(-interval)`.
+
+### Quartals-Energiedatenreport in EINER Datei: Abrechnung blockiert mit "fehlt: 2026-08, 2026-09" (16.10.2026)
+Patrick hat für 2026-Q3 keine drei Monatsdateien, sondern EINEN Energiedatenreport mit
+Auswertungszeitraum 01.07.–30.09.2026 am Stück aus dem EDA-Portal exportiert und hochgeladen --
+Import lief erfolgreich durch (16 Datensätze, Status "ok", Datenqualität "16 L2"), aber der
+Abrechnungslauf 2026-Q3 blieb mit "fehlt: 2026-08, 2026-09" gesperrt, obwohl die Datei (geprüft:
+tatsächlich geöffnet und Sheets kontrolliert) alle drei Monate sauber enthielt -- Gesamtübersicht
+eine Zeile je Zählpunkt für den GANZEN Zeitraum, Detailübersicht zusätzlich je Zählpunkt eine
+eigene Zeile JE Kalendermonat mit eigener Datenqualität (Juli/August/September einzeln
+"Vollständig"/"L1,L2").
+
+**Ursache:** `Billing::missingMonths()` liest zur Vollständigkeitsprüfung `eda_imports.period_from`
+und leitet daraus NUR den Monat des Imports ab (z.B. "2026-07"), ohne `period_to` überhaupt zu
+berücksichtigen. Ein einzelner Import, dessen `period_from`/`period_to` einen ganzen Quartals-
+zeitraum abdecken (hier: 01.07.–30.09.2026, aus dem Datei-Kopf "Auswertungszeitraum", siehe
+`eda-parser/parser.py`), wurde dadurch nur als "Juli importiert" gewertet -- August und September
+galten fälschlich als fehlend, obwohl ihre Daten in genau diesem einen Import bereits vorhanden
+waren. Die eigentliche Rechensumme (`Billing::generateDrafts()`) war davon NICHT betroffen --
+die summiert ohnehin direkt über `eda_measurements.time` im Zeitraum, unabhängig von der Anzahl
+der Importe -- nur die Vollständigkeits-VORPRÜFUNG hing an dieser zu groben Monatsableitung.
+
+Ein Quartals-Export in einer Datei ist dabei kein Sonderfall, sondern von EDA regulär unterstützt
+und im Code bereits an anderer Stelle berücksichtigt: `eda_measurement_quality_monthly`
+(`migrate_20261001.sql`) hält schon länger die monatsgenaue Datenqualität je Zählpunkt, genau
+"unabhängig davon, ob ein Einzelmonat oder ein ganzes Quartal auf einmal exportiert wurde" (siehe
+Docstring in `eda-parser/parser.py`) -- nur `missingMonths()` wurde bei dieser Umstellung am
+01.10.2026 nicht mitgezogen.
+
+**Fix:** `missingMonths()` liest jetzt zusätzlich `period_to` je Import und trägt JEDEN
+Kalendermonat zwischen `period_from` und `period_to` (inklusive) als "importiert" ein, nicht mehr
+nur den Monat von `period_from`. Drei separate Monatsdateien (bisheriger Normalfall, period_from
+und period_to liegen dort im selben Monat) verhalten sich dadurch unverändert.
+
+**Merksatz:** Wenn eine Funktion aus einem Zeitstempel-PAAR (`period_from`/`period_to`) nur den
+EINEN Wert tatsächlich ausliest, sollte sie entweder explizit dokumentieren, warum das reicht
+(z.B. "deckt laut Vertrag immer nur einen Monat ab"), oder defensiv beide Werte berücksichtigen --
+sobald sich die zugrunde liegende Annahme (hier: "eine Datei = ein Kalendermonat") in der Praxis
+als nicht mehr zwingend herausstellt, bricht sonst lautlos genau diese Annahme.
