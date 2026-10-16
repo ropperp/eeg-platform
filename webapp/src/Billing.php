@@ -511,22 +511,41 @@ class Billing
             $cursor = strtotime('+1 month', $cursor);
         }
 
-        // eda_imports.period_from ist TIMESTAMPTZ und wird vom Parser als Europe/Vienna-
-        // Mitternacht gespeichert (siehe eda-parser/parser.py: tz_localize("Europe/Vienna")),
-        // z.B. 01.07.2026 00:00 Wien = 30.06.2026 22:00 UTC. Ohne "AT TIME ZONE" formatiert
-        // to_char() den Wert in der SESSION-Zeitzone der DB-Verbindung (Standard: UTC) -- ein
-        // Juli-Import wurde dadurch als "2026-06" einsortiert und erschien nie als für Juli
-        // vorhanden. "fehlt: 2026-07" blieb deshalb bestehen, obwohl längst importiert war
-        // (Patrick, 06.08.2026). Aus demselben Grund bewusst OHNE period_from/period_to-
-        // Eingrenzung in der WHERE-Klausel -- dieselbe Verschiebung hätte dort Zeilen genau am
-        // Monatsrand fälschlich herausfiltern können; bei der überschaubaren Anzahl an Imports
-        // pro Community ist der Abgleich unten in PHP (array_diff) unkritisch und robuster.
+        // eda_imports.period_from/period_to sind TIMESTAMPTZ und werden vom Parser als
+        // Europe/Vienna-Mitternacht gespeichert (siehe eda-parser/parser.py:
+        // tz_localize("Europe/Vienna")), z.B. 01.07.2026 00:00 Wien = 30.06.2026 22:00 UTC. Ohne
+        // "AT TIME ZONE" formatiert to_char() den Wert in der SESSION-Zeitzone der
+        // DB-Verbindung (Standard: UTC) -- ein Juli-Import wurde dadurch als "2026-06"
+        // einsortiert und erschien nie als für Juli vorhanden. "fehlt: 2026-07" blieb deshalb
+        // bestehen, obwohl längst importiert war (Patrick, 06.08.2026). Aus demselben Grund
+        // bewusst OHNE period_from/period_to-Eingrenzung in der WHERE-Klausel -- dieselbe
+        // Verschiebung hätte dort Zeilen genau am Monatsrand fälschlich herausfiltern können;
+        // bei der überschaubaren Anzahl an Imports pro Community ist der Abgleich unten in PHP
+        // (array_diff) unkritisch und robuster.
         $imported = DB::fetchAll(
-            "SELECT DISTINCT to_char(period_from AT TIME ZONE 'Europe/Vienna', 'YYYY-MM') AS monat
+            "SELECT to_char(period_from AT TIME ZONE 'Europe/Vienna', 'YYYY-MM') AS von,
+                    to_char(period_to   AT TIME ZONE 'Europe/Vienna', 'YYYY-MM') AS bis
              FROM eda_imports WHERE community_id = ?",
             [$communityId]
         );
-        $importedMonths = array_column($imported, 'monat');
-        return array_values(array_diff($months, $importedMonths));
+        // EDA erlaubt neben dem üblichen Einzelmonat auch einen selbst gewählten, längeren
+        // Zeitraum in EINER Datei (z.B. ein ganzes Quartal auf einmal, siehe
+        // eda-parser/parser.py: _parse_detailuebersicht()-Docstring, Patrick 01.10.2026) -- ein
+        // solcher Import hat period_from/period_to entsprechend weit auseinander (z.B.
+        // 2026-07/2026-09), deckt dabei aber ALLE Monate dazwischen tatsächlich ab, nicht nur
+        // den von period_from. Vorher wurde hier nur der Monat von period_from berücksichtigt,
+        // wodurch ein einzelner quartalsübergreifender Import die beiden hinteren Monate
+        // fälschlich als "fehlt" meldete, obwohl die Daten längst vorhanden waren (Patrick,
+        // 16.10.2026, nach einem Quartals-Export in einer Datei statt drei Monatsdateien).
+        $importedMonths = [];
+        foreach ($imported as $row) {
+            $cursor2 = strtotime($row['von'] . '-01');
+            $end2    = strtotime($row['bis'] . '-01');
+            while ($cursor2 <= $end2) {
+                $importedMonths[] = date('Y-m', $cursor2);
+                $cursor2 = strtotime('+1 month', $cursor2);
+            }
+        }
+        return array_values(array_diff($months, array_unique($importedMonths)));
     }
 }
