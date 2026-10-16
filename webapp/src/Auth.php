@@ -113,7 +113,12 @@ class Auth
      */
     public static function establishSession(string $userId): void
     {
-        $user = DB::fetchOne('SELECT id, first_name, last_name, email, is_demo, founder_admin FROM users WHERE id = ?', [$userId]);
+        $user = DB::fetchOne(
+            'SELECT id, first_name, last_name, email, is_demo, founder_admin,
+                    last_active_community_id, last_active_role, last_active_member_id
+             FROM users WHERE id = ?',
+            [$userId]
+        );
         if (!$user) return;
         $roles = DB::fetchAll(self::ROLES_QUERY, [$user['id']]);
         if (array_filter($roles, fn($r) => !empty($r['member_id']))) {
@@ -125,7 +130,12 @@ class Auth
         $_SESSION['is_demo']     = (bool)$user['is_demo'];
         $_SESSION['is_founder_admin'] = (bool)$user['founder_admin'];
         $_SESSION['roles']       = $roles;
-        $_SESSION['active_role'] = self::pickDefaultRole($roles);
+        // Zuletzt aktive Rolle bevorzugen (siehe migrate_20261016.sql + switchRole() unten,
+        // Patrick, 16.10.2026: "wenn ich mich wieder einlogge, wieder als Obmann sein und nicht
+        // als Admin") -- fällt auf die bisherige Standardpriorität zurück, falls noch nie
+        // umgeschaltet wurde oder die gemerkte Rolle inzwischen weggefallen ist (z.B. entzogen).
+        $_SESSION['active_role'] = self::findRole($roles, $user['last_active_community_id'], $user['last_active_role'], $user['last_active_member_id'])
+            ?? self::pickDefaultRole($roles);
         // attachMemberNames() kann DB::setCommunity() auf die zuletzt geprüfte Rolle stehen
         // lassen (RLS-Lookup je Rolle einzeln, siehe dortiger Kommentar) -- auf die tatsächlich
         // aktive Rolle zurücksetzen, sonst würde die allererste Abfrage nach dem Login
@@ -275,14 +285,39 @@ class Auth
      */
     public static function switchRole(string $communityId, string $role, ?string $memberId = null): bool
     {
-        foreach ($_SESSION['roles'] ?? [] as $r) {
-            if ($r['community_id'] === $communityId && $r['role'] === $role
-                && ($r['member_id'] ?? null) === $memberId) {
-                $_SESSION['active_role'] = $r;
-                return true;
+        $match = self::findRole($_SESSION['roles'] ?? [], $communityId, $role, $memberId);
+        if (!$match) return false;
+        $_SESSION['active_role'] = $match;
+        // Persistiert, damit diese Rolle auch nach einem Logout/Login erhalten bleibt (siehe
+        // establishSession()/migrate_20261016.sql, Patrick 16.10.2026: "wenn ich mich wieder
+        // einlogge, wieder als Obmann sein und nicht als Admin").
+        DB::execute(
+            'UPDATE users SET last_active_community_id = ?, last_active_role = ?, last_active_member_id = ? WHERE id = ?',
+            [$match['community_id'] ?? null, $match['role'], $match['member_id'] ?? null, self::userId()]
+        );
+        return true;
+    }
+
+    /**
+     * Findet die zu (communityId, role, memberId) passende Rolle in $roles -- normalisiert dabei
+     * NULL und '' als gleichwertig: platform_admin hat in der DB immer community_id/member_id =
+     * NULL, das Rollen-Dropdown (layouts/portal.php) postet dafür aber eine leere Zeichenkette.
+     * Ohne diese Normalisierung würde ein Vergleich auf „===" die platform_admin-Rolle nie
+     * treffen (null !== '').
+     */
+    private static function findRole(array $roles, ?string $communityId, ?string $role, ?string $memberId): ?array
+    {
+        if ($role === null || $role === '') return null;
+        $communityId = $communityId !== '' ? $communityId : null;
+        $memberId    = $memberId !== '' ? $memberId : null;
+        foreach ($roles as $r) {
+            $rCommunityId = ($r['community_id'] ?? null) !== '' ? ($r['community_id'] ?? null) : null;
+            $rMemberId    = ($r['member_id'] ?? null) !== '' ? ($r['member_id'] ?? null) : null;
+            if ($rCommunityId === $communityId && $r['role'] === $role && $rMemberId === $memberId) {
+                return $r;
             }
         }
-        return false;
+        return null;
     }
 
     /**

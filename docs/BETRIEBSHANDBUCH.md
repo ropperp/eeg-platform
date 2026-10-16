@@ -1026,3 +1026,17 @@ docker compose up -d --build
 > Ersteller-Admin -- kein weiterer Schritt nötig, außer du willst gleich danach unter
 > Platform-Admin → Benutzer & Rollen → "Neuen Platform-Admin einladen" deine Diplomarbeits-
 > Kollegen als Unteradmins einladen.
+
+> **Einmalig nach dem Update vom 16.10.2026** (Billing-Vollständigkeitsfix + Rollen-Erinnerung
+> fürs Login, siehe `docs/VORFAELLE.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261016.sql
+> docker compose up -d --build
+> ```
+> Neue Spalten `users.last_active_community_id`/`last_active_role`/`last_active_member_id` --
+> ab dem nächsten Rollenwechsel merkt sich die Plattform, welche Rolle zuletzt aktiv war, und
+> stellt sie beim nächsten Login automatisch wieder her (vorher: nach JEDEM Login immer zurück
+> auf Platform-Admin, falls vorhanden). Rein additiv, kein Datenverlust, keine weitere manuelle
+> Aktion nötig.

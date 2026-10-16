@@ -341,9 +341,10 @@ class Billing
      * Drei Kriterien, alle müssen erfüllt sein:
      *  1. Für jeden Kalendermonat im Zeitraum muss überhaupt schon ein EDA-Import vorliegen
      *     (siehe missingMonths()) -- sonst könnte ein ganzer Monat unbemerkt fehlen.
-     *  2. Der aus dem EDA-Monatsbericht übernommene Gesamtstatus (billing_runs.eda_status) darf
-     *     nicht 'unvollstaendig' sein. 'unbekannt' (Ausgangswert) blockiert NICHT, damit ein
-     *     Lauf auch ohne gepflegten Status freigegeben werden kann, solange die übrigen Kriterien passen.
+     *  2. Der automatisch aus den importierten Daten abgeleitete Gesamtstatus (siehe
+     *     edaQualitySummary()) darf nicht 'unvollstaendig' sein. 'unbekannt' (keine
+     *     monatsgenauen Daten vorhanden, z.B. Altimporte) blockiert NICHT, damit ein Lauf auch
+     *     ohne diese Information freigegeben werden kann, solange die übrigen Kriterien passen.
      *  3. Im Abrechnungszeitraum dürfen keine nicht belastbaren Ersatzwerte (Qualität L3)
      *     mehr vorliegen -- die ändern sich laut EDA mit hoher Wahrscheinlichkeit noch.
      */
@@ -363,10 +364,10 @@ class Billing
                  . 'über „EDA-Daten importieren" hochladen.';
         }
 
-        if (($run['eda_status'] ?? 'unbekannt') === 'unvollstaendig') {
+        if (self::edaQualitySummary($run['community_id'], $run['period_from'], $run['period_to'])['status'] === 'unvollstaendig') {
             return 'Der EDA-Monatsbericht weist die Werte für diesen Zeitraum als unvollständig '
                  . 'bzw. nicht belastbar aus. Bitte erst freigeben, sobald ein Bericht den '
-                 . 'Zeitraum als vollständig meldet (Datenstatus im Abrechnungslauf setzen).';
+                 . 'Zeitraum als vollständig meldet.';
         }
 
         $l3n = self::l3Count($run['community_id'], $run['period_from'], $run['period_to']);
@@ -392,16 +393,42 @@ class Billing
     }
 
     /**
-     * Übernimmt den Datenqualitäts-Gesamtstatus aus dem EDA-Monatsbericht (Eder-XLSX) auf den
-     * Abrechnungslauf. Erlaubt: 'unbekannt' | 'vollstaendig' | 'unvollstaendig'.
+     * Automatisch aus den importierten EDA-Daten abgeleitete Datenqualitäts-Zusammenfassung für
+     * einen Abrechnungszeitraum -- ersetzt das manuelle Setzen von billing_runs.eda_status
+     * (Patrick, 16.10.2026: "Wenn du eigentlich prüfst, ob L1-, L2- oder L3-Werte drinnen sind,
+     * dann prüfst du es ja eh schon. Kannst du mir [...] nicht gleich sagen, welche
+     * Datenqualität die Daten haben? Dann brauche ich nicht extra das noch mal auszuwählen").
+     * Nutzt dieselbe monatsgenaue Tabelle wie edaQualityReport() (index.php) -- `completeness`
+     * je Zählpunkt/Monat entspricht genau der Spalte "Status Datenübermittlung" aus der
+     * EDA-Gesamtübersicht, die Patrick zuvor von Hand übertragen musste.
+     * @return array{status: string, l1: int, l2: int, l3: int}
      */
-    public static function setEdaStatus(string $billingRunId, string $status): void
+    public static function edaQualitySummary(string $communityId, string $periodFrom, string $periodTo): array
     {
-        $allowed = ['unbekannt', 'vollstaendig', 'unvollstaendig'];
-        if (!in_array($status, $allowed, true)) {
-            throw new InvalidArgumentException('Ungültiger EDA-Datenstatus');
-        }
-        DB::execute('UPDATE billing_runs SET eda_status = ? WHERE id = ?', [$status, $billingRunId]);
+        $row = DB::fetchOne(
+            "SELECT
+                COUNT(*) FILTER (WHERE quality = 'L1') AS l1,
+                COUNT(*) FILTER (WHERE quality = 'L2') AS l2,
+                COUNT(*) FILTER (WHERE quality = 'L3') AS l3,
+                COUNT(*) FILTER (WHERE completeness = 'INCOMPLETE') AS incomplete,
+                COUNT(*) AS n
+             FROM eda_measurement_quality_monthly
+             WHERE community_id = ? AND month >= date_trunc('month', ?::date)
+               AND month <= date_trunc('month', ?::date)",
+            [$communityId, $periodFrom, $periodTo]
+        );
+        // 'unbekannt': noch keine monatsgenaue Zeile vorhanden (Altimporte von vor dem
+        // 01.10.2026, siehe migrate_20261001.sql) -- blockiert die Freigabe NICHT (siehe
+        // datenqualitaetProblem()), genau wie der bisherige Ausgangswert von eda_status.
+        $status = ((int)($row['n'] ?? 0) === 0)
+            ? 'unbekannt'
+            : (((int)($row['incomplete'] ?? 0) > 0) ? 'unvollstaendig' : 'vollstaendig');
+        return [
+            'status' => $status,
+            'l1' => (int)($row['l1'] ?? 0),
+            'l2' => (int)($row['l2'] ?? 0),
+            'l3' => (int)($row['l3'] ?? 0),
+        ];
     }
 
     /**
