@@ -529,6 +529,14 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   lädt `Rechnungen_<Quartal/Monat>.zip` mit einer PDF-Datei je Rechnung, eingefrorene
   (freigegebene) Rechnungen aus der gespeicherten Datei, Entwürfe live gerendert. Neue Route
   `/portal/billing/invoices.zip`, neue PHP-Erweiterung `zip` im `webapp`-Image.
+- **"netto" weiter aufgeräumt.** Die Jahresübersicht eines Mitglieds (`/portal/.../jahresuebersicht`)
+  zeigte bisher immer drei Spalten Netto/USt/Brutto -- bei einem Kleinunternehmer (keine USt,
+  netto = brutto) stand die USt-Spalte dadurch in jeder Zeile sinnlos mit 0,00 € da. Zeigt jetzt
+  bei Kleinunternehmern nur noch eine einzige "Betrag"-Spalte, bei Standard-Steuermodell
+  unverändert alle drei. "(anteilig, X Monate)" heißt bei genau einem Monat jetzt korrekt
+  "(anteilig, 1 Monat)" (Einzahl) statt "1 Monate".
+
+### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei
   "Support-Tickets") wurde bei eingeklappter Sidebar (nur Icons, 52px breit) komplett
   abgeschnitten -- `.sidebar` hat `overflow-x:hidden`, und für Icon + Abstand + Badge war im

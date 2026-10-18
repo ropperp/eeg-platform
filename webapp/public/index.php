@@ -2669,7 +2669,17 @@ function memberJahresUebersicht(string $memberId, string $communityId, ?int $jah
         $sum['gebuehr'] += (float)($r['mahn_gebuehr_summe_eur'] ?? 0);
     }
     unset($r);
-    return compact('member', 'community', 'jahre', 'jahr', 'rows', 'sum');
+    // Bei Kleinunternehmern (keine USt, netto = brutto) sind eigene Netto-/USt-/Brutto-Spalten
+    // irreführend (USt steht in jeder Zeile mit 0,00 €, netto und brutto sind identisch) --
+    // Tabelle zeigt dann nur eine einzige "Betrag"-Spalte. Unabhängig von $rows (auch für ein
+    // Jahr ohne Rechnungen) direkt aus der aktuellen Steuerkonfiguration der EEG ermittelt
+    // (Patrick, 18.10.2026: "netto" ist bei Kleinunternehmern grundsätzlich irreführend).
+    $currentTax = DB::fetchOne(
+        'SELECT tax_model FROM tax_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1',
+        [$communityId]
+    );
+    $isKleinunternehmer = ($currentTax['tax_model'] ?? null) !== 'standard';
+    return compact('member', 'community', 'jahre', 'jahr', 'rows', 'sum', 'isKleinunternehmer');
 }
 
 $router->get('/portal/members/:id/jahresuebersicht/:jahr', function ($params) {
