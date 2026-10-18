@@ -63,10 +63,7 @@ class Router
         foreach ($this->routes as [$routeMethod, $path, $handler]) {
             if ($routeMethod !== $method) continue;
 
-            // Einfaches Pattern-Matching: :param wird zu Named-Capture-Group
-            $pattern = preg_replace('/:([a-z_]+)/', '(?P<$1>[^/]+)', $path);
-            $pattern = '#^' . $pattern . '$#';
-
+            $pattern = self::buildPattern($path);
             if (preg_match($pattern, $uri, $matches)) {
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
                 call_user_func($handler, $params);
@@ -76,5 +73,20 @@ class Router
 
         http_response_code(404);
         require __DIR__ . '/views/pages/404.php';
+    }
+
+    /**
+     * Wandelt ein Routen-Muster (":param" wird zu Named-Capture-Group) in ein fertiges
+     * preg-Muster um. Bewusst [a-zA-Z_]+ (nicht nur [a-z_]+) -- camelCase-Parameternamen wie
+     * :itemId/:invoiceId wurden sonst nur bis zum ersten Großbuchstaben erfasst (":itemId" ->
+     * Capture-Group "item" + literales "Id" im Rest des Musters), wodurch die Route NIE matchte,
+     * egal welcher Wert im Pfad stand (Vorfall 18.10.2026, siehe docs/VORFAELLE.md). Als eigene,
+     * public static Methode ausgelagert, damit die Pattern-Logik ohne Request/Superglobals
+     * automatisiert testbar ist (siehe tests/router_test.php).
+     */
+    public static function buildPattern(string $path): string
+    {
+        $pattern = preg_replace('/:([a-zA-Z_]+)/', '(?P<$1>[^/]+)', $path);
+        return '#^' . $pattern . '$#';
     }
 }
