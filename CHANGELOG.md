@@ -555,6 +555,18 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   (`bankingDayTiles()`, Wochenenden/Feiertage werden beim Zählen übersprungen statt als gesperrte
   Kachel angezeigt; `validateTransferExecutionDate()` für die serverseitige Prüfung,
   `billing_runs.sepa_transfer_date_used`).
+- **Strukturierte Postadresse in SEPA-XML-Dateien (pain.001/pain.008), vorsorglich ergänzt.** Das
+  EPC-Regelwerk verlangt ab einem Stichtag (ursprünglich 15.11.2026, vom EPC im September 2026
+  verschoben, neuer Termin noch nicht bekannt) für Dbtr/Cdtr entweder eine vollständig
+  strukturierte oder zumindest "hybride" Adresse (mindestens Ort + Land als eigene Felder) --
+  eine rein unstrukturierte Adresse (nur freier Fließtext) wird die Bank ab diesem Stichtag
+  zurückweisen, sobald überhaupt eine Adresse mitgeschickt wird. Neue `sepaPostalAddressXml()`
+  (`webapp/src/functions.php`) baut den `<PstlAdr>`-Block mit Straße/PLZ/Ort/Land (Land mangels
+  eigenem DB-Feld hart auf "AT" gesetzt, reine Inlands-Plattform) für Dbtr, Cdtr UND InitgPty in
+  beiden Dateien; fehlt die Adresse komplett, bleibt der Block einfach weg. Neue
+  `splitEegAddress()` zerlegt die bisher einzeilige EEG-Adresse (`communities.address`) in
+  Straße/PLZ/Ort. Lokal gegen die echten ISO-20022-XSD-Schemas (pain.001.001.03/pain.008.001.08)
+  validiert -- auch mit den neuen Adressfeldern weiterhin fehlerfrei.
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei
