@@ -84,9 +84,13 @@ $jahresBasis = $isSelf ? '/portal/my/jahresuebersicht' : '/portal/members/' . $m
         <tr>
           <th>Quartal</th>
           <th>Rechnungsnummer</th>
-          <th class="num">Netto</th>
-          <th class="num">USt</th>
-          <th class="num">Brutto</th>
+          <?php if ($isKleinunternehmer): ?>
+            <th class="num">Betrag</th>
+          <?php else: ?>
+            <th class="num">Netto</th>
+            <th class="num">USt</th>
+            <th class="num">Brutto</th>
+          <?php endif; ?>
           <th>Status</th>
         </tr>
       </thead>
@@ -96,9 +100,13 @@ $jahresBasis = $isSelf ? '/portal/my/jahresuebersicht' : '/portal/members/' . $m
           <tr>
             <td><?= htmlspecialchars($r['quartal']) ?></td>
             <td><?= htmlspecialchars($r['rechnungsnummer']) ?></td>
-            <td class="num"><?= number_format((float)$r['netto'], 2, ',', '.') ?> €</td>
-            <td class="num"><?= number_format((float)$r['ust'], 2, ',', '.') ?> €</td>
-            <td class="num"><?= number_format((float)$r['brutto'], 2, ',', '.') ?> €</td>
+            <?php if ($isKleinunternehmer): ?>
+              <td class="num"><?= number_format((float)$r['brutto'], 2, ',', '.') ?> €</td>
+            <?php else: ?>
+              <td class="num"><?= number_format((float)$r['netto'], 2, ',', '.') ?> €</td>
+              <td class="num"><?= number_format((float)$r['ust'], 2, ',', '.') ?> €</td>
+              <td class="num"><?= number_format((float)$r['brutto'], 2, ',', '.') ?> €</td>
+            <?php endif; ?>
             <td>
               <span style="color:<?= $stColor ?>"><?= htmlspecialchars($stLabel) ?></span>
               <?php if ((int)($r['mahnstufe'] ?? 0) > 0): ?>
@@ -111,15 +119,19 @@ $jahresBasis = $isSelf ? '/portal/my/jahresuebersicht' : '/portal/members/' . $m
       <tfoot>
         <tr>
           <td colspan="2">Summe <?= (int)$jahr ?></td>
-          <td class="num"><?= number_format((float)$sum['netto'], 2, ',', '.') ?> €</td>
-          <td class="num"><?= number_format((float)$sum['ust'], 2, ',', '.') ?> €</td>
-          <td class="num"><?= number_format((float)$sum['brutto'], 2, ',', '.') ?> €</td>
+          <?php if ($isKleinunternehmer): ?>
+            <td class="num"><?= number_format((float)$sum['brutto'], 2, ',', '.') ?> €</td>
+          <?php else: ?>
+            <td class="num"><?= number_format((float)$sum['netto'], 2, ',', '.') ?> €</td>
+            <td class="num"><?= number_format((float)$sum['ust'], 2, ',', '.') ?> €</td>
+            <td class="num"><?= number_format((float)$sum['brutto'], 2, ',', '.') ?> €</td>
+          <?php endif; ?>
           <td></td>
         </tr>
         <?php if ((float)$sum['gebuehr'] > 0): ?>
         <tr>
           <td colspan="2" style="font-weight:normal;color:#6b7280">davon Mahngebühren</td>
-          <td class="num" colspan="3" style="font-weight:normal;color:#6b7280"><?= number_format((float)$sum['gebuehr'], 2, ',', '.') ?> €</td>
+          <td class="num" colspan="<?= $isKleinunternehmer ? 1 : 3 ?>" style="font-weight:normal;color:#6b7280"><?= number_format((float)$sum['gebuehr'], 2, ',', '.') ?> €</td>
           <td></td>
         </tr>
         <?php endif; ?>

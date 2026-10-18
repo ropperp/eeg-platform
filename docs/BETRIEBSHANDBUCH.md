@@ -1092,3 +1092,20 @@ docker compose up -d --build
 > gespeichert, ein Re-Import ist die einzige Möglichkeit, es nachträglich zu erfassen -- für noch
 > nicht freigegebene Läufe jederzeit möglich). Anschließend auf `/portal/billing` die betroffenen
 > Entwürfe neu berechnen (NICHT freigeben, falls es sich noch um Entwürfe handelt).
+
+> **Einmalig nach dem Update vom 18.10.2026 (vierter Teil des Tages) -- Jahresübersicht ohne
+> Netto/USt-Spalten für Kleinunternehmer, Grammatik-Fix "1 Monat"/"X Monate":**
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose up -d --build
+> ```
+> Rein additiv, keine Migration nötig.
+>
+> **Wichtig, unabhängig von diesem konkreten Update:** falls Rechnungslayout-Änderungen
+> („Summe"/"Summe netto", Minuszeichen, "(anteilig, …)") auf dem Server weiterhin NICHT
+> ankommen, obwohl `git pull` + `--build` gelaufen sind -- siehe `CLAUDE.md`, Abschnitt "LaTeX-
+> Vorlagen: persistentes Volume überdeckt jeden Git-Deploy". Kurzfassung: `ls -la
+> /opt/eeg/latex-templates/` prüfen, eine dort liegende alte `rechnung.tex` überdeckt die
+> aktuelle Vorlage dauerhaft und muss gelöscht (oder über `/admin/templates` neu hochgeladen)
+> werden.

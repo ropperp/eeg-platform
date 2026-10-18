@@ -163,6 +163,15 @@ egal ob nur `webapp` oder Traefik selbst fehlt -- korrektes 502/503/504 in beide
 von Docker-Label-Discovery. DOMAIN dort ist hart eingetragen (keine `${DOMAIN}`-Substitution im
 File-Provider) -- bei Domain-Änderung von Hand mitziehen.
 
+### LaTeX-Vorlagen: persistentes Volume überdeckt jeden Git-Deploy (Vorfall 18.10.2026)
+`/opt/eeg/latex-templates` (`/admin/templates`-Uploads) gewinnt IMMER gegen die im Image
+mitgelieferte, aktuelle Vorlage -- liegt dort z.B. eine alte `rechnung.tex` (bewusst
+hochgeladen oder Überbleibsel des alten, vor 04.10.2026 blind kopierenden Entrypoints), ändert
+`git pull && docker compose up -d --build` an dieser Datei GAR NICHTS, ohne Fehlermeldung. Bei
+"meine Vorlagen-Änderung kommt nicht an": `ls -la /opt/eeg/latex-templates/` prüfen, betroffene
+Datei bei unbeabsichtigtem Überbleibsel einfach löschen (danach greift automatisch wieder die
+aktuelle Image-Version, dauerhaft).
+
 ## .env auf dem Server
 
 Datei: `/opt/eeg-platform/.env` (nicht in Git)

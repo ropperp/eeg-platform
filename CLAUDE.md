@@ -209,6 +209,31 @@ DNS im gemeinsamen `eeg-net`-Netzwerk, unabhängig von Docker-Label-Discovery.
 > `${DOMAIN}`-Variablensubstitution aus der `.env` wie `docker-compose.yml` selbst. Bei
 > einer Domain-Änderung `docker/traefik/dynamic.yml` von Hand mitziehen.
 
+### LaTeX-Vorlagen: persistentes Volume überdeckt jeden Git-Deploy (Vorfall 18.10.2026)
+`/opt/eeg/latex-templates` (→ `/app/templates` im `latex-service`-Container, siehe
+`docker-compose.yml`) ist ein **persistentes** Volume für `/admin/templates` (Platform-Admin:
+LaTeX-Vorlagen/Infoblatt/Logo herunter-/hochladen, Änderungen sollen einen `--build` überleben).
+Liegt dort eine Datei (egal ob bewusst über `/admin/templates` hochgeladen, oder ein Überbleibsel
+des alten, VOR dem 04.10.2026-Fix blind kopierenden `entrypoint.sh`, siehe
+`docs/VORFAELLE.md`), **gewinnt sie IMMER gegen die im Image mitgelieferte, aktuelle Version**
+(`resolveTemplatePath()` in `latex-service/service.js` prüft zuerst das Volume) — ein
+`git pull && docker compose up -d --build` ändert an dieser einen Datei dann GAR NICHTS, ohne
+jede Fehlermeldung. Am 18.10.2026 dadurch mehrere PRs zum Rechnungslayout (`rechnung.tex`) auf
+Patricks Server scheinbar wirkungslos geblieben, bis klar wurde: nicht der Code war falsch,
+sondern eine alte Kopie im Volume hat ihn nie erreicht.
+
+**Bei JEDEM "meine Vorlagen-Änderung kommt auf dem Server nicht an"-Symptom zuerst prüfen:**
+```bash
+# Auf dem Server -- zeigt, ob z.B. rechnung.tex im Volume liegt (dann überdeckt sie alles)
+ls -la /opt/eeg/latex-templates/
+```
+Liegt die betroffene Datei dort und war sie nie bewusst individuell angepasst (häufigster Fall,
+reines Überbleibsel): **löschen** (`rm /opt/eeg/latex-templates/<datei>.tex`) -- danach greift ab
+dem nächsten Request automatisch wieder die im Image mitgelieferte, stets aktuelle Version, ganz
+ohne erneuten Upload und dauerhaft bei jedem künftigen Deploy. War die Datei bewusst angepasst
+(z. B. individuelles Logo/Footer-Text einer bestimmten EEG), stattdessen über `/admin/templates`
+die aktuelle Fassung mit der gewünschten Anpassung neu hochladen, statt sie zu löschen.
+
 ---
 
 ## .env auf dem Server

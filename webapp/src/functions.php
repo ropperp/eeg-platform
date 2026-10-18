@@ -1059,7 +1059,8 @@ function countCalendarMonths(string $periodFrom, string $periodTo): int
 /** "(anteilig, X Monate)" bei aliquotem Zeitraum, sonst leer -- siehe countCalendarMonths(). */
 function mitgliedsbeitragLabelSuffix(int $months, int $totalMonths): string
 {
-    return ($totalMonths > 0 && $months < $totalMonths) ? ' (anteilig, ' . $months . ' Monate)' : '';
+    if ($totalMonths <= 0 || $months >= $totalMonths) return '';
+    return ' (anteilig, ' . $months . ' ' . ($months === 1 ? 'Monat' : 'Monate') . ')';
 }
 
 /**
