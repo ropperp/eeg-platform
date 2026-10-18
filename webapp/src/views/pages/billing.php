@@ -125,7 +125,10 @@ ob_start();
             <?php endif; ?>
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
-            <a href="/portal/billing/<?= $run['id'] ?>/sepa-xml" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('arrow-down') ?> SEPA-XML</a>
+            <button type="button" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"
+                    onclick="openSepaDateModal(window.sepaTilesByRun['<?= $run['id'] ?>'], '/portal/billing/<?= $run['id'] ?>/sepa-xml')">
+              <?= icon('arrow-down') ?> SEPA-XML
+            </button>
             <a href="/portal/billing/gutschriften?run_id=<?= $run['id'] ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('bank') ?> Gutschriften</a>
           <?php endif; ?>
           <?php if (Auth::isManager() && $run['status'] !== 'done'): ?>
@@ -203,6 +206,28 @@ ob_start();
   </table>
 </div>
 
+<!-- Ausführungsdatum-Auswahl-Modal (SEPA-Sammellastschrift pain.008, siehe
+     /portal/billing/:id/sepa-xml) -- ein einzelner Dialog, pro Klick mit den Daten des
+     jeweiligen Laufs befüllt (window.sepaTilesByRun, siehe unten). -->
+<dialog id="sepa-date-dialog" style="border:1px solid var(--gray-200);border-radius:12px;padding:1.5rem;min-width:300px;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+  <h3 style="margin-bottom:.35rem">Ausführungsdatum wählen</h3>
+  <p id="sepa-date-hint" style="font-size:.82rem;color:var(--gray-600);margin-bottom:1rem"></p>
+  <div id="sepa-date-tiles" style="display:grid;grid-template-columns:repeat(2, 1fr);gap:.5rem;margin-bottom:1.25rem"></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end">
+    <button type="button" onclick="document.getElementById('sepa-date-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+    <button type="button" id="sepa-date-confirm" class="btn btn-primary">XML herunterladen</button>
+  </div>
+</dialog>
+<style>
+  .sepa-date-tile {
+    padding:.75rem .5rem; min-height:44px; border:1px solid var(--gray-200); border-radius:8px;
+    background:var(--white); color:var(--gray-700); font-size:.82rem; cursor:pointer; text-align:center;
+  }
+  .sepa-date-tile-selected { border-color:var(--green); background:var(--green); color:var(--on-color); font-weight:600; }
+  .sepa-date-tile-blocked { opacity:.45; cursor:not-allowed; text-decoration:line-through; }
+  @media (max-width: 420px) { #sepa-date-tiles { grid-template-columns:repeat(2, 1fr); } }
+</style>
+
 <script>
 function filterBilling() {
   const q = document.getElementById('billing-search').value.toLowerCase();
@@ -213,7 +238,12 @@ function filterBilling() {
     row.style.display = qm && sm ? '' : 'none';
   });
 }
+
+// Pro Lauf vorberechnete 8-Tage-Kacheln (siehe sepaExecutionDateTiles() in functions.php) --
+// window.sepaTilesByRun[<<run-id>>] = {tiles: [{date,label,blocked,reason}], selected, invoice_date, min_days}.
+window.sepaTilesByRun = <?= json_encode($sepaTilesByRun, JSON_UNESCAPED_UNICODE) ?>;
 </script>
+<script src="/assets/js/sepa-date-modal.js?v=<?= @filemtime(ROOT . '/public/assets/js/sepa-date-modal.js') ?: time() ?>"></script>
 
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('info') ?> Freigabe nach EDA-Datenqualität</h3>

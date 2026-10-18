@@ -2093,8 +2093,14 @@ function invoicePdfPayload(array $invoice): array
     $releasedAt = $invoice['released_at'] ?? null;
     $rechnungsdatum = $releasedAt ? date('d.m.Y', strtotime($releasedAt)) : 'Entwurf';
     $prenotifDays = (int)($invoice['sepa_prenotification_days'] ?? 14);
-    $faellig   = $releasedAt
-        ? date('d.m.Y', strtotime($releasedAt . ' +' . $prenotifDays . ' days'))
+    // Fälligkeit kann auf ein Wochenende/einen Bankfeiertag fallen (z.B. Q3-2026: 01.11. =
+    // Allerheiligen UND Sonntag) -- in diesem Fall auf den nächsten Bankarbeitstag verschieben
+    // (isBankingDay()/nextBankingDay(), siehe SEPA-Ausführungsdatum-Auswahl). Betrifft nur noch
+    // nicht eingefrorene Rechnungen: ein bereits eingefrorenes PDF (pdf_frozen_path) läuft nie
+    // durch diese Funktion, siehe invoicePdfBytes().
+    $faelligRoh = $releasedAt ? date('Y-m-d', strtotime($releasedAt . ' +' . $prenotifDays . ' days')) : null;
+    $faellig   = $faelligRoh
+        ? date('d.m.Y', strtotime(isBankingDay($faelligRoh) ? $faelligRoh : nextBankingDay($faelligRoh)))
         : 'Entwurf';
     $ibanEnd   = !empty($invoice['member_iban'])
         ? substr(preg_replace('/\s+/', '', $invoice['member_iban']), -4) : null;
@@ -6859,6 +6865,7 @@ $router->get('/portal/billing', function () {
     // ohne jede Rückmeldung blieb, obwohl sie korrekt geloggt wurde (Patrick, 07.08.2026:
     // "Wollte Rechnung berechnen, geht aber nicht, und es kommt auch nichts").
     $error = $_GET['error'] ?? null;
+    $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $runs = DB::fetchAll(
         'SELECT * FROM billing_runs WHERE community_id = ? ORDER BY quartal DESC', [$communityId]
     );
@@ -6870,9 +6877,22 @@ $router->get('/portal/billing', function () {
     // Fehlermeldung beim Freigabe-Versuch (siehe Billing::missingMonths(), Patrick 05.08.2026).
     $missingMonthsByRun = [];
     $qualityByRun = [];
+    // Ausführungsdatum-Auswahl-Modal (pain.008-Download): die 8 Kacheln je freigegebenem Lauf
+    // schon hier serverseitig berechnen (Patrick, 18.10.2026) -- die Seite wird bei jedem Aufruf
+    // neu gerendert, "heute" ist also immer aktuell.
+    $sepaTilesByRun = [];
+    $today = date('Y-m-d');
+    $minDays = (int)($community['sepa_prenotification_days'] ?? SEPA_PRENOTIFICATION_DAYS);
     foreach ($runs as $run) {
         $missingMonthsByRun[$run['id']] = Billing::missingMonths($communityId, $run['period_from'], $run['period_to']);
         $qualityByRun[$run['id']] = Billing::edaQualitySummary($communityId, $run['period_from'], $run['period_to']);
+        if ($run['status'] === 'done') {
+            $invoiceDate = $run['released_at'] ? date('Y-m-d', strtotime($run['released_at'])) : $today;
+            $sepaTilesByRun[$run['id']] = sepaExecutionDateTiles(
+                $invoiceDate, $minDays, $today,
+                $run['sepa_collection_date_used'] ? date('Y-m-d', strtotime($run['sepa_collection_date_used'])) : null
+            );
+        }
     }
     require ROOT . '/src/views/pages/billing.php';
 });
@@ -7322,6 +7342,15 @@ $router->get('/portal/billing/gutschriften', function () {
     }
 
     $gutschriften = offeneGutschriften($communityId, $runId);
+    // Ausführungsdatum-Auswahl-Modal (pain.001-Download, Patrick 18.10.2026) -- ohne bestimmten
+    // Lauf (alle offenen Gutschriften über mehrere Läufe hinweg) dient "heute" als Anker, siehe
+    // Kommentar in der Download-Route (/portal/billing/gutschriften/sepa-xml).
+    $today = date('Y-m-d');
+    $invoiceDate = ($run && $run['released_at']) ? date('Y-m-d', strtotime($run['released_at'])) : $today;
+    $sepaTransferTiles = !empty($gutschriften) ? sepaExecutionDateTiles(
+        $invoiceDate, SEPA_TRANSFER_MIN_DAYS, $today,
+        ($run && $run['sepa_transfer_date_used']) ? date('Y-m-d', strtotime($run['sepa_transfer_date_used'])) : null
+    ) : null;
     require ROOT . '/src/views/pages/billing_gutschriften.php';
 });
 
@@ -7434,8 +7463,9 @@ $router->get('/portal/billing/gutschriften/sepa-xml', function () {
     $runId = trim((string)($_GET['run_id'] ?? '')) ?: null;
     $backUrl = '/portal/billing/gutschriften' . ($runId !== null ? '?run_id=' . urlencode($runId) : '');
     $errSep  = $runId !== null ? '&' : '?';
+    $run = null;
     if ($runId !== null) {
-        $run = DB::fetchOne('SELECT id FROM billing_runs WHERE id = ? AND community_id = ?', [$runId, $communityId]);
+        $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$runId, $communityId]);
         if (!$run) { header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Abrechnungslauf nicht gefunden.')); exit; }
     }
     $data = sepaCreditTransferData($communityId, $runId);
@@ -7445,13 +7475,33 @@ $router->get('/portal/billing/gutschriften/sepa-xml', function () {
     if (empty($data['txns'])) {
         header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Keine Gutschriften mit gültiger Empfänger-IBAN offen.')); exit;
     }
-    // Frühestens übermorgen ausführen lassen (gleiche Vorsicht wie bei der Sammellastschrift) --
-    // Patrick lädt die Datei danach selbst ins Sparkasse-Online-Banking hoch.
-    $exec  = date('Y-m-d', strtotime('+2 days'));
+
+    // Ausführungsdatum kommt jetzt aus dem Auswahl-Modal (siehe billing_gutschriften.php) statt
+    // fix "übermorgen" (Patrick, 18.10.2026) -- Rechnungsdatum-Anker ist das Freigabedatum des
+    // gewählten Laufs; ohne bestimmten Lauf (alle offenen Gutschriften über mehrere Läufe
+    // hinweg) gibt es kein einzelnes Rechnungsdatum, als Anker dient dann "heute".
+    $invoiceDate = ($run && $run['released_at']) ? date('Y-m-d', strtotime($run['released_at'])) : date('Y-m-d');
+    $today = date('Y-m-d');
+    $date = trim((string)($_GET['date'] ?? ''));
+    if ($date === '') {
+        header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Bitte ein Ausführungsdatum auswählen.')); exit;
+    }
+    // Server-seitige Prüfung, unabhängig vom Frontend-Modal (Patrick: "nicht nur im Frontend").
+    $validationError = validateSepaExecutionDate($date, $invoiceDate, SEPA_TRANSFER_MIN_DAYS, $today);
+    if ($validationError !== null) {
+        http_response_code(422);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo $validationError;
+        return;
+    }
+
     $msgId = 'SFA-GUT-' . date('YmdHis');
-    $xml = sepaPain001Xml($data['payer'], $data['txns'], $exec, $msgId);
+    $xml = sepaPain001Xml($data['payer'], $data['txns'], $date, $msgId);
     logAudit($communityId, 'billing.sepa_credit_export', $runId !== null ? 'billing_run' : 'community', $runId ?? $communityId,
-        'SEPA-Überweisungs-XML (pain.001.001.03) mit ' . count($data['txns']) . ' Gutschrift(en) erzeugt');
+        'SEPA-Überweisungs-XML (pain.001.001.03) mit ' . count($data['txns']) . ' Gutschrift(en) erzeugt, Ausführungsdatum ' . $date);
+    if ($runId !== null) {
+        DB::execute('UPDATE billing_runs SET sepa_transfer_date_used = ? WHERE id = ?', [$date, $runId]);
+    }
     $fname = 'Gutschriften-' . date('Ymd') . '-pain001.xml';
     header('Content-Type: application/xml; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $fname . '"');
@@ -7709,13 +7759,30 @@ $router->get('/portal/billing/:id/sepa-xml', function ($params) {
             . '&error=' . urlencode('Keine einzuziehenden Rechnungen mit gültigem SEPA-Mandat in diesem Lauf.')); exit;
     }
     $version = ($community['sepa_pain_version'] ?? '08') === '02' ? '02' : '08';
-    $days    = (int)($community['sepa_prenotification_days'] ?? 14);
-    // Abbuchungsdatum = Rechnungsdatum (Freigabe) + Vorlauftage, passend zur Vorabinformation.
-    // Liegt dieser Tag bereits in der Vergangenheit, frühestens übermorgen einziehen.
-    $collect = date('Y-m-d', strtotime(($run['released_at'] ?: 'now') . ' +' . $days . ' days'));
-    if ($collect < date('Y-m-d', strtotime('+2 days'))) {
-        $collect = date('Y-m-d', strtotime('+2 days'));
+
+    // Einzugsdatum kommt jetzt aus dem Auswahl-Modal (siehe billing.php) statt automatisch
+    // berechnet -- Patrick, 18.10.2026: "nach dem Klick auf den Download-Button soll ein Pop-up
+    // erscheinen, in dem ich das Ausführungsdatum auswähle". Rechnungsdatum (Freigabe) bleibt der
+    // Anker für die Mindestfrist (SEPA_PRENOTIFICATION_DAYS).
+    $invoiceDate = $run['released_at'] ? date('Y-m-d', strtotime($run['released_at'])) : date('Y-m-d');
+    $today = date('Y-m-d');
+    $collect = trim((string)($_GET['date'] ?? ''));
+    if ($collect === '') {
+        header('Location: /portal/billing?error=' . urlencode('Bitte ein Ausführungsdatum auswählen.')); exit;
     }
+    // Server-seitige Prüfung, unabhängig vom Frontend-Modal (Patrick: "nicht nur im Frontend").
+    // Dieselbe Vorlauffrist wie die bestehende SEPA-Vorabinfo-Mail/der Erinnerungs-Cron
+    // (scripts/sepa_faelligkeit_check.php) -- pro EEG einstellbar, SEPA_PRENOTIFICATION_DAYS nur
+    // als Fallback, falls (noch) kein Wert in den Einstellungen hinterlegt ist.
+    $minDays = (int)($community['sepa_prenotification_days'] ?? SEPA_PRENOTIFICATION_DAYS);
+    $validationError = validateSepaExecutionDate($collect, $invoiceDate, $minDays, $today);
+    if ($validationError !== null) {
+        http_response_code(422);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo $validationError;
+        return;
+    }
+
     $msgId = 'SFA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-' . date('YmdHis');
     try {
         $xml = sepaPain008Xml($data['creditor'], $data['txns'], $collect, $version, 'RCUR', $msgId);
@@ -7724,12 +7791,15 @@ $router->get('/portal/billing/:id/sepa-xml', function ($params) {
             . '&error=' . urlencode($e->getMessage())); exit;
     }
     logAudit($communityId, 'billing.sepa_export', 'billing_run', $params['id'],
-        'SEPA-XML (pain.008.001.' . $version . ') mit ' . count($data['txns']) . ' Lastschrift(en) erzeugt');
+        'SEPA-XML (pain.008.001.' . $version . ') mit ' . count($data['txns']) . ' Lastschrift(en) erzeugt, Ausführungsdatum ' . $collect);
     // Nur beim ERSTEN Download setzen (COALESCE) -- scripts/sepa_faelligkeit_check.php erinnert
     // sonst weiter an einen Lauf, den Patrick längst bei seiner Bank eingereicht hat.
+    // sepa_collection_date_used wird dagegen bei JEDEM Download aktualisiert -- Grundlage für die
+    // Vorauswahl im Modal beim nächsten erneuten Download desselben Laufs.
     DB::execute(
-        'UPDATE billing_runs SET sepa_xml_heruntergeladen_at = COALESCE(sepa_xml_heruntergeladen_at, now()) WHERE id = ?',
-        [$params['id']]
+        'UPDATE billing_runs SET sepa_xml_heruntergeladen_at = COALESCE(sepa_xml_heruntergeladen_at, now()),
+                sepa_collection_date_used = ? WHERE id = ?',
+        [$collect, $params['id']]
     );
     $fname = 'SEPA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-pain008-' . $version . '.xml';
     header('Content-Type: application/xml; charset=utf-8');

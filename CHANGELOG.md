@@ -535,6 +535,17 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   bei Kleinunternehmern nur noch eine einzige "Betrag"-Spalte, bei Standard-Steuermodell
   unverändert alle drei. "(anteilig, X Monate)" heißt bei genau einem Monat jetzt korrekt
   "(anteilig, 1 Monat)" (Einzahl) statt "1 Monate".
+- **Ausführungsdatum-Auswahl beim SEPA-XML-Download.** Vor dem Herunterladen der
+  SEPA-Sammellastschrift (pain.008, `/portal/billing`) bzw. -Sammelüberweisung (pain.001,
+  `/portal/billing/gutschriften`) erscheint jetzt ein Pop-up mit 8 wählbaren Tagen (statt bisher
+  einem starr aus `+14 Tagen` berechneten Datum). Nicht wählbar sind Wochenenden, österreichische
+  gesetzliche Feiertage und TARGET2-Schließtage (`isBankingDay()`/`nextBankingDay()`,
+  `webapp/src/functions.php`) -- Ostern dafür selbst per Gauß-/Meeus-Algorithmus berechnet (keine
+  externe API/PHP-`calendar`-Erweiterung, siehe Begründung bei `sepaSanitize()` unten). Das erste
+  gültige Datum ist vorausgewählt; bei einem erneuten Download desselben Abrechnungslaufs das
+  zuletzt gewählte (`billing_runs.sepa_collection_date_used`/`sepa_transfer_date_used`,
+  `database/migrate_20261018d.sql`). Die Auswahl wird serverseitig unabhängig vom Frontend erneut
+  geprüft (`validateSepaExecutionDate()`, HTTP 422 bei einem ungültigen/gesperrten Datum).
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei
@@ -611,6 +622,29 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   frei erfunden und wurden vom Bank-Prüftool (zu Recht) als ungültig abgewiesen – jetzt
   Mod-97-korrekte AT-Test-IBANs. Zusätzlich überspringt der echte SEPA-Export Mitglieder mit
   ungültiger IBAN (statt die ganze Sammellastschrift von der Bank zurückweisen zu lassen).
+- **SEPA-Sammellastschrift/-Überweisung von der Bank abgelehnt (Vorfall 18.10.2026: Unterstrich
+  in der EndToEndId).** George/Sparkasse wies die gesamte Datei zurück, weil die EndToEndId
+  (abgeleitet aus der Rechnungsnummer, z. B. `RE-260007_RC108175`) einen Unterstrich enthielt --
+  SEPA erlaubt im "Latin Character Set" nur `a-z A-Z 0-9 / - ? : ( ) . , ' +` und Leerzeichen; ein
+  einziges unzulässiges Zeichen in EINEM Feld lässt die Bank die komplette Datei verwerfen, nicht
+  nur die betroffene Transaktion. Neue zentrale Funktion `sepaSanitize()`
+  (`webapp/src/functions.php`) ersetzt Unterstriche durch Bindestriche, transliteriert deutsche
+  Umlaute/ß explizit (ä→ae, ö→oe, ü→ue, ß→ss, z. B. "Höfferer"→"Hoefferer") sowie weitere
+  Diakritika über eine fest hinterlegte Tabelle (bewusst nicht per `iconv(...,
+  'ASCII//TRANSLIT', ...)` -- auf dem Alpine/musl-Basisimage von `webapp` unzuverlässig/teils gar
+  nicht verfügbar, dieselbe Klasse von Problem wie zuvor bei den PHP-Erweiterungen `zip`/
+  `calendar`), entfernt alle übrigen nicht erlaubten Zeichen und kürzt auf die SEPA-Feldlängen
+  (EndToEndId/MsgId/PmtInfId/MndtId 35, Namen 70, Verwendungszweck 140). Jetzt konsequent auf
+  JEDES Textfeld in `sepaPain008Xml()` UND `sepaPain001Xml()` angewendet (EndToEndId, MsgId,
+  PmtInfId, MndtId, Dbtr-/Cdtr-/InitgPty-Namen, Verwendungszweck, CdtrSchmeId) statt nur
+  vereinzelt. Lokal mit den echten ISO-20022-XSD-Schemas (pain.001.001.03/pain.008.001.08)
+  gegengeprüft -- beide Beispieldateien validieren fehlerfrei, Summen/Transaktionsanzahl
+  unverändert korrekt.
+- **Fälligkeitsdatum auf der Rechnung konnte auf ein Wochenende/einen Feiertag fallen.** Bisher
+  starr `Rechnungsdatum + Vorlauftage`, ohne Rücksicht auf Bankarbeitstage -- z. B. Q3-2026:
+  18.10. + 14 Tage = 01.11. (Sonntag UND Allerheiligen). Wird jetzt automatisch auf den nächsten
+  Bankarbeitstag verschoben (`nextBankingDay()`, siehe oben). Betrifft nur künftige, noch nicht
+  eingefrorene Rechnungen -- ein bereits eingefrorenes PDF (`pdf_frozen_path`) bleibt unverändert.
 
 ### Behoben / Betrieb (Vorfall 23.07.2026)
 - **DB-Datenverlust-Fallstrick behoben:** `timescaledb-ha`-Mount auf das echte PGDATA

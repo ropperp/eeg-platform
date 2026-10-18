@@ -22,10 +22,10 @@ ob_start();
 <?php endif; ?>
 
 <?php if (!empty($gutschriften)): ?>
-  <a href="/portal/billing/gutschriften/sepa-xml<?= $run ? '?run_id=' . htmlspecialchars($run['id']) : '' ?>"
-     class="btn btn-secondary" style="margin-bottom:1.5rem">
+  <button type="button" class="btn btn-secondary" style="margin-bottom:1.5rem"
+          onclick="openSepaDateModal(window.sepaTransferTiles, '/portal/billing/gutschriften/sepa-xml<?= $run ? '?run_id=' . htmlspecialchars($run['id']) : '' ?>')">
     <?= icon('arrow-down') ?> SEPA-Sammelüberweisung (pain.001) herunterladen
-  </a>
+  </button>
 <?php endif; ?>
 
 <?php if (empty($gutschriften)): ?>
@@ -101,6 +101,30 @@ ob_start();
 <?php endif; ?>
 
 <a href="/portal/billing" style="font-size:.85rem">&larr; Zurück zur Abrechnung</a>
+
+<!-- Ausführungsdatum-Auswahl-Modal (SEPA-Sammelüberweisung pain.001) -- gleiche Vorlage/JS wie
+     billing.php (/portal/billing/:id/sepa-xml), siehe sepa-date-modal.js. -->
+<dialog id="sepa-date-dialog" style="border:1px solid var(--gray-200);border-radius:12px;padding:1.5rem;min-width:300px;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+  <h3 style="margin-bottom:.35rem">Ausführungsdatum wählen</h3>
+  <p id="sepa-date-hint" style="font-size:.82rem;color:var(--gray-600);margin-bottom:1rem"></p>
+  <div id="sepa-date-tiles" style="display:grid;grid-template-columns:repeat(2, 1fr);gap:.5rem;margin-bottom:1.25rem"></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end">
+    <button type="button" onclick="document.getElementById('sepa-date-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+    <button type="button" id="sepa-date-confirm" class="btn btn-primary">XML herunterladen</button>
+  </div>
+</dialog>
+<style>
+  .sepa-date-tile {
+    padding:.75rem .5rem; min-height:44px; border:1px solid var(--gray-200); border-radius:8px;
+    background:var(--white); color:var(--gray-700); font-size:.82rem; cursor:pointer; text-align:center;
+  }
+  .sepa-date-tile-selected { border-color:var(--green); background:var(--green); color:var(--on-color); font-weight:600; }
+  .sepa-date-tile-blocked { opacity:.45; cursor:not-allowed; text-decoration:line-through; }
+</style>
+<script>
+window.sepaTransferTiles = <?= json_encode($sepaTransferTiles, JSON_UNESCAPED_UNICODE) ?>;
+</script>
+<script src="/assets/js/sepa-date-modal.js?v=<?= @filemtime(ROOT . '/public/assets/js/sepa-date-modal.js') ?: time() ?>"></script>
 
 <script>
 document.querySelectorAll('.btn-copy').forEach(function (btn) {
