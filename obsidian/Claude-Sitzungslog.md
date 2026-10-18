@@ -8,6 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-10-18 09:05 — Claude Code — Claude Sonnet 5
+**Auftrag:** Bei einer SEPA-Bestandsaufnahme fiel auf, dass im SEPA-Mandatstext der online
+erzeugten Beitrittserklärung-PDF die Gläubiger-ID fest eingetragen war (Patricks eigene EEG),
+statt wie an allen anderen Stellen dynamisch aus den EEG-Einstellungen gelesen zu werden --
+jede andere EEG auf der Plattform hätte dadurch fälschlich Patricks Gläubiger-ID angezeigt
+bekommen.
+**Verbesserter Prompt:** "Prüfe im Beitrittserklärung-PDF-Code den SEPA-Mandatstext auf
+hartcodierte Werte, die eigentlich EEG-spezifisch aus `communities` gelesen werden sollten
+(Vorbild: Rechnungs-PDF, SEPA-Vorabinfo-Mail), und korrigiere sie."
+**Ergebnis:** In der Formular-PDF-Route (`/portal/applications/:id/formular`) wird die
+Gläubiger-ID jetzt dynamisch aus `communities.creditor_id` der jeweiligen EEG gelesen
+(`$eegCreditorIdEsc`), mit Platzhaltertext "nicht hinterlegt" falls leer, statt der fest
+eingetragenen Gläubiger-ID von Patricks EEG. `php -l` grün, keine Tests an dieser Stelle
+vorhanden.
+
+---
+
 ## 2026-10-16 22:00 — Claude Code — Claude Sonnet 5
 **Auftrag:** Drei kleinere Verbesserungswünsche zur Abrechnungsseite: die EDA-Datenqualität soll
 automatisch erkannt statt manuell ausgewählt werden, selten gebrauchte Test-Werkzeuge sollen

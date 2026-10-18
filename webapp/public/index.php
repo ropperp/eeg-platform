@@ -8042,6 +8042,9 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     $eegNameEsc = texEscape($community['name']);
     $eegZvrEsc  = texEscape($community['zvr_number'] ?? '--');
     $eegOrtEsc  = texEscape(extractOrtFromAddress($community['address']));
+    $eegCreditorIdEsc = trim((string)($community['creditor_id'] ?? '')) !== ''
+        ? texEscape($community['creditor_id'])
+        : 'nicht hinterlegt';
 
     // Anrede-Checkboxen (Divers hat am Papierformular kein eigenes Kästchen,
     // wird stattdessen im Titel-Feld vermerkt)
@@ -8077,7 +8080,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
             . '\\end{minipage}\\hfill' . "\n"
             . '\\begin{minipage}[t]{8.8cm}' . "\n"
             . '\\scriptsize Hiermit ermächtige ich die Erneuerbare-Energie-Gemeinschaft ' . $eegNameEsc . ', ZVR ' . $eegZvrEsc
-            . ', Sitz ' . $eegOrtEsc . ', Creditor-ID: \\textbf{AT14EEG00000086499}, widerruflich, die von mir zu entrichtenden'
+            . ', Sitz ' . $eegOrtEsc . ', Creditor-ID: \\textbf{' . $eegCreditorIdEsc . '}, widerruflich, die von mir zu entrichtenden'
             . ' Zahlungen bei Fälligkeit zu Lasten meines Kontos mittels wiederkehrender SEPA-Lastschriften einzuziehen.'
             . ' Zugleich weise ich mein Kreditinstitut an, die von der ' . $eegNameEsc . ' auf mein Konto gezogenen'
             . ' SEPA-Lastschriften einzulösen. Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die'
