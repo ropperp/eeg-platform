@@ -628,9 +628,9 @@ function sepaSanitize(string $s, int $maxLen = 140, bool $isIdField = false): st
  * Textzeilen ohne TwnNm/Ctry) wird die Bank ab diesem Stichtag zurückweisen, SOBALD überhaupt
  * eine Adresse mitgeschickt wird (fehlt sie ganz, ist das weiterhin unproblematisch).
  *
- * Elementreihenfolge laut XSD (PostalAddress6 in pain.001.001.03, PostalAddress24 in
- * pain.008.001.08 UND im künftigen pain.001.001.09 -- identische Reihenfolge für die hier
- * verwendeten Felder): StrtNm, BldgNb, PstCd, TwnNm, Ctry, AdrLine. Bewusst OHNE BldgNb/AdrLine:
+ * Elementreihenfolge laut XSD (PostalAddress24 in pain.008.001.08 UND pain.001.001.09 --
+ * identische Reihenfolge für die hier verwendeten Felder): StrtNm, BldgNb, PstCd, TwnNm, Ctry,
+ * AdrLine. Bewusst OHNE BldgNb/AdrLine:
  * die Hausnummer steckt in unseren Adressdaten untrennbar in $street (z.B. "Hauptstraße 12a"),
  * ein verlässliches Auftrennen wäre fehleranfällig und ist laut EPC-Leitfaden nur EMPFOHLEN,
  * nicht vorgeschrieben -- StrtNm/PstCd/TwnNm/Ctry allein gelten bereits als strukturiert.
@@ -808,12 +808,17 @@ function sepaPain008Xml(
 }
 
 /**
- * Erzeugt eine SEPA-Sammelüberweisung (Credit Transfer) als pain.001.001.03-XML -- die Datei,
+ * Erzeugt eine SEPA-Sammelüberweisung (Credit Transfer) als pain.001.001.09-XML -- die Datei,
  * die der Obmann in sein Online-Banking hochlädt, um alle offenen Gutschriften auf einmal statt
- * einzeln von Hand zu überweisen (siehe /portal/billing/gutschriften/sepa-xml). pain.001.001.03
+ * einzeln von Hand zu überweisen (siehe /portal/billing/gutschriften/sepa-xml). pain.001.001.09
  * ist bewusst die einzige unterstützte Version (anders als bei der Lastschrift keine '02'/'08'-
- * Auswahl) -- sie ist die von öst. Banken (u.a. Sparkasse/George Business) am breitesten
- * akzeptierte SEPA-Credit-Transfer-Version. Reine Funktion (kein DB/HTTP) -> automatisiert testbar.
+ * Auswahl): die bis 18.10.2026 verwendete pain.001.001.03 wird vom EPC-Regelwerk abgelöst, zum
+ * selben (aktuell verschobenen) Stichtag wie die Pflicht zur strukturierten Postadresse (siehe
+ * sepaPostalAddressXml()) -- Altformate werden ab diesem Stichtag nicht mehr unterstützt.
+ * Unterschiede zu .03, alle XSD-geprüft (Elemente/Reihenfolge sonst identisch):
+ * Namespace, <BICFI> statt <BIC> (wie schon bei pain.008.001.08), <ReqdExctnDt> jetzt mit
+ * verschachteltem <Dt>-Element (DateAndDateTime2Choice) statt direktem Datumswert.
+ * Reine Funktion (kein DB/HTTP) -> automatisiert testbar.
  *
  * WICHTIG (Compliance): wie bei sepaPain008Xml() -- vor dem ersten echten Einreichen die Datei
  * mit dem Prüf-/Testtool der eigenen Bank validieren.
@@ -834,11 +839,11 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
     $sName = fn($s) => sepaSanitize((string)$s, 70);
     $sRmt  = fn($s) => sepaSanitize((string)$s, 140);
     $money = fn($v) => number_format((float)$v, 2, '.', '');
-    $ns = 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03';
+    $ns = 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.09';
     $agent = function (?string $bic) use ($x): string {
         $bic = trim((string)$bic);
         return $bic !== ''
-            ? '<FinInstnId><BIC>' . $x($bic) . '</BIC></FinInstnId>'
+            ? '<FinInstnId><BICFI>' . $x($bic) . '</BICFI></FinInstnId>'
             : '<FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>';
     };
 
@@ -886,7 +891,9 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
       .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>'
-      .     '<ReqdExctnDt>' . $x($executionDate) . '</ReqdExctnDt>'
+      // DateAndDateTime2Choice (neu seit .09, vorher ein direkter ISODate-Wert) -- <Dt> für ein
+      // reines Datum ohne Uhrzeit, <DtTm> wäre die Alternative für einen konkreten Zeitpunkt.
+      .     '<ReqdExctnDt><Dt>' . $x($executionDate) . '</Dt></ReqdExctnDt>'
       .     '<Dbtr><Nm>' . $x($sName($payer['name'])) . '</Nm>' . $payerAddr . '</Dbtr>'
       .     '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $payer['iban'])) . '</IBAN></Id></DbtrAcct>'
       .     '<DbtrAgt>' . $agent($payer['bic'] ?? '') . '</DbtrAgt>'

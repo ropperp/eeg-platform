@@ -102,14 +102,17 @@ $creditTxns = [
      'creditor_iban' => 'AT023200000000005678', 'creditor_bic' => '', 'remittance' => 'Gutschrift RE-260002'],
 ];
 
-test('pain.001.001.03: Namespace, PmtMtd TRF, Summe, BIC', function () use ($payer, $creditTxns) {
+test('pain.001.001.09: Namespace, PmtMtd TRF, Summe, BICFI, ReqdExctnDt/Dt', function () use ($payer, $creditTxns) {
+    // Seit 18.10.2026 pain.001.001.09 statt .03 (EPC löst .03 zum selben -- aktuell verschobenen
+    // -- Stichtag ab wie die Pflicht zur strukturierten Postadresse, siehe sepa_postal_address_test.php).
     $xml = sepaPain001Xml($payer, $creditTxns, '2026-08-01', 'MSG-CT1');
-    assertContains('pain.001.001.03', $xml);
+    assertContains('pain.001.001.09', $xml);
     assertContains('<PmtMtd>TRF</PmtMtd>', $xml);
     assertContains('<CtrlSum>16.40</CtrlSum>', $xml);
     assertContains('<NbOfTxs>2</NbOfTxs>', $xml);
-    assertContains('<BIC>GIBAATWW</BIC>', $xml);
-    assertContains('<ReqdExctnDt>2026-08-01</ReqdExctnDt>', $xml);
+    assertContains('<BICFI>GIBAATWW</BICFI>', $xml);
+    assertFalse(str_contains($xml, '<BIC>'), 'Seit .09 nur noch <BICFI>, nicht mehr <BIC>');
+    assertContains('<ReqdExctnDt><Dt>2026-08-01</Dt></ReqdExctnDt>', $xml);
 });
 
 test('pain.001: Fehlende Creditor-BIC -> NOTPROVIDED', function () use ($payer, $creditTxns) {
