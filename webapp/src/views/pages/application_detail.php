@@ -26,7 +26,8 @@ ob_start();
     <h3 style="margin-bottom:1rem">Stammdaten</h3>
     <table>
       <tr><th>Anrede</th><td><?= htmlspecialchars($a['salutation'] ?? '—') ?></td></tr>
-      <tr><th>Titel</th><td><?= htmlspecialchars($a['titel'] ?? '—') ?></td></tr>
+      <tr><th>Titel (vorgestellt)</th><td><?= htmlspecialchars($a['titel_vor'] ?? '—') ?></td></tr>
+      <tr><th>Titel (nachgestellt)</th><td><?= htmlspecialchars($a['titel_nach'] ?? '—') ?></td></tr>
       <tr><th>Geburtsdatum</th><td><?= $a['geburtsdatum'] ? date('d.m.Y', strtotime($a['geburtsdatum'])) : '—' ?></td></tr>
       <tr><th>E-Mail</th><td><?= htmlspecialchars($a['email']) ?></td></tr>
       <tr><th>Telefon</th><td><?= htmlspecialchars($a['phone'] ?? '—') ?></td></tr>

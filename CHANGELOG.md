@@ -490,6 +490,31 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   `sepaPain008Xml()` jetzt jedes Mandat mit einem Unterschriftsdatum in der Zukunft mit einer
   klaren Fehlermeldung ab, statt eine XML-Datei zu erzeugen, die die Bank ohnehin zurückweisen
   würde.
+- **Akademische Titel: vorgestellt und nachgestellt getrennt.** Bisher gab es nur EIN
+  `titel`-Feld, das überall VOR dem Namen ausgegeben wurde -- bei einem nachgestellten
+  akademischen Grad stand dadurch z. B. fälschlich "BA Kerstin Huber" auf der Rechnung statt
+  korrekt "Kerstin Huber, BA". Neue, getrennte Felder `members.titel_vor`/`titel_nach` (ebenso
+  auf `membership_applications`, `database/migrate_20261018b.sql`, übernimmt bestehende
+  `titel`-Werte automatisch und korrigiert Kerstin Huber explizit auf `titel_nach = 'BA'`). Im
+  Online-Beitrittsformular und im Mitglied-Formular jeweils zwei Dropdowns ("Titel
+  vorgestellt"/"Titel nachgestellt", österreichische Standardtitel + "anderer …"-Freitext).
+  Neue zentrale Funktion `formatMemberName()` (`webapp/src/functions.php`, 4 Tests) baut den
+  vollständigen Namen ab sofort überall einheitlich zusammen -- Rechnungs-PDF (Adressblock),
+  E-Mails, Mitgliederlisten. Bewusst AUSGENOMMEN: der SEPA-Kontoinhaber-/Debtor-Name in der
+  pain.008/pain.001-XML bleibt ein einfacher Name (nur `titel_vor`, kein nachgestellter Titel
+  mit Komma) -- Banksysteme erwarten dort keine Zusätze.
+- **Rechnungslayout aufgeräumt.** Der Kleinunternehmer-Hinweis (§ 6 Abs. 1 Z 27 UStG 1994) stand
+  doppelt auf der Rechnung (einmal als eigene Tabellenzeile, einmal im grauen Kasten darunter) --
+  jetzt nur noch der graue Kasten. "Summe netto" heißt bei Kleinunternehmern (keine USt, also
+  kein Netto/Brutto-Unterschied) jetzt nur noch "Summe"; beim Standard-Steuermodell bleibt
+  "Summe netto". Minuszeichen vereinheitlicht über zwei neue Formatierer
+  (`rechnungBetragBindestrich()`/`rechnungBetragUnicode()`, 4 Tests). Die anteilige
+  Mitgliedsbeitrags-Zeile zeigt jetzt z. B. "Mitgliedsbeitrag (anteilig, 2 Monate)" statt ohne
+  jeden Hinweis auf den verkürzten Zeitraum (kein Zusatz bei vollem Zeitraum) -- dieselbe
+  Beschriftung greift auch bei einer händisch eingetragenen Zusatzposition, die sich erkennbar
+  auf den Mitgliedsbeitrag bezieht (z. B. eine Mitgliedsbeitragsbefreiung). Unter jedem
+  Zählpunkt erscheint zusätzlich "Teilnahme ab TT.MM.JJJJ", wenn die Mitgliedschaft erst nach
+  Beginn des Abrechnungszeitraums begann.
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei

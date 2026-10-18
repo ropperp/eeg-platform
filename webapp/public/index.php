@@ -139,7 +139,7 @@ function salutationVarsForEmail(string $email): array
     $email = strtolower(trim($email));
     try {
         $m = DB::fetchOne(
-            'SELECT salutation, titel, first_name, last_name, company_name, email_anrede_mode
+            'SELECT salutation, titel_vor, first_name, last_name, company_name, email_anrede_mode
                FROM members WHERE lower(email) = ? ORDER BY created_at LIMIT 1',
             [$email]
         );
@@ -1005,7 +1005,7 @@ function denyDemoApiFileDownload(array $ctx): bool
  * Mitglieder-Anlage (/portal/members) als auch von der Freigabe einer Online-
  * Beitrittserklärung (/portal/applications/:id/approve) verwendet, damit KdNr-
  * Vergabe (Lücken-Auffüllung) und Mandatsreferenz-Logik nicht doppelt gepflegt werden.
- * Erwartet in $f Schlüssel wie die Spalten der members-Tabelle (salutation, titel, …).
+ * Erwartet in $f Schlüssel wie die Spalten der members-Tabelle (salutation, titel_vor, …).
  * Gibt ['member_id', 'user_id', 'kundennummer', 'temp_password' (oder null),
  * 'invite_sent' (bool), 'invite_error' (string oder null)] zurück.
  */
@@ -1083,7 +1083,7 @@ function createMemberRecord(string $communityId, array $f): array
 
     DB::execute(
         'INSERT INTO members (
-            community_id, user_id, salutation, titel, first_name, last_name, company_name,
+            community_id, user_id, salutation, titel_vor, titel_nach, first_name, last_name, company_name,
             address, zip, city, email, phone, invoice_uid, member_iban, member_bic,
             kontoinhaber, konto_adresse,
             member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
@@ -1093,12 +1093,13 @@ function createMemberRecord(string $communityId, array $f): array
             zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
             email_anrede_mode
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
             $f['salutation'] ?? null,
-            trim($f['titel'] ?? '') ?: null,
+            trim($f['titel_vor'] ?? '') ?: null,
+            trim($f['titel_nach'] ?? '') ?: null,
             trim($f['first_name']),
             trim($f['last_name']),
             trim($f['company_name'] ?? '') ?: null,
@@ -1437,7 +1438,7 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
 
     DB::execute(
         'INSERT INTO membership_applications (
-            community_id, salutation, titel, first_name, last_name, geburtsdatum,
+            community_id, salutation, titel_vor, titel_nach, first_name, last_name, geburtsdatum,
             address, zip, city, phone, email, stromlieferant,
             bezug_gewuenscht, bezug_zaehlpunkt, bezug_jahresverbrauch_kwh,
             einspeisung_gewuenscht, einspeisung_zaehlpunkt, einspeisung_kwp, einspeisung_geplante_kwh,
@@ -1446,11 +1447,12 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
             zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
             signature_image, signed_at, signer_ip, sepa_signature_image, sepa_signed_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?, ?, ?)',
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?, ?, ?)',
         [
             $communityId,
             $_POST['salutation'] ?? null,
-            trim($_POST['titel'] ?? '') ?: null,
+            resolveTitelField($_POST, 'titel_vor'),
+            resolveTitelField($_POST, 'titel_nach'),
             trim($_POST['first_name']),
             trim($_POST['last_name']),
             ($_POST['geburtsdatum'] ?? '') ?: null,
@@ -1965,7 +1967,8 @@ function loadInvoiceForPdf(string $invoiceId): ?array
 {
     return DB::fetchOne(
         'SELECT i.*, m.first_name, m.last_name, m.address, m.zip, m.city, m.invoice_uid,
-                m.salutation, m.titel, m.company_name, m.invoice_name,
+                m.salutation, m.titel_vor, m.titel_nach, m.company_name, m.invoice_name,
+                m.member_since,
                 m.kundennummer, m.mandatsreferenz, m.member_iban,
                 m.community_id AS member_community_id, m.user_id AS member_user_id,
                 br.quartal, br.period_from, br.period_to, br.status AS run_status, br.released_at,
@@ -2036,16 +2039,49 @@ function invoicePdfPayload(array $invoice): array
             . '\\multicolumn{3}{r}{\\footnotesize zzgl.\\,' . $satzFmt . '\\,\\% USt} & \\footnotesize EUR ' . $ustFmt . ' \\\\';
         $steuerText  = 'Im Rechnungsbetrag sind ' . $satzFmt . '\\,\\% Umsatzsteuer (EUR ' . $ustFmt . ') enthalten.';
     } else {
-        $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
-        // Paragraph am Seitenende:
+        // Kein eigener Tabellenzeile-Hinweis mehr -- stand sonst doppelt auf der Rechnung, einmal
+        // hier UND im grauen Kasten weiter unten (steuerText, identischer Inhalt). Patrick,
+        // 18.10.2026: nur noch der graue Kasten bleibt.
+        $steuerZeile = '';
         $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
     }
+    // "Summe netto" ist bei Kleinunternehmern irreführend (keine USt, also kein Netto/Brutto-
+    // Unterschied) -- dort nur noch "Summe"; beim Standardmodell bleibt "netto" sinnvoll, weil
+    // direkt darunter die USt aufgeschlagen wird (Patrick, 18.10.2026).
+    $summeTabelleLabel = $tax['model'] === 'standard' ? 'Summe netto' : 'Summe';
 
-    // Anzeigename: abweichender Rechnungsname > Firma > Titel + Vor-/Nachname
+    // Anzeigename: abweichender Rechnungsname > Firma > formatMemberName() (Titel vor-/nachgestellt)
     $anzeigeName = ($invoice['invoice_name'] ?? '')
-        ?: (($invoice['company_name'] ?? '')
-        ?: trim((!empty($invoice['titel']) ? $invoice['titel'] . ' ' : '')
-            . $invoice['first_name'] . ' ' . $invoice['last_name']));
+        ?: (($invoice['company_name'] ?? '') ?: formatMemberName($invoice));
+
+    // Mitgliedsbeitrag-Label mit "(anteilig, X Monate)", wenn der Zeitraum nicht voll abgedeckt
+    // ist (invoice_items.months < Kalendermonate des Abrechnungszeitraums) -- kein Zusatz bei
+    // vollem Zeitraum (Patrick, 18.10.2026). Dieselbe Logik greift bei einer händisch
+    // eingetragenen Zusatzposition, deren Label erkennbar den Mitgliedsbeitrag betrifft (z.B.
+    // eine Mitgliedsbeitragsbefreiung) -- eine echte "ist das ein Beitrags-Erlass"-Markierung
+    // gibt es bei freien Zusatzpositionen nicht, daher dieser Label-Abgleich als pragmatische
+    // Lösung statt eines neuen, ungenutzten Felds.
+    $totalMonths = countCalendarMonths($invoice['period_from'], $invoice['period_to']);
+    $beitragMonths = $beitragItem ? (int)($beitragItem['months'] ?? $totalMonths) : $totalMonths;
+    $beitragSuffix = mitgliedsbeitragLabelSuffix($beitragMonths, $totalMonths);
+    $beitragLabel = 'Mitgliedsbeitrag' . $beitragSuffix;
+    if ($beitragSuffix !== '') {
+        foreach ($extraItems as &$extraItemRef) {
+            if (stripos((string)$extraItemRef['label'], 'mitgliedsbeitrag') !== false
+                && stripos((string)$extraItemRef['label'], 'anteilig') === false) {
+                $extraItemRef['label'] .= $beitragSuffix;
+            }
+        }
+        unset($extraItemRef);
+    }
+
+    // Teilnahme ab: zeigt unter jedem Zählpunkt, wenn die Mitgliedschaft erst NACH Beginn des
+    // Abrechnungszeitraums begann (z.B. Beitritt mitten im Quartal) -- dieselbe Vergleichsbasis
+    // wie Billing::generateDrafts() ($periodFromForMember = max(period_from, member_since)),
+    // damit die angezeigten kWh-Werte nicht unerklärt niedriger wirken als der volle Zeitraum.
+    $teilnahmeAb = (!empty($invoice['member_since']) && $invoice['member_since'] > $invoice['period_from'])
+        ? $invoice['member_since']
+        : null;
 
     // EEG-Adresse für den Footer aufteilen ("Straße 1, 9560 Ort" -> zwei Zeilen)
     $eegAdrTeile = array_map('trim', explode(',', $invoice['eeg_address'] ?? '', 2));
@@ -2124,16 +2160,18 @@ function invoicePdfPayload(array $invoice): array
         'EINSPEISUNG_TARIF'     => $einspTarif !== null ? number_format((float)$einspTarif, 4, ',', '.') : '0,0000',
         'EINSPEISUNG_BETRAG'    => number_format(abs($einspBetrag), 2, ',', '.'),
         'EINSPEISUNG_ZAEHLPUNKT' => $einspZp,
-        'RAW_BEZUG_POSITIONEN_LISTE'       => rechnungPositionenLatex($bezugItems, 'Energiebezug aus der Gemeinschaft', false),
-        'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true),
+        'RAW_BEZUG_POSITIONEN_LISTE'       => rechnungPositionenLatex($bezugItems, 'Energiebezug aus der Gemeinschaft', false, $teilnahmeAb),
+        'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true, $teilnahmeAb),
+        'MITGLIEDSBEITRAG_LABEL' => $beitragLabel,
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
-        'SUMME_NETTO'           => number_format($tax['netto'], 2, ',', '.'),
+        'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
+        'SUMME_NETTO'           => rechnungBetragBindestrich($tax['netto']),
         // Im grünen Summenbalken IMMER positiv anzeigen, auch bei einer Gutschrift (negativer
         // Saldo) -- Patrick, 26.09.2026: "steht dann auch 'Ihr Guthaben von €3,90'" ... "nicht
         // als Minusbetrag, sondern dann als positiven Betrag". "Summe netto" in der Tabelle
         // darüber zeigt bewusst weiterhin das Minus (SUMME_NETTO, unverändert) -- nur der
         // Balken mit \summelabel ("Ihre Gutschrift") soll den Betrag positiv ausweisen.
-        'SUMME_BRUTTO'          => number_format(abs($tax['brutto']), 2, ',', '.'),
+        'SUMME_BRUTTO'          => rechnungBetragBindestrich(abs($tax['brutto'])),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
@@ -4170,7 +4208,7 @@ $router->get('/api/v1/manager/members', function () {
     DB::setCommunity($ctx['community_id']);
 
     $members = DB::fetchAll(
-        "SELECT m.id, m.kundennummer, m.salutation, m.titel, m.first_name, m.last_name, m.company_name,
+        "SELECT m.id, m.kundennummer, m.salutation, m.titel_vor, m.first_name, m.last_name, m.company_name,
                 m.email, m.phone, m.city, m.member_since, m.member_until,
                 COUNT(DISTINCT mp.id) AS metering_point_count,
                 COALESCE(
@@ -4216,7 +4254,8 @@ $router->get('/api/v1/manager/members/:id', function ($params) {
             'id'               => $member['id'],
             'kundennummer'     => $member['kundennummer'],
             'salutation'       => $member['salutation'],
-            'titel'            => $member['titel'],
+            'titel_vor'        => $member['titel_vor'],
+            'titel_nach'       => $member['titel_nach'],
             'first_name'       => $member['first_name'],
             'last_name'        => $member['last_name'],
             'company_name'     => $member['company_name'],
@@ -4389,7 +4428,7 @@ $router->post('/api/v1/manager/members/:id', function ($params) {
     }
 
     DB::execute(
-        'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
+        'UPDATE members SET salutation=?, titel_vor=?, titel_nach=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
          phone=?, invoice_uid=?, member_iban=?, member_bic=?, kontoinhaber=?, konto_adresse=?, mandatsreferenz=?,
          member_since=?, member_until=?,
          geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?,
@@ -4397,7 +4436,8 @@ $router->post('/api/v1/manager/members/:id', function ($params) {
          WHERE id=?',
         [
             $body['salutation'] ?? null,
-            trim((string)($body['titel'] ?? '')) ?: null,
+            trim((string)($body['titel_vor'] ?? '')) ?: null,
+            trim((string)($body['titel_nach'] ?? '')) ?: null,
             trim((string)$body['first_name']),
             trim((string)$body['last_name']),
             trim((string)($body['company_name'] ?? '')) ?: null,
@@ -4425,7 +4465,8 @@ $router->post('/api/v1/manager/members/:id', function ($params) {
     );
     $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     $memberChanges = auditDiff($member, $memberAfter ?? [], [
-        'salutation' => 'Anrede', 'titel' => 'Titel', 'first_name' => 'Vorname', 'last_name' => 'Nachname',
+        'salutation' => 'Anrede', 'titel_vor' => 'Titel (vorgestellt)', 'titel_nach' => 'Titel (nachgestellt)',
+        'first_name' => 'Vorname', 'last_name' => 'Nachname',
         'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
         'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
         'konto_adresse' => 'Konto-Adresse', 'mandatsreferenz' => 'Mandatsreferenz', 'member_since' => 'Mitglied seit',
@@ -5367,7 +5408,11 @@ $router->post('/portal/members', function () {
     }
 
     $email = strtolower(trim($_POST['email']));
-    $result = createMemberRecord($communityId, array_merge($_POST, ['andere_eeg' => isset($_POST['andere_eeg'])]));
+    $result = createMemberRecord($communityId, array_merge($_POST, [
+        'andere_eeg' => isset($_POST['andere_eeg']),
+        'titel_vor'  => resolveTitelField($_POST, 'titel_vor'),
+        'titel_nach' => resolveTitelField($_POST, 'titel_nach'),
+    ]));
     logAudit($communityId, 'member.create', 'member', $result['member_id'],
         'Mitglied ' . trim($_POST['first_name']) . ' ' . trim($_POST['last_name']) . ' angelegt (KdNr ' . $result['kundennummer'] . ')');
 
@@ -5445,7 +5490,7 @@ $router->post('/portal/members/:id/edit', function ($params) {
     }
 
     DB::execute(
-        'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
+        'UPDATE members SET salutation=?, titel_vor=?, titel_nach=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
          phone=?, invoice_uid=?, member_iban=?, member_bic=?, kontoinhaber=?, konto_adresse=?, mandatsreferenz=?,
          member_since=?, member_until=?, mandat_unterschrift_datum=?,
          geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?,
@@ -5453,7 +5498,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
          WHERE id=?',
         [
             $_POST['salutation'] ?? null,
-            trim($_POST['titel'] ?? '') ?: null,
+            resolveTitelField($_POST, 'titel_vor'),
+            resolveTitelField($_POST, 'titel_nach'),
             trim($_POST['first_name']),
             trim($_POST['last_name']),
             trim($_POST['company_name'] ?? '') ?: null,
@@ -5482,7 +5528,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
     );
     $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     $memberChanges = auditDiff($member, $memberAfter ?? [], [
-        'salutation' => 'Anrede', 'titel' => 'Titel', 'first_name' => 'Vorname', 'last_name' => 'Nachname',
+        'salutation' => 'Anrede', 'titel_vor' => 'Titel (vorgestellt)', 'titel_nach' => 'Titel (nachgestellt)',
+        'first_name' => 'Vorname', 'last_name' => 'Nachname',
         'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
         'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
         'konto_adresse' => 'Konto-Adresse', 'mandatsreferenz' => 'Mandatsreferenz', 'member_since' => 'Mitglied seit',
@@ -5972,11 +6019,16 @@ function bezugZpLines(array $mps): string
     return implode("\n", array_map(fn($mp) => '\\item ' . texEscape($mp['zaehlpunkt_nr']), $mps));
 }
 
-/** Voller Name inkl. Anrede und Titel für die Namensanzeige in den Vertragsvorlagen. */
+/**
+ * Voller Name inkl. Anrede und Titel für die Namensanzeige in den Vertragsvorlagen -- nutzt
+ * formatMemberName() für den vor-/nachgestellten Titel, stellt davor nur noch die Anrede
+ * (Herr/Frau) voran.
+ */
 function memberFullName(array $member): string
 {
-    $prefix = trim(($member['salutation'] ?? '') . ' ' . ($member['titel'] ?? ''));
-    return ($prefix ? $prefix . ' ' : '') . $member['first_name'] . ' ' . $member['last_name'];
+    $salutation = trim((string)($member['salutation'] ?? ''));
+    $name = formatMemberName($member);
+    return $salutation !== '' ? $salutation . ' ' . $name : $name;
 }
 
 /**
@@ -6821,21 +6873,26 @@ $router->get('/portal/billing/preview', function () {
             . '\\multicolumn{3}{r}{\\footnotesize zzgl.\\,' . $satzFmt . '\\,\\% USt} & \\footnotesize EUR ' . $ustFmt . ' \\\\';
         $steuerText  = 'Im Rechnungsbetrag sind ' . $satzFmt . '\\,\\% Umsatzsteuer (EUR ' . $ustFmt . ') enthalten.';
     } else {
-        $steuerZeile = '\\multicolumn{4}{l}{\\footnotesize\\color{midgray}Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung): keine Umsatzsteuer.} \\\\';
+        // Kein eigener Tabellenzeile-Hinweis mehr -- siehe invoicePdfPayload() für die
+        // ausführliche Begründung (Hinweis stand sonst doppelt auf der Rechnung).
+        $steuerZeile = '';
         $steuerText  = 'Gem.\\,\\S{}\\,6 Abs.\\,1 Z\\,27 UStG 1994 (Kleinunternehmerregelung) wird keine Umsatzsteuer in Rechnung gestellt.';
     }
+    $summeTabelleLabel = $tbPreview['model'] === 'standard' ? 'Summe netto' : 'Summe';
 
     // Beispiel-Zusatzposition, damit die Vorschau auch zeigt, wie ein Rabatt/eine Gutschrift
-    // aussieht (siehe /portal/billing -> Zusatzpositionen).
+    // aussieht (siehe /portal/billing -> Zusatzpositionen) -- inkl. "(anteilig, …)"-Beispiel,
+    // damit auch dieses Label in der Vorschau sichtbar ist.
     $extraItemsLatex = rechnungExtraItemsLatex([
-        ['label' => 'Beispiel: Rabatt Mitgliedsbeitrag Q1', 'quantity' => 1, 'unit' => 'Stk', 'amount_eur' => -6.00],
+        ['label' => 'Beispiel: Rabatt Mitgliedsbeitrag Q1 (anteilig, 2 Monate)', 'quantity' => 1, 'unit' => 'Stk', 'amount_eur' => -6.00],
     ]);
-    // Beispielhafte Positionslisten -- zeigen zwei Bezugs-Zählpunkte (mehrere Zeilen) und einen
-    // Einspeise-Zählpunkt mit Zählpunktnummer als grauer Zweitzeile.
+    // Beispielhafte Positionslisten -- zeigen zwei Bezugs-Zählpunkte (mehrere Zeilen, einer davon
+    // mit Beispiel-"Teilnahme ab") und einen Einspeise-Zählpunkt mit Zählpunktnummer als grauer
+    // Zweitzeile.
     $bezugListe = rechnungPositionenLatex([
         ['zaehlpunkt_nr' => 'AT0030000000000000000000000000001', 'kwh' => 250.00, 'rate_ct_kwh' => 9.80, 'amount_eur' => 24.50],
         ['zaehlpunkt_nr' => 'AT0030000000000000000000000000002', 'kwh' => 162.50, 'rate_ct_kwh' => 9.80, 'amount_eur' => 15.93],
-    ], 'Energiebezug aus der Gemeinschaft', false);
+    ], 'Energiebezug aus der Gemeinschaft', false, date('Y-m-d', strtotime('-10 days')));
     $einspListe = rechnungPositionenLatex([
         ['zaehlpunkt_nr' => 'AT0030000000000000000000000000003', 'kwh' => 85.00, 'rate_ct_kwh' => 7.50, 'amount_eur' => -6.38],
     ], 'Einspeisevergütung (Gutschrift)', true);
@@ -6872,9 +6929,11 @@ $router->get('/portal/billing/preview', function () {
         'EINSPEISUNG_BETRAG'    => '6,38',
         'RAW_BEZUG_POSITIONEN_LISTE'       => $bezugListe,
         'RAW_EINSPEISUNG_POSITIONEN_LISTE' => $einspListe,
+        'MITGLIEDSBEITRAG_LABEL' => 'Mitgliedsbeitrag (anteilig, 2 Monate)',
         'MITGLIEDSBEITRAG'      => '15,00',
-        'SUMME_NETTO'           => number_format($tbPreview['netto'], 2, ',', '.'),
-        'SUMME_BRUTTO'          => number_format($tbPreview['brutto'], 2, ',', '.'),
+        'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
+        'SUMME_NETTO'           => rechnungBetragBindestrich($tbPreview['netto']),
+        'SUMME_BRUTTO'          => rechnungBetragBindestrich($tbPreview['brutto']),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => $extraItemsLatex,
@@ -7093,7 +7152,7 @@ $router->post('/portal/billing/release', function () {
 function offeneGutschriften(string $communityId, ?string $runId = null): array
 {
     $sql = 'SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal,
-                   m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel,
+                   m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel_vor, m.titel_nach,
                    m.kontoinhaber, m.member_iban, m.member_bic,
                    tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
             FROM invoices i
@@ -7118,14 +7177,16 @@ function offeneGutschriften(string $communityId, ?string $runId = null): array
     // "Ihre Gutschrift von ..."-Betrag auf dem PDF entsprechen.
     return array_map(function ($r) {
         $tax = taxBreakdown((float)$r['saldo_eur'], $r['eeg_tax_model'], $r['eeg_tax_rate']);
-        $anzeigeName = ($r['invoice_name'] ?? '')
-            ?: (($r['company_name'] ?? '')
-            ?: trim((!empty($r['titel']) ? $r['titel'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']));
+        $anzeigeName = ($r['invoice_name'] ?? '') ?: (($r['company_name'] ?? '') ?: formatMemberName($r));
+        // Kontoinhaber-Fallback bewusst OHNE formatMemberName() (kein nachgestellter Titel mit
+        // Komma) -- landet ggf. als Kopiervorlage direkt im Online-Banking (siehe
+        // billing_gutschriften.php), dort sind einfache Namen ohne Zusätze erwartet.
+        $kontoName = trim((!empty($r['titel_vor']) ? $r['titel_vor'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']);
         return [
             'invoice_id'       => $r['id'],
             'quartal'          => $r['quartal'],
             'name'             => $anzeigeName,
-            'kontoinhaber'     => $r['kontoinhaber'] ?: $anzeigeName,
+            'kontoinhaber'     => $r['kontoinhaber'] ?: $kontoName,
             'iban'             => $r['member_iban'] ?? '',
             'bic'              => $r['member_bic'] ?? '',
             'betrag'           => number_format(abs($tax['brutto']), 2, ',', '.'),
@@ -7206,7 +7267,7 @@ function sepaCreditTransferData(string $communityId, ?string $runId = null): arr
 {
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $sql = 'SELECT i.rechnungsnummer, i.saldo_eur,
-                   m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel,
+                   m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel_vor,
                    m.kontoinhaber, m.member_iban, m.member_bic,
                    tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
             FROM invoices i
@@ -7228,9 +7289,11 @@ function sepaCreditTransferData(string $communityId, ?string $runId = null): arr
     $txns = [];
     $ohneIban = [];
     foreach ($rows as $r) {
+        // Bewusst OHNE formatMemberName() -- landet direkt im SEPA-Kontoinhaber-Namen der
+        // pain.001-XML, dort nur einfacher Name wie bisher (kein nachgestellter Titel mit Komma).
         $anzeigeName = ($r['invoice_name'] ?? '')
             ?: (($r['company_name'] ?? '')
-            ?: trim((!empty($r['titel']) ? $r['titel'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']));
+            ?: trim((!empty($r['titel_vor']) ? $r['titel_vor'] . ' ' : '') . $r['first_name'] . ' ' . $r['last_name']));
         $kontoinhaber = $r['kontoinhaber'] ?: $anzeigeName;
         $iban = trim((string)$r['member_iban']);
         // Gleiche Steuerlogik wie überall sonst bei Gutschriften (taxBreakdown() auf saldo_eur) --
@@ -7399,7 +7462,7 @@ function sendInvoiceReleasedEmails(string $communityId, string $runId): int
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $rows = DB::fetchAll(
         "SELECT i.id, i.rechnungsnummer, i.saldo_eur, i.pdf_frozen_path,
-                m.first_name, m.last_name, m.company_name, m.salutation, m.titel,
+                m.first_name, m.last_name, m.company_name, m.salutation, m.titel_vor,
                 m.email_anrede_mode, m.email, m.zustimmung_email_kommunikation,
                 tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
            FROM invoices i
@@ -7469,7 +7532,7 @@ function sendSepaPrenotifications(string $communityId, string $runId): int
     $abbuchung = date('d.m.Y', strtotime('+' . $days . ' days'));
     $rows = DB::fetchAll(
         "SELECT i.id, i.rechnungsnummer, i.saldo_eur, br.quartal, br.period_from,
-                m.first_name, m.last_name, m.company_name, m.salutation, m.titel,
+                m.first_name, m.last_name, m.company_name, m.salutation, m.titel_vor,
                 m.email_anrede_mode, m.email, m.mandatsreferenz, m.member_iban
            FROM invoices i
            JOIN billing_runs br ON br.id = i.billing_run_id
@@ -7691,7 +7754,7 @@ $router->post('/portal/billing/invoices/:id/mahnung', function ($params) {
         'SELECT i.*, br.status AS run_status, c.name AS eeg_name, c.iban AS eeg_iban, c.mahngebuehr_eur,
                 c.sepa_prenotification_days,
                 tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate,
-                m.first_name, m.last_name, m.company_name, m.salutation, m.titel, m.email_anrede_mode, m.email
+                m.first_name, m.last_name, m.company_name, m.salutation, m.titel_vor, m.email_anrede_mode, m.email
            FROM invoices i
            JOIN billing_runs br ON br.id = i.billing_run_id
            JOIN communities c ON c.id = i.community_id
@@ -8049,7 +8112,13 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     // Anrede-Checkboxen (Divers hat am Papierformular kein eigenes Kästchen,
     // wird stattdessen im Titel-Feld vermerkt)
     $salutation = $a['salutation'] ?? '';
-    $titelDisplay = trim(($a['titel'] ?? '') . ($salutation === 'Divers' ? ' · Divers' : ''));
+    // Beitrittserklärung kennt nur EIN Titel-Feld (Papierformular) -- vor- und nachgestellter
+    // Titel werden hier zusammengeführt, z.B. "Ing., MSc" oder nur "BA" (siehe formatMemberName()
+    // für die getrennte Verwendung auf Rechnung/E-Mail).
+    $titelVorA = trim((string)($a['titel_vor'] ?? ''));
+    $titelNachA = trim((string)($a['titel_nach'] ?? ''));
+    $titelCombined = trim($titelVorA . ($titelVorA !== '' && $titelNachA !== '' ? ', ' : '') . $titelNachA);
+    $titelDisplay = trim($titelCombined . ($salutation === 'Divers' ? ' · Divers' : ''));
 
     $speicherStatus = $a['speicher_status'] ?? '';
 
@@ -8165,7 +8234,8 @@ $router->post('/portal/applications/:id/approve', function ($params) {
     if (!$application) { http_response_code(404); echo 'Nicht gefunden oder bereits bearbeitet'; return; }
 
     $result = createMemberRecord($communityId, [
-        'salutation' => $application['salutation'], 'titel' => $application['titel'],
+        'salutation' => $application['salutation'],
+        'titel_vor' => $application['titel_vor'], 'titel_nach' => $application['titel_nach'],
         'first_name' => $application['first_name'], 'last_name' => $application['last_name'],
         'email' => $application['email'], 'phone' => $application['phone'],
         'address' => $application['address'], 'zip' => $application['zip'], 'city' => $application['city'],
@@ -9784,7 +9854,9 @@ function adminFileVariables(): array
             'EINSPEISUNG_ZAEHLPUNKT' => 'Einzelne Einspeise-Zählpunktnummer für den Fallback-Einzeiler (nur bei genau einem Zählpunkt)',
             'RAW_BEZUG_POSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für den Bezug -- eine Zeile pro Zählpunkt, jeweils mit Zählpunktnummer (RAW, nicht escapen). Leer = Fallback auf BEZUG_KWH-Einzeiler',
             'RAW_EINSPEISUNG_POSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für die Einspeisung -- eine Zeile pro Zählpunkt (RAW, nicht escapen). Leer = Fallback auf EINSPEISUNG_KWH-Einzeiler',
+            'MITGLIEDSBEITRAG_LABEL' => 'Beschriftung der Mitgliedsbeitrag-Zeile, z.B. "Mitgliedsbeitrag (anteilig, 2 Monate)" bei unterjährigem Beitritt, sonst nur "Mitgliedsbeitrag"',
             'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste (anteilig bei unterjährigem Beitritt)',
+            'SUMME_TABELLE_LABEL' => '"Summe" (Kleinunternehmer) bzw. "Summe netto" (Standard-Steuermodell) für die Summenzeile in der Positionstabelle',
             'SUMME_NETTO' => 'Gesamtsumme netto',
             'SUMME_BRUTTO' => 'Gesamtsumme brutto -- bei einer Gutschrift (negativer Saldo) bewusst als positiver Betrag befüllt, siehe RAW_SUMME_LABEL',
             'IBAN' => 'IBAN der Energiegemeinschaft (für die Zahlung)',
@@ -9904,7 +9976,8 @@ function availableDataFields(): array
     return [
         'Mitglied (members)' => [
             'salutation' => 'Anrede (Herr/Frau)',
-            'titel' => 'Akademischer Titel',
+            'titel_vor' => 'Akademischer Titel (vorgestellt, z.B. Dr., Mag., Ing.)',
+            'titel_nach' => 'Akademischer Titel (nachgestellt, z.B. BA, MSc)',
             'first_name' => 'Vorname',
             'last_name' => 'Nachname',
             'company_name' => 'Firmenname, falls Firmenmitglied',

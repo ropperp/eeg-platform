@@ -4,7 +4,7 @@
  * druckbare Seite (Browser-Druck → PDF), damit keine eigene LaTeX-Vorlage nötig ist.
  * Erwartet: $member, $community, $jahre (int[]), $jahr (int), $rows[], $sum[], $backUrl.
  */
-$anzeigeName = trim(($member['company_name'] ?? '') ?: (($member['titel'] ?? '') . ' ' . ($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')));
+$anzeigeName = ($member['company_name'] ?? '') ?: formatMemberName($member);
 $statusMeta = [
     'offen'          => ['offen', '#92400e'],
     'eingezogen'     => ['eingezogen', '#15803d'],
