@@ -2,17 +2,9 @@
 
 declare(strict_types=1);
 
-// Betrags-Formatierung auf der Rechnung -- einheitliches Minuszeichen über Summenzeile
-// (Bindestrich) und Positionszeilen (Unicode-Minus), siehe rechnungBetragBindestrich()/
-// rechnungBetragUnicode() in functions.php (Patrick, 18.10.2026: "-28,70" vs. "− 30,25").
-
-test('rechnungBetragBindestrich: positiver Betrag', function () {
-    assertSame('57,74', rechnungBetragBindestrich(57.74));
-});
-
-test('rechnungBetragBindestrich: negativer Betrag (Bindestrich)', function () {
-    assertSame('-28,70', rechnungBetragBindestrich(-28.70));
-});
+// Betrags-Formatierung auf der Rechnung -- einheitliches Unicode-Minuszeichen über Summenzeile
+// UND Positionszeilen, siehe rechnungBetragUnicode() in functions.php (Patrick, 18.10.2026: die
+// Summenzeile zeigte zunächst noch einen einfachen Bindestrich statt desselben Formatters).
 
 test('rechnungBetragUnicode: positiver Betrag', function () {
     assertSame('30,25', rechnungBetragUnicode(30.25));

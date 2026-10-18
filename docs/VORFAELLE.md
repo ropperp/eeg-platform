@@ -1911,3 +1911,51 @@ Namenskonvention -- sobald irgendwo (auch nur in einer von vielen Routen) von de
 abgewichen wird (hier: camelCase statt durchgehend lowercase), bricht das lautlos, mit `0` statt
 einem Fehler. Bei Routing-/Parsing-Mustern für selbst vergebene Namen lieber von Anfang an
 großzügig fassen (`[a-zA-Z0-9_]+` o.ä.) statt die Namenskonvention stillschweigend vorauszusetzen.
+
+### "Teilnahme ab" auf der Rechnung stimmte bei 8 von 11 Rechnungen nicht mit EDA überein (18.10.2026)
+Nach Einführung des "Teilnahme ab TT.MM.JJJJ"-Hinweises unter dem Zählpunkt (bei unterjährigem
+Beitritt) prüfte Patrick die Q3-2026-Entwürfe gegen den echten EDA-Energiedatenreport -- bei 8
+von 11 Rechnungen stimmte das angezeigte Datum nicht, mehrere lagen genau 1 Tag zu früh. Bei
+Lorenz zusätzlich strukturell falsch: Bezugs- und Einspeise-Zählpunkt haben laut EDA
+UNTERSCHIEDLICHE Start-Zeitpunkte (08.07. bzw. 07.07.), die Rechnung zeigte aber für beide
+Positionen dasselbe Datum.
+
+**Ursache (zwei getrennte Probleme):**
+1. Das Datum kam aus `members.member_since` (Beitrittsdatum des Mitglieds) statt aus dem
+   tatsächlichen EDA-Teilnahmezeitraum des jeweiligen Zählpunkts -- strukturell falsch, sobald
+   der EDA-Zeitraum vom Beitrittsdatum abweicht (z.B. Zählpunkt-Aktivierung erst nach
+   Vertragsabschluss) oder zwei Zählpunkte desselben Mitglieds unterschiedlich beginnen.
+2. Der EDA-Parser (`eda-parser/parser.py: _parse_gesamtuebersicht()`) liest aus der Spalte
+   "Zeitraum" (Format "DD.MM.JJJJ-DD.MM.JJJJ") bisher nur das ENDE ("bis", als Zeitstempel der
+   Monatszeile) -- der Anfang ("von") wurde geparst und sofort wieder verworfen, stand also für
+   eine korrekte Anzeige gar nicht zur Verfügung.
+
+**Fix:**
+- `_parse_gesamtuebersicht()` liest jetzt auch "von" und gibt es als reines `date`-Objekt
+  zurück (bewusst OHNE `tz_localize`, anders als "bis" -- genau die Zeitzonen-Falle vermeiden,
+  die bei `eda_imports.period_from/period_to` schon einmal zu einem Tag-Versatz geführt hat,
+  siehe `Billing::missingMonths()`-Kommentar). Neue Spalte `eda_measurements.teilnahme_von DATE`
+  (`migrate_20261018c.sql`), beim Import mitgespeichert.
+- `Billing::generateDrafts()` ermittelt je Zählpunkt `MIN(teilnahme_von)` aus dem
+  Abrechnungszeitraum und speichert es (nur wenn NACH Zeitraumbeginn) als neue Spalte
+  `invoice_items.teilnahme_ab DATE` direkt bei der jeweiligen Bezugs-/Einspeisungsposition --
+  nicht mehr eine einzige, fürs ganze Mitglied geltende Fallback-Berechnung.
+- `rechnungPositionenLatex()` (`webapp/src/functions.php`) liest `teilnahme_ab` jetzt PRO
+  ZEILE aus dem jeweiligen `invoice_items`-Datensatz statt einen einzigen Wert für die ganze
+  Liste entgegenzunehmen -- deckt den Lorenz-Fall (unterschiedliche Daten für Bezug/Einspeisung)
+  korrekt ab.
+
+**Wichtig beim Einspielen:** bereits importierte Monate (Juli-September 2026) haben
+`teilnahme_von = NULL`, weil der alte Parser diesen Wert nie gespeichert hat -- kein
+automatischer Backfill möglich (das Rohdatum existiert nur in der ursprünglichen EDA-Datei, nicht
+mehr in der DB). Die betroffenen Monate müssen nach dem Update einmal ERNEUT importiert werden
+(für noch nicht freigegebene/abgeschlossene Läufe jederzeit möglich, siehe
+`_billing_period_finalized()` in `eda-parser/parser.py`) -- danach berechnet "Entwürfe neu
+berechnen" korrekte `teilnahme_ab`-Werte.
+
+**Merksatz:** Ein in einer Datenquelle vorhandener Wert, der beim Parsen nur TEILWEISE
+übernommen wird (hier: nur "bis" aus einem "von-bis"-Bereich), geht beim Verwerfen des Rests
+ENDGÜLTIG verloren -- eine spätere Anzeige braucht dann zwingend einen erneuten Import der
+Originaldaten, ein nachträglicher Fix im Anzeige-Code allein reicht nicht. Lieber von Anfang an
+alles aus einer strukturiert vorliegenden Datenquelle übernehmen, auch wenn zunächst nur ein Teil
+gebraucht wird.

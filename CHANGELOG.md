@@ -507,14 +507,23 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   doppelt auf der Rechnung (einmal als eigene Tabellenzeile, einmal im grauen Kasten darunter) --
   jetzt nur noch der graue Kasten. "Summe netto" heißt bei Kleinunternehmern (keine USt, also
   kein Netto/Brutto-Unterschied) jetzt nur noch "Summe"; beim Standard-Steuermodell bleibt
-  "Summe netto". Minuszeichen vereinheitlicht über zwei neue Formatierer
-  (`rechnungBetragBindestrich()`/`rechnungBetragUnicode()`, 4 Tests). Die anteilige
-  Mitgliedsbeitrags-Zeile zeigt jetzt z. B. "Mitgliedsbeitrag (anteilig, 2 Monate)" statt ohne
-  jeden Hinweis auf den verkürzten Zeitraum (kein Zusatz bei vollem Zeitraum) -- dieselbe
-  Beschriftung greift auch bei einer händisch eingetragenen Zusatzposition, die sich erkennbar
-  auf den Mitgliedsbeitrag bezieht (z. B. eine Mitgliedsbeitragsbefreiung). Unter jedem
-  Zählpunkt erscheint zusätzlich "Teilnahme ab TT.MM.JJJJ", wenn die Mitgliedschaft erst nach
-  Beginn des Abrechnungszeitraums begann.
+  "Summe netto". Minuszeichen über die ganze Rechnung vereinheitlicht (`rechnungBetragUnicode()`,
+  auch die Summenzeile zeigte zunächst noch einen abweichenden einfachen Bindestrich). Die
+  anteilige Mitgliedsbeitrags-Zeile zeigt jetzt z. B. "Mitgliedsbeitrag (anteilig, 2 Monate)"
+  statt ohne jeden Hinweis auf den verkürzten Zeitraum (kein Zusatz bei vollem Zeitraum) --
+  dieselbe Beschriftung greift auch bei einer händisch eingetragenen Zusatzposition, die sich
+  erkennbar auf den Mitgliedsbeitrag bezieht (z. B. eine Mitgliedsbeitragsbefreiung).
+- **"Teilnahme ab" aus dem echten EDA-Zeitraum statt dem Beitrittsdatum.** Unter jedem Zählpunkt
+  erscheint "Teilnahme ab TT.MM.JJJJ", wenn der Zählpunkt erst nach Beginn des
+  Abrechnungszeitraums ins EDA-Messsystem aufgenommen wurde -- zunächst aus dem Beitrittsdatum
+  des Mitglieds abgeleitet, nach Prüfung der Q3-2026-Entwürfe (Patrick, 18.10.2026: 8 von 11
+  Rechnungen stimmten nicht mit dem EDA-Report überein) auf den tatsächlichen, PRO ZÄHLPUNKT
+  unterschiedlichen EDA-Teilnahmezeitraum umgestellt (siehe `docs/VORFAELLE.md`). Der
+  EDA-Parser (`eda-parser/parser.py`) erfasst dafür neu das Anfangsdatum der "Zeitraum"-Spalte
+  der Gesamtübersicht (bisher nur das Enddatum), als reines `DATE` ohne Zeitzonen-Bezug (neue
+  Spalten `eda_measurements.teilnahme_von`/`invoice_items.teilnahme_ab`,
+  `database/migrate_20261018c.sql`). Bereits importierte Monate müssen dafür einmal erneut
+  importiert werden (siehe `docs/BETRIEBSHANDBUCH.md`).
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei

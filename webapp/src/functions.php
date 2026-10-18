@@ -516,25 +516,26 @@ function rechnungExtraItemsLatex(array $items): string
  * NICHT \\ -- sonst bricht die Tabellenzeile um) die 33-stellige Zählpunktnummer als kleine
  * graue Zweitzeile. Mehrere Zeilen werden mit einer feinen Trennlinie verbunden (nicht nach
  * der letzten -- die setzt die Vorlage selbst zwischen Bezugs- und Einspeisungsblock).
- * $items: invoice_items eines Typs (bezug oder einspeisung). $gutschrift=true stellt dem
- * Betrag ein Minuszeichen voran (Einspeisung wird von der Summe abgezogen). $teilnahmeAb (Y-m-d,
- * optional): tatsächlicher Beginn der Mitgliedschaft im Abrechnungszeitraum, falls SPÄTER als
- * der Zeitraumbeginn (z.B. unterjähriger Beitritt) -- wird dann als zusätzliche Zeile unter dem
- * Zählpunkt angezeigt, damit nachvollziehbar bleibt, warum weniger als der volle Zeitraum
- * abgerechnet wurde (Patrick, 18.10.2026). Bewusst NICHT das volle Teilnahmeende (Austritt), da
- * Billing::generateDrafts() nur Beitritts-, keine Austritts-Proration kennt (siehe dort).
+ * $items: invoice_items eines Typs (bezug oder einspeisung), jeweils mit optionalem
+ * 'teilnahme_ab' (Y-m-d) -- PRO ZÄHLPUNKT aus dem echten EDA-Teilnahmezeitraum (siehe
+ * Billing::generateDrafts(), Spalte "Zeitraum" der EDA-Gesamtübersicht), NICHT aus dem
+ * Beitrittsdatum des Mitglieds: Bezugs- und Einspeise-Zählpunkt desselben Mitglieds können
+ * unterschiedliche tatsächliche Start-Zeitpunkte haben (Patrick, 18.10.2026). Nur gesetzt, wenn
+ * SPÄTER als der Zeitraumbeginn (z.B. unterjähriger Beitritt) -- wird dann als zusätzliche Zeile
+ * unter dem jeweiligen Zählpunkt angezeigt. $gutschrift=true stellt dem Betrag ein Minuszeichen
+ * voran (Einspeisung wird von der Summe abgezogen).
  */
-function rechnungPositionenLatex(array $items, string $label, bool $gutschrift, ?string $teilnahmeAb = null): string
+function rechnungPositionenLatex(array $items, string $label, bool $gutschrift): string
 {
-    $teilnahmeAbFmt = $teilnahmeAb !== null ? date('d.m.Y', strtotime($teilnahmeAb)) : null;
-    $zeilen = array_map(function (array $it) use ($label, $gutschrift, $teilnahmeAbFmt): string {
+    $zeilen = array_map(function (array $it) use ($label, $gutschrift): string {
         $cell = $label;
         $zp = trim((string)($it['zaehlpunkt_nr'] ?? ''));
         if ($zp !== '') {
             $cell .= '\\newline{\\footnotesize\\color{midgray}Zählpunkt: ' . texEscape($zp) . '}';
         }
-        if ($teilnahmeAbFmt !== null) {
-            $cell .= '\\newline{\\footnotesize\\color{midgray}Teilnahme ab ' . $teilnahmeAbFmt . '}';
+        $teilnahmeAb = $it['teilnahme_ab'] ?? null;
+        if ($teilnahmeAb !== null) {
+            $cell .= '\\newline{\\footnotesize\\color{midgray}Teilnahme ab ' . date('d.m.Y', strtotime($teilnahmeAb)) . '}';
         }
         $kwh    = number_format((float)$it['kwh'], 2, ',', '.');
         $tarif  = number_format((float)$it['rate_ct_kwh'], 4, ',', '.');
@@ -1088,23 +1089,12 @@ function taxBreakdown(float $netto, ?string $model, $rate): array
 }
 
 /**
- * Formatiert einen Eurobetrag für die Summenzeile der Rechnung (einfacher Bindestrich bei
- * negativem Betrag, z.B. "-28,70") -- siehe rechnungBetragUnicode() für Positionszeilen
- * (Gutschriften/Rabatte), die stattdessen ein Unicode-Minuszeichen bekommen. Gemeinsamer
- * Formatter, damit Summen- und Positionszeilen plattformweit konsistent bleiben (Patrick,
- * 18.10.2026).
- */
-function rechnungBetragBindestrich(float $amount): string
-{
-    return number_format($amount, 2, ',', '.');
-}
-
-/**
- * Formatiert einen Eurobetrag für eine Positionszeile der Rechnungstabelle (Einspeisung,
- * Zusatzpositionen/Rabatte) -- negative Beträge bekommen statt eines einfachen Bindestrichs ein
- * LaTeX-Unicode-Minuszeichen mit schmalem Leerzeichen ("$-$\,", gerendert als "− 30,25") für ein
- * saubereres Schriftbild in der Tabelle. Erwartet den bereits SIGNIERTEN Betrag (negativ =
- * Gutschrift/Rabatt); siehe rechnungBetragBindestrich() für die Summenzeile.
+ * Formatiert einen Eurobetrag für die Rechnung -- negative Beträge bekommen statt eines
+ * einfachen Bindestrichs ein LaTeX-Unicode-Minuszeichen mit schmalem Leerzeichen ("$-$\,",
+ * gerendert als "− 30,25") für ein saubereres Schriftbild. EINHEITLICH für Summenzeile UND
+ * Positionszeilen verwendet (Patrick, 18.10.2026: stand vorher in der Summenzeile mit einfachem
+ * Bindestrich, uneinheitlich zu den Positionen). Erwartet den bereits SIGNIERTEN Betrag (negativ
+ * = Gutschrift/Rabatt).
  */
 function rechnungBetragUnicode(float $amount): string
 {

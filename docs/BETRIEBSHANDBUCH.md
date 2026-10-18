@@ -1075,3 +1075,20 @@ docker compose up -d --build
 > sofort überall einheitlich aus beiden Feldern zusammen (Rechnungs-PDF, E-Mails,
 > Mitgliederlisten); die SEPA-Kontoinhaber-Namen in der pain.008/pain.001-XML bleiben bewusst
 > einfach (nur `titel_vor`, kein nachgestellter Titel mit Komma).
+
+> **Einmalig nach dem Update vom 18.10.2026 (dritter Teil des Tages) -- "Teilnahme ab" aus dem
+> echten EDA-Zeitraum statt dem Beitrittsdatum** (siehe `docs/VORFAELLE.md`,
+> "„Teilnahme ab" auf der Rechnung stimmte bei 8 von 11 Rechnungen nicht mit EDA überein"):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261018c.sql
+> docker compose up -d --build
+> ```
+> Neue Spalten `eda_measurements.teilnahme_von`/`invoice_items.teilnahme_ab` (beide DATE,
+> additiv, kein Datenverlust). **Danach zusätzlich nötig, sonst bleibt „Teilnahme ab" bei bereits
+> importierten Monaten leer:** die EDA-Dateien für Juli, August und September 2026 unter
+> `/portal/eda/upload` noch einmal hochladen (der alte Parser hat das Zeitraum-Anfangsdatum nie
+> gespeichert, ein Re-Import ist die einzige Möglichkeit, es nachträglich zu erfassen -- für noch
+> nicht freigegebene Läufe jederzeit möglich). Anschließend auf `/portal/billing` die betroffenen
+> Entwürfe neu berechnen (NICHT freigeben, falls es sich noch um Entwürfe handelt).
