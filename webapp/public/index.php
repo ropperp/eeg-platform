@@ -2075,14 +2075,6 @@ function invoicePdfPayload(array $invoice): array
         unset($extraItemRef);
     }
 
-    // Teilnahme ab: zeigt unter jedem Zählpunkt, wenn die Mitgliedschaft erst NACH Beginn des
-    // Abrechnungszeitraums begann (z.B. Beitritt mitten im Quartal) -- dieselbe Vergleichsbasis
-    // wie Billing::generateDrafts() ($periodFromForMember = max(period_from, member_since)),
-    // damit die angezeigten kWh-Werte nicht unerklärt niedriger wirken als der volle Zeitraum.
-    $teilnahmeAb = (!empty($invoice['member_since']) && $invoice['member_since'] > $invoice['period_from'])
-        ? $invoice['member_since']
-        : null;
-
     // EEG-Adresse für den Footer aufteilen ("Straße 1, 9560 Ort" -> zwei Zeilen)
     $eegAdrTeile = array_map('trim', explode(',', $invoice['eeg_address'] ?? '', 2));
 
@@ -2160,18 +2152,18 @@ function invoicePdfPayload(array $invoice): array
         'EINSPEISUNG_TARIF'     => $einspTarif !== null ? number_format((float)$einspTarif, 4, ',', '.') : '0,0000',
         'EINSPEISUNG_BETRAG'    => number_format(abs($einspBetrag), 2, ',', '.'),
         'EINSPEISUNG_ZAEHLPUNKT' => $einspZp,
-        'RAW_BEZUG_POSITIONEN_LISTE'       => rechnungPositionenLatex($bezugItems, 'Energiebezug aus der Gemeinschaft', false, $teilnahmeAb),
-        'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true, $teilnahmeAb),
+        'RAW_BEZUG_POSITIONEN_LISTE'       => rechnungPositionenLatex($bezugItems, 'Energiebezug aus der Gemeinschaft', false),
+        'RAW_EINSPEISUNG_POSITIONEN_LISTE' => rechnungPositionenLatex($einspeisungItems, 'Einspeisevergütung (Gutschrift)', true),
         'MITGLIEDSBEITRAG_LABEL' => $beitragLabel,
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
         'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
-        'SUMME_NETTO'           => rechnungBetragBindestrich($tax['netto']),
+        'SUMME_NETTO'           => rechnungBetragUnicode($tax['netto']),
         // Im grünen Summenbalken IMMER positiv anzeigen, auch bei einer Gutschrift (negativer
         // Saldo) -- Patrick, 26.09.2026: "steht dann auch 'Ihr Guthaben von €3,90'" ... "nicht
         // als Minusbetrag, sondern dann als positiven Betrag". "Summe netto" in der Tabelle
         // darüber zeigt bewusst weiterhin das Minus (SUMME_NETTO, unverändert) -- nur der
         // Balken mit \summelabel ("Ihre Gutschrift") soll den Betrag positiv ausweisen.
-        'SUMME_BRUTTO'          => rechnungBetragBindestrich(abs($tax['brutto'])),
+        'SUMME_BRUTTO'          => rechnungBetragUnicode(abs($tax['brutto'])),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
@@ -6890,9 +6882,10 @@ $router->get('/portal/billing/preview', function () {
     // mit Beispiel-"Teilnahme ab") und einen Einspeise-Zählpunkt mit Zählpunktnummer als grauer
     // Zweitzeile.
     $bezugListe = rechnungPositionenLatex([
-        ['zaehlpunkt_nr' => 'AT0030000000000000000000000000001', 'kwh' => 250.00, 'rate_ct_kwh' => 9.80, 'amount_eur' => 24.50],
+        ['zaehlpunkt_nr' => 'AT0030000000000000000000000000001', 'kwh' => 250.00, 'rate_ct_kwh' => 9.80, 'amount_eur' => 24.50,
+         'teilnahme_ab' => date('Y-m-d', strtotime('-10 days'))],
         ['zaehlpunkt_nr' => 'AT0030000000000000000000000000002', 'kwh' => 162.50, 'rate_ct_kwh' => 9.80, 'amount_eur' => 15.93],
-    ], 'Energiebezug aus der Gemeinschaft', false, date('Y-m-d', strtotime('-10 days')));
+    ], 'Energiebezug aus der Gemeinschaft', false);
     $einspListe = rechnungPositionenLatex([
         ['zaehlpunkt_nr' => 'AT0030000000000000000000000000003', 'kwh' => 85.00, 'rate_ct_kwh' => 7.50, 'amount_eur' => -6.38],
     ], 'Einspeisevergütung (Gutschrift)', true);
@@ -6932,8 +6925,8 @@ $router->get('/portal/billing/preview', function () {
         'MITGLIEDSBEITRAG_LABEL' => 'Mitgliedsbeitrag (anteilig, 2 Monate)',
         'MITGLIEDSBEITRAG'      => '15,00',
         'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
-        'SUMME_NETTO'           => rechnungBetragBindestrich($tbPreview['netto']),
-        'SUMME_BRUTTO'          => rechnungBetragBindestrich($tbPreview['brutto']),
+        'SUMME_NETTO'           => rechnungBetragUnicode($tbPreview['netto']),
+        'SUMME_BRUTTO'          => rechnungBetragUnicode($tbPreview['brutto']),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => $extraItemsLatex,

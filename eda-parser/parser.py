@@ -130,6 +130,7 @@ class XlsxDataSource:
             zusatz = detail.get(zaehlpunkt_nr, {})
             row = {
                 "time": meta["time"],
+                "teilnahme_von": meta.get("teilnahme_von"),
                 "kwh_erzeugung": meta["kwh_wert"] if meta["type_hint"] == "producer" else None,
                 "kwh_teilnahme": meta["kwh_wert"] if meta["type_hint"] == "consumer" else None,
                 "kwh_ueberschuss": zusatz.get("kwh_ueberschuss"),
@@ -242,12 +243,22 @@ class XlsxDataSource:
             # Zeitstempel dieser Monatszeile verwendet (siehe Billing.php: SUM über
             # period_from..period_to je Quartal, drei Monatszeilen fallen automatisch zusammen).
             zeitraum = str(row[col_zeitraum]).strip()
-            bis_str = zeitraum.split("-")[-1].strip()
+            zeitraum_teile = zeitraum.split("-")
+            von_str = zeitraum_teile[0].strip()
+            bis_str = zeitraum_teile[-1].strip()
             ts = pd.to_datetime(bis_str, dayfirst=True, errors="coerce")
             if pd.isna(ts):
                 log.warning("Zählpunkt %s: Zeitraum '%s' nicht lesbar, überspringe.", zp, zeitraum)
                 continue
             ts = ts.tz_localize("Europe/Vienna", ambiguous="NaT", nonexistent="NaT")
+            # "von" wird NICHT als Zeitstempel (tz-aware) gespeichert, sondern als reines Datum --
+            # genau die Zeitzonen-Falle vermeiden, die z.B. bei eda_imports.period_from/period_to
+            # (siehe Billing::missingMonths()) schon einmal zu einem Tag-Versatz geführt hat.
+            # Für den vollen Monat (Normalfall, kein unterjähriger Beitritt) ist "von" der
+            # Monatserste und für die Anzeige ohnehin irrelevant (siehe teilnahme_ab in
+            # Billing::generateDrafts() -- nur Werte NACH Zeitraumbeginn werden angezeigt).
+            von_ts = pd.to_datetime(von_str, dayfirst=True, errors="coerce")
+            teilnahme_von = von_ts.date() if not pd.isna(von_ts) else None
 
             kwh_wert = row[col_erzeugung] if type_hint == "producer" else row[col_verbrauch]
             kwh_wert = float(kwh_wert) if not pd.isna(kwh_wert) else 0.0
@@ -258,6 +269,7 @@ class XlsxDataSource:
             result[zp] = {
                 "type_hint": type_hint,
                 "time": ts,
+                "teilnahme_von": teilnahme_von,
                 "kwh_wert": kwh_wert,
                 "completeness": completeness,
                 "quality": self._worst_quality(row[col_qualitaet]),
@@ -561,6 +573,7 @@ def import_to_db(
                     row.get("kwh_restueberschuss"),
                     mp_data.quality,
                     mp_data.completeness,
+                    row.get("teilnahme_von"),
                 )
                 for _, row in mp_data.timeseries.iterrows()
                 if not pd.isna(row["time"])
@@ -572,7 +585,7 @@ def import_to_db(
                 INSERT INTO eda_measurements
                     (time, community_id, metering_point_id, meter_code,
                      kwh_erzeugung, kwh_teilnahme, kwh_ueberschuss, kwh_restueberschuss,
-                     quality, completeness)
+                     quality, completeness, teilnahme_von)
                 VALUES %s
                 ON CONFLICT DO NOTHING
                 """,

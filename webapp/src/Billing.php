@@ -201,7 +201,8 @@ class Billing
                     $energyData = DB::fetchOne(
                         'SELECT
                             SUM(kwh_teilnahme)   AS kwh_bezug,
-                            SUM(kwh_erzeugung)   AS kwh_einspeisung
+                            SUM(kwh_erzeugung)   AS kwh_einspeisung,
+                            MIN(teilnahme_von)   AS teilnahme_von
                          FROM eda_measurements
                          WHERE community_id = ? AND metering_point_id = ?
                            AND time >= ? AND time < ?::date + INTERVAL \'1 day\'
@@ -210,12 +211,22 @@ class Billing
                            AND quality IN (\'L1\', \'L2\')',
                         [$run['community_id'], $mp['mp_id'], $periodFromForMember, $run['period_to']]
                     );
+                    // "Teilnahme ab" fürs Rechnungs-PDF: das früheste ECHTE EDA-Teilnahmedatum
+                    // dieses Zählpunkts im Abrechnungszeitraum (aus der "Zeitraum"-Spalte der
+                    // EDA-Gesamtübersicht, siehe eda-parser/parser.py) -- NICHT das
+                    // Beitrittsdatum des Mitglieds, das kann vom tatsächlichen Zählpunkt-Start
+                    // abweichen (z.B. unterschiedliche Zeitpunkte für Bezugs-/Einspeise-
+                    // Zählpunkt desselben Mitglieds). Nur gesetzt, wenn NACH Beginn des
+                    // Abrechnungszeitraums -- bei vollem Zeitraum (üblicher Fall) keine Anzeige.
+                    $teilnahmeAb = (!empty($energyData['teilnahme_von']) && $energyData['teilnahme_von'] > $run['period_from'])
+                        ? $energyData['teilnahme_von']
+                        : null;
 
                     if (in_array($mp['mp_type'], ['consumer', 'prosumer']) && $energyData['kwh_bezug'] > 0) {
                         $amount = round((float)$energyData['kwh_bezug'] * (float)$tariff['bezug_ct_kwh'] / 100, 2);
                         $items[] = ['type' => 'bezug', 'kwh' => $energyData['kwh_bezug'],
                                     'rate_ct_kwh' => $tariff['bezug_ct_kwh'], 'amount_eur' => $amount,
-                                    'zaehlpunkt_nr' => $mp['zaehlpunkt_nr']];
+                                    'zaehlpunkt_nr' => $mp['zaehlpunkt_nr'], 'teilnahme_ab' => $teilnahmeAb];
                         $saldo += $amount;
                     }
 
@@ -223,6 +234,7 @@ class Billing
                         $gutschrift = round((float)$energyData['kwh_einspeisung'] * (float)$tariff['einspeisung_ct_kwh'] / 100, 2);
                         $items[] = ['type' => 'einspeisung', 'kwh' => $energyData['kwh_einspeisung'],
                                     'rate_ct_kwh' => $tariff['einspeisung_ct_kwh'], 'amount_eur' => -$gutschrift,
+                                    'teilnahme_ab' => $teilnahmeAb,
                                     'zaehlpunkt_nr' => $mp['zaehlpunkt_nr']];
                         $saldo -= $gutschrift;
                     }
@@ -269,11 +281,12 @@ class Billing
 
                 foreach ($items as $item) {
                     DB::execute(
-                        'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur, label, quantity, unit, zaehlpunkt_nr)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO invoice_items (invoice_id, type, kwh, rate_ct_kwh, months, amount_eur, label, quantity, unit, zaehlpunkt_nr, teilnahme_ab)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         [$invoiceId, $item['type'], $item['kwh'] ?? null, $item['rate_ct_kwh'] ?? null,
                          $item['months'] ?? null, $item['amount_eur'], $item['label'] ?? null,
-                         $item['quantity'] ?? null, $item['unit'] ?? null, $item['zaehlpunkt_nr'] ?? null]
+                         $item['quantity'] ?? null, $item['unit'] ?? null, $item['zaehlpunkt_nr'] ?? null,
+                         $item['teilnahme_ab'] ?? null]
                     );
                 }
             }
