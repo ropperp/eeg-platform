@@ -7394,7 +7394,7 @@ function sepaCreditTransferData(string $communityId, ?string $runId = null): arr
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $sql = 'SELECT i.rechnungsnummer, i.saldo_eur,
                    m.first_name, m.last_name, m.company_name, m.invoice_name, m.titel_vor,
-                   m.kontoinhaber, m.member_iban, m.member_bic,
+                   m.kontoinhaber, m.member_iban, m.member_bic, m.address, m.zip, m.city,
                    tx.tax_model AS eeg_tax_model, tx.tax_rate_percent AS eeg_tax_rate
             FROM invoices i
             JOIN billing_runs br ON br.id = i.billing_run_id
@@ -7437,12 +7437,21 @@ function sepaCreditTransferData(string $communityId, ?string $runId = null): arr
             'creditor_iban' => $iban,
             'creditor_bic'  => trim((string)$r['member_bic']),
             'remittance'    => $r['rechnungsnummer'],
+            // Strukturierte Postadresse (EPC-Vorgabe ab dem [verschobenen] Stichtag für
+            // pain.001/pain.008, siehe sepaPostalAddressXml()).
+            'creditor_street' => $r['address'] ?? '',
+            'creditor_zip'    => $r['zip'] ?? '',
+            'creditor_city'   => $r['city'] ?? '',
         ];
     }
+    $eegAddr = splitEegAddress($community['address'] ?? '');
     $payer = [
-        'name' => $community['account_holder'] ?? ($community['name'] ?? ''),
-        'iban' => trim((string)($community['iban'] ?? '')),
-        'bic'  => trim((string)($community['bic'] ?? '')),
+        'name'   => $community['account_holder'] ?? ($community['name'] ?? ''),
+        'iban'   => trim((string)($community['iban'] ?? '')),
+        'bic'    => trim((string)($community['bic'] ?? '')),
+        'street' => $eegAddr['street'],
+        'zip'    => $eegAddr['zip'],
+        'city'   => $eegAddr['city'],
     ];
     return ['payer' => $payer, 'txns' => $txns, 'ohne_iban' => $ohneIban];
 }
@@ -7528,6 +7537,7 @@ function sepaCollectionData(string $communityId, string $runId): array
     $rows = DB::fetchAll(
         "SELECT i.rechnungsnummer, i.saldo_eur, br.quartal,
                 m.first_name, m.last_name, m.company_name, m.member_iban, m.member_bic,
+                m.address, m.zip, m.city,
                 m.mandatsreferenz,
                 -- mandat_unterschrift_datum (siehe migrate_20261018.sql) hat Vorrang -- das
                 -- einzige Feld mit einem echten Formular/Schreibpfad dafür. sepa_mandate_date
@@ -7566,13 +7576,22 @@ function sepaCollectionData(string $communityId, string $runId): array
             'debtor_iban'   => $iban,
             'debtor_bic'    => trim((string)$r['member_bic']),
             'remittance'    => 'Rechnung ' . $r['rechnungsnummer'] . ' (' . $r['quartal'] . ') ' . ($community['name'] ?? ''),
+            // Strukturierte Postadresse (EPC-Vorgabe ab dem [verschobenen] Stichtag für
+            // pain.001/pain.008, siehe sepaPostalAddressXml()).
+            'debtor_street' => $r['address'] ?? '',
+            'debtor_zip'    => $r['zip'] ?? '',
+            'debtor_city'   => $r['city'] ?? '',
         ];
     }
+    $eegAddr = splitEegAddress($community['address'] ?? '');
     $creditor = [
         'name'        => $community['name'] ?? '',
         'iban'        => trim((string)($community['iban'] ?? '')),
         'bic'         => trim((string)($community['bic'] ?? '')),
         'creditor_id' => trim((string)($community['creditor_id'] ?? '')),
+        'street'      => $eegAddr['street'],
+        'zip'         => $eegAddr['zip'],
+        'city'        => $eegAddr['city'],
     ];
     return ['creditor' => $creditor, 'txns' => $txns, 'ohne_mandat' => $ohneMandat, 'community' => $community];
 }

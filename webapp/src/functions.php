@@ -618,6 +618,71 @@ function sepaSanitize(string $s, int $maxLen = 140, bool $isIdField = false): st
 }
 
 /**
+ * Baut den optionalen <PstlAdr>-Block (strukturierte Postadresse) für ein Dbtr-/Cdtr-/
+ * InitgPty-Element einer SEPA-XML-Datei. Hintergrund: das EPC-Regelwerk verlangt ab einem
+ * Stichtag (ursprünglich 15.11.2026 für pain.001/pain.008, vom EPC im September 2026 verschoben,
+ * neuer Termin laut EPC-Ankündigung für Oktober 2026 angekündigt, Stand dieses Codes noch nicht
+ * bekannt -- https://www.europeanpaymentscouncil.eu, Guidance Document EPC153-22) für Dbtr/Cdtr
+ * entweder eine vollständig strukturierte ODER eine "hybride" Adresse (mindestens TwnNm + Ctry,
+ * zusätzlich optional freie AdrLine-Textzeilen) -- eine rein unstrukturierte Adresse (nur freie
+ * Textzeilen ohne TwnNm/Ctry) wird die Bank ab diesem Stichtag zurückweisen, SOBALD überhaupt
+ * eine Adresse mitgeschickt wird (fehlt sie ganz, ist das weiterhin unproblematisch).
+ *
+ * Elementreihenfolge laut XSD (PostalAddress6 in pain.001.001.03, PostalAddress24 in
+ * pain.008.001.08 UND im künftigen pain.001.001.09 -- identische Reihenfolge für die hier
+ * verwendeten Felder): StrtNm, BldgNb, PstCd, TwnNm, Ctry, AdrLine. Bewusst OHNE BldgNb/AdrLine:
+ * die Hausnummer steckt in unseren Adressdaten untrennbar in $street (z.B. "Hauptstraße 12a"),
+ * ein verlässliches Auftrennen wäre fehleranfällig und ist laut EPC-Leitfaden nur EMPFOHLEN,
+ * nicht vorgeschrieben -- StrtNm/PstCd/TwnNm/Ctry allein gelten bereits als strukturiert.
+ *
+ * Land ist mangels eigenem DB-Feld hart auf "AT" gesetzt -- reine Inlands-Plattform, ebenso wie
+ * z.B. der Banktag-/Feiertagskalender (bankingDayBlockReasonAT()) österreichspezifisch ist.
+ *
+ * @return string '' (kein <PstlAdr>-Block), falls $city leer ist -- sonst unvollständige/leere
+ *         Adresselemente, die mehr schaden als nützen.
+ */
+function sepaPostalAddressXml(string $street, string $zip, string $city, string $country = 'AT'): string
+{
+    $city = trim($city);
+    if ($city === '') { return ''; }
+    $x = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    $xml = '<PstlAdr>';
+    $street = trim($street);
+    if ($street !== '') {
+        $xml .= '<StrtNm>' . $x(sepaSanitize($street, 70)) . '</StrtNm>';
+    }
+    $zip = trim($zip);
+    if ($zip !== '') {
+        $xml .= '<PstCd>' . $x(sepaSanitize($zip, 16)) . '</PstCd>';
+    }
+    $xml .= '<TwnNm>' . $x(sepaSanitize($city, 35)) . '</TwnNm>';
+    $xml .= '<Ctry>' . $x(strtoupper(trim($country))) . '</Ctry>';
+    return $xml . '</PstlAdr>';
+}
+
+/**
+ * Zerlegt die EEG-Adresse (communities.address, ein einzelnes Freitextfeld, z.B.
+ * "Hauptstraße 5, 9020 Klagenfurt") in Straße/PLZ/Ort für die strukturierte SEPA-Postadresse
+ * (siehe sepaPostalAddressXml()). Anders als der Rechnungs-PDF-Footer (invoicePdfPayload(),
+ * zeigt PLZ+Ort dort weiterhin als EINE Zeile) braucht SEPA PLZ und Ort als getrennte Felder.
+ *
+ * @return array{street: string, zip: string, city: string} leere Strings, falls $address leer
+ *         ist oder das erwartete Format (Komma, danach eine 4-5-stellige PLZ) nicht erkannt wird
+ *         -- dann landet der komplette Rest in 'city' (besser eine unvollständig strukturierte
+ *         als eine falsch aufgeteilte Adresse).
+ */
+function splitEegAddress(?string $address): array
+{
+    $parts = array_map('trim', explode(',', (string)$address, 2));
+    $street = $parts[0] ?? '';
+    $rest = $parts[1] ?? '';
+    if (preg_match('/^(\d{4,5})\s+(.*)$/', $rest, $m)) {
+        return ['street' => $street, 'zip' => $m[1], 'city' => trim($m[2])];
+    }
+    return ['street' => $street, 'zip' => '', 'city' => $rest];
+}
+
+/**
  * Erzeugt eine SEPA-Basislastschrift (SDD CORE) als pain.008-XML — die Datei, die der Obmann in
  * sein Online-Banking hochlädt. Version umschaltbar: '08' = pain.008.001.08 (neu, Standard),
  * '02' = pain.008.001.02 (alt). Reine Funktion (kein DB/HTTP) -> automatisiert testbar.
@@ -625,9 +690,13 @@ function sepaSanitize(string $s, int $maxLen = 140, bool $isIdField = false): st
  * WICHTIG (Compliance): Das Zielformat muss zu dem passen, was die konkrete Bank akzeptiert.
  * Vor dem Echtbetrieb die erzeugte Datei mit dem Prüf-/Testtool der Bank validieren.
  *
- * @param array $creditor ['name','iban','bic'(optional),'creditor_id']
+ * @param array $creditor ['name','iban','bic'(optional),'creditor_id','street'(optional),
+ *                        'zip'(optional),'city'(optional)] -- street/zip/city bauen den
+ *                        strukturierten <PstlAdr>-Block (siehe sepaPostalAddressXml()), fehlen
+ *                        sie, bleibt der Block einfach weg.
  * @param array $txns Liste von ['end_to_end_id','amount'(float>0),'mandate_ref','mandate_date'(Y-m-d),
- *                    'debtor_name','debtor_iban','debtor_bic'(optional),'remittance']
+ *                    'debtor_name','debtor_iban','debtor_bic'(optional),'remittance',
+ *                    'debtor_street'(optional),'debtor_zip'(optional),'debtor_city'(optional)]
  * @param string $collectionDate Fälligkeit/Einzugsdatum (Y-m-d)
  * @param string $version '08' oder '02'
  * @param string $seqType SEPA-Sequenztyp: FRST | RCUR | OOFF | FNAL
@@ -678,9 +747,13 @@ function sepaPain008Xml(
     $creDt  = date('Y-m-d\TH:i:s');
     $nbTx   = count($txns);
     $ctrl   = $money(array_sum(array_map(fn($t) => (float)$t['amount'], $txns)));
+    // Strukturierte Postadresse (siehe sepaPostalAddressXml()) -- Gläubiger-Adresse ist für
+    // InitgPty UND Cdtr identisch, einmal berechnen statt zweimal.
+    $creditorAddr = sepaPostalAddressXml($creditor['street'] ?? '', $creditor['zip'] ?? '', $creditor['city'] ?? '');
 
     $txXml = '';
     foreach ($txns as $t) {
+        $debtorAddr = sepaPostalAddressXml($t['debtor_street'] ?? '', $t['debtor_zip'] ?? '', $t['debtor_city'] ?? '');
         $txXml .=
             '<DrctDbtTxInf>'
           // EndToEndId ist laut ISO-20022-Schema (pain.008) auf 35 Zeichen begrenzt -- die
@@ -696,7 +769,7 @@ function sepaPain008Xml(
           .     '<DtOfSgntr>' . $x($t['mandate_date']) . '</DtOfSgntr>'
           .   '</MndtRltdInf></DrctDbtTx>'
           .   '<DbtrAgt>' . $agent($t['debtor_bic'] ?? '') . '</DbtrAgt>'
-          .   '<Dbtr><Nm>' . $x($sName($t['debtor_name'])) . '</Nm></Dbtr>'
+          .   '<Dbtr><Nm>' . $x($sName($t['debtor_name'])) . '</Nm>' . $debtorAddr . '</Dbtr>'
           .   '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $t['debtor_iban'])) . '</IBAN></Id></DbtrAcct>'
           .   '<RmtInf><Ustrd>' . $x($sRmt($t['remittance'] ?? '')) . '</Ustrd></RmtInf>'
           . '</DrctDbtTxInf>';
@@ -711,7 +784,7 @@ function sepaPain008Xml(
       .     '<CreDtTm>' . $creDt . '</CreDtTm>'
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
-      .     '<InitgPty><Nm>' . $x($sName($creditor['name'])) . '</Nm></InitgPty>'
+      .     '<InitgPty><Nm>' . $x($sName($creditor['name'])) . '</Nm>' . $creditorAddr . '</InitgPty>'
       .   '</GrpHdr>'
       .   '<PmtInf>'
       .     '<PmtInfId>' . $x($msgId . '-1') . '</PmtInfId>'
@@ -721,7 +794,7 @@ function sepaPain008Xml(
       .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl><LclInstrm><Cd>CORE</Cd></LclInstrm>'
       .       '<SeqTp>' . $x($seqType) . '</SeqTp></PmtTpInf>'
       .     '<ReqdColltnDt>' . $x($collectionDate) . '</ReqdColltnDt>'
-      .     '<Cdtr><Nm>' . $x($sName($creditor['name'])) . '</Nm></Cdtr>'
+      .     '<Cdtr><Nm>' . $x($sName($creditor['name'])) . '</Nm>' . $creditorAddr . '</Cdtr>'
       .     '<CdtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $creditor['iban'])) . '</IBAN></Id></CdtrAcct>'
       .     '<CdtrAgt>' . $agent($creditor['bic'] ?? '') . '</CdtrAgt>'
       .     '<ChrgBr>SLEV</ChrgBr>'
@@ -745,9 +818,12 @@ function sepaPain008Xml(
  * WICHTIG (Compliance): wie bei sepaPain008Xml() -- vor dem ersten echten Einreichen die Datei
  * mit dem Prüf-/Testtool der eigenen Bank validieren.
  *
- * @param array $payer ['name','iban','bic'(optional)] -- das Konto, von dem überwiesen wird (EEG)
+ * @param array $payer ['name','iban','bic'(optional),'street'(optional),'zip'(optional),
+ *                     'city'(optional)] -- das Konto, von dem überwiesen wird (EEG). street/zip/
+ *                     city bauen den strukturierten <PstlAdr>-Block (siehe sepaPostalAddressXml()).
  * @param array $txns Liste von ['end_to_end_id','amount'(float>0),'creditor_name','creditor_iban',
- *                    'creditor_bic'(optional),'remittance']
+ *                    'creditor_bic'(optional),'remittance','creditor_street'(optional),
+ *                    'creditor_zip'(optional),'creditor_city'(optional)]
  * @param string $executionDate gewünschtes Ausführungsdatum (Y-m-d)
  * @param string $msgId eindeutige Nachrichten-ID (Default: generiert)
  */
@@ -772,9 +848,13 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
     $creDt = date('Y-m-d\TH:i:s');
     $nbTx  = count($txns);
     $ctrl  = $money(array_sum(array_map(fn($t) => (float)$t['amount'], $txns)));
+    // Strukturierte Postadresse (siehe sepaPostalAddressXml()) -- Zahler-Adresse ist für InitgPty
+    // UND Dbtr identisch, einmal berechnen statt zweimal.
+    $payerAddr = sepaPostalAddressXml($payer['street'] ?? '', $payer['zip'] ?? '', $payer['city'] ?? '');
 
     $txXml = '';
     foreach ($txns as $t) {
+        $creditorAddr = sepaPostalAddressXml($t['creditor_street'] ?? '', $t['creditor_zip'] ?? '', $t['creditor_city'] ?? '');
         $txXml .=
             '<CdtTrfTxInf>'
           // EndToEndId auf 35 Zeichen begrenzt, gleiche Schema-Grenze wie bei pain.008 -- siehe
@@ -783,7 +863,7 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
           .   '<PmtId><EndToEndId>' . $x($sId($t['end_to_end_id'] ?? 'NOTPROVIDED')) . '</EndToEndId></PmtId>'
           .   '<Amt><InstdAmt Ccy="EUR">' . $money($t['amount']) . '</InstdAmt></Amt>'
           .   '<CdtrAgt>' . $agent($t['creditor_bic'] ?? '') . '</CdtrAgt>'
-          .   '<Cdtr><Nm>' . $x($sName($t['creditor_name'])) . '</Nm></Cdtr>'
+          .   '<Cdtr><Nm>' . $x($sName($t['creditor_name'])) . '</Nm>' . $creditorAddr . '</Cdtr>'
           .   '<CdtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $t['creditor_iban'])) . '</IBAN></Id></CdtrAcct>'
           .   '<RmtInf><Ustrd>' . $x($sRmt($t['remittance'] ?? '')) . '</Ustrd></RmtInf>'
           . '</CdtTrfTxInf>';
@@ -798,7 +878,7 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
       .     '<CreDtTm>' . $creDt . '</CreDtTm>'
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
-      .     '<InitgPty><Nm>' . $x($sName($payer['name'])) . '</Nm></InitgPty>'
+      .     '<InitgPty><Nm>' . $x($sName($payer['name'])) . '</Nm>' . $payerAddr . '</InitgPty>'
       .   '</GrpHdr>'
       .   '<PmtInf>'
       .     '<PmtInfId>' . $x($msgId . '-1') . '</PmtInfId>'
@@ -807,7 +887,7 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
       .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>'
       .     '<ReqdExctnDt>' . $x($executionDate) . '</ReqdExctnDt>'
-      .     '<Dbtr><Nm>' . $x($sName($payer['name'])) . '</Nm></Dbtr>'
+      .     '<Dbtr><Nm>' . $x($sName($payer['name'])) . '</Nm>' . $payerAddr . '</Dbtr>'
       .     '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $payer['iban'])) . '</IBAN></Id></DbtrAcct>'
       .     '<DbtrAgt>' . $agent($payer['bic'] ?? '') . '</DbtrAgt>'
       .     '<ChrgBr>SLEV</ChrgBr>'

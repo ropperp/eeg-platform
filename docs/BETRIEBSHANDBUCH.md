@@ -1126,3 +1126,13 @@ docker compose up -d --build
 > transliteriert) und die automatische Fälligkeits-Verschiebung auf den nächsten Bankarbeitstag
 > greifen ab dem nächsten SEPA-Download bzw. der nächsten Rechnungsfreigabe automatisch, ohne
 > etwas an bereits erzeugten Dateien/eingefrorenen Rechnungen zu ändern.
+
+> **Einmalig nach dem Update vom 18.10.2026 (sechster Teil des Tages) -- strukturierte
+> Postadresse in SEPA-XML-Dateien** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose up -d --build
+> ```
+> Rein additiv, keine Migration nötig -- nutzt die ohnehin vorhandenen `members.address/zip/city`
+> bzw. `communities.address`. Keine weitere manuelle Aktion nötig.
