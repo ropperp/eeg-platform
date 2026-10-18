@@ -2186,16 +2186,32 @@ function invoicePdfPayload(array $invoice): array
  */
 function renderInvoicePdf(array $invoice): void
 {
-    if (!empty($invoice['pdf_frozen_path']) && is_file($invoice['pdf_frozen_path'])) {
-        $body = file_get_contents($invoice['pdf_frozen_path']);
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: inline; filename="' . addslashes($invoice['rechnungsnummer'] . '.pdf') . '"');
-        header('Content-Length: ' . strlen($body));
-        echo $body;
+    $error = null;
+    $body = invoicePdfBytes($invoice, $error);
+    if ($body === null) {
+        http_response_code(500);
+        echo '<pre>' . htmlspecialchars($error) . '</pre>';
         return;
     }
-    [$vars, $filename, $assets] = invoicePdfPayload($invoice);
-    streamLatexPdf('rechnung', $vars, $filename, $assets);
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . addslashes($invoice['rechnungsnummer'] . '.pdf') . '"');
+    header('Content-Length: ' . strlen($body));
+    echo $body;
+}
+
+/**
+ * Liefert die PDF-Bytes einer Rechnung (eingefroren oder live gerendert), ohne jede Ausgabe --
+ * ausgelagert aus renderInvoicePdf(), damit auch der ZIP-Sammeldownload
+ * (/portal/billing/invoices.zip) dieselbe Logik je Rechnung einzeln aufrufen kann, statt direkt
+ * an den Browser zu streamen.
+ */
+function invoicePdfBytes(array $invoice, ?string &$errorOut = null): ?string
+{
+    if (!empty($invoice['pdf_frozen_path']) && is_file($invoice['pdf_frozen_path'])) {
+        return file_get_contents($invoice['pdf_frozen_path']);
+    }
+    [$vars, , $assets] = invoicePdfPayload($invoice);
+    return generateLatexPdf('rechnung', $vars, $assets, $errorOut);
 }
 
 /**
@@ -7050,6 +7066,72 @@ $router->get('/portal/billing/invoices', function () {
     $paymentDone = count(array_filter($released, fn($i) => in_array($i['payment_status'] ?? 'offen', ['eingezogen', 'ueberwiesen'], true)));
     $paymentTotal = count($released);
     require ROOT . '/src/views/pages/billing_invoices.php';
+});
+
+/**
+ * Sammel-Download aller Rechnungen eines Abrechnungslaufs (Quartal oder Monat) als ZIP
+ * (Patrick, 18.10.2026: "alle Rechnungen aus einer Abrechnungsperiode auf einmal
+ * runterladen... ein zip mit Monat"). Nutzt für jede Rechnung dieselbe Erzeugung wie der
+ * Einzel-Download (invoicePdfBytes()) -- eingefrorene (freigegebene) Rechnungen kommen aus der
+ * gespeicherten Datei, Entwürfe werden live gerendert. ZipArchive schreibt in eine temporäre
+ * Datei statt den ganzen Inhalt im Speicher aufzubauen, damit auch viele Rechnungen
+ * unproblematisch bleiben.
+ */
+$router->get('/portal/billing/invoices.zip', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+
+    $quartal = trim($_GET['quartal'] ?? '');
+    if ($quartal === '') {
+        http_response_code(400);
+        echo 'Bitte zuerst ein Quartal/einen Zeitraum auswählen.';
+        return;
+    }
+
+    $run = DB::fetchOne('SELECT * FROM billing_runs WHERE community_id = ? AND quartal = ?', [$communityId, $quartal]);
+    if (!$run) { http_response_code(404); echo 'Abrechnungslauf nicht gefunden.'; return; }
+
+    $invoiceIds = DB::fetchAll('SELECT id FROM invoices WHERE billing_run_id = ? ORDER BY rechnungsnummer', [$run['id']]);
+    if (!$invoiceIds) { http_response_code(404); echo 'Keine Rechnungen für diesen Zeitraum.'; return; }
+
+    $tmpPath = tempnam(sys_get_temp_dir(), 'eeg-rechnungen-');
+    $zip = new ZipArchive();
+    if ($zip->open($tmpPath, ZipArchive::OVERWRITE) !== true) {
+        http_response_code(500);
+        echo 'ZIP konnte nicht erstellt werden.';
+        return;
+    }
+
+    // Einzelne fehlgeschlagene PDFs (z.B. latex-service kurzzeitig nicht erreichbar) brechen
+    // den ganzen Download nicht ab -- lieber ein ZIP mit den restlichen Rechnungen plus
+    // Audit-Log-Eintrag, als dass eine einzige kaputte Rechnung alle anderen blockiert.
+    $fehler = [];
+    foreach ($invoiceIds as $row) {
+        $invoice = loadInvoiceForPdf($row['id']);
+        if (!$invoice) continue;
+        $error = null;
+        $body = invoicePdfBytes($invoice, $error);
+        if ($body === null) {
+            $fehler[] = $invoice['rechnungsnummer'] . ($error ? ' (' . $error . ')' : '');
+            continue;
+        }
+        $zip->addFromString($invoice['rechnungsnummer'] . '.pdf', $body);
+    }
+    $zip->close();
+
+    if ($fehler) {
+        logAudit($communityId, 'billing.zip_error', 'billing_run', $run['id'],
+            'ZIP-Sammeldownload ' . $quartal . ': ' . count($fehler) . ' Rechnung(en) fehlgeschlagen: ' . implode(', ', $fehler));
+    }
+
+    $zipFilename = 'Rechnungen_' . $quartal . '.zip';
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . addslashes($zipFilename) . '"');
+    header('Content-Length: ' . filesize($tmpPath));
+    readfile($tmpPath);
+    unlink($tmpPath);
 });
 
 // Schritt 1: Rechnungen aus den EDA-Daten berechnen (Entwurf) -- Lauf geht auf 'ready',

@@ -58,6 +58,9 @@ $paymentMeta = [
     <input type="number" id="invoice-betrag-max" placeholder="Betrag bis (€)" step="0.01"
            style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" oninput="filterInvoices()">
     <span id="invoice-result-count" style="font-size:.8rem;color:var(--gray-600)"></span>
+    <a href="#" onclick="return downloadInvoiceZip()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
+      <?= icon('download-simple') ?> Quartal als ZIP
+    </a>
   </div>
 </div>
 
@@ -187,6 +190,18 @@ $paymentMeta = [
 </div>
 
 <script>
+// ZIP-Sammeldownload bezieht sich auf das aktuell im Filter gewählte Quartal/Monat (siehe
+// /portal/billing/invoices.zip) -- ohne Auswahl kein sinnvoller Zeitraum, deshalb Hinweis statt
+// stillschweigend "alle jemals erzeugten Rechnungen".
+function downloadInvoiceZip() {
+  const quartal = document.getElementById('invoice-quartal').value;
+  if (!quartal) {
+    alert('Bitte zuerst oben ein Quartal/einen Zeitraum auswählen.');
+    return false;
+  }
+  window.location.href = '/portal/billing/invoices.zip?quartal=' + encodeURIComponent(quartal);
+  return false;
+}
 function filterInvoices() {
   const q = document.getElementById('invoice-search').value.toLowerCase();
   const quartal = document.getElementById('invoice-quartal').value;

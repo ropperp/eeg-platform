@@ -524,8 +524,11 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   Spalten `eda_measurements.teilnahme_von`/`invoice_items.teilnahme_ab`,
   `database/migrate_20261018c.sql`). Bereits importierte Monate müssen dafür einmal erneut
   importiert werden (siehe `docs/BETRIEBSHANDBUCH.md`).
-
-### Behoben
+- **Alle Rechnungen eines Abrechnungslaufs als ZIP herunterladen.** Neuer Button "Quartal als
+  ZIP" auf `/portal/billing/invoices` (nutzt den dort bereits vorhandenen Quartal-Filter) --
+  lädt `Rechnungen_<Quartal/Monat>.zip` mit einer PDF-Datei je Rechnung, eingefrorene
+  (freigegebene) Rechnungen aus der gespeicherten Datei, Entwürfe live gerendert. Neue Route
+  `/portal/billing/invoices.zip`, neue PHP-Erweiterung `zip` im `webapp`-Image.
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei
   "Support-Tickets") wurde bei eingeklappter Sidebar (nur Icons, 52px breit) komplett
   abgeschnitten -- `.sidebar` hat `overflow-x:hidden`, und für Icon + Abstand + Badge war im
