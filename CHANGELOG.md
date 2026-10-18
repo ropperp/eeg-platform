@@ -536,16 +536,25 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   unverändert alle drei. "(anteilig, X Monate)" heißt bei genau einem Monat jetzt korrekt
   "(anteilig, 1 Monat)" (Einzahl) statt "1 Monate".
 - **Ausführungsdatum-Auswahl beim SEPA-XML-Download.** Vor dem Herunterladen der
-  SEPA-Sammellastschrift (pain.008, `/portal/billing`) bzw. -Sammelüberweisung (pain.001,
-  `/portal/billing/gutschriften`) erscheint jetzt ein Pop-up mit 8 wählbaren Tagen (statt bisher
-  einem starr aus `+14 Tagen` berechneten Datum). Nicht wählbar sind Wochenenden, österreichische
-  gesetzliche Feiertage und TARGET2-Schließtage (`isBankingDay()`/`nextBankingDay()`,
-  `webapp/src/functions.php`) -- Ostern dafür selbst per Gauß-/Meeus-Algorithmus berechnet (keine
-  externe API/PHP-`calendar`-Erweiterung, siehe Begründung bei `sepaSanitize()` unten). Das erste
-  gültige Datum ist vorausgewählt; bei einem erneuten Download desselben Abrechnungslaufs das
-  zuletzt gewählte (`billing_runs.sepa_collection_date_used`/`sepa_transfer_date_used`,
-  `database/migrate_20261018d.sql`). Die Auswahl wird serverseitig unabhängig vom Frontend erneut
-  geprüft (`validateSepaExecutionDate()`, HTTP 422 bei einem ungültigen/gesperrten Datum).
+  SEPA-Sammellastschrift (pain.008, `/portal/billing`) erscheint jetzt ein Pop-up mit 8 wählbaren
+  Tagen (statt bisher einem starr aus `+14 Tagen` berechneten Datum). Nicht wählbar sind
+  Wochenenden, österreichische gesetzliche Feiertage und TARGET2-Schließtage
+  (`isBankingDay()`/`nextBankingDay()`, `webapp/src/functions.php`) -- Ostern dafür selbst per
+  Gauß-/Meeus-Algorithmus berechnet (keine externe API/PHP-`calendar`-Erweiterung, siehe
+  Begründung bei `sepaSanitize()` unten). Das erste gültige Datum ist vorausgewählt; bei einem
+  erneuten Download desselben Abrechnungslaufs das zuletzt gewählte
+  (`billing_runs.sepa_collection_date_used`, `database/migrate_20261018d.sql`). Die Auswahl wird
+  serverseitig unabhängig vom Frontend erneut geprüft (`validateSepaExecutionDate()`, HTTP 422
+  bei einem ungültigen/gesperrten Datum).
+- **Dasselbe Pop-up für die SEPA-Sammelüberweisung (pain.001, Gutschriften) -- aber ab heute statt
+  erst nach 14 Tagen.** Anders als die Lastschrift braucht eine Überweisung keine
+  Vorabankündigungsfrist -- die EEG zahlt dabei selbst aus und kann das sofort tun (Patrick,
+  18.10.2026: "ich kann es ja gleich ab heute überweisen ... brauche keine zwei Wochen zu
+  warten"). `/portal/billing/gutschriften` zeigt deshalb nicht 8 Kalendertage mit einzelnen
+  gesperrten Tagen, sondern direkt 20 tatsächlich wählbare Bankarbeitstage ab heute
+  (`bankingDayTiles()`, Wochenenden/Feiertage werden beim Zählen übersprungen statt als gesperrte
+  Kachel angezeigt; `validateTransferExecutionDate()` für die serverseitige Prüfung,
+  `billing_runs.sepa_transfer_date_used`).
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei

@@ -2,10 +2,13 @@
 // Sammelüberweisung pain.001) -- Patrick, 18.10.2026: "nach dem Klick auf den Download-Button
 // soll ein Pop-up erscheinen, in dem ich das Ausführungsdatum auswähle". Gemeinsam genutzt von
 // billing.php (pro Abrechnungslauf, window.sepaTilesByRun) und billing_gutschriften.php
-// (window.sepaTransferTiles) -- beide übergeben direkt ein von sepaExecutionDateTiles()
-// (functions.php) berechnetes Tiles-Objekt, kein weiterer Server-Roundtrip nötig.
+// (window.sepaTransferTiles) -- beide übergeben direkt ein serverseitig (functions.php)
+// berechnetes Tiles-Objekt, kein weiterer Server-Roundtrip nötig.
 //
-// tiles: {tiles: [{date, label, blocked, reason}], selected, invoice_date, min_days}
+// Lastschrift (sepaExecutionDateTiles()): {tiles: [{date, label, blocked, reason}], selected,
+// invoice_date, min_days} -- 8 Kalendertage, einzelne davon gesperrt (Wochenende/Feiertag).
+// Überweisung (bankingDayTiles()): {tiles: [...], selected, first, last} -- alle Kacheln sind
+// bereits wählbare Bankarbeitstage (mehr davon, standardmäßig 20), kein "blocked" nötig.
 // downloadUrl: Ziel-Route OHNE "date"-Parameter (wird beim Bestätigen angehängt).
 function openSepaDateModal(tiles, downloadUrl) {
   if (!tiles) {
@@ -17,9 +20,16 @@ function openSepaDateModal(tiles, downloadUrl) {
   const hintEl = document.getElementById('sepa-date-hint');
   let selected = tiles.selected;
 
-  hintEl.textContent = 'Rechnungsdatum ' + formatDateDE(tiles.invoice_date)
-    + ' — frühester Einzug/Überweisung nach ' + tiles.min_days + ' Tagen Vorabankündigung.';
+  hintEl.textContent = (tiles.invoice_date !== undefined)
+    ? ('Rechnungsdatum ' + formatDateDE(tiles.invoice_date)
+       + ' — frühester Einzug nach ' + tiles.min_days + ' Tagen Vorabankündigung.')
+    : 'Keine Vorabankündigungsfrist nötig -- ab heute an jedem Bankarbeitstag ausführbar.';
 
+  // Mehr Kacheln (Überweisung, standardmäßig 20) bekommen ein breiteres Raster + breiteren
+  // Dialog statt des 2-spaltigen Standard-Layouts für die 8 Lastschrift-Kacheln.
+  const wide = tiles.tiles.length > 8;
+  tilesEl.style.gridTemplateColumns = 'repeat(' + (wide ? 4 : 2) + ', 1fr)';
+  dialog.style.maxWidth = wide ? '560px' : '440px';
   tilesEl.innerHTML = '';
   tiles.tiles.forEach(function (t) {
     const btn = document.createElement('button');
