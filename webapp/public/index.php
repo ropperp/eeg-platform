@@ -2157,12 +2157,22 @@ function invoicePdfPayload(array $invoice): array
         'MITGLIEDSBEITRAG_LABEL' => $beitragLabel,
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
         'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
+        // RAW_SUMME_NETTO/RAW_SUMME_BRUTTO sind die eigentlich aktuellen Platzhalter (enthalten
+        // echtes LaTeX-Minuszeichen). SUMME_NETTO/SUMME_BRUTTO (plain, ohne RAW_) zusätzlich als
+        // ABSICHERUNG für eine veraltete, eigene rechnung.tex im persistenten Volume (siehe
+        // /admin/templates) -- eine solche alte Vorlage kennt die neuen RAW_-Platzhalter nicht
+        // und würde sonst OHNE jeden Betrag ausgeliefert (leere Summe/Gutschrift auf einer
+        // echten Rechnung, Patrick 18.10.2026), statt wie vor diesem Fix nur mit dem alten,
+        // einfachen Bindestrich-Minus. Sobald die Vorlage aktualisiert ist, werden diese beiden
+        // Werte von der Vorlage schlicht nicht mehr referenziert.
+        'SUMME_NETTO'           => number_format($tax['netto'], 2, ',', '.'),
         'RAW_SUMME_NETTO'       => rechnungBetragUnicode($tax['netto']),
         // Im grünen Summenbalken IMMER positiv anzeigen, auch bei einer Gutschrift (negativer
         // Saldo) -- Patrick, 26.09.2026: "steht dann auch 'Ihr Guthaben von €3,90'" ... "nicht
         // als Minusbetrag, sondern dann als positiven Betrag". "Summe netto" in der Tabelle
         // darüber zeigt bewusst weiterhin das Minus (RAW_SUMME_NETTO, unverändert) -- nur der
         // Balken mit \summelabel ("Ihre Gutschrift") soll den Betrag positiv ausweisen.
+        'SUMME_BRUTTO'          => number_format(abs($tax['brutto']), 2, ',', '.'),
         'RAW_SUMME_BRUTTO'      => rechnungBetragUnicode(abs($tax['brutto'])),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
@@ -6941,7 +6951,9 @@ $router->get('/portal/billing/preview', function () {
         'MITGLIEDSBEITRAG_LABEL' => 'Mitgliedsbeitrag (anteilig, 2 Monate)',
         'MITGLIEDSBEITRAG'      => '15,00',
         'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
+        'SUMME_NETTO'           => number_format($tbPreview['netto'], 2, ',', '.'),
         'RAW_SUMME_NETTO'       => rechnungBetragUnicode($tbPreview['netto']),
+        'SUMME_BRUTTO'          => number_format($tbPreview['brutto'], 2, ',', '.'),
         'RAW_SUMME_BRUTTO'      => rechnungBetragUnicode($tbPreview['brutto']),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
@@ -9932,8 +9944,10 @@ function adminFileVariables(): array
             'MITGLIEDSBEITRAG_LABEL' => 'Beschriftung der Mitgliedsbeitrag-Zeile, z.B. "Mitgliedsbeitrag (anteilig, 2 Monate)" bei unterjährigem Beitritt, sonst nur "Mitgliedsbeitrag"',
             'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste (anteilig bei unterjährigem Beitritt)',
             'SUMME_TABELLE_LABEL' => '"Summe" (Kleinunternehmer) bzw. "Summe netto" (Standard-Steuermodell) für die Summenzeile in der Positionstabelle',
-            'RAW_SUMME_NETTO' => 'Gesamtsumme netto, bereits über rechnungBetragUnicode() formatiert (RAW, nicht escapen -- enthält bei negativem Betrag echtes LaTeX-Minuszeichen)',
-            'RAW_SUMME_BRUTTO' => 'Gesamtsumme brutto, bereits über rechnungBetragUnicode() formatiert (RAW, nicht escapen) -- bei einer Gutschrift (negativer Saldo) bewusst als positiver Betrag befüllt, siehe RAW_SUMME_LABEL',
+            'RAW_SUMME_NETTO' => 'Gesamtsumme netto, bereits über rechnungBetragUnicode() formatiert (RAW, nicht escapen -- enthält bei negativem Betrag echtes LaTeX-Minuszeichen). Aktueller Platzhalter -- bitte in der Vorlage verwenden.',
+            'SUMME_NETTO' => 'Gesamtsumme netto als reine Zahl (z.B. "-28,70", einfacher Bindestrich). Nur als Absicherung für ältere Vorlagen vorhanden -- neue Vorlagen verwenden RAW_SUMME_NETTO.',
+            'RAW_SUMME_BRUTTO' => 'Gesamtsumme brutto, bereits über rechnungBetragUnicode() formatiert (RAW, nicht escapen) -- bei einer Gutschrift (negativer Saldo) bewusst als positiver Betrag befüllt, siehe RAW_SUMME_LABEL. Aktueller Platzhalter -- bitte in der Vorlage verwenden.',
+            'SUMME_BRUTTO' => 'Gesamtsumme brutto als reine Zahl, immer positiv. Nur als Absicherung für ältere Vorlagen vorhanden -- neue Vorlagen verwenden RAW_SUMME_BRUTTO.',
             'IBAN' => 'IBAN der Energiegemeinschaft (für die Zahlung)',
             'BIC' => 'BIC der Energiegemeinschaft',
             'RAW_STEUER_ZEILE' => 'Vorformatierte USt-Zeile (RAW, nicht escapen)',
