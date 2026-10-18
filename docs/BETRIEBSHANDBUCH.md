@@ -1109,3 +1109,20 @@ docker compose up -d --build
 > /opt/eeg/latex-templates/` prüfen, eine dort liegende alte `rechnung.tex` überdeckt die
 > aktuelle Vorlage dauerhaft und muss gelöscht (oder über `/admin/templates` neu hochgeladen)
 > werden.
+
+> **Einmalig nach dem Update vom 18.10.2026 (fünfter Teil des Tages) -- SEPA-Unterstrich-Fix
+> (Bank-Ablehnung wegen EndToEndId), Ausführungsdatum-Auswahl beim SEPA-Download, Fälligkeit auf
+> nächsten Bankarbeitstag** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261018d.sql
+> docker compose up -d --build
+> ```
+> Neue Spalten `billing_runs.sepa_collection_date_used`/`sepa_transfer_date_used` (beide DATE,
+> additiv, kein Datenverlust) -- merken sich das beim letzten SEPA-XML-Download gewählte
+> Ausführungsdatum je Abrechnungslauf, für die Vorauswahl im neuen Auswahl-Pop-up. Keine weitere
+> manuelle Aktion nötig: die SEPA-Sanitizer-Korrektur (Unterstrich → Bindestrich, Umlaute
+> transliteriert) und die automatische Fälligkeits-Verschiebung auf den nächsten Bankarbeitstag
+> greifen ab dem nächsten SEPA-Download bzw. der nächsten Rechnungsfreigabe automatisch, ohne
+> etwas an bereits erzeugten Dateien/eingefrorenen Rechnungen zu ändern.

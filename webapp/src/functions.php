@@ -546,6 +546,78 @@ function rechnungPositionenLatex(array $items, string $label, bool $gutschrift):
 }
 
 /**
+ * Bereinigt einen String für SEPA-pain.001/pain.008-XML-Textfelder (EndToEndId, MsgId, PmtInfId,
+ * MndtId, Namen, Verwendungszweck) auf den von SEPA erlaubten "Latin Character Set" --
+ * `a-z A-Z 0-9 / - ? : ( ) . , ' +` und Leerzeichen. Ohne das weist die Bank die GESAMTE Datei
+ * zurück, sobald auch nur EIN Feld ein unerlaubtes Zeichen enthält (Vorfall 18.10.2026:
+ * "RE-260007_RC108175" mit Unterstrich in der EndToEndId -- George/Sparkasse lehnte die komplette
+ * Gutschriften-Datei ab).
+ *
+ * Reihenfolge wichtig:
+ * 1. Deutsche Umlaute/ß explizit ausgeschrieben (ä→ae, ß→ss, ...) -- eine reine Diakritik-Tabelle
+ *    würde nur die Pünktchen/den Bogen entfernen ("Höfferer" → "Hofferer" statt korrekt
+ *    "Hoefferer"), außerdem Unterstrich → Bindestrich (siehe Vorfall oben).
+ * 2. Weitere diakritische Zeichen (é, ñ, ç, č, …) über eine fest hinterlegte Tabelle
+ *    (Latin-1 Supplement + Latin Extended-A) transliteriert -- BEWUSST nicht per `iconv(...,
+ *    'ASCII//TRANSLIT', ...)`: Alpine/musl (das Basis-Image von `webapp`, siehe
+ *    `webapp/Dockerfile`) unterstützt `//TRANSLIT` anders als glibc nur unzuverlässig/gar nicht,
+ *    eine selbst hinterlegte Tabelle funktioniert dagegen identisch auf jedem System.
+ * 3. Alles danach noch verbleibende, nicht erlaubte Zeichen (Emoji, Sonderzeichen jeder Art)
+ *    wird durch ein Leerzeichen ersetzt statt einfach entfernt, damit z.B. "Müller&Co" nicht zu
+ *    "MllerCo" verschmilzt -- mehrfache Leerzeichen werden danach zusammengefasst.
+ *
+ * $maxLen kürzt NACH der Bereinigung (nicht abbrechen/werfen) -- SEPA-Felder haben feste
+ * Längengrenzen (EndToEndId/MsgId/PmtInfId 35, Verwendungszweck 140, Namen 70), eine zu lange
+ * Rechnungsnummer/ein zu langer Name soll nicht die ganze Datei scheitern lassen.
+ *
+ * $isIdField=true wendet zusätzlich die SEPA-Regeln für Id-Felder an (EndToEndId/MsgId/
+ * PmtInfId/MndtId, NICHT Namen/Verwendungszweck): kein "/" am Anfang/Ende, kein "//".
+ */
+function sepaSanitize(string $s, int $maxLen = 140, bool $isIdField = false): string
+{
+    static $translitMap = [
+        'À' => 'A', 'Á' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Å' => 'A', 'Æ' => 'AE', 'Ç' => 'C',
+        'È' => 'E', 'É' => 'E', 'Ê' => 'E', 'Ë' => 'E', 'Ì' => 'I', 'Í' => 'I', 'Î' => 'I',
+        'Ï' => 'I', 'Ð' => 'D', 'Ñ' => 'N', 'Ò' => 'O', 'Ó' => 'O', 'Ô' => 'O', 'Õ' => 'O',
+        'Ø' => 'O', 'Ù' => 'U', 'Ú' => 'U', 'Û' => 'U', 'Ý' => 'Y', 'Þ' => 'Th',
+        'à' => 'a', 'á' => 'a', 'â' => 'a', 'ã' => 'a', 'å' => 'a', 'æ' => 'ae', 'ç' => 'c',
+        'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e', 'ì' => 'i', 'í' => 'i', 'î' => 'i',
+        'ï' => 'i', 'ð' => 'd', 'ñ' => 'n', 'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o',
+        'ø' => 'o', 'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ý' => 'y', 'þ' => 'th', 'ÿ' => 'y',
+        'Ā' => 'A', 'ā' => 'a', 'Ă' => 'A', 'ă' => 'a', 'Ą' => 'A', 'ą' => 'a', 'Ć' => 'C',
+        'ć' => 'c', 'Ĉ' => 'C', 'ĉ' => 'c', 'Ċ' => 'C', 'ċ' => 'c', 'Č' => 'C', 'č' => 'c',
+        'Ď' => 'D', 'ď' => 'd', 'Đ' => 'D', 'đ' => 'd', 'Ē' => 'E', 'ē' => 'e', 'Ĕ' => 'E',
+        'ĕ' => 'e', 'Ė' => 'E', 'ė' => 'e', 'Ę' => 'E', 'ę' => 'e', 'Ě' => 'E', 'ě' => 'e',
+        'Ĝ' => 'G', 'ĝ' => 'g', 'Ğ' => 'G', 'ğ' => 'g', 'Ġ' => 'G', 'ġ' => 'g', 'Ģ' => 'G',
+        'ģ' => 'g', 'Ĥ' => 'H', 'ĥ' => 'h', 'Ĩ' => 'I', 'ĩ' => 'i', 'Ī' => 'I', 'ī' => 'i',
+        'Ĭ' => 'I', 'ĭ' => 'i', 'Į' => 'I', 'į' => 'i', 'İ' => 'I', 'Ĵ' => 'J', 'ĵ' => 'j',
+        'Ķ' => 'K', 'ķ' => 'k', 'Ĺ' => 'L', 'ĺ' => 'l', 'Ļ' => 'L', 'ļ' => 'l', 'Ľ' => 'L',
+        'ľ' => 'l', 'Ł' => 'L', 'ł' => 'l', 'Ń' => 'N', 'ń' => 'n', 'Ņ' => 'N', 'ņ' => 'n',
+        'Ň' => 'N', 'ň' => 'n', 'Ō' => 'O', 'ō' => 'o', 'Ŏ' => 'O', 'ŏ' => 'o', 'Ő' => 'O',
+        'ő' => 'o', 'Ŕ' => 'R', 'ŕ' => 'r', 'Ŗ' => 'R', 'ŗ' => 'r', 'Ř' => 'R', 'ř' => 'r',
+        'Ś' => 'S', 'ś' => 's', 'Ŝ' => 'S', 'ŝ' => 's', 'Ş' => 'S', 'ş' => 's', 'Š' => 'S',
+        'š' => 's', 'Ţ' => 'T', 'ţ' => 't', 'Ť' => 'T', 'ť' => 't', 'Ũ' => 'U', 'ũ' => 'u',
+        'Ū' => 'U', 'ū' => 'u', 'Ŭ' => 'U', 'ŭ' => 'u', 'Ů' => 'U', 'ů' => 'u', 'Ű' => 'U',
+        'ű' => 'u', 'Ų' => 'U', 'ų' => 'u', 'Ŵ' => 'W', 'ŵ' => 'w', 'Ŷ' => 'Y', 'ŷ' => 'y',
+        'Ÿ' => 'Y', 'Ź' => 'Z', 'ź' => 'z', 'Ż' => 'Z', 'ż' => 'z', 'Ž' => 'Z', 'ž' => 'z',
+    ];
+
+    $s = strtr($s, [
+        'ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss',
+        'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue',
+        '_' => '-',
+    ]);
+    $s = strtr($s, $translitMap);
+    $s = preg_replace('/[^a-zA-Z0-9\/\-?:().,\'+ ]/', ' ', $s);
+    $s = trim(preg_replace('/\s+/', ' ', $s));
+    if ($isIdField) {
+        $s = trim($s, '/');
+        $s = preg_replace('/\/{2,}/', '/', $s);
+    }
+    return mb_substr($s, 0, $maxLen);
+}
+
+/**
  * Erzeugt eine SEPA-Basislastschrift (SDD CORE) als pain.008-XML — die Datei, die der Obmann in
  * sein Online-Banking hochlädt. Version umschaltbar: '08' = pain.008.001.08 (neu, Standard),
  * '02' = pain.008.001.02 (alt). Reine Funktion (kein DB/HTTP) -> automatisiert testbar.
@@ -584,6 +656,11 @@ function sepaPain008Xml(
 
     $version = $version === '02' ? '02' : '08';
     $x = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    // Id-Felder (max. 35 Zeichen) vs. Namen (70) vs. Verwendungszweck (140) -- siehe
+    // sepaSanitize()-Docblock für die genauen SEPA-Zeichensatz-/Längenregeln.
+    $sId   = fn($s) => sepaSanitize((string)$s, 35, true);
+    $sName = fn($s) => sepaSanitize((string)$s, 70);
+    $sRmt  = fn($s) => sepaSanitize((string)$s, 140);
     $money = fn($v) => number_format((float)$v, 2, '.', '');
     $ns = 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.' . $version;
     // BIC-Element heißt in .02 <BIC>, in der 2019er-Fassung .08 <BICFI>.
@@ -595,7 +672,9 @@ function sepaPain008Xml(
             : '<FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>';
     };
 
-    $msgId  = $msgId !== '' ? $msgId : ('SFA-' . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6));
+    // Max. 33 statt 35 Zeichen, damit die abgeleitete PmtInfId ("<MsgId>-1") selbst nach Anhängen
+    // von "-1" noch innerhalb der 35-Zeichen-Grenze bleibt.
+    $msgId  = sepaSanitize($msgId !== '' ? $msgId : ('SFA-' . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6)), 33, true);
     $creDt  = date('Y-m-d\TH:i:s');
     $nbTx   = count($txns);
     $ctrl   = $money(array_sum(array_map(fn($t) => (float)$t['amount'], $txns)));
@@ -606,18 +685,20 @@ function sepaPain008Xml(
             '<DrctDbtTxInf>'
           // EndToEndId ist laut ISO-20022-Schema (pain.008) auf 35 Zeichen begrenzt -- die
           // Rechnungsnummer (seit 06.08.2026 inkl. Marktpartner-ID + Nach-/Vorname, siehe
-          // Billing::generateDrafts()) kann bei längeren Namen darüber liegen; ohne Kürzung
-          // würde die Bank die ganze SEPA-Datei ablehnen.
-          .   '<PmtId><EndToEndId>' . $x(substr((string)($t['end_to_end_id'] ?? 'NOTPROVIDED'), 0, 35)) . '</EndToEndId></PmtId>'
+          // Billing::generateDrafts()) kann bei längeren Namen darüber liegen; sepaSanitize()
+          // kürzt UND entfernt dabei zugleich nicht erlaubte Zeichen (z.B. den Unterstrich vor
+          // der Marktpartner-ID, Vorfall 18.10.2026) -- ohne beides würde die Bank die ganze
+          // SEPA-Datei ablehnen.
+          .   '<PmtId><EndToEndId>' . $x($sId($t['end_to_end_id'] ?? 'NOTPROVIDED')) . '</EndToEndId></PmtId>'
           .   '<InstdAmt Ccy="EUR">' . $money($t['amount']) . '</InstdAmt>'
           .   '<DrctDbtTx><MndtRltdInf>'
-          .     '<MndtId>' . $x($t['mandate_ref']) . '</MndtId>'
+          .     '<MndtId>' . $x($sId($t['mandate_ref'])) . '</MndtId>'
           .     '<DtOfSgntr>' . $x($t['mandate_date']) . '</DtOfSgntr>'
           .   '</MndtRltdInf></DrctDbtTx>'
           .   '<DbtrAgt>' . $agent($t['debtor_bic'] ?? '') . '</DbtrAgt>'
-          .   '<Dbtr><Nm>' . $x($t['debtor_name']) . '</Nm></Dbtr>'
+          .   '<Dbtr><Nm>' . $x($sName($t['debtor_name'])) . '</Nm></Dbtr>'
           .   '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $t['debtor_iban'])) . '</IBAN></Id></DbtrAcct>'
-          .   '<RmtInf><Ustrd>' . $x($t['remittance'] ?? '') . '</Ustrd></RmtInf>'
+          .   '<RmtInf><Ustrd>' . $x($sRmt($t['remittance'] ?? '')) . '</Ustrd></RmtInf>'
           . '</DrctDbtTxInf>';
     }
 
@@ -630,21 +711,21 @@ function sepaPain008Xml(
       .     '<CreDtTm>' . $creDt . '</CreDtTm>'
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
-      .     '<InitgPty><Nm>' . $x($creditor['name']) . '</Nm></InitgPty>'
+      .     '<InitgPty><Nm>' . $x($sName($creditor['name'])) . '</Nm></InitgPty>'
       .   '</GrpHdr>'
       .   '<PmtInf>'
-      .     '<PmtInfId>' . $x($msgId) . '-1</PmtInfId>'
+      .     '<PmtInfId>' . $x($msgId . '-1') . '</PmtInfId>'
       .     '<PmtMtd>DD</PmtMtd>'
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
       .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl><LclInstrm><Cd>CORE</Cd></LclInstrm>'
       .       '<SeqTp>' . $x($seqType) . '</SeqTp></PmtTpInf>'
       .     '<ReqdColltnDt>' . $x($collectionDate) . '</ReqdColltnDt>'
-      .     '<Cdtr><Nm>' . $x($creditor['name']) . '</Nm></Cdtr>'
+      .     '<Cdtr><Nm>' . $x($sName($creditor['name'])) . '</Nm></Cdtr>'
       .     '<CdtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $creditor['iban'])) . '</IBAN></Id></CdtrAcct>'
       .     '<CdtrAgt>' . $agent($creditor['bic'] ?? '') . '</CdtrAgt>'
       .     '<ChrgBr>SLEV</ChrgBr>'
-      .     '<CdtrSchmeId><Id><PrvtId><Othr><Id>' . $x($creditor['creditor_id']) . '</Id>'
+      .     '<CdtrSchmeId><Id><PrvtId><Othr><Id>' . $x($sId($creditor['creditor_id'])) . '</Id>'
       .       '<SchmeNm><Prtry>SEPA</Prtry></SchmeNm></Othr></PrvtId></Id></CdtrSchmeId>'
       .     $txXml
       .   '</PmtInf>'
@@ -673,6 +754,9 @@ function sepaPain008Xml(
 function sepaPain001Xml(array $payer, array $txns, string $executionDate, string $msgId = ''): string
 {
     $x = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    $sId   = fn($s) => sepaSanitize((string)$s, 35, true);
+    $sName = fn($s) => sepaSanitize((string)$s, 70);
+    $sRmt  = fn($s) => sepaSanitize((string)$s, 140);
     $money = fn($v) => number_format((float)$v, 2, '.', '');
     $ns = 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03';
     $agent = function (?string $bic) use ($x): string {
@@ -682,7 +766,9 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
             : '<FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>';
     };
 
-    $msgId = $msgId !== '' ? $msgId : ('SFA-' . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6));
+    // Max. 33 statt 35 Zeichen, damit die abgeleitete PmtInfId ("<MsgId>-1") selbst nach Anhängen
+    // von "-1" noch innerhalb der 35-Zeichen-Grenze bleibt.
+    $msgId = sepaSanitize($msgId !== '' ? $msgId : ('SFA-' . date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6)), 33, true);
     $creDt = date('Y-m-d\TH:i:s');
     $nbTx  = count($txns);
     $ctrl  = $money(array_sum(array_map(fn($t) => (float)$t['amount'], $txns)));
@@ -691,13 +777,15 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
     foreach ($txns as $t) {
         $txXml .=
             '<CdtTrfTxInf>'
-          // EndToEndId auf 35 Zeichen begrenzt, gleiche Schema-Grenze wie bei pain.008.
-          .   '<PmtId><EndToEndId>' . $x(substr((string)($t['end_to_end_id'] ?? 'NOTPROVIDED'), 0, 35)) . '</EndToEndId></PmtId>'
+          // EndToEndId auf 35 Zeichen begrenzt, gleiche Schema-Grenze wie bei pain.008 -- siehe
+          // sepaSanitize()-Docblock (Vorfall 18.10.2026: Unterstrich in der Rechnungsnummer
+          // wurde von George/Sparkasse abgelehnt).
+          .   '<PmtId><EndToEndId>' . $x($sId($t['end_to_end_id'] ?? 'NOTPROVIDED')) . '</EndToEndId></PmtId>'
           .   '<Amt><InstdAmt Ccy="EUR">' . $money($t['amount']) . '</InstdAmt></Amt>'
           .   '<CdtrAgt>' . $agent($t['creditor_bic'] ?? '') . '</CdtrAgt>'
-          .   '<Cdtr><Nm>' . $x($t['creditor_name']) . '</Nm></Cdtr>'
+          .   '<Cdtr><Nm>' . $x($sName($t['creditor_name'])) . '</Nm></Cdtr>'
           .   '<CdtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $t['creditor_iban'])) . '</IBAN></Id></CdtrAcct>'
-          .   '<RmtInf><Ustrd>' . $x($t['remittance'] ?? '') . '</Ustrd></RmtInf>'
+          .   '<RmtInf><Ustrd>' . $x($sRmt($t['remittance'] ?? '')) . '</Ustrd></RmtInf>'
           . '</CdtTrfTxInf>';
     }
 
@@ -710,22 +798,225 @@ function sepaPain001Xml(array $payer, array $txns, string $executionDate, string
       .     '<CreDtTm>' . $creDt . '</CreDtTm>'
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
-      .     '<InitgPty><Nm>' . $x($payer['name']) . '</Nm></InitgPty>'
+      .     '<InitgPty><Nm>' . $x($sName($payer['name'])) . '</Nm></InitgPty>'
       .   '</GrpHdr>'
       .   '<PmtInf>'
-      .     '<PmtInfId>' . $x($msgId) . '-1</PmtInfId>'
+      .     '<PmtInfId>' . $x($msgId . '-1') . '</PmtInfId>'
       .     '<PmtMtd>TRF</PmtMtd>'
       .     '<NbOfTxs>' . $nbTx . '</NbOfTxs>'
       .     '<CtrlSum>' . $ctrl . '</CtrlSum>'
       .     '<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>'
       .     '<ReqdExctnDt>' . $x($executionDate) . '</ReqdExctnDt>'
-      .     '<Dbtr><Nm>' . $x($payer['name']) . '</Nm></Dbtr>'
+      .     '<Dbtr><Nm>' . $x($sName($payer['name'])) . '</Nm></Dbtr>'
       .     '<DbtrAcct><Id><IBAN>' . $x(str_replace(' ', '', $payer['iban'])) . '</IBAN></Id></DbtrAcct>'
       .     '<DbtrAgt>' . $agent($payer['bic'] ?? '') . '</DbtrAgt>'
       .     '<ChrgBr>SLEV</ChrgBr>'
       .     $txXml
       .   '</PmtInf>'
       . '</CstmrCdtTrfInitn></Document>';
+}
+
+/**
+ * Datum des Ostersonntags für ein gregorianisches Jahr nach dem Gauß/Meeus-Algorithmus
+ * (Meeus/Jones/Butcher-Variante) -- bewusst selbst berechnet statt über eine externe API oder
+ * PHP's eigene easter_date() (die von der optionalen "calendar"-Erweiterung abhängt, welche im
+ * webapp-Image bisher nicht installiert ist -- dieselbe Klasse von Problem wie zuvor bei
+ * `zip`/`iconv`, siehe sepaSanitize()). Alle übrigen beweglichen Feiertage/TARGET2-Schließtage
+ * (Karfreitag, Ostermontag, Christi Himmelfahrt, Pfingstmontag, Fronleichnam) ergeben sich als
+ * fester Tagesabstand zu diesem Datum. Gegen PHPs easter_date() für 2020-2035 verifiziert
+ * (identisch in jedem Jahr).
+ */
+function easterSunday(int $year): string
+{
+    $a = $year % 19;
+    $b = intdiv($year, 100);
+    $c = $year % 100;
+    $d = intdiv($b, 4);
+    $e = $b % 4;
+    $f = intdiv($b + 8, 25);
+    $g = intdiv($b - $f + 1, 3);
+    $h = (19 * $a + $b - $d - $g + 15) % 30;
+    $i = intdiv($c, 4);
+    $k = $c % 4;
+    $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+    $m = intdiv($a + 11 * $h + 22 * $l, 451);
+    $month = intdiv($h + $l - 7 * $m + 114, 31);
+    $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
+/**
+ * Grund, warum ein Datum KEIN Bankarbeitstag ist (für Tooltip/Anzeige im
+ * Ausführungsdatum-Modal, siehe /portal/billing/:id/sepa-xml), oder null, wenn es einer ist.
+ * Deckt Wochenenden, österreichische gesetzliche Feiertage und TARGET2-Schließtage ab.
+ * Karfreitag ist in Österreich KEIN gesetzlicher Feiertag (anders als z.B. in Deutschland), aber
+ * ein TARGET2-Schließtag -- SEPA-Zahlungen laufen an diesem Tag trotzdem nicht. Bewusst
+ * länderspezifisch benannt (nur AT) -- bei Bedarf um einen $country-Parameter erweiterbar,
+ * aktuell nicht nötig (die Plattform kennt nur österreichische Energiegemeinschaften).
+ */
+function bankingDayBlockReasonAT(string $date): ?string
+{
+    $d = new DateTimeImmutable($date);
+    $dow = (int)$d->format('N'); // 1=Montag .. 7=Sonntag
+    if ($dow === 6) return 'Samstag';
+    if ($dow === 7) return 'Sonntag';
+
+    $fixedHolidays = [
+        '01-01' => 'Neujahr',
+        '01-06' => 'Heilige Drei Könige',
+        '05-01' => 'Staatsfeiertag',
+        '08-15' => 'Mariä Himmelfahrt',
+        '10-26' => 'Nationalfeiertag',
+        '11-01' => 'Allerheiligen',
+        '12-08' => 'Mariä Empfängnis',
+        '12-25' => 'Christtag',
+        '12-26' => 'Stefanitag',
+    ];
+    $md = $d->format('m-d');
+    if (isset($fixedHolidays[$md])) return $fixedHolidays[$md];
+
+    $easter = new DateTimeImmutable(easterSunday((int)$d->format('Y')));
+    $movableHolidays = [
+        $easter->modify('-2 days')->format('Y-m-d')  => 'Karfreitag',
+        $easter->modify('+1 day')->format('Y-m-d')   => 'Ostermontag',
+        $easter->modify('+39 days')->format('Y-m-d') => 'Christi Himmelfahrt',
+        $easter->modify('+50 days')->format('Y-m-d') => 'Pfingstmontag',
+        $easter->modify('+60 days')->format('Y-m-d') => 'Fronleichnam',
+    ];
+    return $movableHolidays[$d->format('Y-m-d')] ?? null;
+}
+
+/** true, wenn an diesem Tag SEPA-Zahlungen tatsächlich ausgeführt werden (siehe bankingDayBlockReasonAT()). */
+function isBankingDay(string $date): bool
+{
+    return bankingDayBlockReasonAT($date) === null;
+}
+
+/** Nächster Bankarbeitstag NACH (exklusive) $date. */
+function nextBankingDay(string $date): string
+{
+    $d = new DateTimeImmutable($date);
+    do {
+        $d = $d->modify('+1 day');
+    } while (!isBankingDay($d->format('Y-m-d')));
+    return $d->format('Y-m-d');
+}
+
+/** Geht von $date aus genau $n Bankarbeitstage weiter (jeder Schritt überspringt Wochenenden/
+ *  Feiertage) -- z.B. für "mindestens 2 Bankarbeitstage nach heute" bei der
+ *  Ausführungsdatum-Auswahl, falls das reguläre früheste Datum bereits in der Vergangenheit liegt. */
+function addBankingDays(string $date, int $n): string
+{
+    $d = $date;
+    for ($i = 0; $i < $n; $i++) {
+        $d = nextBankingDay($d);
+    }
+    return $d;
+}
+
+// SEPA-Fristen als benannte Konstanten statt Magic Numbers -- an einer Stelle änderbar, falls
+// sich die Vorgaben der Bank/des Kreditinstituts je ändern sollten.
+// SEPA-Core-Lastschrift: Pre-Notification (Vorabankündigung) muss mindestens 14 Kalendertage vor
+// dem Einzug erfolgen.
+const SEPA_PRENOTIFICATION_DAYS = 14;
+// Eigene, unabhängige Frist für die Gutschrift-Überweisung (pain.001) -- Standard ebenfalls 14
+// Tage, damit Einzug und Gutschrift am selben Tag laufen können, aber als eigene Konstante
+// geführt, falls sich das künftig einmal unterscheiden soll (Patrick, 18.10.2026).
+const SEPA_TRANSFER_MIN_DAYS = 14;
+
+/**
+ * Berechnet den 8-Tage-Anzeigezeitraum für die Ausführungsdatum-Auswahl im SEPA-Download-Modal
+ * (Lastschrift pain.008 mit SEPA_PRENOTIFICATION_DAYS, Überweisung pain.001 mit
+ * SEPA_TRANSFER_MIN_DAYS) -- siehe Aufgabe 18.10.2026.
+ *
+ * Normalfall: frühestes Datum = $invoiceDate + $minDays, spätestes = frühestes + 7 Tage (8 Tage
+ * insgesamt). Liegt das früheste Datum bereits in der Vergangenheit (der Abrechnungslauf wurde
+ * erst spät heruntergeladen), beginnt der Zeitraum stattdessen beim nächsten gültigen
+ * Bankarbeitstag, der mindestens 2 Bankarbeitstage nach $today liegt (SEPA-Core: Einreichung
+ * mindestens 1 Bankarbeitstag vor Ausführung) -- das Ende bleibt weiterhin +7 Tage ab diesem
+ * tatsächlichen Beginn.
+ *
+ * @param string $invoiceDate Rechnungsdatum/Freigabedatum des Abrechnungslaufs (Y-m-d)
+ * @param int $minDays SEPA_PRENOTIFICATION_DAYS oder SEPA_TRANSFER_MIN_DAYS
+ * @param string $today "heute" (Y-m-d) -- als Parameter statt date('Y-m-d') direkt, damit die
+ *        Funktion ohne Systemzeit-Abhängigkeit automatisiert testbar ist.
+ * @return array{range_start: string, range_end: string, earliest: string} range_start/range_end
+ *         sind die 8 im Modal angezeigten Kalendertage (inklusive beider Enden); earliest ist
+ *         das erste davon tatsächlich WÄHLBARE (Bankarbeits-)Datum, für die Vorauswahl im Modal.
+ */
+function sepaExecutionDateRange(string $invoiceDate, int $minDays, string $today): array
+{
+    $earliestRegular = date('Y-m-d', strtotime($invoiceDate . " +{$minDays} days"));
+    if ($earliestRegular < $today) {
+        $rangeStart = addBankingDays($today, 2);
+    } else {
+        $rangeStart = $earliestRegular;
+    }
+    $rangeEnd = date('Y-m-d', strtotime($rangeStart . ' +7 days'));
+    $earliest = isBankingDay($rangeStart) ? $rangeStart : nextBankingDay($rangeStart);
+    if ($earliest > $rangeEnd) { $earliest = $rangeEnd; } // defensive Absicherung, in der Praxis nie nötig
+    return ['range_start' => $rangeStart, 'range_end' => $rangeEnd, 'earliest' => $earliest];
+}
+
+/**
+ * Baut die 8 Tageskacheln für das Ausführungsdatum-Auswahl-Modal (siehe sepaExecutionDateRange())
+ * -- je Tag Datum, deutsche Wochentagskürzel, ob gesperrt und falls ja, aus welchem Grund (für
+ * Tooltip/Beschriftung einer ausgegrauten Kachel).
+ *
+ * $lastUsed (das beim letzten Download dieses Laufs gewählte Datum, siehe
+ * billing_runs.sepa_collection_date_used/sepa_transfer_date_used) wird vorausgewählt, FALLS es
+ * noch innerhalb des aktuell berechneten Zeitraums und weiterhin ein gültiger Bankarbeitstag ist
+ * -- sonst (Zeitraum hat sich verschoben, z.B. weil seit dem letzten Download viel Zeit verging)
+ * fällt die Vorauswahl auf das erste gültige Datum zurück.
+ */
+function sepaExecutionDateTiles(string $invoiceDate, int $minDays, string $today, ?string $lastUsed = null): array
+{
+    static $weekdayNames = [1 => 'Mo', 2 => 'Di', 3 => 'Mi', 4 => 'Do', 5 => 'Fr', 6 => 'Sa', 7 => 'So'];
+    $range = sepaExecutionDateRange($invoiceDate, $minDays, $today);
+    $tiles = [];
+    $cursor = new DateTimeImmutable($range['range_start']);
+    $end = new DateTimeImmutable($range['range_end']);
+    while ($cursor <= $end) {
+        $dateStr = $cursor->format('Y-m-d');
+        $reason = bankingDayBlockReasonAT($dateStr);
+        $weekday = $weekdayNames[(int)$cursor->format('N')];
+        $tiles[] = [
+            'date'    => $dateStr,
+            'label'   => $weekday . ' ' . $cursor->format('d.m.Y'),
+            'blocked' => $reason !== null,
+            'reason'  => $reason,
+        ];
+        $cursor = $cursor->modify('+1 day');
+    }
+    $selected = ($lastUsed !== null
+        && $lastUsed >= $range['range_start'] && $lastUsed <= $range['range_end']
+        && isBankingDay($lastUsed))
+        ? $lastUsed
+        : $range['earliest'];
+    return ['tiles' => $tiles, 'selected' => $selected, 'invoice_date' => $invoiceDate, 'min_days' => $minDays];
+}
+
+/**
+ * Serverseitige Prüfung eines vom Nutzer im Ausführungsdatum-Modal gewählten Datums -- niemals
+ * nur der Frontend-Auswahl vertrauen (Patrick, 18.10.2026: "Backend-Validierung (nicht nur im
+ * Frontend)"). Gibt null zurück, wenn das Datum gültig ist, sonst eine fertige, auf Deutsch
+ * formulierte Fehlermeldung für eine HTTP-422-Antwort.
+ */
+function validateSepaExecutionDate(string $date, string $invoiceDate, int $minDays, string $today): ?string
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return 'Ungültiges Datumsformat.';
+    }
+    $range = sepaExecutionDateRange($invoiceDate, $minDays, $today);
+    if ($date < $range['range_start'] || $date > $range['range_end']) {
+        return 'Das gewählte Datum liegt außerhalb des zulässigen Zeitraums ('
+            . date('d.m.Y', strtotime($range['range_start'])) . ' – ' . date('d.m.Y', strtotime($range['range_end'])) . ').';
+    }
+    if (!isBankingDay($date)) {
+        return 'Das gewählte Datum (' . date('d.m.Y', strtotime($date)) . ') ist kein Bankarbeitstag ('
+            . (bankingDayBlockReasonAT($date) ?? 'gesperrt') . ').';
+    }
+    return null;
 }
 
 /**
