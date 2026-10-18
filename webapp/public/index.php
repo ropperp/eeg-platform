@@ -1087,12 +1087,13 @@ function createMemberRecord(string $communityId, array $f): array
             address, zip, city, email, phone, invoice_uid, member_iban, member_bic,
             kontoinhaber, konto_adresse,
             member_since, member_until, kundennummer, mandatsreferenz, beitrittsdatum,
+            mandat_unterschrift_datum,
             geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
             zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
             zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
             email_anrede_mode
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
@@ -1116,6 +1117,7 @@ function createMemberRecord(string $communityId, array $f): array
             $kundennummer,
             $mandatsreferenz,
             $f['member_since'] ?: date('Y-m-d'),
+            ($f['mandat_unterschrift_datum'] ?? '') ?: null,
             ($f['geburtsdatum'] ?? '') ?: null,
             trim($f['stromlieferant'] ?? '') ?: null,
             ($f['speicher_status'] ?? '') ?: null,
@@ -5445,7 +5447,7 @@ $router->post('/portal/members/:id/edit', function ($params) {
     DB::execute(
         'UPDATE members SET salutation=?, titel=?, first_name=?, last_name=?, company_name=?, address=?, zip=?, city=?,
          phone=?, invoice_uid=?, member_iban=?, member_bic=?, kontoinhaber=?, konto_adresse=?, mandatsreferenz=?,
-         member_since=?, member_until=?,
+         member_since=?, member_until=?, mandat_unterschrift_datum=?,
          geburtsdatum=?, stromlieferant=?, speicher_status=?, speicher_kwh=?, andere_eeg=?, andere_eeg_name=?,
          email_anrede_mode=?
          WHERE id=?',
@@ -5467,6 +5469,7 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $mandatsreferenz,
             $_POST['member_since'] ?: date('Y-m-d'),
             ($_POST['member_until'] ?? '') ?: '2099-12-31',
+            ($_POST['mandat_unterschrift_datum'] ?? '') ?: null,
             ($_POST['geburtsdatum'] ?? '') ?: null,
             trim($_POST['stromlieferant'] ?? '') ?: null,
             ($_POST['speicher_status'] ?? '') ?: null,
@@ -5483,7 +5486,8 @@ $router->post('/portal/members/:id/edit', function ($params) {
         'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
         'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
         'konto_adresse' => 'Konto-Adresse', 'mandatsreferenz' => 'Mandatsreferenz', 'member_since' => 'Mitglied seit',
-        'member_until' => 'Mitglied bis', 'geburtsdatum' => 'Geburtsdatum', 'stromlieferant' => 'Stromlieferant',
+        'member_until' => 'Mitglied bis', 'mandat_unterschrift_datum' => 'Mandatsunterschrift-Datum',
+        'geburtsdatum' => 'Geburtsdatum', 'stromlieferant' => 'Stromlieferant',
         'speicher_status' => 'Speicher', 'speicher_kwh' => 'Speicher kWh', 'andere_eeg' => 'Andere EEG',
         'andere_eeg_name' => 'Andere-EEG-Name', 'email_anrede_mode' => 'E-Mail-Anrede-Modus',
     ]);
@@ -7317,7 +7321,13 @@ function sepaCollectionData(string $communityId, string $runId): array
         "SELECT i.rechnungsnummer, i.saldo_eur, br.quartal,
                 m.first_name, m.last_name, m.company_name, m.member_iban, m.member_bic,
                 m.mandatsreferenz,
-                COALESCE(m.sepa_mandate_date, m.beitrittsdatum, m.member_since, CURRENT_DATE) AS mandate_date
+                -- mandat_unterschrift_datum (siehe migrate_20261018.sql) hat Vorrang -- das
+                -- einzige Feld mit einem echten Formular/Schreibpfad dafür. sepa_mandate_date
+                -- bleibt als zweiter Fallback bestehen (seit migrate_20260808.sql vorhanden,
+                -- aber ohne UI immer NULL -- falls je von Hand gesetzt, zählt es trotzdem).
+                -- Ohne beides: beitrittsdatum (Registrierungsdatum, siehe Bericht) als bisheriges
+                -- Verhalten, zuletzt member_since/CURRENT_DATE als letzte Fallbacks.
+                COALESCE(m.mandat_unterschrift_datum, m.sepa_mandate_date, m.beitrittsdatum, m.member_since, CURRENT_DATE) AS mandate_date
            FROM invoices i
            JOIN billing_runs br ON br.id = i.billing_run_id
            JOIN members m ON m.id = i.member_id
@@ -7547,7 +7557,12 @@ $router->get('/portal/billing/:id/sepa-xml', function ($params) {
         $collect = date('Y-m-d', strtotime('+2 days'));
     }
     $msgId = 'SFA-' . preg_replace('/[^A-Za-z0-9]/', '', $run['quartal']) . '-' . date('YmdHis');
-    $xml = sepaPain008Xml($data['creditor'], $data['txns'], $collect, $version, 'RCUR', $msgId);
+    try {
+        $xml = sepaPain008Xml($data['creditor'], $data['txns'], $collect, $version, 'RCUR', $msgId);
+    } catch (\InvalidArgumentException $e) {
+        header('Location: /portal/billing/invoices?quartal=' . urlencode($run['quartal'])
+            . '&error=' . urlencode($e->getMessage())); exit;
+    }
     logAudit($communityId, 'billing.sepa_export', 'billing_run', $params['id'],
         'SEPA-XML (pain.008.001.' . $version . ') mit ' . count($data['txns']) . ' Lastschrift(en) erzeugt');
     // Nur beim ERSTEN Download setzen (COALESCE) -- scripts/sepa_faelligkeit_check.php erinnert

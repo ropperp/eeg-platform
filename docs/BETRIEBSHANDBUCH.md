@@ -1040,3 +1040,16 @@ docker compose up -d --build
 > stellt sie beim nächsten Login automatisch wieder her (vorher: nach JEDEM Login immer zurück
 > auf Platform-Admin, falls vorhanden). Rein additiv, kein Datenverlust, keine weitere manuelle
 > Aktion nötig.
+
+> **Einmalig nach dem Update vom 18.10.2026** (SEPA-Mandatsunterschriftsdatum, siehe
+> `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261018.sql
+> docker compose up -d --build
+> ```
+> Neue Spalte `members.mandat_unterschrift_datum` -- rein additiv, kein Datenverlust, keine
+> weitere manuelle Aktion nötig. Betrifft nur Mitglieder, bei denen die tatsächliche
+> Mandatsunterschrift vom Registrierungsdatum abweicht (im Mitglied-Formular unter
+> „Bankverbindung" nachtragbar, optional).
