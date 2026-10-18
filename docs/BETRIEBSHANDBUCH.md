@@ -1053,3 +1053,25 @@ docker compose up -d --build
 > weitere manuelle Aktion nötig. Betrifft nur Mitglieder, bei denen die tatsächliche
 > Mandatsunterschrift vom Registrierungsdatum abweicht (im Mitglied-Formular unter
 > „Bankverbindung" nachtragbar, optional).
+
+> **Einmalig nach dem Update vom 18.10.2026 (zweiter Teil des Tages) -- akademische Titel
+> vorgestellt/nachgestellt getrennt + Rechnungslayout** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261018b.sql
+> docker compose up -d --build
+> ```
+> Neue Spalten `members.titel_vor`/`titel_nach` (und dieselben zwei auf
+> `membership_applications` fürs Online-Beitrittsformular) -- das bisherige, einzelne
+> `titel`-Feld wurde immer VOR dem Namen ausgegeben, auch bei nachgestellten akademischen Graden
+> (z.B. "BA Kerstin Huber" statt korrekt "Kerstin Huber, BA"). Die Migration übernimmt
+> bestehende `titel`-Werte automatisch: eindeutig nachgestellte Grade (BA, BSc, BEd, Bakk., MA,
+> MSc, MEd, MBA, MAS, LL.B., LL.M., PhD) wandern nach `titel_nach`, alles andere (Dr., Mag.,
+> Ing., Prof., ...) nach `titel_vor` -- rein additiv, kein Datenverlust, das alte `titel`-Feld
+> bleibt unangetastet stehen. Kerstin Huber (KdNr 10013) wird dabei explizit auf `titel_nach =
+> 'BA'` korrigiert, unabhängig vom generischen Muster. Keine weitere manuelle Aktion nötig --
+> `formatMemberName()` (neu in `webapp/src/functions.php`) baut den vollständigen Namen ab
+> sofort überall einheitlich aus beiden Feldern zusammen (Rechnungs-PDF, E-Mails,
+> Mitgliederlisten); die SEPA-Kontoinhaber-Namen in der pain.008/pain.001-XML bleiben bewusst
+> einfach (nur `titel_vor`, kein nachgestellter Titel mit Komma).

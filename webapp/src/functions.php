@@ -495,7 +495,7 @@ function rechnungExtraItemsLatex(array $items): string
 {
     return implode("\n", array_map(function (array $it): string {
         $amount = (float)$it['amount_eur'];
-        $amountStr = ($amount < 0 ? '$-$\\,' : '') . number_format(abs($amount), 2, ',', '.');
+        $amountStr = rechnungBetragUnicode($amount);
         $label = (string)$it['label'];
         $qtyFloat = (float)($it['quantity'] ?? 1);
         $unit = trim((string)($it['unit'] ?? ''));
@@ -517,19 +517,28 @@ function rechnungExtraItemsLatex(array $items): string
  * graue Zweitzeile. Mehrere Zeilen werden mit einer feinen Trennlinie verbunden (nicht nach
  * der letzten -- die setzt die Vorlage selbst zwischen Bezugs- und Einspeisungsblock).
  * $items: invoice_items eines Typs (bezug oder einspeisung). $gutschrift=true stellt dem
- * Betrag ein Minuszeichen voran (Einspeisung wird von der Summe abgezogen).
+ * Betrag ein Minuszeichen voran (Einspeisung wird von der Summe abgezogen). $teilnahmeAb (Y-m-d,
+ * optional): tatsächlicher Beginn der Mitgliedschaft im Abrechnungszeitraum, falls SPÄTER als
+ * der Zeitraumbeginn (z.B. unterjähriger Beitritt) -- wird dann als zusätzliche Zeile unter dem
+ * Zählpunkt angezeigt, damit nachvollziehbar bleibt, warum weniger als der volle Zeitraum
+ * abgerechnet wurde (Patrick, 18.10.2026). Bewusst NICHT das volle Teilnahmeende (Austritt), da
+ * Billing::generateDrafts() nur Beitritts-, keine Austritts-Proration kennt (siehe dort).
  */
-function rechnungPositionenLatex(array $items, string $label, bool $gutschrift): string
+function rechnungPositionenLatex(array $items, string $label, bool $gutschrift, ?string $teilnahmeAb = null): string
 {
-    $zeilen = array_map(function (array $it) use ($label, $gutschrift): string {
+    $teilnahmeAbFmt = $teilnahmeAb !== null ? date('d.m.Y', strtotime($teilnahmeAb)) : null;
+    $zeilen = array_map(function (array $it) use ($label, $gutschrift, $teilnahmeAbFmt): string {
         $cell = $label;
         $zp = trim((string)($it['zaehlpunkt_nr'] ?? ''));
         if ($zp !== '') {
             $cell .= '\\newline{\\footnotesize\\color{midgray}Zählpunkt: ' . texEscape($zp) . '}';
         }
+        if ($teilnahmeAbFmt !== null) {
+            $cell .= '\\newline{\\footnotesize\\color{midgray}Teilnahme ab ' . $teilnahmeAbFmt . '}';
+        }
         $kwh    = number_format((float)$it['kwh'], 2, ',', '.');
         $tarif  = number_format((float)$it['rate_ct_kwh'], 4, ',', '.');
-        $betrag = ($gutschrift ? '$-$\\,' : '') . number_format(abs((float)$it['amount_eur']), 2, ',', '.');
+        $betrag = rechnungBetragUnicode($gutschrift ? -abs((float)$it['amount_eur']) : abs((float)$it['amount_eur']));
         return '  ' . $cell . ' & ' . $kwh . ' & ' . $tarif . ' & ' . $betrag . ' \\\\';
     }, $items);
     return implode("\n  \\arrayrulecolor{rulegray}\\hline\n", $zeilen);
@@ -952,7 +961,10 @@ function mahnstufeText(int $stufe): string
  */
 function mailSalutation(array $m): array
 {
-    $titel = trim((string)($m['titel'] ?? ''));
+    // Nur der VORGESTELLTE Titel gehört in eine Anredezeile ("Sehr geehrter Herr Dr. Müller,")
+    // -- ein nachgestellter akademischer Grad (BA, MSc, ...) wird in einer direkten Anrede nicht
+    // mitgenannt, siehe formatMemberName() für die vollständige Namensausgabe mit beiden Titeln.
+    $titel = trim((string)($m['titel_vor'] ?? ''));
     $last  = trim((string)($m['last_name'] ?? ''));
     if ($last === '' && trim((string)($m['company_name'] ?? '')) !== '') {
         return ['anrede' => 'Sehr geehrte Damen und Herren', 'nachname' => ''];
@@ -969,6 +981,84 @@ function mailSalutation(array $m): array
         default   => 'Guten Tag',
     };
     return ['anrede' => $anrede, 'nachname' => trim($titel . ' ' . $last)];
+}
+
+/**
+ * In Österreich übliche VORGESTELLTE akademische Titel/Berufsbezeichnungen fürs Dropdown im
+ * Mitglied-Formular bzw. der Online-Beitrittserklärung -- siehe titelNachOptionen() für
+ * nachgestellte Grade und formatMemberName() für die kombinierte Ausgabe. Nicht erschöpfend,
+ * "anderer" (Freitext) im Formular fängt alles ab, was hier fehlt.
+ */
+function titelVorOptionen(): array
+{
+    return [
+        'Ing.', 'DI', 'Dipl.-Ing.', 'Dipl.-Ing. (FH)', 'Mag.', 'Mag. (FH)', 'MMag.',
+        'Dr.', 'DDr.', 'Dr. med. univ.', 'Prof.', 'Univ.-Prof.', 'Mag. pharm.', 'Mag. iur.',
+    ];
+}
+
+/** In Österreich übliche NACHGESTELLTE akademische Grade fürs Dropdown -- siehe titelVorOptionen(). */
+function titelNachOptionen(): array
+{
+    return ['BA', 'BSc', 'BEd', 'Bakk.', 'MA', 'MSc', 'MEd', 'MBA', 'MAS', 'LL.B.', 'LL.M.', 'PhD'];
+}
+
+/**
+ * Formatiert den vollständigen Namen eines Mitglieds inkl. vor-/nachgestelltem akademischen
+ * Titel: "{titel_vor} {Vorname} {Nachname}, {titel_nach}" -- fehlende Teile fallen einfach weg,
+ * ohne doppelte Leerzeichen oder ein überflüssiges Komma. Einheitliche Stelle für Rechnungs-PDF,
+ * E-Mails und Mitgliederlisten (Patrick, 18.10.2026: "BA Kerstin Huber" statt korrekt
+ * "Kerstin Huber, BA", weil der nachgestellte Titel bisher immer vorangestellt wurde).
+ *
+ * NICHT für den SEPA-Kontoinhaber-/Debtor-Namen in der pain.008/pain.001-XML verwenden --
+ * Banksysteme erwarten einen einfachen Namen ohne Kommas/Zusätze; sepaCollectionData()/
+ * sepaCreditTransferData() (index.php) bauen den Namen dort bewusst separat, nur mit titel_vor.
+ */
+function formatMemberName(array $m): string
+{
+    $titelVor  = trim((string)($m['titel_vor'] ?? ''));
+    $titelNach = trim((string)($m['titel_nach'] ?? ''));
+    $first = trim((string)($m['first_name'] ?? ''));
+    $last  = trim((string)($m['last_name'] ?? ''));
+    $name = trim(($titelVor !== '' ? $titelVor . ' ' : '') . trim($first . ' ' . $last));
+    return $titelNach !== '' ? $name . ', ' . $titelNach : $name;
+}
+
+/**
+ * Löst ein Titel-Dropdown-Feld (titelVorOptionen()/titelNachOptionen() + "keiner"/"anderer") aus
+ * den rohen Formulardaten auf: $input[$field] enthält entweder "", einen der Options-Werte oder
+ * das Sentinel "__other__" -- im letzten Fall zählt stattdessen das Freitextfeld
+ * $input[$field . '_other']. Nur für die beiden HTML-Formulare (beitreten_formular.php,
+ * member_form.php) gedacht -- die JSON-API (App) schickt titel_vor/titel_nach weiterhin direkt
+ * als einfachen String, ohne dieses Dropdown-Sentinel.
+ */
+function resolveTitelField(array $input, string $field): ?string
+{
+    $selected = trim((string)($input[$field] ?? ''));
+    if ($selected === '__other__') {
+        $other = trim((string)($input[$field . '_other'] ?? ''));
+        return $other !== '' ? $other : null;
+    }
+    return $selected !== '' ? $selected : null;
+}
+
+/**
+ * Anzahl Kalendermonate zwischen zwei Daten (inklusive beider Enden) -- Vergleichsbasis für
+ * invoice_items.months (siehe Billing::mitgliedsbeitragAnteilig()), um auf der Rechnung zu
+ * entscheiden, ob die Mitgliedsbeitrag-Zeile "(anteilig, X Monate)" braucht oder den vollen
+ * Abrechnungszeitraum abdeckt.
+ */
+function countCalendarMonths(string $periodFrom, string $periodTo): int
+{
+    $from = new DateTime($periodFrom);
+    $to = new DateTime($periodTo);
+    return ((int)$to->format('Y') - (int)$from->format('Y')) * 12 + ((int)$to->format('n') - (int)$from->format('n')) + 1;
+}
+
+/** "(anteilig, X Monate)" bei aliquotem Zeitraum, sonst leer -- siehe countCalendarMonths(). */
+function mitgliedsbeitragLabelSuffix(int $months, int $totalMonths): string
+{
+    return ($totalMonths > 0 && $months < $totalMonths) ? ' (anteilig, ' . $months . ' Monate)' : '';
 }
 
 /**
@@ -995,6 +1085,30 @@ function taxBreakdown(float $netto, ?string $model, $rate): array
         'ust'    => $ust,
         'brutto' => round($netto + $ust, 2),
     ];
+}
+
+/**
+ * Formatiert einen Eurobetrag für die Summenzeile der Rechnung (einfacher Bindestrich bei
+ * negativem Betrag, z.B. "-28,70") -- siehe rechnungBetragUnicode() für Positionszeilen
+ * (Gutschriften/Rabatte), die stattdessen ein Unicode-Minuszeichen bekommen. Gemeinsamer
+ * Formatter, damit Summen- und Positionszeilen plattformweit konsistent bleiben (Patrick,
+ * 18.10.2026).
+ */
+function rechnungBetragBindestrich(float $amount): string
+{
+    return number_format($amount, 2, ',', '.');
+}
+
+/**
+ * Formatiert einen Eurobetrag für eine Positionszeile der Rechnungstabelle (Einspeisung,
+ * Zusatzpositionen/Rabatte) -- negative Beträge bekommen statt eines einfachen Bindestrichs ein
+ * LaTeX-Unicode-Minuszeichen mit schmalem Leerzeichen ("$-$\,", gerendert als "− 30,25") für ein
+ * saubereres Schriftbild in der Tabelle. Erwartet den bereits SIGNIERTEN Betrag (negativ =
+ * Gutschrift/Rabatt); siehe rechnungBetragBindestrich() für die Summenzeile.
+ */
+function rechnungBetragUnicode(float $amount): string
+{
+    return ($amount < 0 ? '$-$\\,' : '') . number_format(abs($amount), 2, ',', '.');
 }
 
 /**

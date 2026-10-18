@@ -36,9 +36,37 @@ ob_start();
             <?php endforeach; ?>
           </select>
         </div>
+        <?php
+          $titelVorVal = $d['titel_vor'] ?? '';
+          $titelVorOther = $titelVorVal !== '' && !in_array($titelVorVal, titelVorOptionen(), true);
+          $titelNachVal = $d['titel_nach'] ?? '';
+          $titelNachOther = $titelNachVal !== '' && !in_array($titelNachVal, titelNachOptionen(), true);
+        ?>
         <div class="form-group">
-          <label>Titel</label>
-          <input type="text" name="titel" placeholder="Dr., Mag., Ing. …" value="<?= htmlspecialchars($d['titel'] ?? '') ?>">
+          <label>Titel vorgestellt</label>
+          <select name="titel_vor" id="titel-vor-select" onchange="toggleTitelOther('vor')">
+            <option value="" <?= $titelVorVal === '' ? 'selected' : '' ?>>keiner</option>
+            <?php foreach (titelVorOptionen() as $opt): ?>
+              <option value="<?= htmlspecialchars($opt) ?>" <?= $titelVorVal === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
+            <?php endforeach; ?>
+            <option value="__other__" <?= $titelVorOther ? 'selected' : '' ?>>anderer …</option>
+          </select>
+          <input type="text" name="titel_vor_other" id="titel-vor-other" placeholder="z.B. Hofrat"
+                 style="margin-top:.5rem;<?= $titelVorOther ? '' : 'display:none' ?>"
+                 value="<?= $titelVorOther ? htmlspecialchars($titelVorVal) : '' ?>">
+        </div>
+        <div class="form-group">
+          <label>Titel nachgestellt</label>
+          <select name="titel_nach" id="titel-nach-select" onchange="toggleTitelOther('nach')">
+            <option value="" <?= $titelNachVal === '' ? 'selected' : '' ?>>keiner</option>
+            <?php foreach (titelNachOptionen() as $opt): ?>
+              <option value="<?= htmlspecialchars($opt) ?>" <?= $titelNachVal === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
+            <?php endforeach; ?>
+            <option value="__other__" <?= $titelNachOther ? 'selected' : '' ?>>anderer …</option>
+          </select>
+          <input type="text" name="titel_nach_other" id="titel-nach-other" placeholder="z.B. MBA"
+                 style="margin-top:.5rem;<?= $titelNachOther ? '' : 'display:none' ?>"
+                 value="<?= $titelNachOther ? htmlspecialchars($titelNachVal) : '' ?>">
         </div>
         <div class="form-group">
           <label>Vorname <span style="color:#ef4444">*</span></label>
@@ -258,6 +286,12 @@ ob_start();
 </div>
 
 <script>
+// Titel-Dropdown "anderer …" blendet das Freitextfeld ein (resolveTitelField() in
+// functions.php löst es beim Speichern auf).
+function toggleTitelOther(which) {
+  document.getElementById('titel-' + which + '-other').style.display =
+    document.getElementById('titel-' + which + '-select').value === '__other__' ? 'block' : 'none';
+}
 (function() {
   const STORAGE_KEY = 'beitritt_draft_<?= $mpid ?>';
   const SIGNATURE_FIELDS = ['signature_image', 'sepa_signature_image'];
@@ -351,6 +385,8 @@ ob_start();
   document.getElementById('bezug_gewuenscht').addEventListener('change', updateConditional);
   document.getElementById('einspeisung_gewuenscht').addEventListener('change', updateConditional);
   updateConditional();
+  toggleTitelOther('vor');
+  toggleTitelOther('nach');
 
   // IBAN: Prüfziffer per Mod-97 (ISO 7064) validieren und in 4er-Blöcken anzeigen,
   // analog zur serverseitigen Prüfung in validateIban() (webapp/public/index.php).

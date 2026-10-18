@@ -27,7 +27,7 @@ test('Modus frau überschreibt Geschlecht Herr', function () {
 });
 
 test('Titel wird dem Nachnamen vorangestellt', function () {
-    $s = mailSalutation(['salutation' => 'Herr', 'titel' => 'Dr.', 'last_name' => 'Berg', 'email_anrede_mode' => 'auto']);
+    $s = mailSalutation(['salutation' => 'Herr', 'titel_vor' => 'Dr.', 'last_name' => 'Berg', 'email_anrede_mode' => 'auto']);
     assertSame('Dr. Berg', $s['nachname']);
 });
 
@@ -40,4 +40,31 @@ test('Firmenmitglied ohne Nachname -> Damen und Herren', function () {
     $s = mailSalutation(['company_name' => 'Muster GmbH', 'last_name' => '', 'email_anrede_mode' => 'auto']);
     assertSame('Sehr geehrte Damen und Herren', $s['anrede']);
     assertSame('', $s['nachname']);
+});
+
+// formatMemberName() -- vollständiger Name inkl. vor-/nachgestelltem akademischen Titel
+// (Patrick, 18.10.2026: "BA Kerstin Huber" statt korrekt "Kerstin Huber, BA").
+
+test('formatMemberName: nur vorgestellter Titel', function () {
+    assertSame('Dr. Kerstin Huber', formatMemberName([
+        'titel_vor' => 'Dr.', 'titel_nach' => '', 'first_name' => 'Kerstin', 'last_name' => 'Huber',
+    ]));
+});
+
+test('formatMemberName: nur nachgestellter Titel', function () {
+    assertSame('Kerstin Huber, BA', formatMemberName([
+        'titel_vor' => '', 'titel_nach' => 'BA', 'first_name' => 'Kerstin', 'last_name' => 'Huber',
+    ]));
+});
+
+test('formatMemberName: beide Titel', function () {
+    assertSame('Ing. Kerstin Huber, MSc', formatMemberName([
+        'titel_vor' => 'Ing.', 'titel_nach' => 'MSc', 'first_name' => 'Kerstin', 'last_name' => 'Huber',
+    ]));
+});
+
+test('formatMemberName: kein Titel', function () {
+    assertSame('Kerstin Huber', formatMemberName([
+        'first_name' => 'Kerstin', 'last_name' => 'Huber',
+    ]));
 });
