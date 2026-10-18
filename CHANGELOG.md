@@ -565,8 +565,15 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   eigenem DB-Feld hart auf "AT" gesetzt, reine Inlands-Plattform) für Dbtr, Cdtr UND InitgPty in
   beiden Dateien; fehlt die Adresse komplett, bleibt der Block einfach weg. Neue
   `splitEegAddress()` zerlegt die bisher einzeilige EEG-Adresse (`communities.address`) in
-  Straße/PLZ/Ort. Lokal gegen die echten ISO-20022-XSD-Schemas (pain.001.001.03/pain.008.001.08)
+  Straße/PLZ/Ort. Lokal gegen die echten ISO-20022-XSD-Schemas (pain.001.001.09/pain.008.001.08)
   validiert -- auch mit den neuen Adressfeldern weiterhin fehlerfrei.
+- **SEPA-Sammelüberweisung (pain.001) auf das neue Nachrichtenformat pain.001.001.09 umgestellt.**
+  Gleicher (aktuell verschobener) EPC-Stichtag wie die strukturierte Postadresse direkt darüber:
+  das bisher verwendete `pain.001.001.03` wird dann nicht mehr unterstützt. Drei Änderungen
+  gegenüber `.03` (sonst identische Elementreihenfolge, XSD-geprüft): neuer Namespace, `<BICFI>`
+  statt `<BIC>` (wie schon bei der Lastschrift seit `pain.008.001.08`), `<ReqdExctnDt>` jetzt mit
+  verschachteltem `<Dt>`-Element statt einem direkten Datumswert. Lokal gegen das echte
+  `pain.001.001.09`-XSD validiert.
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei

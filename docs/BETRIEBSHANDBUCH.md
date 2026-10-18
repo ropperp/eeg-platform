@@ -1136,3 +1136,15 @@ docker compose up -d --build
 > ```
 > Rein additiv, keine Migration nötig -- nutzt die ohnehin vorhandenen `members.address/zip/city`
 > bzw. `communities.address`. Keine weitere manuelle Aktion nötig.
+
+> **Einmalig nach dem Update vom 18.10.2026 (siebenter Teil des Tages) -- SEPA-Sammelüberweisung
+> auf pain.001.001.09 umgestellt** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose up -d --build
+> ```
+> Keine Migration nötig -- reine Format-Umstellung der erzeugten XML-Datei (anderer Namespace,
+> `<BICFI>` statt `<BIC>`, `<ReqdExctnDt>` mit verschachteltem `<Dt>`). Beim nächsten
+> SEPA-Sammelüberweisung-Download prüfen, ob George/Sparkasse die Datei weiterhin anstandslos
+> annimmt (lokal bereits gegen das echte Bank-Prüfschema validiert).
