@@ -53,6 +53,10 @@ require __DIR__ . '/../webapp/src/AppApiAuth.php';
 // Nur die DB-freien Methoden (JWT-Bau/Signatur-Konvertierung) werden hier getestet -- sendOne()/
 // sendPending() brauchen echte Netzwerk-/DB-Zugriffe und werden hier bewusst nicht getestet.
 require __DIR__ . '/../webapp/src/Push.php';
+// Nur Router::buildPattern() (reine Pattern-Logik) wird hier getestet -- dispatch() braucht
+// echten Request-/Superglobals-Kontext (CSRF/Demo-Check/Routing) und wird hier bewusst nicht
+// aufgerufen.
+require __DIR__ . '/../webapp/src/Router.php';
 
 foreach (glob(__DIR__ . '/*_test.php') as $file) {
     echo "\n" . basename($file) . "\n";

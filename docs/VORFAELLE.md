@@ -1878,3 +1878,36 @@ von `switchRole()` als auch von der neuen Login-Wiederherstellung genutzt.
 aus einem HTML-Formular (`''`) stammen können, IMMER auf Gleichwertigkeit normalisieren, bevor
 mit `===` verglichen wird -- sonst trifft der Vergleich für genau den Fall nie zu, der in der DB
 als `NULL` steht.
+
+### Rechnungsposition bearbeiten ("Speichern") -> "Seite nicht gefunden" (18.10.2026)
+Patrick wollte in einer Rechnung die Position "Beitragsbefreiung für Pilotmitglieder Q3" von
+-6,00 € auf -4,00 € anpassen -- Klick auf "Speichern" landete statt auf der Rechnung auf der
+echten App-404-Seite ("Seite nicht gefunden", Stecker-Icon), obwohl die Route
+(`POST /portal/billing/invoices/:id/items/:itemId/update`) im Code eindeutig existierte und die
+Bearbeiten-Seite selbst (GET) ganz normal lud.
+
+**Ursache:** `Router::dispatch()` (`webapp/src/Router.php`) wandelt `:param`-Platzhalter per
+`preg_replace('/:([a-z_]+)/', ...)` in Named-Capture-Groups um -- `[a-z_]+` matcht aber NUR
+Kleinbuchstaben. Bei `:itemId` endet das Matching deshalb schon bei "item" (dem ersten
+Großbuchstaben "I"), die restlichen Zeichen "Id" bleiben als LITERALER Text im fertigen Muster
+stehen. Das Ergebnis-Muster verlangt also wortwörtlich `.../items/<beliebiger-Wert>Id/update`
+-- eine UUID wie `eccafccd-...-a5051a` endet nie auf "Id", die Route konnte deshalb NIE matchen,
+unabhängig vom tatsächlichen Wert im Pfad. `preg_match()` liefert dabei `0` (kein Fehler, kein
+Warning) -- der `foreach`-Loop in `dispatch()` findet dadurch für JEDEN Request auf diese Route
+schlicht keinen Treffer und fällt auf die normale 404-Seite zurück, genau wie bei einer
+tatsächlich nicht existierenden URL. Betraf nicht nur diese eine Route, sondern ALLE Routen mit
+einem camelCase-Parameternamen: `:itemId` (3 Routen: Rechnungsposition bearbeiten/löschen,
+Zusatzposition löschen) und `:invoiceId` (Gutschrift als erledigt markieren) -- vermutlich nie
+aufgefallen, weil diese vier Aktionen bisher kaum benutzt wurden.
+
+**Fix:** `[a-z_]+` auf `[a-zA-Z_]+` erweitert -- erfasst jetzt den kompletten Parameternamen,
+unabhängig von Groß-/Kleinschreibung. Die Pattern-Logik wurde dabei in eine eigene, public
+static Methode `Router::buildPattern()` ausgelagert, damit sie ohne Request-/Superglobals-Kontext
+automatisiert testbar ist (`tests/router_test.php`, 4 neue Tests inkl. genau diesem Fall).
+
+**Merksatz:** Ein Zeichenklassen-Muster wie `[a-z_]+` zum Zerlegen von selbst gewählten
+Bezeichnern (hier: Routen-Parameternamen) ist nur so robust wie die tatsächlich verwendete
+Namenskonvention -- sobald irgendwo (auch nur in einer von vielen Routen) von der Konvention
+abgewichen wird (hier: camelCase statt durchgehend lowercase), bricht das lautlos, mit `0` statt
+einem Fehler. Bei Routing-/Parsing-Mustern für selbst vergebene Namen lieber von Anfang an
+großzügig fassen (`[a-zA-Z0-9_]+` o.ä.) statt die Namenskonvention stillschweigend vorauszusetzen.
