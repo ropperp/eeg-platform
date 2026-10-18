@@ -480,6 +480,16 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   status), wenn eine EEG ohne separate Verträge arbeitet.
 - **Preisliste mit Tarif-Historie:** die öffentliche Preisliste zeigt neben dem aktuellen Tarif
   eine Änderungshistorie, damit Mitglieder Preisänderungen nachvollziehen können.
+- **SEPA-Mandat: eigenes Unterschriftsdatum je Mitglied.** Neues, optionales Feld
+  `members.mandat_unterschrift_datum` (`database/migrate_20261018.sql`) -- im Mitglied-Formular
+  unter „Bankverbindung" ("Datum der Mandatsunterschrift, nur ausfüllen wenn abweichend"), im
+  Audit-Log protokolliert. `sepaCollectionData()` (`webapp/public/index.php`) nutzt es jetzt als
+  erste Stelle der Fallback-Kette für `DtOfSgntr` im SEPA-Export
+  (`mandat_unterschrift_datum` → `sepa_mandate_date` → `beitrittsdatum` → `member_since` →
+  heute), vorher wurde immer vom Registrierungsdatum ausgegangen. Zusätzlich lehnt
+  `sepaPain008Xml()` jetzt jedes Mandat mit einem Unterschriftsdatum in der Zukunft mit einer
+  klaren Fehlermeldung ab, statt eine XML-Datei zu erzeugen, die die Bank ohnehin zurückweisen
+  würde.
 
 ### Behoben
 - **Neuigkeiten-Badge in der eingeklappten Sidebar unsichtbar.** Der rote Badge (z. B. bei

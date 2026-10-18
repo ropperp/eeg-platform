@@ -47,6 +47,51 @@ test('Ergebnis ist wohlgeformtes XML', function () use ($creditor, $txns) {
     assertTrue($ok, 'XML sollte parsebar sein');
 });
 
+// Mandats-Unterschriftsdatum (DtOfSgntr) + SeqTp -- siehe sepaCollectionData() in index.php,
+// die mandate_date per COALESCE(mandat_unterschrift_datum, sepa_mandate_date, beitrittsdatum,
+// member_since, CURRENT_DATE) ermittelt, bevor sie hier als 'mandate_date' je Transaktion
+// ankommt. Die COALESCE-Logik selbst ist reines SQL (DB::fetchAll in sepaCollectionData()) und
+// hier nicht ohne DB testbar -- siehe Bericht für die manuelle Verifikation der SQL-Fallback-Kette.
+
+test('Mandatsunterschrift-Datum (gesetzt) wird unverändert als DtOfSgntr übernommen', function () use ($creditor, $txns) {
+    $xml = sepaPain008Xml($creditor, $txns, '2026-08-01', '08', 'RCUR', 'MSG6');
+    assertContains('<DtOfSgntr>2026-01-15</DtOfSgntr>', $xml);
+    assertContains('<DtOfSgntr>2026-02-01</DtOfSgntr>', $xml);
+});
+
+test('SeqTp ist RCUR, auch ohne expliziten Parameter (Default)', function () use ($creditor, $txns) {
+    $xml = sepaPain008Xml($creditor, $txns, '2026-08-01', '08');
+    assertContains('<SeqTp>RCUR</SeqTp>', $xml);
+    assertFalse(str_contains($xml, 'FRST'), 'Es darf nirgends FRST stehen');
+});
+
+test('Mandatsunterschrift in der Zukunft wird mit klarer Fehlermeldung abgelehnt', function () use ($creditor) {
+    $future = date('Y-m-d', strtotime('+10 days'));
+    $txnsFuture = [
+        ['end_to_end_id' => 'E2E9', 'amount' => 5.00, 'mandate_ref' => 'S00000F2026A199', 'mandate_date' => $future,
+         'debtor_name' => 'Zukunft Test', 'debtor_iban' => 'AT023200000000005678', 'debtor_bic' => '', 'remittance' => 'Test'],
+    ];
+    $threw = false;
+    try {
+        sepaPain008Xml($creditor, $txnsFuture, '2026-08-01', '08', 'RCUR', 'MSG7');
+    } catch (\InvalidArgumentException $e) {
+        $threw = true;
+        assertContains('Zukunft Test', $e->getMessage());
+        assertContains($future, $e->getMessage());
+    }
+    assertTrue($threw, 'sepaPain008Xml() sollte bei einem Mandatsdatum in der Zukunft eine InvalidArgumentException werfen');
+});
+
+test('Mandatsunterschrift heute ist noch erlaubt (Grenzfall, keine Exception)', function () use ($creditor) {
+    $today = date('Y-m-d');
+    $txnsToday = [
+        ['end_to_end_id' => 'E2E10', 'amount' => 5.00, 'mandate_ref' => 'S00000F2026A198', 'mandate_date' => $today,
+         'debtor_name' => 'Heute Test', 'debtor_iban' => 'AT023200000000005678', 'debtor_bic' => '', 'remittance' => 'Test'],
+    ];
+    $xml = sepaPain008Xml($creditor, $txnsToday, '2026-08-01', '08', 'RCUR', 'MSG8');
+    assertContains('<DtOfSgntr>' . $today . '</DtOfSgntr>', $xml);
+});
+
 // SEPA-Überweisung (Credit Transfer) pain.001 (sepaPain001Xml) -- Gutschriften-Sammelüberweisung.
 
 $payer = ['name' => 'EEG Test', 'iban' => 'AT61 1904 3002 3457 3201', 'bic' => 'BKAUATWW'];

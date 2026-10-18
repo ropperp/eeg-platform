@@ -261,6 +261,16 @@ ob_start();
         <input type="text" value="<?= htmlspecialchars($m['mandatsreferenz']) ?>" disabled style="background:var(--gray-100)">
       </div>
       <?php endif; ?>
+      <div class="form-group">
+        <label>Datum der Mandatsunterschrift (nur ausfüllen, wenn abweichend)</label>
+        <input type="date" name="mandat_unterschrift_datum" max="<?= date('Y-m-d') ?>"
+               value="<?= htmlspecialchars($m['mandat_unterschrift_datum'] ?? $_POST['mandat_unterschrift_datum'] ?? '') ?>">
+        <small style="color:var(--gray-600)">
+          Leer lassen = Registrierungsdatum gilt als Unterschriftsdatum des SEPA-Mandats. Nur
+          ausfüllen, wenn die Beitrittserklärung tatsächlich an einem anderen Tag unterschrieben
+          wurde (z.&nbsp;B. offline, nachträglich erfasst).
+        </small>
+      </div>
     </div>
   </div>
 

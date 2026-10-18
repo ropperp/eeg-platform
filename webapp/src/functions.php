@@ -550,11 +550,28 @@ function rechnungPositionenLatex(array $items, string $label, bool $gutschrift):
  * @param string $version '08' oder '02'
  * @param string $seqType SEPA-Sequenztyp: FRST | RCUR | OOFF | FNAL
  * @param string $msgId eindeutige Nachrichten-ID (Default: generiert)
+ * @throws InvalidArgumentException wenn ein Mandat ein Unterschriftsdatum (mandate_date) in der
+ *         Zukunft hat -- ein SEPA-Mandat kann nicht vor seiner eigenen Unterschrift gültig
+ *         werden, das ist immer ein Dateneingabe-Fehler und würde von der Bank ohnehin
+ *         zurückgewiesen. Geprüft hier (statt nur aufrufseitig), weil diese Funktion die einzige
+ *         Stelle ist, die JEDER Aufrufer zwangsläufig durchläuft.
  */
 function sepaPain008Xml(
     array $creditor, array $txns, string $collectionDate,
     string $version = '08', string $seqType = 'RCUR', string $msgId = ''
 ): string {
+    $today = date('Y-m-d');
+    foreach ($txns as $t) {
+        $mandateDate = (string)($t['mandate_date'] ?? '');
+        if ($mandateDate !== '' && $mandateDate > $today) {
+            throw new InvalidArgumentException(
+                'Mandatsunterschrift von ' . ($t['debtor_name'] ?? '?') . ' liegt in der Zukunft ('
+                . $mandateDate . ') -- bitte das Unterschriftsdatum prüfen, bevor die SEPA-Datei '
+                . 'erzeugt wird.'
+            );
+        }
+    }
+
     $version = $version === '02' ? '02' : '08';
     $x = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8');
     $money = fn($v) => number_format((float)$v, 2, '.', '');
