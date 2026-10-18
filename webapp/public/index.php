@@ -2157,13 +2157,13 @@ function invoicePdfPayload(array $invoice): array
         'MITGLIEDSBEITRAG_LABEL' => $beitragLabel,
         'MITGLIEDSBEITRAG'      => $beitragItem ? number_format((float)$beitragItem['amount_eur'], 2, ',', '.') : '0,00',
         'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
-        'SUMME_NETTO'           => rechnungBetragUnicode($tax['netto']),
+        'RAW_SUMME_NETTO'       => rechnungBetragUnicode($tax['netto']),
         // Im grünen Summenbalken IMMER positiv anzeigen, auch bei einer Gutschrift (negativer
         // Saldo) -- Patrick, 26.09.2026: "steht dann auch 'Ihr Guthaben von €3,90'" ... "nicht
         // als Minusbetrag, sondern dann als positiven Betrag". "Summe netto" in der Tabelle
-        // darüber zeigt bewusst weiterhin das Minus (SUMME_NETTO, unverändert) -- nur der
+        // darüber zeigt bewusst weiterhin das Minus (RAW_SUMME_NETTO, unverändert) -- nur der
         // Balken mit \summelabel ("Ihre Gutschrift") soll den Betrag positiv ausweisen.
-        'SUMME_BRUTTO'          => rechnungBetragUnicode(abs($tax['brutto'])),
+        'RAW_SUMME_BRUTTO'      => rechnungBetragUnicode(abs($tax['brutto'])),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
@@ -6925,8 +6925,8 @@ $router->get('/portal/billing/preview', function () {
         'MITGLIEDSBEITRAG_LABEL' => 'Mitgliedsbeitrag (anteilig, 2 Monate)',
         'MITGLIEDSBEITRAG'      => '15,00',
         'SUMME_TABELLE_LABEL'   => $summeTabelleLabel,
-        'SUMME_NETTO'           => rechnungBetragUnicode($tbPreview['netto']),
-        'SUMME_BRUTTO'          => rechnungBetragUnicode($tbPreview['brutto']),
+        'RAW_SUMME_NETTO'       => rechnungBetragUnicode($tbPreview['netto']),
+        'RAW_SUMME_BRUTTO'      => rechnungBetragUnicode($tbPreview['brutto']),
         'RAW_STEUER_ZEILE'      => $steuerZeile,
         'RAW_STEUER_TEXT'       => $steuerText,
         'RAW_ZUSATZPOSITIONEN_LISTE' => $extraItemsLatex,
@@ -9850,8 +9850,8 @@ function adminFileVariables(): array
             'MITGLIEDSBEITRAG_LABEL' => 'Beschriftung der Mitgliedsbeitrag-Zeile, z.B. "Mitgliedsbeitrag (anteilig, 2 Monate)" bei unterjährigem Beitritt, sonst nur "Mitgliedsbeitrag"',
             'MITGLIEDSBEITRAG' => 'Mitgliedsbeitrag laut Preisliste (anteilig bei unterjährigem Beitritt)',
             'SUMME_TABELLE_LABEL' => '"Summe" (Kleinunternehmer) bzw. "Summe netto" (Standard-Steuermodell) für die Summenzeile in der Positionstabelle',
-            'SUMME_NETTO' => 'Gesamtsumme netto',
-            'SUMME_BRUTTO' => 'Gesamtsumme brutto -- bei einer Gutschrift (negativer Saldo) bewusst als positiver Betrag befüllt, siehe RAW_SUMME_LABEL',
+            'RAW_SUMME_NETTO' => 'Gesamtsumme netto, bereits über rechnungBetragUnicode() formatiert (RAW, nicht escapen -- enthält bei negativem Betrag echtes LaTeX-Minuszeichen)',
+            'RAW_SUMME_BRUTTO' => 'Gesamtsumme brutto, bereits über rechnungBetragUnicode() formatiert (RAW, nicht escapen) -- bei einer Gutschrift (negativer Saldo) bewusst als positiver Betrag befüllt, siehe RAW_SUMME_LABEL',
             'IBAN' => 'IBAN der Energiegemeinschaft (für die Zahlung)',
             'BIC' => 'BIC der Energiegemeinschaft',
             'RAW_STEUER_ZEILE' => 'Vorformatierte USt-Zeile (RAW, nicht escapen)',

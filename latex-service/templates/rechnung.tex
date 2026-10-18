@@ -196,7 +196,7 @@ oben angegebenen Zeitraum:
   <<<MITGLIEDSBEITRAG_LABEL>>> & & & <<<MITGLIEDSBEITRAG>>>\\
   <<<RAW_ZUSATZPOSITIONEN_LISTE>>>%
   \arrayrulecolor{navy}\specialrule{0.9pt}{2pt}{2pt}
-  \textbf{<<<SUMME_TABELLE_LABEL>>>} & & & \textbf{<<<SUMME_NETTO>>>}\\
+  \textbf{<<<SUMME_TABELLE_LABEL>>>} & & & \textbf{<<<RAW_SUMME_NETTO>>>}\\
   <<<RAW_STEUER_ZEILE>>>%
   \bottomrule
 \end{tabular}}
@@ -212,7 +212,7 @@ oben angegebenen Zeitraum:
   \begin{minipage}[c][11mm][c]{\dimexpr\textwidth-2\fboxsep\relax}
     \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}\hspace{3mm}}l r@{\hspace{3mm}}}
       {\color{white}\large\bfseries \ifx\summelabel\empty Zu zahlender Gesamtbetrag\else\summelabel\fi} &
-      {\color{white}\large\bfseries EUR <<<SUMME_BRUTTO>>>}\\
+      {\color{white}\large\bfseries EUR <<<RAW_SUMME_BRUTTO>>>}\\
     \end{tabular*}
   \end{minipage}}
 
