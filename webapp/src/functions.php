@@ -919,15 +919,19 @@ function addBankingDays(string $date, int $n): string
 // SEPA-Core-Lastschrift: Pre-Notification (Vorabankündigung) muss mindestens 14 Kalendertage vor
 // dem Einzug erfolgen.
 const SEPA_PRENOTIFICATION_DAYS = 14;
-// Eigene, unabhängige Frist für die Gutschrift-Überweisung (pain.001) -- Standard ebenfalls 14
-// Tage, damit Einzug und Gutschrift am selben Tag laufen können, aber als eigene Konstante
-// geführt, falls sich das künftig einmal unterscheiden soll (Patrick, 18.10.2026).
-const SEPA_TRANSFER_MIN_DAYS = 14;
+// Die Gutschrift-Überweisung (pain.001) braucht KEINE Vorabankündigungsfrist -- anders als die
+// Lastschrift (die den Zahler vor dem Einzug von seinem eigenen Konto schützen soll) zahlt die
+// EEG hier selbst aus, kann das also ab dem gewünschten Bankarbeitstag sofort tun (Patrick,
+// 18.10.2026: "ich kann es ja gleich ab heute überweisen ... brauche keine zwei Wochen zu
+// warten"). Statt eines Kalenderfensters mit einzelnen gesperrten Tagen (wie bei der Lastschrift)
+// zeigt das Auswahl-Modal hier direkt diese Anzahl tatsächlich wählbarer Bankarbeitstage ab heute.
+const SEPA_TRANSFER_TILE_COUNT = 20;
 
 /**
- * Berechnet den 8-Tage-Anzeigezeitraum für die Ausführungsdatum-Auswahl im SEPA-Download-Modal
- * (Lastschrift pain.008 mit SEPA_PRENOTIFICATION_DAYS, Überweisung pain.001 mit
- * SEPA_TRANSFER_MIN_DAYS) -- siehe Aufgabe 18.10.2026.
+ * Berechnet den 8-Tage-Anzeigezeitraum für die Ausführungsdatum-Auswahl im SEPA-Lastschrift-
+ * Download-Modal (pain.008, SEPA_PRENOTIFICATION_DAYS) -- siehe Aufgabe 18.10.2026. Für die
+ * Gutschrift-Überweisung (pain.001, keine Vorabankündigungsfrist nötig) siehe stattdessen
+ * bankingDayTiles() weiter unten.
  *
  * Normalfall: frühestes Datum = $invoiceDate + $minDays, spätestes = frühestes + 7 Tage (8 Tage
  * insgesamt). Liegt das früheste Datum bereits in der Vergangenheit (der Abrechnungslauf wurde
@@ -937,7 +941,7 @@ const SEPA_TRANSFER_MIN_DAYS = 14;
  * tatsächlichen Beginn.
  *
  * @param string $invoiceDate Rechnungsdatum/Freigabedatum des Abrechnungslaufs (Y-m-d)
- * @param int $minDays SEPA_PRENOTIFICATION_DAYS oder SEPA_TRANSFER_MIN_DAYS
+ * @param int $minDays SEPA_PRENOTIFICATION_DAYS
  * @param string $today "heute" (Y-m-d) -- als Parameter statt date('Y-m-d') direkt, damit die
  *        Funktion ohne Systemzeit-Abhängigkeit automatisiert testbar ist.
  * @return array{range_start: string, range_end: string, earliest: string} range_start/range_end
@@ -997,6 +1001,39 @@ function sepaExecutionDateTiles(string $invoiceDate, int $minDays, string $today
 }
 
 /**
+ * Baut $count Tageskacheln für das Ausführungsdatum-Auswahl-Modal der Gutschrift-Überweisung
+ * (pain.001) -- anders als sepaExecutionDateTiles() (Kalenderfenster mit einzelnen ausgegrauten
+ * gesperrten Tagen) sind hier ALLE Kacheln tatsächlich wählbare Bankarbeitstage: Wochenenden und
+ * Feiertage werden beim Weiterzählen einfach übersprungen statt als gesperrte Kachel mitgezählt
+ * (Patrick, 18.10.2026: "mach bei Überweisen ohne die Samstage und Sonntage insgesamt 20
+ * mögliche Auswahlen"). Beginnt ab (einschließlich) $fromDate -- bei der Überweisung ist das
+ * "heute", da hier keine Vorabankündigungsfrist wie bei der Lastschrift gilt.
+ *
+ * @param string $fromDate erster möglicher Tag (Y-m-d), üblicherweise "heute"
+ * @param int $count Anzahl der Kacheln (SEPA_TRANSFER_TILE_COUNT)
+ * @param ?string $lastUsed beim letzten Download gewähltes Datum, siehe sepaExecutionDateTiles()
+ */
+function bankingDayTiles(string $fromDate, int $count, ?string $lastUsed = null): array
+{
+    static $weekdayNames = [1 => 'Mo', 2 => 'Di', 3 => 'Mi', 4 => 'Do', 5 => 'Fr', 6 => 'Sa', 7 => 'So'];
+    $cursor = isBankingDay($fromDate) ? $fromDate : nextBankingDay($fromDate);
+    $tiles = [];
+    for ($i = 0; $i < $count; $i++) {
+        $d = new DateTimeImmutable($cursor);
+        $tiles[] = [
+            'date'    => $cursor,
+            'label'   => $weekdayNames[(int)$d->format('N')] . ' ' . $d->format('d.m.Y'),
+            'blocked' => false,
+            'reason'  => null,
+        ];
+        if ($i < $count - 1) { $cursor = nextBankingDay($cursor); }
+    }
+    $validDates = array_column($tiles, 'date');
+    $selected = ($lastUsed !== null && in_array($lastUsed, $validDates, true)) ? $lastUsed : $tiles[0]['date'];
+    return ['tiles' => $tiles, 'selected' => $selected, 'first' => $tiles[0]['date'], 'last' => $tiles[count($tiles) - 1]['date']];
+}
+
+/**
  * Serverseitige Prüfung eines vom Nutzer im Ausführungsdatum-Modal gewählten Datums -- niemals
  * nur der Frontend-Auswahl vertrauen (Patrick, 18.10.2026: "Backend-Validierung (nicht nur im
  * Frontend)"). Gibt null zurück, wenn das Datum gültig ist, sonst eine fertige, auf Deutsch
@@ -1011,6 +1048,29 @@ function validateSepaExecutionDate(string $date, string $invoiceDate, int $minDa
     if ($date < $range['range_start'] || $date > $range['range_end']) {
         return 'Das gewählte Datum liegt außerhalb des zulässigen Zeitraums ('
             . date('d.m.Y', strtotime($range['range_start'])) . ' – ' . date('d.m.Y', strtotime($range['range_end'])) . ').';
+    }
+    if (!isBankingDay($date)) {
+        return 'Das gewählte Datum (' . date('d.m.Y', strtotime($date)) . ') ist kein Bankarbeitstag ('
+            . (bankingDayBlockReasonAT($date) ?? 'gesperrt') . ').';
+    }
+    return null;
+}
+
+/**
+ * Serverseitige Prüfung des gewählten Ausführungsdatums für die Gutschrift-Überweisung
+ * (pain.001, siehe bankingDayTiles()) -- Pendant zu validateSepaExecutionDate() für die
+ * Lastschrift, aber ohne Vorabankündigungsfrist: gültig ist jeder Bankarbeitstag ab (einschließlich)
+ * $today innerhalb der SEPA_TRANSFER_TILE_COUNT im Modal angezeigten Tage.
+ */
+function validateTransferExecutionDate(string $date, string $today): ?string
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return 'Ungültiges Datumsformat.';
+    }
+    $t = bankingDayTiles($today, SEPA_TRANSFER_TILE_COUNT);
+    if ($date < $t['first'] || $date > $t['last']) {
+        return 'Das gewählte Datum liegt außerhalb des zulässigen Zeitraums ('
+            . date('d.m.Y', strtotime($t['first'])) . ' – ' . date('d.m.Y', strtotime($t['last'])) . ').';
     }
     if (!isBankingDay($date)) {
         return 'Das gewählte Datum (' . date('d.m.Y', strtotime($date)) . ') ist kein Bankarbeitstag ('

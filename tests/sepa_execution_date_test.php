@@ -18,10 +18,6 @@ test('SEPA_PRENOTIFICATION_DAYS ist 14', function () {
     assertSame(14, SEPA_PRENOTIFICATION_DAYS);
 });
 
-test('SEPA_TRANSFER_MIN_DAYS ist 14 (eigene Konstante, Überweisung)', function () {
-    assertSame(14, SEPA_TRANSFER_MIN_DAYS);
-});
-
 test('Frühestes Datum liegt in der Vergangenheit -> Fallback auf heute + 2 Bankarbeitstage', function () {
     // Rechnungsdatum 01.09.2026 + 14 Tage = 15.09.2026, das liegt vor "heute" (18.10.2026) --
     // der Zeitraum darf nicht rückwirkend beginnen, sondern erst ab heute + 2 Bankarbeitstagen.
@@ -89,4 +85,70 @@ test('validateSepaExecutionDate: Datum außerhalb des Zeitraums -> Fehlermeldung
 
 test('validateSepaExecutionDate: ungültiges Format -> Fehlermeldung', function () {
     assertTrue(validateSepaExecutionDate('02.11.2026', '2026-10-18', SEPA_PRENOTIFICATION_DAYS, '2026-10-18') !== null);
+});
+
+// bankingDayTiles() -- Ausführungsdatum-Auswahl der Gutschrift-Überweisung (pain.001), ohne
+// Vorabankündigungsfrist direkt ab heute (Patrick, 18.10.2026: "ich kann es ja gleich ab heute
+// überweisen ... brauche keine zwei Wochen zu warten ... ohne die Samstage und Sonntage
+// insgesamt 20 mögliche Auswahlen").
+
+test('bankingDayTiles: 20 Kacheln ab einem Bankarbeitstag, alle wählbar, Wochenende/Feiertag übersprungen', function () {
+    // Mo 19.10.2026 -- Wochenende 24./25.10. und der Nationalfeiertag (Mo 26.10.) werden beim
+    // Weiterzählen einfach übersprungen statt als eigene (gesperrte) Kachel mitgezählt.
+    $t = bankingDayTiles('2026-10-19', SEPA_TRANSFER_TILE_COUNT);
+    assertSame(20, count($t['tiles']));
+    assertSame('2026-10-19', $t['tiles'][0]['date']);
+    assertSame('Mo 19.10.2026', $t['tiles'][0]['label']);
+    assertSame('2026-10-23', $t['tiles'][4]['date']); // Fr 23.10.
+    assertSame('2026-10-27', $t['tiles'][5]['date']); // Di 27.10. -- Sa/So + Nationalfeiertag-Montag übersprungen
+    assertSame('2026-11-16', $t['tiles'][19]['date']); // letzte (20.) Kachel
+    assertSame('2026-10-19', $t['selected']);
+    assertSame('2026-10-19', $t['first']);
+    assertSame('2026-11-16', $t['last']);
+    foreach ($t['tiles'] as $tile) {
+        assertFalse($tile['blocked']); // jede angezeigte Kachel ist per Konstruktion wählbar
+    }
+});
+
+test('bankingDayTiles: $fromDate selbst kein Bankarbeitstag -> erste Kachel ist der nächste', function () {
+    // So 18.10.2026 -- erste Kachel ist Mo 19.10. (nächster Bankarbeitstag), nicht der Sonntag selbst.
+    $t = bankingDayTiles('2026-10-18', 5);
+    assertSame('2026-10-19', $t['tiles'][0]['date']);
+    assertSame(5, count($t['tiles']));
+});
+
+test('bankingDayTiles: letztes benutztes Datum wird vorausgewählt, wenn noch innerhalb der Kacheln', function () {
+    $t = bankingDayTiles('2026-10-19', 20, '2026-11-03');
+    assertSame('2026-11-03', $t['selected']);
+});
+
+test('bankingDayTiles: veraltetes letztes Datum (außerhalb) wird ignoriert -> erste Kachel', function () {
+    $t = bankingDayTiles('2026-10-19', 20, '2026-01-01');
+    assertSame('2026-10-19', $t['selected']);
+});
+
+// validateTransferExecutionDate() -- Server-seitige Prüfung, unabhängig vom Frontend.
+
+test('validateTransferExecutionDate: gültiger Bankarbeitstag innerhalb der 20 Kacheln -> kein Fehler', function () {
+    assertSame(null, validateTransferExecutionDate('2026-10-20', '2026-10-19'));
+});
+
+test('validateTransferExecutionDate: heutiges Datum selbst (erste Kachel) -> kein Fehler', function () {
+    assertSame(null, validateTransferExecutionDate('2026-10-19', '2026-10-19'));
+});
+
+test('validateTransferExecutionDate: Samstag -> Fehlermeldung', function () {
+    $err = validateTransferExecutionDate('2026-10-24', '2026-10-19');
+    assertTrue($err !== null);
+    assertContains('Samstag', $err);
+});
+
+test('validateTransferExecutionDate: Datum außerhalb der 20-Kacheln-Zeitraums -> Fehlermeldung', function () {
+    $err = validateTransferExecutionDate('2026-12-01', '2026-10-19');
+    assertTrue($err !== null);
+    assertContains('außerhalb', $err);
+});
+
+test('validateTransferExecutionDate: ungültiges Format -> Fehlermeldung', function () {
+    assertTrue(validateTransferExecutionDate('20.10.2026', '2026-10-19') !== null);
 });

@@ -7342,13 +7342,13 @@ $router->get('/portal/billing/gutschriften', function () {
     }
 
     $gutschriften = offeneGutschriften($communityId, $runId);
-    // Ausführungsdatum-Auswahl-Modal (pain.001-Download, Patrick 18.10.2026) -- ohne bestimmten
-    // Lauf (alle offenen Gutschriften über mehrere Läufe hinweg) dient "heute" als Anker, siehe
-    // Kommentar in der Download-Route (/portal/billing/gutschriften/sepa-xml).
+    // Ausführungsdatum-Auswahl-Modal (pain.001-Download) -- anders als die Lastschrift braucht
+    // die Überweisung keine Vorabankündigungsfrist, startet also direkt ab heute (Patrick,
+    // 18.10.2026: "ich kann es ja gleich ab heute überweisen ... brauche keine zwei Wochen zu
+    // warten"), siehe bankingDayTiles().
     $today = date('Y-m-d');
-    $invoiceDate = ($run && $run['released_at']) ? date('Y-m-d', strtotime($run['released_at'])) : $today;
-    $sepaTransferTiles = !empty($gutschriften) ? sepaExecutionDateTiles(
-        $invoiceDate, SEPA_TRANSFER_MIN_DAYS, $today,
+    $sepaTransferTiles = !empty($gutschriften) ? bankingDayTiles(
+        $today, SEPA_TRANSFER_TILE_COUNT,
         ($run && $run['sepa_transfer_date_used']) ? date('Y-m-d', strtotime($run['sepa_transfer_date_used'])) : null
     ) : null;
     require ROOT . '/src/views/pages/billing_gutschriften.php';
@@ -7476,18 +7476,16 @@ $router->get('/portal/billing/gutschriften/sepa-xml', function () {
         header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Keine Gutschriften mit gültiger Empfänger-IBAN offen.')); exit;
     }
 
-    // Ausführungsdatum kommt jetzt aus dem Auswahl-Modal (siehe billing_gutschriften.php) statt
-    // fix "übermorgen" (Patrick, 18.10.2026) -- Rechnungsdatum-Anker ist das Freigabedatum des
-    // gewählten Laufs; ohne bestimmten Lauf (alle offenen Gutschriften über mehrere Läufe
-    // hinweg) gibt es kein einzelnes Rechnungsdatum, als Anker dient dann "heute".
-    $invoiceDate = ($run && $run['released_at']) ? date('Y-m-d', strtotime($run['released_at'])) : date('Y-m-d');
+    // Ausführungsdatum kommt aus dem Auswahl-Modal (siehe billing_gutschriften.php) -- die
+    // Überweisung braucht anders als die Lastschrift keine Vorabankündigungsfrist, "heute" ist
+    // deshalb direkt der früheste mögliche Tag (Patrick, 18.10.2026).
     $today = date('Y-m-d');
     $date = trim((string)($_GET['date'] ?? ''));
     if ($date === '') {
         header('Location: ' . $backUrl . $errSep . 'error=' . urlencode('Bitte ein Ausführungsdatum auswählen.')); exit;
     }
     // Server-seitige Prüfung, unabhängig vom Frontend-Modal (Patrick: "nicht nur im Frontend").
-    $validationError = validateSepaExecutionDate($date, $invoiceDate, SEPA_TRANSFER_MIN_DAYS, $today);
+    $validationError = validateTransferExecutionDate($date, $today);
     if ($validationError !== null) {
         http_response_code(422);
         header('Content-Type: text/plain; charset=utf-8');
