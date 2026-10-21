@@ -74,13 +74,13 @@ wurde -- siehe `docs/DEPLOY_OWASP_AUDIT.md` für die genaue Reihenfolge.
   übertragen, das Passwort selbst verlässt den Server nie). Fail-open: ist die API nicht
   erreichbar, gilt das Passwort als unbedenklich -- ein Passwort-Wechsel darf nie an einer
   externen API scheitern.
-- **Workaround gegen PHP2Shell (CVE-2026-109618/-109619, 21.10.2026) -- Status: offen, bis das
-  offizielle `php:8.2-fpm-alpine`-Image die gepatchte PHP-Version ausliefert.** Kritische,
-  unauthentifizierte RCE-Lücke im PHP-Kern selbst (CVSS 9.2, aktiv ausgenutzt, Details siehe
-  `docs/VORFAELLE.md`). `webapp/docker/php.ini` setzt `session.upload_progress.enabled = Off`
-  als Interims-Mitigation (schließt den Haupt-Angriffsweg, ist aber laut PHP-Kernteam KEIN
-  vollständiger Ersatz für das ausstehende Upgrade). Kein App-Code nutzt dieses Feature, daher
-  keine Nebenwirkung.
+- **PHP2Shell (CVE-2026-109618/-109619, 21.10.2026) behoben.** Kritische, unauthentifizierte
+  RCE-Lücke im PHP-Kern selbst (CVSS 9.2, aktiv ausgenutzt, Details siehe `docs/VORFAELLE.md`).
+  Zunächst Interims-Mitigation (`webapp/docker/php.ini`: `session.upload_progress.enabled =
+  Off`), da das offizielle `php:8.2-fpm-alpine`-Image die gepatchte PHP-Version erst einige
+  Stunden nach Veröffentlichung auslieferte. Nach Bestätigung von PHP 8.2.35 im neu gebauten
+  Image (`docker compose exec webapp php -v`) auf den echten Fix umgestellt und die
+  Interims-Mitigation wieder entfernt.
 
 ### Behoben
 - **Mitgliederdetails/-Dateien/-Verträge/-Avatar nach dem RLS-Fix nicht mehr auffindbar
