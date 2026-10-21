@@ -12,6 +12,36 @@ angezeigt, ...) sind schon einmal aufgetreten und hier mit Ursache und Fix dokum
 
 ## Bekannte Probleme & Lösungen
 
+### PHP2Shell: kritische, aktiv ausgenutzte PHP-Kernlücke (CVE-2026-109618/-109619, 21.10.2026)
+**Status: OFFEN, Workaround aktiv, echtes Upgrade steht noch aus.** Eine unauthentifizierte
+Remote-Code-Execution-Lücke in PHPs eigenem `multipart/form-data`-Parser (auslösbar über
+`session.upload_progress` bei JEDEM Datei-Upload-Endpunkt, CVSS 9.2) wurde am 21.10.2026 vorzeitig
+geleakt und öffentlicher Exploit-Code kursiert bereits -- mehrere Universitäten (u. a. Uni Wien,
+Heidelberg, Freiburg, Bochum) haben deshalb vorsorglich ihre Webseiten abgeschaltet. Der echte Fix
+ist ausschließlich ein PHP-Upgrade (8.2.35/8.3.36/8.4.27/8.5.12, veröffentlicht 21.10.2026,
+14:00 UTC) -- **das offizielle Docker-Image `php:8.2-fpm-alpine` (unser Basis-Image, siehe
+`webapp/Dockerfile`) lieferte selbst nach frisch gezogenem Image (`docker compose build --pull
+--no-cache webapp`) noch PHP 8.2.34 aus**, Docker Hub hatte die gepatchte Alpine-Variante zu
+diesem Zeitpunkt offenbar noch nicht veröffentlicht. Merksatz, der aus diesem Vorfall folgt:
+ein schwimmender Tag wie `php:8.2-fpm-alpine` schützt NICHT automatisch vor einer frisch
+veröffentlichten Lücke, solange der Image-Maintainer selbst noch nicht nachgezogen hat -- `php -v`
+nach jedem sicherheitsrelevanten Rebuild explizit gegenprüfen, nicht blind auf "neu gebaut = neue
+Version" vertrauen.
+
+**Workaround (seit 21.10.2026 aktiv, `webapp/docker/php.ini`):** `session.upload_progress.enabled
+= Off` deaktiviert das verwundbare Feature komplett -- laut PHP-Kernteam (Gina Peter Banyard) KEIN
+vollständiger Ersatz für das Upgrade, schließt aber den Haupt-Angriffsweg. Bewusst als statischer
+php.ini-Wert (lädt beim FPM-Worker-Start, vor jeder Anfrage) statt per `ini_set()`/`.user.ini` --
+beide greifen laut Advisory zu spät, weil die verwundbare Stelle schon vor der eigentlichen
+Anwendung ausgeführt wird. Kein eigener App-Code nutzt `session.upload_progress`/
+`PHP_SESSION_UPLOAD_PROGRESS` (geprüft), daher keine Nebenwirkung auf Datei-Uploads.
+
+**Sobald `php:8.2-fpm-alpine` (oder eine neuere, hier verwendete Minor-Version) die gepatchte
+PHP-Version ausliefert:** `docker compose build --pull --no-cache webapp && docker compose up -d
+webapp && docker compose exec webapp php -v` -- zeigt das Ergebnis 8.2.35/8.3.36/8.4.27/8.5.12
+oder neuer, ist der echte Fix da; der `session.upload_progress`-Workaround in `php.ini` kann dann
+(muss aber nicht zwingend) wieder entfernt werden.
+
 > **Pfad-/Mount-Übersicht:** Welches Host-Verzeichnis in welchen Container gehängt wird, steht
 > vollständig in `docs/INFRASTRUKTUR_PFADE.md` (mit Diagramm). Bei DB-/Daten-„weg"-Symptomen
 > IMMER zuerst dort nachsehen.
