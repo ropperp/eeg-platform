@@ -1993,3 +1993,51 @@ ENDGÜLTIG verloren -- eine spätere Anzeige braucht dann zwingend einen erneute
 Originaldaten, ein nachträglicher Fix im Anzeige-Code allein reicht nicht. Lieber von Anfang an
 alles aus einer strukturiert vorliegenden Datenquelle übernehmen, auch wenn zunächst nur ein Teil
 gebraucht wird.
+
+### Ein falsches Zeichen in einem CSS-Kommentar machte fast die gesamte Stylesheet-Datei unwirksam (24.10.2026)
+Direkt nach dem Deploy eines Navbar-Ausrichtungs-Fixes (PR #251) meldete Patrick per Screenshot:
+Feature-Icons auf der Startseite komplett leer, kein 3-Spalten-Grid mehr (alles einspaltig mit
+riesigen Lücken untereinander), keine sichtbaren Card-Rahmen/Schatten. Buttons/Links in der
+Navbar selbst sahen dagegen weiterhin unauffällig korrekt aus -- das hat die Diagnose zunächst
+erschwert, bis klar wurde, dass GENAU DORT die Ursache lag.
+
+**Ursache:** Im selben PR wurde ein erklärender CSS-Kommentar innerhalb der neuen
+`.navbar nav { ... }`-Regel versehentlich mit HTML-Syntax geschlossen (`-->`) statt mit
+CSS-Syntax (`*/`):
+```css
+.navbar nav {
+  /* ... Erklärtext ...
+     ... erst wirksam -- die setzte flex-Eigenschaften auf einem Element, das noch gar kein
+     flex-Container war. -->      <-- falsch, hätte */ sein müssen
+  display: flex;
+  align-items: center;
+}
+```
+Der Kommentar schließt dadurch technisch nie -- der Parser sucht einfach das nächste
+`*/`-Zeichenpaar irgendwo weiter unten in der Datei und verschluckt dabei ALLES dazwischen,
+inklusive der eigentlich beabsichtigten schließenden `}` von `.navbar nav` sowie zweier
+kompletter Folgeregeln. Moderne Browser unterstützen natives CSS-Nesting (verschachtelte
+Selektoren ohne Präprozessor) -- dadurch wurde praktisch die GESAMTE restliche Datei (ca. 500
+von 650 Zeilen: Cards, Grid, Feature-Icons, Tabellen, Formulare, Alerts, ...) fälschlich als
+verschachtelt unter `.navbar nav` interpretiert und galt damit nur noch für Elemente
+*innerhalb* der Navbar -- für alles andere (Feature-Cards, Tabellen, Formulare usw. auf jeder
+Seite, die `app.css` nutzt) griff praktisch keine dieser Regeln mehr.
+
+**Diagnose:** Ein Brace-Balance-Check der ganzen Datei (Kommentare vorher sauber entfernt, dabei
+Zeilenumbrüche erhalten, um Zeilennummern nicht zu verschieben) zeigte eine einzelne, bis zum
+Dateiende offene `{` -- lokalisiert exakt auf die Zeile der betroffenen `.navbar nav`-Regel.
+Ein isolierter Playwright-Rendertest mit den echten Projekt-Assets (CSS/JS/Icon-Sprite) hat den
+gemeldeten Bug 1:1 reproduziert (`getComputedStyle()` zeigte u.a. `display:block` statt `grid`
+für `.grid-3`, `padding:0` statt `1.5rem` für `.card`) und nach dem Fix die korrekte
+Wiederherstellung bestätigt.
+
+**Fix:** Ein Zeichen (`-->` → `*/`), siehe PR #252.
+
+**Merksatz:** Ein falsch geschlossener CSS-Kommentar ist kein lokal begrenzter Fehler -- durch
+natives CSS-Nesting in modernen Browsern kann ein einzelnes falsches Zeichen irgendwo mitten in
+der Datei dazu führen, dass praktisch der gesamte Rest der Stylesheet-Datei plötzlich unter
+einem völlig anderen, meist sehr spezifischen Selektor "gefangen" ist und dadurch so gut wie
+überall sonst auf der Seite wirkungslos wird -- UND dabei täuschend wenig auffällt, wenn
+ausgerechnet die Elemente innerhalb des "gefangenen" Selektors (hier: der Navbar) noch richtig
+aussehen. Bei einem derart großflächigen, unerklärlichen Styling-Ausfall nach einer CSS-Änderung
+lohnt sich zuerst ein Brace-Balance-Check der ganzen Datei, bevor man einzelne Regeln verdächtigt.
