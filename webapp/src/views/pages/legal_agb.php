@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'AGB — EEG Strompool Feldkirchen Süd-West';
+$pageDescription = 'Allgemeine Geschäftsbedingungen der EEG Strompool Feldkirchen Süd-West für die Mitgliedschaft und Teilnahme an der Energiegemeinschaft.';
 ob_start();
 ?>
 

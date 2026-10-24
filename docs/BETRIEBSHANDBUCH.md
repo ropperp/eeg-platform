@@ -1148,3 +1148,16 @@ docker compose up -d --build
 > `<BICFI>` statt `<BIC>`, `<ReqdExctnDt>` mit verschachteltem `<Dt>`). Beim nächsten
 > SEPA-Sammelüberweisung-Download prüfen, ob George/Sparkasse die Datei weiterhin anstandslos
 > annimmt (lokal bereits gegen das echte Bank-Prüfschema validiert).
+
+> **Einmalig nach dem Update vom 24.10.2026 -- SEO/Rechtliches: Favicon, Meta-Tags, Sitemap,
+> Widerrufsbelehrung, Barrierefreiheitserklärung, Kontaktformular** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose up -d --build webapp
+> ```
+> Keine Migration nötig -- rein neue statische Dateien (`favicon.ico`, `sitemap.xml`,
+> `site.webmanifest`, `og-image.png`) + neue View-/Routen-Dateien. Die `nginx.conf`-Änderung
+> (explizite Content-Types für `sitemap.xml`/`site.webmanifest`) greift automatisch mit dem
+> `--build`, da `webapp/Dockerfile` die Datei ins Image kopiert. Danach kurz prüfen:
+> `curl -I https://stromfueralle.at/favicon.ico` und `.../sitemap.xml` sollten `200` liefern.

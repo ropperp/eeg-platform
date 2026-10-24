@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Bestätigung (2FA)';
+$pageNoindex = true;
 ob_start();
 ?>
 

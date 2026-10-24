@@ -1,4 +1,4 @@
-<?php $pageTitle = 'Nur Lesezugriff'; ob_start(); ?>
+<?php $pageTitle = 'Nur Lesezugriff'; $pageNoindex = true; ob_start(); ?>
 <div style="text-align:center;padding:6rem 2rem">
   <div style="font-size:4rem;margin-bottom:1rem"><?= icon('eye') ?></div>
   <h1 style="font-size:2rem;margin-bottom:.5rem">Nur Lesezugriff</h1>

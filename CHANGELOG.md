@@ -19,6 +19,50 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### SEO & Rechtliches (DACH-Pflichtangaben)
+Patrick, 24.10.2026: Checkliste typischer Pflicht-/Standardangaben für Websites in Österreich/
+Deutschland geprüft und umgesetzt, soweit es sich um Code-/Content-Änderungen handelt.
+
+- **Favicon.** Aus dem Blitz-Icon-Teil des Logos ausgeschnitten (`webapp/public/assets/images/
+  logo.png`) und in mehreren Größen erzeugt -- `favicon.ico` (16/32px als PNG-in-ICO),
+  `favicon-16.png`/`favicon-32.png`, `apple-touch-icon.png` (iOS), `icon-192.png`/`icon-512.png`
+  + `site.webmanifest` (Android/PWA "Zum Startbildschirm hinzufügen"). Vorher existierte gar kein
+  Favicon.
+- **Meta-Description, Canonical-URL, Open-Graph/Twitter-Card auf jeder Seite.** Neues
+  `$pageDescription`-Muster in `webapp/src/views/layouts/base.php` (gleiches Prinzip wie das
+  bestehende `$pageTitle`) -- jede öffentliche Seite setzt jetzt eine eigene, inhaltlich
+  passende Beschreibung; ein generischer Fallback greift, falls doch einmal vergessen. Neues
+  eigenes Vorschaubild (`assets/images/og-image.png`) für die Linkvorschau beim Teilen (WhatsApp,
+  Slack, Facebook, Twitter/X). Rein transaktionale Seiten (Login, Passwort-Reset, 404,
+  Beitritts-Formular, Portal-Bereich) bekommen zusätzlich `<meta name="robots" content="noindex,
+  nofollow">`, damit sie nicht in Suchergebnissen landen.
+- **Sitemap.xml**, neu unter `/sitemap.xml`, verlinkt zusätzlich in `robots.txt`
+  (`Sitemap: https://stromfueralle.at/sitemap.xml`).
+- **Widerrufsbelehrung** (`/rc108175/widerruf`, neu) für den Online-Beitritt über das
+  Beitrittsformular -- Fernabsatzvertrag gemäß Fern- und Auswärtsgeschäfte-Gesetz (FAGG),
+  orientiert am gesetzlichen Muster (Anlage 1 zu § 4 Abs. 1 FAGG) inkl. Muster-Widerrufsformular.
+  Im Beitrittsformular selbst bei der bereits bestehenden Checkbox "Beginn vor Ablauf der
+  Rücktrittsfrist" verlinkt.
+- **Barrierefreiheitserklärung** (`/rc108175/barrierefreiheit`, neu) -- ehrlicher Stand (noch
+  keine formelle Prüfung erfolgt), Ziel WCAG 2.1 AA, inkl. Meldemöglichkeit für Barrieren. Nennt
+  explizit die bekannten Darstellungsprobleme auf mobilen Geräten als offenen Punkt.
+  Beide neuen Seiten in der Footer-Navigation (`base.php`) und `sitemap.xml` verlinkt.
+- **Echtes Kontaktformular** auf `/rc108175/kontakt` (zusätzlich zur bestehenden E-Mail-Adresse)
+  -- auch explizit für Datenschutz-Anfragen (Auskunft/Berichtigung/Löschung) nutzbar. Versand per
+  `Mailer`-Klasse (gleiche Microsoft-Graph-Anbindung wie überall sonst); schlägt der Mailversand
+  fehl (z. B. Graph nicht konfiguriert), wird das nur geloggt, der Besucher sieht trotzdem die
+  Erfolgsmeldung -- ein Formular-Absender darf nie an einer internen Mail-Konfiguration scheitern
+  (gleiches Prinzip wie bei bestehenden internen Benachrichtigungen). Unsichtbares Honeypot-Feld
+  als einfacher Spam-Schutz, zusätzlich zum ohnehin bestehenden CSRF-Schutz.
+- **Bereits vorhanden und geprüft, keine Änderung nötig:** Impressum, Datenschutzerklärung, AGB
+  (alle schon vollständig), keine Google Fonts (nur System-Schriften, kein externer Request),
+  kein Tracking-/Statistik-Tool (daher aktuell auch kein Cookie-Banner nötig), 404-Seite,
+  Alt-Texte für Bilder (gute Abdeckung, rein dekorative Bilder korrekt mit `alt=""`).
+- **Noch offen:** AVV (Auftragsverarbeitungsvertrag) ist kein Website-Element, sondern ein
+  Vertrag zwischen Plattformbetreiber und EEG bzw. Subdienstleistern -- organisatorisch zu
+  klären, nicht im Code umsetzbar. Mobile Darstellung: bekannte Probleme laut Patrick, noch zu
+  untersuchen (separater Punkt).
+
 ### Sicherheit
 Alle Punkte aus einem OWASP-Audit der Login-/Session-/Berechtigungs-Architektur (13.08.2026),
 umgesetzt mit dem Ziel "durchgehend sicher und funktionierend, keine Daten weg, kein Mitglied

@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Impressum — EEG Strompool Feldkirchen Süd-West';
+$pageDescription = 'Impressum der Erneuerbaren-Energie-Gemeinschaft Strompool Feldkirchen Süd-West gemäß § 5 ECG und § 25 Mediengesetz.';
 ob_start();
 ?>
 
