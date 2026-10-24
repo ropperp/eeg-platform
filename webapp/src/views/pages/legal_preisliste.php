@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Preisliste — EEG Strompool Feldkirchen Süd-West';
+$pageDescription = 'Aktuelle und historische Tarife für Bezug und Einspeisung der EEG Strompool Feldkirchen Süd-West.';
 // $tariffHistory kommt aus der Route (/rc108175/preisliste), neueste zuerst.
 $history = $tariffHistory ?? [];
 $current = $history[0] ?? null;

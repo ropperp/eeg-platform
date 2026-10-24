@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Datenschutzerklärung — EEG Strompool Feldkirchen Süd-West';
+$pageDescription = 'Welche Daten wir verarbeiten, zu welchem Zweck und wie lange -- sowie Ihre Rechte als Mitglied der EEG Strompool Feldkirchen Süd-West nach der DSGVO.';
 ob_start();
 ?>
 

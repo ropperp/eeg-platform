@@ -4,6 +4,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle ?? 'Strom für alle') ?></title>
+  <?php
+  // SEO/Social-Meta: jede Seite kann $pageDescription/$pageCanonical/$pageOgImage/$pageNoindex
+  // VOR ob_start() setzen (gleiches Muster wie $pageTitle) -- hier nur sinnvolle Fallbacks, damit
+  // keine Seite diese Tags komplett vergisst. $pageCanonical ohne Query-String (z.B. ?success=...
+  // nach einem Formular-Submit soll nicht als eigene, separat indexierbare URL gelten).
+  $pageDescription = $pageDescription ?? 'Strom für alle -- die Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung und Echtzeit-Energiedaten.';
+  $pageCanonical = $pageCanonical ?? ('https://stromfueralle.at' . strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
+  $pageOgImage = $pageOgImage ?? 'https://stromfueralle.at/assets/images/og-image.png';
+  ?>
+  <meta name="description" content="<?= htmlspecialchars($pageDescription) ?>">
+  <link rel="canonical" href="<?= htmlspecialchars($pageCanonical) ?>">
+  <?php if (!empty($pageNoindex)): ?>
+  <meta name="robots" content="noindex, nofollow">
+  <?php endif; ?>
+  <!-- Open Graph / Twitter Card -- Vorschau, wenn ein Link zu dieser Seite verschickt wird
+       (WhatsApp, Slack, Facebook, Twitter/X, ...). -->
+  <meta property="og:site_name" content="Strom für alle">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="de_AT">
+  <meta property="og:title" content="<?= htmlspecialchars($pageTitle ?? 'Strom für alle') ?>">
+  <meta property="og:description" content="<?= htmlspecialchars($pageDescription) ?>">
+  <meta property="og:url" content="<?= htmlspecialchars($pageCanonical) ?>">
+  <meta property="og:image" content="<?= htmlspecialchars($pageOgImage) ?>">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<?= htmlspecialchars($pageTitle ?? 'Strom für alle') ?>">
+  <meta name="twitter:description" content="<?= htmlspecialchars($pageDescription) ?>">
+  <meta name="twitter:image" content="<?= htmlspecialchars($pageOgImage) ?>">
+  <!-- Favicon: aus dem Blitz-Icon-Teil des Logos ausgeschnitten (webapp/public/assets/images/
+       logo.png), siehe CHANGELOG.md. favicon.ico bündelt 16/32px als PNG-in-ICO (von jedem
+       modernen Browser unterstützt, seit Windows Vista Standard). -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/favicon-16.png">
+  <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/assets/css/app.css?v=<?= @filemtime(ROOT . '/public/assets/css/app.css') ?: time() ?>">
   <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
   <!-- Markiert synchron (vor dem ersten Malen), dass JS verfügbar ist -- app.css nutzt das,
@@ -51,6 +86,8 @@
       <a href="/rc108175/statuten">Statuten</a> ·
       <a href="/rc108175/datenschutz">Datenschutz</a> ·
       <a href="/rc108175/agb">AGBs</a> ·
+      <a href="/rc108175/widerruf">Widerrufsbelehrung</a> ·
+      <a href="/rc108175/barrierefreiheit">Barrierefreiheit</a> ·
       <a href="/rc108175/preisliste">Preisliste</a> ·
       <a href="/rc108175/kontakt">Kontakt</a> ·
       <a href="https://kaerntennetz.at/erneuerbare-energiegemeinschaften-eeg.htm" target="_blank" rel="noopener">Kärnten Netz: Netzgebiet prüfen</a>

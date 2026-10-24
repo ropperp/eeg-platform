@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Beitreten — EEG Strompool Feldkirchen Süd-West';
+$pageDescription = 'So werden Sie Mitglied der EEG Strompool Feldkirchen Süd-West und nehmen an der gemeinschaftlichen Energieerzeugung teil.';
 ob_start();
 ?>
 

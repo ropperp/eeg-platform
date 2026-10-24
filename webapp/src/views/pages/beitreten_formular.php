@@ -1,5 +1,10 @@
 <?php
 $pageTitle = 'Online-Beitrittserklärung — ' . $community['name'];
+$pageDescription = 'Online-Beitrittserklärung für ' . $community['name'] . ' -- werden Sie Mitglied dieser Energiegemeinschaft.';
+// Formularseite mit evtl. vorbefüllten Eingaben nach einem fehlgeschlagenen Absenden (siehe $d
+// unten) -- kein sinnvoller Suchergebnis-Treffer, der Link selbst darf aber weiterhin geteilt
+// werden (Vorschau über og:/twitter:-Tags bleibt deshalb aktiv).
+$pageNoindex = true;
 $d = $_POST ?? [];
 $mpid = strtolower($community['marktpartner_id']);
 $downloadPdf = '/assets/docs/beitrittserklaerung-eeg-strompool-feldkirchen-suedwest.pdf';
@@ -225,7 +230,7 @@ ob_start();
       $consents = [
         'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
         'zustimmung_vollmacht'           => 'Vollmacht: Ich bevollmächtige den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
-        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt.',
+        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt (siehe <a href="/' . htmlspecialchars($mpid) . '/widerruf" target="_blank">Widerrufsbelehrung</a>).',
         'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Ich stimme der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
         'zustimmung_datenschutz'         => 'Datenschutz: Ich willige in die Verarbeitung meiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
         'zustimmung_agb'                 => 'AGB &amp; Tarif-/Preisblatt: Ich bestätige, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
@@ -244,7 +249,8 @@ ob_start();
         Bitte lesen Sie vorab
         <a href="/<?= htmlspecialchars($mpid) ?>/statuten" target="_blank">Statuten</a>,
         <a href="/<?= htmlspecialchars($mpid) ?>/datenschutz" target="_blank">Datenschutzerklärung</a>,
-        <a href="/<?= htmlspecialchars($mpid) ?>/agb" target="_blank">AGBs</a> und
+        <a href="/<?= htmlspecialchars($mpid) ?>/agb" target="_blank">AGBs</a>,
+        <a href="/<?= htmlspecialchars($mpid) ?>/widerruf" target="_blank">Widerrufsbelehrung</a> und
         <a href="/<?= htmlspecialchars($mpid) ?>/preisliste" target="_blank">Preisliste</a>
         — Ihre Eingaben bleiben dabei in diesem Browser erhalten.
       </p>

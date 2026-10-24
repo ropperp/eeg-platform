@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Statuten — EEG Strompool Feldkirchen Süd-West';
+$pageDescription = 'Vereinsstatuten der Erneuerbaren-Energie-Gemeinschaft Strompool Feldkirchen Süd-West gemäß §§ 79 ff EAG.';
 ob_start();
 ?>
 

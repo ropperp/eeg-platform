@@ -1317,6 +1317,56 @@ $router->get('/rc108175/kontakt', function () {
     require ROOT . '/src/views/pages/legal_kontakt.php';
 });
 
+/**
+ * Kontaktformular der öffentlichen Kontaktseite -- auch für Datenschutz-Anfragen gedacht
+ * (Auskunft/Berichtigung/Löschung), damit nicht zwingend ein eigenes E-Mail-Programm nötig ist.
+ * Versendet per Mailer (Microsoft-Graph-Anbindung wie überall sonst) an die EEG-Kontaktadresse;
+ * schlägt der Versand fehl (z.B. Graph nicht konfiguriert), wird NICHT der Nutzer mit einem
+ * Fehler konfrontiert, sondern geloggt und als "gesendet" quittiert, sobald die Nachricht
+ * wenigstens inhaltlich gültig war -- gleiches Prinzip wie notifySupportTicketCreated(): ein
+ * Besucher darf nie an einer internen Mail-Konfiguration scheitern, er sieht den Fehler ohnehin
+ * nicht nachvollziehbar und hat (siehe Kontaktseite) immer noch die direkte E-Mail-Adresse.
+ * Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot es aus, wird stillschweigend
+ * ohne Mailversand auf die Erfolgsseite umgeleitet (kein Hinweis an den Bot, dass er entdeckt wurde).
+ */
+$router->post('/rc108175/kontakt', function () {
+    $name = trim((string)($_POST['name'] ?? ''));
+    $email = trim((string)($_POST['email'] ?? ''));
+    $anliegen = trim((string)($_POST['anliegen'] ?? ''));
+    $nachricht = trim((string)($_POST['nachricht'] ?? ''));
+    $honeypot = trim((string)($_POST['website'] ?? ''));
+
+    if ($honeypot !== '') {
+        header('Location: /rc108175/kontakt?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
+        exit;
+    }
+    if ($name === '' || $nachricht === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header('Location: /rc108175/kontakt?error=' . urlencode('Bitte Name, eine gültige E-Mail-Adresse und eine Nachricht angeben.'));
+        exit;
+    }
+
+    $anliegenLabels = [
+        'mitgliedschaft' => 'Mitgliedschaft',
+        'rechnung'       => 'Rechnung & Zahlung',
+        'datenschutz'    => 'Datenschutz (Auskunft/Berichtigung/Löschung)',
+        'sonstiges'      => 'Sonstiges',
+    ];
+    $anliegenLabel = $anliegenLabels[$anliegen] ?? 'Allgemeine Frage';
+
+    try {
+        $body = '<p>Neue Nachricht über das Kontaktformular (' . htmlspecialchars($anliegenLabel) . '):</p>'
+            . '<p><strong>Von:</strong> ' . htmlspecialchars($name) . ' (' . htmlspecialchars($email) . ')</p>'
+            . '<p>' . nl2br(htmlspecialchars($nachricht)) . '</p>'
+            . '<p style="color:#6b7280;font-size:.85rem">Antwort bitte direkt an die oben genannte E-Mail-Adresse.</p>';
+        Mailer::send('office@stromfueralle.at', 'Kontaktformular: ' . $anliegenLabel, $body);
+    } catch (\Throwable $e) {
+        error_log('[kontaktformular_mail] ' . $e->getMessage());
+    }
+
+    header('Location: /rc108175/kontakt?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
+    exit;
+});
+
 $router->get('/rc108175/impressum', function () {
     require ROOT . '/src/views/pages/legal_impressum.php';
 });
@@ -1331,6 +1381,14 @@ $router->get('/rc108175/datenschutz', function () {
 
 $router->get('/rc108175/agb', function () {
     require ROOT . '/src/views/pages/legal_agb.php';
+});
+
+$router->get('/rc108175/widerruf', function () {
+    require ROOT . '/src/views/pages/legal_widerruf.php';
+});
+
+$router->get('/rc108175/barrierefreiheit', function () {
+    require ROOT . '/src/views/pages/legal_barrierefreiheit.php';
 });
 
 $router->get('/rc108175/preisliste', function () {

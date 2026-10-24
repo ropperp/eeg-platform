@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Strom für alle — Gemeinschaftlich Energie erzeugen & teilen';
+$pageDescription = 'Die Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung von Bezug und Einspeisung sowie Echtzeit-Energiedaten -- einfach, transparent, rechtssicher.';
 // Eigenes Hero-Foto (unter /admin/templates hochgeladen, siehe /hero-banner-image) hat Vorrang
 // vor der mitgelieferten SVG-Illustration -- per Inline-<style>-Override, da app.css das Bild
 // nicht kennt (die Datei kann jederzeit ohne Deploy ausgetauscht werden).

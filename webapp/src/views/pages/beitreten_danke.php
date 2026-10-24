@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Beitrittserklärung übermittelt';
+$pageNoindex = true;
 ob_start();
 ?>
 

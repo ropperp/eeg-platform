@@ -1,4 +1,4 @@
-<?php $pageTitle = 'Passwort zurücksetzen'; ob_start(); ?>
+<?php $pageTitle = 'Passwort zurücksetzen'; $pageNoindex = true; ob_start(); ?>
 
 <div style="min-height:80vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">

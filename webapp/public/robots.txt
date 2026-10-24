@@ -2,3 +2,5 @@ User-agent: *
 Disallow: /portal/
 Disallow: /admin/
 Disallow: /api/
+
+Sitemap: https://stromfueralle.at/sitemap.xml

@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Live-Anzeige';
+$pageDescription = 'Energiefluss und -erzeugung einer Energiegemeinschaft in Echtzeit -- öffentliche Live-Anzeige von Strom für alle.';
 $preselect = htmlspecialchars($_GET['eeg'] ?? '');
 ob_start();
 ?>

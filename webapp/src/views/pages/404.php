@@ -1,4 +1,4 @@
-<?php $pageTitle = 'Seite nicht gefunden'; ob_start(); ?>
+<?php $pageTitle = 'Seite nicht gefunden'; $pageNoindex = true; ob_start(); ?>
 <div style="text-align:center;padding:6rem 2rem">
   <div style="font-size:4rem;margin-bottom:1rem"><?= icon('plug') ?></div>
   <h1 style="font-size:2rem;margin-bottom:.5rem">Seite nicht gefunden</h1>

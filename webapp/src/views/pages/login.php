@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Anmelden';
+$pageNoindex = true;
 ob_start();
 ?>
 
