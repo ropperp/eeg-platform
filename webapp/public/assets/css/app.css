@@ -111,7 +111,7 @@ a:hover { text-decoration: underline; }
      UA-Default-Styling (Button hat eigene Innenabstände/Zeilenhöhe) nicht automatisch auf
      derselben Grundlinie treffen. Macht nebenbei die seit längerem vorhandene, aber bisher
      wirkungslose @media-Regel (flex-wrap/justify-content/row-gap weiter unten) erst wirksam --
-     die setzte flex-Eigenschaften auf einem Element, das noch gar kein flex-Container war. -->
+     die setzte flex-Eigenschaften auf einem Element, das noch gar kein flex-Container war. */
   display: flex;
   align-items: center;
 }
