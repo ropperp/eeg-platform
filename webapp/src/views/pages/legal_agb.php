@@ -69,7 +69,7 @@ ob_start();
     </li>
     <li>
       Für die Ausleseeinheit wird ein Entgelt gemäß der jeweils gültigen Preisliste verrechnet
-      (voraussichtlich ca. € 20,–). Der endgültige Preis wird dem Mitglied vor Übergabe bekannt
+      (voraussichtlich ca. € 30,–). Der endgültige Preis wird dem Mitglied vor Übergabe bekannt
       gegeben.
     </li>
     <li>

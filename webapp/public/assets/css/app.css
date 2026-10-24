@@ -54,6 +54,17 @@
 
 html { scroll-behavior: smooth; }
 
+/* Patrick, 24.10.2026: musste auf dem Handy rauszoomen und seitlich "vom Rand wischen", um alles
+   zu sehen -- ein einzelnes zu breites Element (z.B. ein <select> mit langem Text, eine Tabelle
+   ohne eigenen Scroll-Container) zog bisher die GESAMTE Seite in die Breite, weil html/body
+   selbst kein overflow-x hatten. Globaler Schutz: die Seite selbst scrollt nie horizontal:
+   ein einzelnes zu breites Kind-Element wird dadurch höchstens innerhalb seines eigenen
+   Containers abgeschnitten/scrollbar (siehe Tabellen-Regel weiter unten), statt die ganze Seite
+   aufzuziehen. Behebt das Symptom zuverlässig, unabhängig davon, WELCHES Element gerade zu breit
+   ist -- besser als jede einzelne mögliche Ursache einzeln abzujagen.
+*/
+html, body { overflow-x: hidden; max-width: 100%; }
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--gray-800);
@@ -94,6 +105,16 @@ a:hover { text-decoration: underline; }
 .navbar .logo-img-dark { display: none; }
 [data-theme="dark"] .navbar .logo-img-light { display: none; }
 [data-theme="dark"] .navbar .logo-img-dark { display: block; }
+.navbar nav {
+  /* Patrick, 24.10.2026: Mond/Sonne-Button saß höher als die Nav-Links -- ohne display:flex
+     liefen <button>/<a> als normale Inline-Elemente nebeneinander, deren Boxen sich je nach
+     UA-Default-Styling (Button hat eigene Innenabstände/Zeilenhöhe) nicht automatisch auf
+     derselben Grundlinie treffen. Macht nebenbei die seit längerem vorhandene, aber bisher
+     wirkungslose @media-Regel (flex-wrap/justify-content/row-gap weiter unten) erst wirksam --
+     die setzte flex-Eigenschaften auf einem Element, das noch gar kein flex-Container war. -->
+  display: flex;
+  align-items: center;
+}
 .navbar nav a {
   margin-left: 1.5rem;
   color: var(--gray-600);
@@ -491,6 +512,17 @@ footer {
   .legal h1 { font-size: 1.6rem; }
   .legal table { font-size: .85rem; }
   .legal table th, .legal table td { padding: .5rem .6rem; }
+
+  /* Tabellen (Rechnungslisten, EDA-Import-Übersicht, ...) ohne eigenen Scroll-Wrapper: auf
+     "display:block" umschalten, damit eine zu breite Tabelle innerhalb IHRER SELBST horizontal
+     scrollt, statt (vor dem html/body-overflow-x:hidden weiter oben) die ganze Seite zu
+     verbreitern oder (danach) ihren Inhalt einfach unsichtbar abzuschneiden. */
+  table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+
+  /* Rollen-/EEG-Umschalter im Portal-Header: ein langer Options-Text (EEG-Name + Mitgliedsname)
+     durfte den <select> bisher beliebig breit machen und damit den ganzen Header (und über
+     html/body hinweg die ganze Seite) in die Breite ziehen. */
+  .navbar select { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* Portal: Sidebar wird zur horizontal scrollbaren Iconleiste */
   .portal-layout { flex-direction: column; min-height: auto; }
