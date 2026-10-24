@@ -147,7 +147,7 @@ ob_start();
     </p>
     <p style="color:var(--gray-600);font-size:.85rem;font-style:italic;text-align:center">
       Die Ausleseeinheit ist derzeit in Entwicklung und wird in den kommenden Monaten an alle
-      Mitglieder ausgegeben (voraussichtlich ca. € 20,–, Preis noch nicht endgültig).
+      Mitglieder ausgegeben (voraussichtlich ca. € 30,–, Preis noch nicht endgültig).
     </p>
   </div>
 </section>

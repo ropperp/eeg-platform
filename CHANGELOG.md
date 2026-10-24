@@ -19,6 +19,31 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Behoben (Mobile-Darstellung, Preisangabe)
+Patrick, 24.10.2026, per Screenshot: "muss rauszoomen, um alle Funktionen zu sehen" + "vom Rand
+wischen" auf dem Handy, Mond/Sonne-Symbol nicht auf Höhe der übrigen Nav-Buttons, Preis der
+Ausleseeinheit uneinheitlich (Preisliste 30 €, Startseite/AGB noch 20 €).
+
+- **Preis der Ausleseeinheit vereinheitlicht:** Startseite und AGB zeigten noch "ca. € 20,–",
+  obwohl die Preisliste schon länger "ca. 30,00 €" ausweist -- beide Stellen jetzt auf 30 €
+  korrigiert.
+- **Mond/Sonne-Umschalter auf halber Höhe zu den Nav-Links.** `.navbar nav` hatte entgegen dem
+  Anschein kein `display:flex` -- `<button>` und `<a>` liefen als normale Inline-Elemente
+  nebeneinander, deren Boxen sich je nach UA-Default-Styling nicht automatisch auf derselben
+  Grundlinie treffen. Nebeneffekt des Fixes: eine seit längerem vorhandene, aber bisher
+  wirkungslose `@media`-Regel (flex-wrap/justify-content fürs mobile Umbrechen) griff dadurch
+  auch noch nie -- jetzt schon.
+- **Mobile: Seite musste rausgezoomt/seitlich gescrollt werden, um alles zu sehen.** `html`/`body`
+  hatten keinerlei Schutz gegen horizontalen Overflow -- ein einzelnes zu breites Element (langer
+  Text im EEG-/Rollen-Auswahl-`<select>`, eine Tabelle ohne eigenen Scroll-Container) zog dadurch
+  die GESAMTE Seite in die Breite. Jetzt `overflow-x: hidden` auf `html`/`body` als globaler
+  Schutz, zusätzlich: Tabellen bekommen auf Mobile einen eigenen horizontalen Scroll-Bereich
+  (`display:block; overflow-x:auto`, Spaltenausrichtung dabei bewusst NICHT über `thead`/`tbody`
+  erzwungen -- das hätte zwei getrennte, unabhängig spaltenbreite Tabellen-Kontexte erzeugt und
+  Kopf-/Datenzeilen gegeneinander verschoben, lokal mit einem Playwright-Rendertest verifiziert);
+  der EEG-/Rollen-Auswahl-`<select>` im Portal-Header ist jetzt zusätzlich per `max-width`
+  begrenzt.
+
 ### SEO & Rechtliches (DACH-Pflichtangaben)
 Patrick, 24.10.2026: Checkliste typischer Pflicht-/Standardangaben für Websites in Österreich/
 Deutschland geprüft und umgesetzt, soweit es sich um Code-/Content-Änderungen handelt.
