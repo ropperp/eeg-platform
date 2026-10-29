@@ -1,3 +1,7 @@
+# Gilt bewusst für ALLE Crawler gleichermaßen (User-agent: *) -- auch klassische
+# Suchmaschinen-Bots (Googlebot, Bingbot) UND KI-Crawler (GPTBot, ClaudeBot, Google-Extended,
+# PerplexityBot, CCBot, Applebot-Extended, ...) sind damit bereits erlaubt, alle öffentlichen
+# Seiten zu lesen -- nur der eingeloggte Bereich (Portal/Admin) und die API sind ausgenommen.
 User-agent: *
 Disallow: /portal/
 Disallow: /admin/

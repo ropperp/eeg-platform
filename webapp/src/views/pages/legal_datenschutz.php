@@ -41,8 +41,16 @@ ob_start();
   <h2>5. Weitergabe von Daten</h2>
   <p>
     Energiedaten werden vom zuständigen Netzbetreiber an die Plattform übermittelt. Eine
-    Weitergabe an Dritte außerhalb der Gemeinschaft erfolgt nicht, außer wenn dies gesetzlich
+    Weitergabe an Dritte außerhalb der Gemeinschaft erfolgt nicht, außer an die folgenden, von
+    uns beauftragten Auftragsverarbeiter (Art. 28 DSGVO) sowie wenn dies gesetzlich
     vorgeschrieben ist. Jedes Mitglied sieht ausschließlich seine eigenen Daten.
+  </p>
+  <p>
+    <strong>Microsoft Ireland Operations Limited</strong> (Microsoft 365/Exchange Online, via
+    Microsoft Graph API) für den Versand von System-E-Mails (z.B. Rechnungen, Beitrittsbestätigungen,
+    Benachrichtigungen) -- dabei werden E-Mail-Adresse, Name und der jeweilige Nachrichteninhalt an
+    Microsoft übermittelt. Die Auftragsverarbeitung erfolgt auf Basis des in die
+    Microsoft-Produktbedingungen integrierten Data Protection Addendum (DPA).
   </p>
 
   <h2>6. Speicherort &amp; Sicherheit</h2>

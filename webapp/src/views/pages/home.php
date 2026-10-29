@@ -15,6 +15,25 @@ if ($customHeroBanner) {
     $heroBannerUrl = '/hero-banner-image?v=' . filemtime($customHeroBanner);
     $extraHead = '<link rel="preload" as="image" fetchpriority="high" href="' . htmlspecialchars($heroBannerUrl) . '">';
 }
+// Organization-Schema (schema.org/JSON-LD): hilft Suchmaschinen (Google Knowledge-Panel/
+// Sitelinks) UND KI-Suchassistenten (Perplexity, ChatGPT-Search, Google AI Overviews), die
+// Plattform als eigenständige Organisation einzuordnen statt den Seiteninhalt nur als Fließtext
+// zu interpretieren. Bewusst nur auf der Startseite (nicht auf jeder Unterseite) -- das ist die
+// übliche Konvention, Suchmaschinen verknüpfen das Schema mit der gesamten Domain.
+$extraHead = ($extraHead ?? '') . '
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Strom für alle",
+  "alternateName": "EEG Strompool Feldkirchen Süd-West",
+  "url": "https://stromfueralle.at/",
+  "logo": "https://stromfueralle.at/logo-light.png",
+  "email": "office@stromfueralle.at",
+  "description": "Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung, Echtzeit-Energiedaten.",
+  "areaServed": "AT"
+}
+</script>';
 ob_start();
 ?>
 

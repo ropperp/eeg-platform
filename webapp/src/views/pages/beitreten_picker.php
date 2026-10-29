@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Informieren und Beitreten';
+$pageTitle = 'Informieren und Beitreten — Strom für alle';
 $pageDescription = 'Informieren Sie sich über Energiegemeinschaften auf Strom für alle und werden Sie online Mitglied.';
 ob_start();
 ?>
