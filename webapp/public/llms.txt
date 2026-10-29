@@ -1,0 +1,22 @@
+# Strom für alle
+
+> Plattform der Erneuerbaren-Energie-Gemeinschaft (EEG) Strompool Feldkirchen Süd-West
+> (ZVR 1778816746, Marktpartner-ID RC108175) in Kärnten, Österreich. Mitgliederverwaltung,
+> automatisierte Abrechnung von Bezug und Einspeisung sowie Echtzeit-Energiedaten.
+
+## Wichtige Seiten
+
+- [Startseite](https://stromfueralle.at/): Überblick über die Plattform und ihre Funktionen.
+- [Live-Anzeige](https://stromfueralle.at/live): Öffentliches Echtzeit-Dashboard der EEG (Erzeugung, Verbrauch, Autarkie-Quote).
+- [Beitreten](https://stromfueralle.at/beitreten): Informationen zum Mitgliedsbeitritt.
+- [Preisliste](https://stromfueralle.at/rc108175/preisliste): Mitgliedsbeitrag, Preise für Bezug/Einspeisung.
+- [Kontakt](https://stromfueralle.at/rc108175/kontakt): Kontaktformular und E-Mail-Adresse.
+
+## Rechtliches
+
+- [Impressum](https://stromfueralle.at/rc108175/impressum): Vereinsdaten, Vertretung, Kontakt.
+- [Datenschutzerklärung](https://stromfueralle.at/rc108175/datenschutz): Informationen zur Datenverarbeitung gemäß DSGVO.
+- [AGB](https://stromfueralle.at/rc108175/agb): Allgemeine Geschäftsbedingungen.
+- [Widerrufsbelehrung](https://stromfueralle.at/rc108175/widerruf): Rücktrittsrecht beim Online-Beitritt.
+- [Barrierefreiheitserklärung](https://stromfueralle.at/rc108175/barrierefreiheit): Stand der Barrierefreiheit.
+- [Statuten](https://stromfueralle.at/rc108175/statuten): Vereinsstatuten.

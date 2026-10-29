@@ -77,7 +77,7 @@
   </div>
 </header>
 
-<?= $content ?>
+<main><?= $content ?></main>
 
 <footer>
   <div class="container">

@@ -47,8 +47,19 @@
 [data-theme="dark"] textarea { background: #0f172a; color: #f1f5f9; border-color: #334155; }
 [data-theme="dark"] code { background: #0f172a; color: #86efac; }
 [data-theme="dark"] dialog { background: #1e293b; color: #f1f5f9; border-color: #334155; }
-[data-theme="dark"] .navbar .btn-primary { background: var(--green-dark); color: #000; }
 [data-theme="dark"] #theme-toggle { color: #f1f5f9; }
+/* PageSpeed-Insights-Audit (29.10.2026, Patrick): "Kontrastverhältnis von Hintergrund- und
+   Vordergrundfarben ist nicht ausreichend" -- var(--green) #16a34a hat auf Weiß nur 3,3:1
+   Kontrast, WCAG AA verlangt für normal großen Text 4,5:1 (gilt für Links, Preisangaben in
+   Tabellen, den "Anmelden"-Button -- alle deutlich unter 18px). var(--green-dark) #15803d
+   schafft 5,02:1 auf Weiß und wird dafür stattdessen verwendet (siehe unten). Auf dunklem
+   Hintergrund kippt das Verhältnis allerdings um (green-dark auf dunklem Seitenhintergrund nur
+   ~2,9-3,6:1) -- hier greift wie beim bereits bestehenden .badge-green/.alert-success-Muster
+   das helle #86efac. var(--green) bleibt unverändert für großen/fetten Text (Kennzahlen,
+   Icons), wo nur 3:1 nötig ist und die hellere Markenfarbe optisch besser passt. */
+[data-theme="dark"] a,
+[data-theme="dark"] .legal h2,
+[data-theme="dark"] .legal .price { color: #86efac; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -72,7 +83,7 @@ body {
   line-height: 1.5;
 }
 
-a { color: var(--green); text-decoration: none; }
+a { color: var(--green-dark); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* ─── Rechtstexte (Statuten, Datenschutz, AGB, Preisliste) ── */
@@ -86,7 +97,7 @@ a:hover { text-decoration: underline; }
 .legal table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; }
 .legal table th, .legal table td { padding: .65rem .9rem; border-bottom: 1px solid var(--gray-200); text-align: left; }
 .legal table th { background: var(--gray-100); }
-.legal .price { font-weight: 700; color: var(--green); }
+.legal .price { font-weight: 700; color: var(--green-dark); }
 
 /* ─── Layout ─────────────────────────────────────── */
 .container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
@@ -133,8 +144,8 @@ a:hover { text-decoration: underline; }
 }
 .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.1); }
 .btn:active { transform: translateY(0); box-shadow: none; }
-.btn-primary   { background: var(--green); color: var(--on-color); }
-.btn-primary:hover { background: var(--green-dark); }
+.btn-primary   { background: var(--green-dark); color: var(--on-color); }
+.btn-primary:hover { background: #166534; }
 .btn-secondary { background: var(--gray-100); color: var(--gray-800); border: 1px solid var(--gray-200); }
 .btn-secondary:hover { background: var(--gray-200); }
 .btn-danger    { background: #dc2626; color: var(--on-color); }
