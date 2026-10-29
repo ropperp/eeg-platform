@@ -10513,6 +10513,56 @@ $router->get('/logo-:variant.png', function ($params) {
 });
 
 /**
+ * Serverseitige Garantie dafür, dass /hero-banner-image tatsächlich ein kompaktes JPEG
+ * ausliefert -- unabhängig davon, WELCHES Format die hochgeladene Datei wirklich hat.
+ *
+ * Hintergrund (PageSpeed-Insights-Audit, 29.10.2026, Patrick): "Bildübermittlung verbessern --
+ * geschätzte Einsparung von 1.830 KiB", LCP auf Mobile >12s. Ursache: Die unter
+ * /admin/templates hochgeladene hero-banner.jpg war trotz Dateiendung ".jpg" und trotz des
+ * `Content-Type: image/jpeg`-Headers in Wahrheit ein verlustfrei kodiertes PNG (1600x640px,
+ * ~1,9 MB) -- der Browser erkennt das tatsächliche Format anhand der Bytes und zeigt es
+ * trotzdem korrekt an, nur eben mit einem Vielfachen der nötigen Datenmenge. Der am
+ * 09.10.2026 dokumentierte rect-crop.js-Fix (Export als JPEG statt PNG) wirkt nur auf NEUE
+ * Uploads über den Browser-Zuschneide-Dialog -- diese konkrete, schon vorher hochgeladene
+ * Datei blieb davon unberührt, und jeder andere Upload-Weg (z.B. ein Bild, das nicht über
+ * rect-crop.js läuft) wäre genauso betroffen gewesen.
+ *
+ * Deshalb hier zusätzlich eine serverseitige Absicherung statt nur eine Korrektur im Client:
+ * wird eine neue/geänderte hero-banner.jpg entdeckt (Quelldatei-mtime geprüft), einmalig per
+ * GD auf max. 1920px Breite skalieren (reicht für jede Bildschirmgröße, der Hero-Container ist
+ * nie breiter) und als JPEG (Qualität 82) in eine Cache-Datei neben dem Original schreiben --
+ * ALLE folgenden Aufrufe liefern direkt diese Cache-Datei aus, keine Neuberechnung pro Request.
+ * Schlägt die GD-Verarbeitung aus irgendeinem Grund fehl (z.B. korruptes Bild), liefert die
+ * Route als Rückfallebene die Originaldatei unverändert aus, statt mit einem Fehler zu enden.
+ */
+function optimizedHeroBannerPath(string $sourcePath): string
+{
+    $cachePath = dirname($sourcePath) . '/hero-banner.optimized.jpg';
+    if (is_file($cachePath) && filemtime($cachePath) >= filemtime($sourcePath)) {
+        return $cachePath;
+    }
+    $raw = @file_get_contents($sourcePath);
+    $img = $raw !== false ? @imagecreatefromstring($raw) : false;
+    if ($img === false) {
+        return $sourcePath;
+    }
+    $width = imagesx($img);
+    $height = imagesy($img);
+    $maxWidth = 1920;
+    if ($width > $maxWidth) {
+        $newWidth = $maxWidth;
+        $newHeight = (int) round($height * ($maxWidth / $width));
+        $resized = imagecreatetruecolor($newWidth, $newHeight);
+        imagecopyresampled($resized, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        imagedestroy($img);
+        $img = $resized;
+    }
+    $ok = @imagejpeg($img, $cachePath, 82);
+    imagedestroy($img);
+    return $ok ? $cachePath : $sourcePath;
+}
+
+/**
  * Eigenes Hero-Banner-Foto (statt der mitgelieferten SVG-Landschafts-Illustration) --
  * hochgeladen unter /admin/templates, dort mit Zoom/Verschieben auf die Ziel-Bildgröße des
  * Hero-Banners zugeschnitten (siehe rect-crop.js). 404, solange kein eigenes Bild hochgeladen
@@ -10522,19 +10572,15 @@ $router->get('/logo-:variant.png', function ($params) {
  * bis es geladen wird"): home.php hängt an die URL bereits ?v=<filemtime> an, die Adresse ändert
  * sich also automatisch, sobald ein neues Foto hochgeladen wird -- unter DIESER exakten URL
  * bleiben die Bytes für immer gleich, ein langes Cache-Limit ist daher gefahrlos.
- *
- * JPEG statt PNG (Patrick, 09.10.2026, Nachbesserung zum selben Vorfall: trotz langem Cache
- * dauerte ein Reload bzw. der allererste Aufruf weiterhin spürbar -- Ursache war gar nicht das
- * Caching, sondern dass rect-crop.js den Zuschnitt bis dahin verlustfrei als PNG exportierte,
- * für ein FOTO um ein Vielfaches größer als ein qualitativ kaum unterscheidbares JPEG).
  */
 $router->get('/hero-banner-image', function () {
     $path = adminFilePath('hero-banner.jpg');
     if (!$path) { http_response_code(404); return; }
+    $servePath = optimizedHeroBannerPath($path);
     header('Content-Type: image/jpeg');
     header('Cache-Control: public, max-age=31536000, immutable');
-    header('Content-Length: ' . filesize($path));
-    readfile($path);
+    header('Content-Length: ' . filesize($servePath));
+    readfile($servePath);
     exit;
 });
 

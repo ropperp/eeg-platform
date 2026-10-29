@@ -19,6 +19,33 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### PageSpeed-Insights-Audit (Performance, Barrierefreiheit, KI-Lesbarkeit)
+Patrick, 29.10.2026: echten Lighthouse-Bericht (pagespeed.web.dev) für stromfueralle.at geteilt
+-- Mobile-Performance 75/100, Desktop 88/100, Barrierefreiheit 91/100. Konkrete Funde behoben:
+
+- **Hero-Banner-Foto: 1,91 MB → 244 KB.** Größter Einzelposten ("Bildübermittlung verbessern --
+  geschätzte Einsparung von 1.830 KiB", Hauptursache für LCP >12s auf Mobile). Die unter
+  `/admin/templates` hochgeladene `hero-banner.jpg` war trotz Dateiendung/Content-Type in
+  Wahrheit ein verlustfrei kodiertes PNG (1600x640px) -- der frühere rect-crop.js-Fix
+  (09.10.2026, Export als JPEG) wirkt nur auf NEUE Uploads über den Zuschneide-Dialog, nicht auf
+  diese schon vorher hochgeladene Datei. Jetzt serverseitig abgesichert: `/hero-banner-image`
+  erkennt und konvertiert bei Bedarf automatisch zu JPEG (Qualität 82, max. 1920px Breite,
+  Ergebnis gecacht neben dem Original) -- unabhängig vom tatsächlichen Upload-Format, auch für
+  die schon vorhandene Datei, ohne dass Patrick etwas erneut hochladen muss.
+- **Fehlendes `<main>`-Element ergänzt** (Best-Practices-Fehler "Dokument hat keine
+  Hauptmarkierung") in `layouts/base.php`.
+- **WCAG-Kontrastverstöße behoben** ("Kontrastverhältnis von Hintergrund- und Vordergrundfarben
+  ist nicht ausreichend"): die Markenfarbe `--green` (#16a34a) hat auf Weiß nur 3,3:1 Kontrast,
+  WCAG AA verlangt für normal großen Text 4,5:1 -- betraf Links, Preisangaben in Tabellen und den
+  "Anmelden"-Button. Für diese Fälle jetzt `--green-dark` (#15803d, 5,02:1 auf Weiß); im Dark
+  Mode kippt das Verhältnis (green-dark auf dunklem Hintergrund nur ~2,9-3,6:1) -- dort greift
+  wie beim bestehenden `.badge-green`/`.alert-success`-Muster das helle `#86efac`.
+  `--green` bleibt unverändert für großen/fetten Text (Kennzahlen, Icons), wo nur 3:1 nötig ist.
+- **`llms.txt` ergänzt:** Lighthouse hat seit Kurzem eine eigene "Agentisches Browsing"-Kategorie
+  mit einer dedizierten Prüfung dafür -- vorherige Einschätzung (SEO-Audit 24.10.2026, geringe
+  Praxisrelevanz) damit überholt. WebMCP und `ai-catalog.json` (ebenfalls Teil dieser neuen
+  Kategorie) bewusst NICHT umgesetzt -- beide noch zu experimentell/unklar dokumentiert.
+
 ### Behoben (Mobile-Darstellung, Preisangabe)
 Patrick, 24.10.2026, per Screenshot: "muss rauszoomen, um alle Funktionen zu sehen" + "vom Rand
 wischen" auf dem Handy, Mond/Sonne-Symbol nicht auf Höhe der übrigen Nav-Buttons, Preis der
