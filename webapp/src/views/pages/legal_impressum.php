@@ -12,7 +12,10 @@ $extraHead = '
   "name": "Erneuerbare-Energie-Gemeinschaft Strompool Feldkirchen Süd-West",
   "alternateName": "Strom für alle",
   "url": "https://stromfueralle.at/",
-  "identifier": { "@type": "PropertyValue", "name": "ZVR-Zahl", "value": "1778816746" },
+  "identifier": [
+    { "@type": "PropertyValue", "name": "ZVR-Zahl", "value": "1778816746" },
+    { "@type": "PropertyValue", "name": "Marktpartner-ID (E-Control)", "value": "RC108175" }
+  ],
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "Eichenweg 2",
@@ -35,6 +38,7 @@ ob_start();
   <p>
     Erneuerbare-Energie-Gemeinschaft Strompool Feldkirchen Süd-West (Verein)<br>
     ZVR-Zahl: 1778816746<br>
+    Marktpartner-ID (E-Control): RC108175<br>
     Sitz: Eichenweg 2, 9560 St. Nikolai, Gemeinde Feldkirchen, Kärnten<br>
     Zuständige Vereinsbehörde: Bezirkshauptmannschaft Feldkirchen
   </p>
