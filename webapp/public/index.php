@@ -10541,6 +10541,14 @@ function optimizedHeroBannerPath(string $sourcePath): string
     if (is_file($cachePath) && filemtime($cachePath) >= filemtime($sourcePath)) {
         return $cachePath;
     }
+    // Harte Absicherung gegen genau den Vorfall vom 29.10.2026 (siehe Dockerfile-Kommentar):
+    // fehlt die gd-Extension aus irgendeinem Grund doch (z.B. ein Deploy, der diese Datei noch
+    // nicht enthält), ruft KEINE der folgenden GD-Funktionen auf -- ein Aufruf einer
+    // undefinierten Funktion wäre ein Fatal Error, den @ nicht abfangen kann und der die ganze
+    // Seite mit HTTP 500 lahmlegen würde. Lieber das Originalbild unverändert ausliefern.
+    if (!function_exists('imagecreatefromstring')) {
+        return $sourcePath;
+    }
     $raw = @file_get_contents($sourcePath);
     $img = $raw !== false ? @imagecreatefromstring($raw) : false;
     if ($img === false) {

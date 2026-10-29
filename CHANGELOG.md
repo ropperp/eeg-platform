@@ -32,6 +32,16 @@ Patrick, 29.10.2026: echten Lighthouse-Bericht (pagespeed.web.dev) für stromfue
   erkennt und konvertiert bei Bedarf automatisch zu JPEG (Qualität 82, max. 1920px Breite,
   Ergebnis gecacht neben dem Original) -- unabhängig vom tatsächlichen Upload-Format, auch für
   die schon vorhandene Datei, ohne dass Patrick etwas erneut hochladen muss.
+  **Nachbesserung (gleicher Tag):** Direkt nach dem Deploy lieferte `/hero-banner-image` HTTP
+  500, das Hero-Foto verschwand komplett -- die `gd`-PHP-Extension (für `imagecreatefromstring()`
+  & Co.) war im `webapp`-Container nie installiert (`webapp/Dockerfile` installierte bisher nur
+  pdo/pdo_pgsql/curl/zip/redis). Ein Aufruf einer undefinierten Funktion ist ein Fatal Error, den
+  `@` nicht unterdrückt -- anders als die übrigen `@`-abgesicherten Stellen in derselben
+  Funktion. Jetzt behoben: `gd` (inkl. JPEG/PNG-Unterstützung über `libjpeg-turbo`/`libpng`/
+  `freetype`) im Dockerfile ergänzt, UND zusätzlich eine harte `function_exists()`-Absicherung
+  im Code selbst -- fehlt die Extension aus irgendeinem Grund doch (z.B. bei einem Deploy ohne
+  frisches Image), liefert die Route das Originalbild unverändert aus, statt die ganze Seite mit
+  HTTP 500 abzureißen.
 - **Fehlendes `<main>`-Element ergänzt** (Best-Practices-Fehler "Dokument hat keine
   Hauptmarkierung") in `layouts/base.php`.
 - **WCAG-Kontrastverstöße behoben** ("Kontrastverhältnis von Hintergrund- und Vordergrundfarben
