@@ -7,9 +7,18 @@ FROM php:8.2-fpm-alpine
 # Parser-Fehler beim EDA-Import ("zoneinfo/_common.py, load_tzdata"). apk-Paket statt separatem
 # pip-Paket "tzdata", weil es zusätzlich PHP-Datumsfunktionen (date_default_timezone_set u.ä.)
 # zugutekommt, die dieselbe Systemdatenbank verwenden.
+# libjpeg-turbo/libpng/freetype (ohne -dev) bleiben dauerhaft im Image -- Laufzeit-Bibliotheken,
+# die die gd-Extension (s.u.) zum Lesen/Schreiben von JPEG/PNG braucht. Die -dev-Varianten
+# (Header/.so-Symlinks zum Kompilieren) landen bewusst in .build-deps und werden danach wieder
+# gelöscht (Vorfall 29.10.2026: Server lieferte /hero-banner-image mit HTTP 500 aus, weil Code
+# imagecreatefromstring() & Co. aufrief, ohne dass die gd-Extension hier überhaupt installiert
+# war -- ein Fatal Error durch einen Aufruf einer undefinierten Funktion, den @ NICHT
+# unterdrückt, anders als eine Warning/einen Notice).
 RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev python3 py3-pip tzdata \
-    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
-    && docker-php-ext-install pdo pdo_pgsql curl zip \
+        libjpeg-turbo libpng freetype \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS libjpeg-turbo-dev libpng-dev freetype-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql curl zip gd \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps \

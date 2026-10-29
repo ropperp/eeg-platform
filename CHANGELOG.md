@@ -19,6 +19,35 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Logo/Hero-Banner luden bei jedem Seitenaufruf neu (29.10.2026)
+Patrick, nach dem Deploy des PageSpeed-Audits: "das Logo oben in der Kopfzeile lädt die ganze
+Zeit lang langsamer nach bei jedem Aufruf" + allgemein spürbar langsamere Navigation zwischen
+Seiten (Preisliste, Datenschutz, AGBs).
+
+**Ursache:** `Auth::start()` (läuft vor JEDER Route in `index.php`) ruft `session_start()`
+auf -- PHPs Standard-Session-Cache-Limiter "nocache" setzt dabei automatisch `Expires: Thu, 19
+Nov 1981...` (ein Datum in der Vergangenheit) und `Pragma: no-cache`, BEVOR die eigentliche
+Route läuft. `header('Cache-Control: ...')` in den Logo-/Hero-Banner-Routen ERSETZT zwar den
+vorherigen Cache-Control-Wert (PHP ersetzt gleichnamige Header standardmäßig), Expires/Pragma
+sind aber ANDERE Headernamen und blieben bestehen -- viele Browser werten diese
+widersprüchlichen, bereits abgelaufenen Werte trotz des eigentlich cachefreundlichen
+Cache-Control aus und laden die Datei dadurch bei jedem Seitenaufruf neu. Betraf
+`/logo-:variant.png` (jede Seite, da im Header eingebunden) und `/hero-banner-image` --
+vermutlich der eigentliche, nie behobene Grund hinter dem bereits am 02.10.2026 dokumentierten
+"Bild braucht lange, bis es geladen wird" (der damalige Fix mit langem Cache-Control allein
+reichte offenbar nicht konsequent).
+
+**Fix:** `header_remove('Expires')`/`header_remove('Pragma')` vor dem eigenen
+`Cache-Control` in allen betroffenen Routen (`/logo-:variant.png`, `/hero-banner-image`,
+Mitglieds-/Nutzer-Profilbilder im Portal). Isoliert gegen PHPs Session-Cache-Limiter-Verhalten
+verifiziert (vorher: Expires/Pragma trotz gesetztem Cache-Control weiterhin in der Antwort;
+nachher: sauber entfernt).
+
+Die allgemein langsamere Navigation zwischen den Rechtsseiten ist damit NICHT erklärt -- das
+betrifft HTML-Seiten, die bewusst nicht gecacht werden sollen, und war mit hoher
+Wahrscheinlichkeit nur der kalte Start direkt nach `docker compose up -d --build` (PHP-OPcache,
+Redis-/DB-Verbindungen müssen sich erst neu aufbauen) -- sollte sich von selbst erledigt haben.
+
 ### PageSpeed-Insights-Audit (Performance, Barrierefreiheit, KI-Lesbarkeit)
 Patrick, 29.10.2026: echten Lighthouse-Bericht (pagespeed.web.dev) für stromfueralle.at geteilt
 -- Mobile-Performance 75/100, Desktop 88/100, Barrierefreiheit 91/100. Konkrete Funde behoben:
@@ -32,6 +61,16 @@ Patrick, 29.10.2026: echten Lighthouse-Bericht (pagespeed.web.dev) für stromfue
   erkennt und konvertiert bei Bedarf automatisch zu JPEG (Qualität 82, max. 1920px Breite,
   Ergebnis gecacht neben dem Original) -- unabhängig vom tatsächlichen Upload-Format, auch für
   die schon vorhandene Datei, ohne dass Patrick etwas erneut hochladen muss.
+  **Nachbesserung (gleicher Tag):** Direkt nach dem Deploy lieferte `/hero-banner-image` HTTP
+  500, das Hero-Foto verschwand komplett -- die `gd`-PHP-Extension (für `imagecreatefromstring()`
+  & Co.) war im `webapp`-Container nie installiert (`webapp/Dockerfile` installierte bisher nur
+  pdo/pdo_pgsql/curl/zip/redis). Ein Aufruf einer undefinierten Funktion ist ein Fatal Error, den
+  `@` nicht unterdrückt -- anders als die übrigen `@`-abgesicherten Stellen in derselben
+  Funktion. Jetzt behoben: `gd` (inkl. JPEG/PNG-Unterstützung über `libjpeg-turbo`/`libpng`/
+  `freetype`) im Dockerfile ergänzt, UND zusätzlich eine harte `function_exists()`-Absicherung
+  im Code selbst -- fehlt die Extension aus irgendeinem Grund doch (z.B. bei einem Deploy ohne
+  frisches Image), liefert die Route das Originalbild unverändert aus, statt die ganze Seite mit
+  HTTP 500 abzureißen.
 - **Fehlendes `<main>`-Element ergänzt** (Best-Practices-Fehler "Dokument hat keine
   Hauptmarkierung") in `layouts/base.php`.
 - **WCAG-Kontrastverstöße behoben** ("Kontrastverhältnis von Hintergrund- und Vordergrundfarben

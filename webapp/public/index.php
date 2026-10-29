@@ -6014,6 +6014,11 @@ $router->get('/portal/members/:id/avatar', function ($params) {
     if (!is_file($member['photo_path'])) { http_response_code(404); return; }
 
     header('Content-Type: ' . (mime_content_type($member['photo_path']) ?: 'application/octet-stream'));
+    // Siehe /logo-:variant.png (Vorfall 29.10.2026): Auth::start() setzt via PHPs
+    // Session-Cache-Limiter automatisch ein abgelaufenes Expires + Pragma: no-cache, das dem
+    // hier beabsichtigten privaten Caching sonst unbemerkt entgegenläuft.
+    header_remove('Expires');
+    header_remove('Pragma');
     header('Cache-Control: private, max-age=3600');
     readfile($member['photo_path']);
     exit;
@@ -6029,6 +6034,8 @@ $router->get('/portal/users/:id/avatar', function ($params) {
     if (!$user || !$user['photo_path'] || !is_file($user['photo_path'])) { http_response_code(404); return; }
 
     header('Content-Type: ' . (mime_content_type($user['photo_path']) ?: 'application/octet-stream'));
+    header_remove('Expires');
+    header_remove('Pragma');
     header('Cache-Control: private, max-age=3600');
     readfile($user['photo_path']);
     exit;
@@ -10506,6 +10513,18 @@ $router->get('/logo-:variant.png', function ($params) {
     $path = adminFilePath('logo-' . $params['variant'] . '.png');
     if (!$path) { http_response_code(404); return; }
     header('Content-Type: image/png');
+    // Auth::start() (ganz oben in dieser Datei, läuft vor JEDER Route) ruft session_start()
+    // auf -- PHPs Standard-Session-Cache-Limiter "nocache" setzt dabei automatisch
+    // Expires: <Datum in der Vergangenheit> + Pragma: no-cache, BEVOR diese Route überhaupt
+    // läuft. header('Cache-Control: ...') unten ERSETZT zwar den vorherigen Cache-Control-Wert
+    // (PHP ersetzt gleichnamige Header standardmäßig), Expires/Pragma sind aber ANDERE
+    // Headernamen und blieben bisher bestehen -- viele Browser/Caches werten diese
+    // widersprüchlichen, bereits abgelaufenen Werte trotz des eigentlich cachefreundlichen
+    // Cache-Control aus und laden das Logo dadurch bei JEDEM Seitenaufruf neu (Patrick,
+    // 29.10.2026: "Logo lädt die ganze Zeit lang langsamer nach bei jedem Aufruf"). Deshalb
+    // hier explizit entfernen, bevor der eigene Cache-Control-Wert gesetzt wird.
+    header_remove('Expires');
+    header_remove('Pragma');
     header('Cache-Control: public, max-age=3600');
     header('Content-Length: ' . filesize($path));
     readfile($path);
@@ -10540,6 +10559,14 @@ function optimizedHeroBannerPath(string $sourcePath): string
     $cachePath = dirname($sourcePath) . '/hero-banner.optimized.jpg';
     if (is_file($cachePath) && filemtime($cachePath) >= filemtime($sourcePath)) {
         return $cachePath;
+    }
+    // Harte Absicherung gegen genau den Vorfall vom 29.10.2026 (siehe Dockerfile-Kommentar):
+    // fehlt die gd-Extension aus irgendeinem Grund doch (z.B. ein Deploy, der diese Datei noch
+    // nicht enthält), ruft KEINE der folgenden GD-Funktionen auf -- ein Aufruf einer
+    // undefinierten Funktion wäre ein Fatal Error, den @ nicht abfangen kann und der die ganze
+    // Seite mit HTTP 500 lahmlegen würde. Lieber das Originalbild unverändert ausliefern.
+    if (!function_exists('imagecreatefromstring')) {
+        return $sourcePath;
     }
     $raw = @file_get_contents($sourcePath);
     $img = $raw !== false ? @imagecreatefromstring($raw) : false;
@@ -10578,6 +10605,15 @@ $router->get('/hero-banner-image', function () {
     if (!$path) { http_response_code(404); return; }
     $servePath = optimizedHeroBannerPath($path);
     header('Content-Type: image/jpeg');
+    // Siehe Kommentar bei /logo-:variant.png weiter oben: Auth::start() ruft session_start()
+    // vor JEDER Route auf, PHPs Standard-Session-Cache-Limiter setzt dabei automatisch ein
+    // bereits abgelaufenes Expires + Pragma: no-cache -- das lief dem hier eigentlich
+    // beabsichtigten langen Cache-Control seit dem allerersten Vorfall (02.10.2026, "Bild
+    // braucht lange, bis es geladen wird") unbemerkt entgegen. Vermutlich der eigentliche
+    // Grund, warum Patrick auch nach diesem Fix noch gelegentlich langsames Nachladen bemerkt
+    // hat (29.10.2026).
+    header_remove('Expires');
+    header_remove('Pragma');
     header('Cache-Control: public, max-age=31536000, immutable');
     header('Content-Length: ' . filesize($servePath));
     readfile($servePath);
