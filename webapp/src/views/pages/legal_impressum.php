@@ -1,6 +1,29 @@
 <?php
 $pageTitle = 'Impressum — EEG Strompool Feldkirchen Süd-West';
 $pageDescription = 'Impressum der Erneuerbaren-Energie-Gemeinschaft Strompool Feldkirchen Süd-West gemäß § 5 ECG und § 25 Mediengesetz.';
+// NGO-Schema (schema.org/JSON-LD) mit den Pflichtangaben aus dem Impressum selbst (Name, ZVR,
+// Anschrift) -- ergänzt das generische Organization-Schema der Startseite um die konkreten
+// Vereinsdaten, die Suchmaschinen/KI-Systeme sonst nur aus dem Fließtext heraus erraten müssten.
+$extraHead = '
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "NGO",
+  "name": "Erneuerbare-Energie-Gemeinschaft Strompool Feldkirchen Süd-West",
+  "alternateName": "Strom für alle",
+  "url": "https://stromfueralle.at/",
+  "identifier": { "@type": "PropertyValue", "name": "ZVR-Zahl", "value": "1778816746" },
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Eichenweg 2",
+    "postalCode": "9560",
+    "addressLocality": "St. Nikolai, Gemeinde Feldkirchen",
+    "addressRegion": "Kärnten",
+    "addressCountry": "AT"
+  },
+  "email": "office@stromfueralle.at"
+}
+</script>';
 ob_start();
 ?>
 
@@ -20,7 +43,10 @@ ob_start();
   <p>Patrick Ropper (Obmann)</p>
 
   <h2>Kontakt</h2>
-  <p>E-Mail: <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a></p>
+  <p>
+    E-Mail: <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a><br>
+    Kontaktformular: <a href="/rc108175/kontakt">rc108175/kontakt</a>
+  </p>
 
   <h2>Vereinszweck</h2>
   <p>
@@ -59,10 +85,8 @@ ob_start();
     des Urheberrechts bedürfen der schriftlichen Zustimmung des Vereins.
   </p>
 
-  <h2>EU-Streitschlichtung</h2>
+  <h2>Streitschlichtung</h2>
   <p>
-    Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
-    <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">https://ec.europa.eu/consumers/odr</a>.
     Der Verein ist nicht verpflichtet und nicht bereit, an einem Streitbeilegungsverfahren vor
     einer Verbraucherschlichtungsstelle teilzunehmen.
   </p>
