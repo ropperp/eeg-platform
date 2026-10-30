@@ -45,6 +45,22 @@ COPY webapp/public/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf 
 # logo-img-light/-dark in app.css), zeigt der Dark-Mode ersatzweise das Light-Logo.
 COPY webapp/public/assets/images/logo.png /var/www/html/latex-templates-default/logo-light.png
 COPY webapp/public/assets/images/logo.png /var/www/html/latex-templates-default/logo-dark.png
+# Favicon/Tab-Icon (Vorfall 29.10.2026, Patrick: weißer Kasten im Browser-Tab bei Dark Mode) --
+# favicon.ico/favicon-16.png/favicon-32.png/apple-touch-icon.png/icon-192.png/icon-512.png sind
+# bewusst NICHT mehr unter webapp/public/ (dort würde nginx sie als statische Dateien direkt
+# ausliefern, siehe nginx.conf -- die PHP-Routen unten kämen nie zum Zug, ein Admin-Upload über
+# /admin/templates hätte also nie sichtbaren Effekt). favicon-source.png ist die Ausgangsgrafik
+# (transparenter Hintergrund, aus dem Blitz-Icon-Teil des Logos ausgeschnitten), die übrigen
+# fünf Dateien sind die daraus einmalig generierten Ableitungen (siehe generateFaviconAssets()
+# in index.php) -- werden bei einem eigenen Upload neu erzeugt, bis dahin gilt dieser Satz hier
+# als Standard.
+COPY webapp/assets-default/favicon-source.png /var/www/html/latex-templates-default/favicon-source.png
+COPY webapp/assets-default/favicon.ico /var/www/html/latex-templates-default/favicon.ico
+COPY webapp/assets-default/favicon-16.png /var/www/html/latex-templates-default/favicon-16.png
+COPY webapp/assets-default/favicon-32.png /var/www/html/latex-templates-default/favicon-32.png
+COPY webapp/assets-default/apple-touch-icon.png /var/www/html/latex-templates-default/apple-touch-icon.png
+COPY webapp/assets-default/icon-192.png /var/www/html/latex-templates-default/icon-192.png
+COPY webapp/assets-default/icon-512.png /var/www/html/latex-templates-default/icon-512.png
 
 WORKDIR /var/www/html
 

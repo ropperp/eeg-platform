@@ -10055,6 +10055,7 @@ function adminFileRegistry(): array
         'logo-light.png'                   => ['label' => 'Logo (Light-Mode)', 'type' => 'image'],
         'logo-dark.png'                    => ['label' => 'Logo (Dark-Mode)', 'type' => 'image'],
         'hero-banner.jpg'                   => ['label' => 'Hero-Banner (Startseite)', 'type' => 'image'],
+        'favicon-source.png'               => ['label' => 'Favicon / Browser-Tab-Icon', 'type' => 'image'],
     ];
 }
 
@@ -10299,6 +10300,101 @@ function adminFilePath(string $filename): ?string
 }
 
 /**
+ * Skaliert $src zentriert/seitenverhältnis-erhaltend ("contain") auf ein $size x $size
+ * Quadrat, mit transparentem Rand falls $src nicht schon quadratisch ist. Transparenz der
+ * Quelle bleibt dabei erhalten (imagealphablending(false) + imagesavealpha(true) -- ohne
+ * diese beiden Zeilen würde imagecopyresampled() den Alphakanal falsch mit Schwarz
+ * vermischen statt ihn zu übernehmen).
+ */
+function resizeContainTransparent($src, int $size)
+{
+    $out = imagecreatetruecolor($size, $size);
+    imagealphablending($out, false);
+    imagesavealpha($out, true);
+    $transparent = imagecolorallocatealpha($out, 0, 0, 0, 127);
+    imagefill($out, 0, 0, $transparent);
+    $srcW = imagesx($src);
+    $srcH = imagesy($src);
+    $scale = min($size / $srcW, $size / $srcH);
+    $newW = (int) round($srcW * $scale);
+    $newH = (int) round($srcH * $scale);
+    $offX = (int) round(($size - $newW) / 2);
+    $offY = (int) round(($size - $newH) / 2);
+    imagecopyresampled($out, $src, $offX, $offY, 0, 0, $newW, $newH, $srcW, $srcH);
+    return $out;
+}
+
+/**
+ * Erzeugt aus einer Favicon-Quellgrafik (idealerweise PNG mit transparentem Hintergrund --
+ * Patrick, 29.10.2026: "wäre es fast besser, wenn man ein Bild ohne Hintergrund nimmt", weil
+ * ein weißer Kasten im Browser-Tab bei Dark Mode unschön absticht) alle gebräuchlichen
+ * Tab-Icon-/PWA-Icon-Größen und schreibt sie als fertige Dateien nach $outDir. Läuft EINMALIG
+ * beim Hochladen (siehe /admin/templates/favicon-source.png/upload), nicht bei jedem
+ * Seitenaufruf -- die Ergebnisdateien werden danach ganz normal wie jede andere
+ * admin-verwaltete Datei über adminFilePath() ausgeliefert.
+ *
+ * apple-touch-icon.png bekommt bewusst KEINE Transparenz: iOS füllt transparente Bereiche
+ * beim "Zum Home-Bildschirm hinzufügen" selbst mit Schwarz statt sie durchscheinen zu lassen
+ * (Apple-eigene Konvention/Einschränkung, anders als Browser-Tabs) -- deshalb hier auf Weiß
+ * geflättet.
+ */
+function generateFaviconAssets(string $sourcePath, string $outDir): void
+{
+    $raw = file_get_contents($sourcePath);
+    $src = $raw !== false ? imagecreatefromstring($raw) : false;
+    if ($src === false) {
+        throw new RuntimeException('Ungültiges Bildformat für Favicon-Quelle.');
+    }
+
+    $pngBytesForIco = [];
+    foreach ([16 => 'favicon-16.png', 32 => 'favicon-32.png', 192 => 'icon-192.png', 512 => 'icon-512.png'] as $size => $filename) {
+        $img = resizeContainTransparent($src, $size);
+        imagepng($img, $outDir . '/' . $filename);
+        if ($size === 16 || $size === 32) {
+            ob_start();
+            imagepng($img);
+            $pngBytesForIco[$size] = ob_get_clean();
+        }
+        imagedestroy($img);
+    }
+
+    $appleIcon = resizeContainTransparent($src, 180);
+    $appleCanvas = imagecreatetruecolor(180, 180);
+    $white = imagecolorallocate($appleCanvas, 255, 255, 255);
+    imagefill($appleCanvas, 0, 0, $white);
+    imagecopy($appleCanvas, $appleIcon, 0, 0, 0, 0, 180, 180);
+    imagepng($appleCanvas, $outDir . '/apple-touch-icon.png');
+    imagedestroy($appleIcon);
+    imagedestroy($appleCanvas);
+    imagedestroy($src);
+
+    file_put_contents($outDir . '/favicon.ico', buildIcoFromPngs($pngBytesForIco));
+}
+
+/**
+ * Baut eine minimale, gültige .ico-Datei aus PNG-Rohdaten (PNG-in-ICO-Einbettung, kein
+ * klassisches BMP -- seit Windows Vista von jedem modernen Browser unterstützt). GD hat keine
+ * eigene ICO-Export-Funktion, daher von Hand nach der Microsoft-ICONDIR-Struktur zusammengebaut
+ * (6-Byte-Header + ein 16-Byte-Directory-Eintrag je Größe + die rohen PNG-Bytes am Ende).
+ */
+function buildIcoFromPngs(array $pngBytesBySize): string
+{
+    ksort($pngBytesBySize);
+    $count = count($pngBytesBySize);
+    $header = pack('vvv', 0, 1, $count); // reserved=0, type=1 (Icon), Anzahl Bilder
+    $dirEntries = '';
+    $imageData = '';
+    $offset = 6 + $count * 16; // 6 Byte Header + 16 Byte je Directory-Eintrag
+    foreach ($pngBytesBySize as $size => $bytes) {
+        $dim = $size >= 256 ? 0 : $size; // 0 bedeutet laut Spezifikation 256px
+        $dirEntries .= pack('CCCCvvVV', $dim, $dim, 0, 0, 1, 32, strlen($bytes), $offset);
+        $imageData .= $bytes;
+        $offset += strlen($bytes);
+    }
+    return $header . $dirEntries . $imageData;
+}
+
+/**
  * URL für /logo-light.png bzw. /logo-dark.png inkl. Cache-Busting-Parameter. Die Route dahinter
  * setzt "Cache-Control: public, max-age=3600" -- ohne einen sich ändernden Query-Parameter
  * bleibt nach einem Logo-Upload über /admin/templates bis zu eine Stunde lang (oder je nach
@@ -10480,6 +10576,20 @@ $router->post('/admin/templates/:name/upload', function ($params) {
     if (!move_uploaded_file($_FILES['file']['tmp_name'], $target)) {
         uploadRedirect('/admin/templates?error=' . urlencode('Datei konnte nicht gespeichert werden.'));
     }
+    // favicon-source.png ist nur die Ausgangsgrafik -- die tatsächlich ausgelieferten Dateien
+    // (favicon.ico/-16/-32px, apple-touch-icon, icon-192/512) müssen aus ihr neu erzeugt
+    // werden, einmalig hier beim Upload (siehe generateFaviconAssets()), nicht bei jedem
+    // Seitenaufruf. Schlägt das fehl (z.B. korruptes Bild trotz bestandener getimagesize()-
+    // Prüfung oben), bleiben die bisherigen Favicon-Dateien unverändert bestehen statt kaputt
+    // zu werden -- die neue Quelldatei ist dann zwar gespeichert, aber ohne sichtbaren Effekt.
+    if ($params['name'] === 'favicon-source.png') {
+        try {
+            generateFaviconAssets($target, '/var/www/html/latex-templates');
+        } catch (Throwable $e) {
+            error_log('generateFaviconAssets() fehlgeschlagen: ' . $e->getMessage());
+            uploadRedirect('/admin/templates?error=' . urlencode('Favicon-Quelldatei gespeichert, aber die Icon-Varianten konnten nicht erzeugt werden.'));
+        }
+    }
     // entity_id ist in audit_log als UUID typisiert -- der Dateiname passt dort nicht rein,
     // steht stattdessen in der Beschreibung.
     logAudit(null, 'template.upload', 'admin_file', null,
@@ -10619,5 +10729,34 @@ $router->get('/hero-banner-image', function () {
     readfile($servePath);
     exit;
 });
+
+/**
+ * Favicon/Tab-Icon-Dateien -- wie /logo-:variant.png und /hero-banner-image PHP-Routen statt
+ * echter statischer Dateien unter webapp/public/, damit ein eigener Upload über
+ * /admin/templates (favicon-source.png) tatsächlich wirkt. Die Ableitungen selbst werden NICHT
+ * bei jedem Request neu berechnet, sondern einmalig beim Upload erzeugt (siehe
+ * generateFaviconAssets()) -- diese Routen liefern nur die fertigen Dateien aus.
+ */
+function serveFaviconFile(string $filename, string $contentType): void
+{
+    $path = adminFilePath($filename);
+    if (!$path) { http_response_code(404); return; }
+    header('Content-Type: ' . $contentType);
+    // Siehe Kommentar bei /logo-:variant.png/-hero-banner-image weiter oben (Vorfall 29.10.2026):
+    // Auth::start() setzt via PHPs Session-Cache-Limiter automatisch ein abgelaufenes Expires +
+    // Pragma: no-cache, das dem hier beabsichtigten Caching sonst unbemerkt entgegenläuft.
+    header_remove('Expires');
+    header_remove('Pragma');
+    header('Cache-Control: public, max-age=3600');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+$router->get('/favicon.ico', fn () => serveFaviconFile('favicon.ico', 'image/vnd.microsoft.icon'));
+$router->get('/assets/images/favicon-16.png', fn () => serveFaviconFile('favicon-16.png', 'image/png'));
+$router->get('/assets/images/favicon-32.png', fn () => serveFaviconFile('favicon-32.png', 'image/png'));
+$router->get('/assets/images/apple-touch-icon.png', fn () => serveFaviconFile('apple-touch-icon.png', 'image/png'));
+$router->get('/assets/images/icon-192.png', fn () => serveFaviconFile('icon-192.png', 'image/png'));
+$router->get('/assets/images/icon-512.png', fn () => serveFaviconFile('icon-512.png', 'image/png'));
 
 $router->dispatch();
