@@ -19,6 +19,28 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Favicon mit transparentem Hintergrund + eigener Upload (30.10.2026)
+Patrick: das Favicon (Browser-Tab-Icon) hatte einen weißen quadratischen Hintergrund -- sticht
+im Dark Mode des Browsers unschön ab. Wunsch: ein Upload-Feld, über das sich ein Bild ohne
+Hintergrund hochladen lässt, damit es in Hell- und Dunkelmodus gut aussieht.
+
+- **Standard-Favicon jetzt transparent.** Gleicher Blitz-Icon-Ausschnitt wie bisher, aber der
+  bis dahin durchgehend weiße Hintergrund (das Quell-Logo hatte selbst keine echte Transparenz)
+  ist jetzt entfernt -- wirkt ohne jedes weitere Zutun sofort nach dem Deploy.
+- **Eigener Favicon-Upload** unter `/admin/templates` ("Favicon / Browser-Tab-Icon") --
+  gleiches Drag&Drop-Prinzip wie Logo/Hero-Banner/Infoblatt. Aus der hochgeladenen Quellgrafik
+  werden alle benötigten Größen automatisch erzeugt (`favicon.ico`, 16px/32px, Apple-Touch-Icon
+  180px, Android/PWA-Icons 192px/512px) -- `generateFaviconAssets()`/`buildIcoFromPngs()` in
+  `index.php`, läuft einmalig beim Upload, nicht bei jedem Seitenaufruf.
+- **apple-touch-icon.png bewusst weiterhin undurchsichtig** (auf Weiß geflättet): iOS füllt
+  transparente Bereiche beim Hinzufügen zum Home-Bildschirm selbst mit Schwarz statt sie
+  durchscheinen zu lassen -- anders als im Browser-Tab, wo Transparenz überall gut funktioniert.
+- **Technisch:** `favicon.ico`/`favicon-16.png`/`favicon-32.png`/`apple-touch-icon.png`/
+  `icon-192.png`/`icon-512.png` sind jetzt PHP-Routen statt echter statischer Dateien unter
+  `webapp/public/` (gleiches Muster wie `/logo-:variant.png`/`/hero-banner-image`) -- sonst
+  würde nginx sie weiterhin direkt ausliefern und ein Admin-Upload hätte nie sichtbaren Effekt.
+  Inklusive der am 29.10.2026 gefundenen Expires/Pragma-Absicherung von Anfang an mit dabei.
+
 ### Logo/Hero-Banner luden bei jedem Seitenaufruf neu (29.10.2026)
 Patrick, nach dem Deploy des PageSpeed-Audits: "das Logo oben in der Kopfzeile lädt die ganze
 Zeit lang langsamer nach bei jedem Aufruf" + allgemein spürbar langsamere Navigation zwischen

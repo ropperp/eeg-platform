@@ -84,6 +84,14 @@
       });
     </script>
   <?php else: ?>
+  <?php if ($t['filename'] === 'favicon-source.png'): ?>
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">
+      Erscheint als Icon im Browser-Tab, Lesezeichen und beim "Zum Startbildschirm hinzufügen".
+      Am besten ein <strong>PNG mit transparentem Hintergrund</strong> und quadratischem
+      Bildausschnitt -- sieht dann sowohl im hellen als auch im dunklen Modus des Browsers gut
+      aus. Alle benötigten Größen werden automatisch daraus erzeugt.
+    </p>
+  <?php endif; ?>
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <?php if ($t['exists']): ?>
       <a href="/admin/templates/<?= htmlspecialchars($t['filename']) ?>/download" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.85rem">

@@ -31,9 +31,12 @@
   <meta name="twitter:title" content="<?= htmlspecialchars($pageTitle ?? 'Strom für alle') ?>">
   <meta name="twitter:description" content="<?= htmlspecialchars($pageDescription) ?>">
   <meta name="twitter:image" content="<?= htmlspecialchars($pageOgImage) ?>">
-  <!-- Favicon: aus dem Blitz-Icon-Teil des Logos ausgeschnitten (webapp/public/assets/images/
-       logo.png), siehe CHANGELOG.md. favicon.ico bündelt 16/32px als PNG-in-ICO (von jedem
-       modernen Browser unterstützt, seit Windows Vista Standard). -->
+  <!-- Favicon: Standard aus dem Blitz-Icon-Teil des Logos ausgeschnitten, transparenter
+       Hintergrund (Patrick, 29.10.2026: weißer Kasten im Browser-Tab bei Dark Mode), über
+       /admin/templates (favicon-source.png) individuell ersetzbar -- siehe
+       generateFaviconAssets()/serveFaviconFile() in index.php, diese Pfade sind dafür PHP-
+       Routen, keine echten statischen Dateien unter webapp/public/. favicon.ico bündelt 16/32px
+       als PNG-in-ICO (von jedem modernen Browser unterstützt, seit Windows Vista Standard). -->
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/favicon-16.png">
