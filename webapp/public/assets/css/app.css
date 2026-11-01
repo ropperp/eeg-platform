@@ -486,6 +486,22 @@ html.js-anim .hero a.btn {
 [data-theme="dark"] .theme-toggle-btn .theme-icon-moon { display: none; }
 [data-theme="dark"] .theme-toggle-btn .theme-icon-sun { display: inline-block; }
 
+/* Hamburger-Menü-Button: NUR mobil sichtbar (display:inline-flex kommt aus der
+   @media(max-width:640px)-Regel weiter unten) -- auf Desktop bleibt die Navbar unverändert
+   wie bisher, kein Hamburger nötig. */
+.mobile-nav-toggle-btn {
+  display: none;
+  background: none; border: none; cursor: pointer;
+  padding: .3rem; border-radius: 6px;
+  align-items: center; justify-content: center;
+  color: var(--gray-700);
+}
+.mobile-nav-toggle-btn:hover { background: var(--gray-100); }
+.mobile-nav-toggle-btn .icon { width: 1.4rem; height: 1.4rem; }
+.mobile-nav-toggle-btn .mobile-nav-icon-close { display: none; }
+.mobile-nav-toggle-btn.is-open .mobile-nav-icon-open { display: none; }
+.mobile-nav-toggle-btn.is-open .mobile-nav-icon-close { display: inline-block; }
+
 #sidebar-toggle .icon { width: 1.2rem; height: 1.2rem; }
 
 /* ─── Features ───────────────────────────────────── */
@@ -542,10 +558,25 @@ footer {
 @media (max-width: 640px) {
   .container { padding: 0 1rem; }
 
-  /* Navbar: umbrechen statt überlaufen */
-  .navbar .inner { flex-wrap: wrap; row-gap: .5rem; }
-  .navbar nav { flex-wrap: wrap; justify-content: flex-end; row-gap: .4rem; }
-  .navbar nav a { margin-left: .6rem; font-size: .82rem; }
+  /* Navbar: Hamburger-Menü statt Umbrechen (Vorfall 01.11.2026, Patrick per Handy-Screenshot:
+     bis zu drei Zeilen Nav-Umbruch "sieht noch nicht so professionell aus"). Logo + Button
+     bleiben in einer Zeile, #main-nav klappt als volle Breite darunter auf/zu -- siehe
+     toggleMobileNav() in base.php. */
+  .mobile-nav-toggle-btn { display: inline-flex; }
+  .navbar .inner { flex-wrap: wrap; }
+  .navbar nav {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    order: 3;
+    margin-top: .75rem;
+    gap: .25rem;
+  }
+  .navbar nav.is-open { display: flex; }
+  .navbar nav a { margin-left: 0; padding: .6rem .25rem; font-size: .95rem; }
+  .navbar nav .btn { margin-left: 0; justify-content: center; }
+  .navbar nav #theme-toggle { align-self: flex-start; padding: .6rem .25rem; }
   .navbar .logo-img { height: 26px; }
 
   /* Hero */

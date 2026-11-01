@@ -19,6 +19,25 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Hamburger-Menü für die mobile Navbar (01.11.2026)
+Patrick, per Handy-Screenshot: "Live-Anzeige"/"Kontakt"/Hell-Dunkel-Umschalter/"Informieren und
+Beitreten"/"Anmelden" brachen mobil auf bis zu drei Zeilen um -- "sieht noch nicht so
+professionell aus". Auf Nachfrage ("sollen wir etwas weglassen oder was soll ich machen")
+empfohlen: Hamburger-Menü statt Weglassen oder Umbrechen, bestätigt.
+
+- Neuer Button (nur mobil sichtbar, `≤640px`) neben dem Logo, öffnet/schließt `#main-nav` als
+  volle-Breite-Liste darunter statt es dauerhaft umbrechen zu lassen -- Logo + Button bleiben
+  dabei immer in einer Zeile. Icon wechselt zwischen Liste/X (gleiches Muster wie der
+  Mond/Sonne-Umschalter: beide Icons immer im DOM, CSS blendet je nach Klasse das passende ein).
+  Klick außerhalb des geöffneten Menüs schließt es wieder.
+- Auf Desktop (`>640px`) unverändert wie bisher -- Button ist dort unsichtbar, Nav-Links
+  bleiben inline in der Kopfzeile.
+- Bewusst nur `layouts/base.php` (öffentliche Marketing-Seiten) angefasst, nicht
+  `layouts/portal.php` -- der Portal-Bereich hat mit dem Sidebar-Toggle bereits ein eigenes,
+  funktionierendes mobiles Navigationsmuster.
+- Per Playwright bei 390px Viewportbreite (iPhone-Größe) verifiziert: kein horizontaler
+  Overflow, sauberes Ein-/Ausklappen in Light- und Dark-Mode.
+
 ### Mitgliederzahl + Zählpunkte in der Live-Anzeige (01.11.2026)
 Patrick: "wäre cool, irgendwo im Bereich unserer Energiegemeinschaft [...] Live-Daten zu sehen,
 wie viele Mitglieder wir sind. Einfach die Zählpunkte auflisten und auch solche Animationen,

@@ -60,7 +60,16 @@
       <img src="<?= htmlspecialchars(logoAssetUrl('light')) ?>" alt="Strom für alle" class="logo-img logo-img-light">
       <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle" class="logo-img logo-img-dark">
     </a>
-    <nav>
+    <!-- Patrick, 01.11.2026 (Handy-Screenshot): "Live-Anzeige"/"Kontakt"/Hell-Dunkel-Umschalter/
+         "Informieren und Beitreten"/"Anmelden" brachen mobil auf bis zu drei Zeilen um --
+         "sieht noch nicht so professionell aus". Hamburger-Button NUR mobil sichtbar (siehe
+         app.css), öffnet/schließt per Klasse "is-open" auf #main-nav statt alles dauerhaft
+         umbrechen zu lassen. Auf Desktop bleibt die Navbar unverändert wie bisher. -->
+    <button id="mobile-nav-toggle" class="mobile-nav-toggle-btn" onclick="toggleMobileNav()"
+            aria-label="Menü öffnen" aria-expanded="false" aria-controls="main-nav">
+      <?= icon('list', 'mobile-nav-icon-open') ?><?= icon('x', 'mobile-nav-icon-close') ?>
+    </button>
+    <nav id="main-nav">
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
         <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
       </button>
@@ -127,6 +136,28 @@ function toggleDark() {
   // Icon-Umschaltung (Mond/Sonne) läuft rein über CSS anhand [data-theme], siehe app.css --
   // kein Textaustausch mehr nötig.
 }
+
+// Hamburger-Menü (nur mobil sichtbar, siehe app.css) -- "is-open" schaltet #main-nav von
+// display:none auf eine gestapelte Liste um, der Button selbst tauscht per derselben Klasse
+// zwischen Listen- und X-Icon (gleiches Muster wie der Mond/Sonne-Umschalter: beide Icons sind
+// immer im DOM, CSS blendet je nach Klasse/Attribut das passende ein).
+function toggleMobileNav() {
+  const nav = document.getElementById('main-nav');
+  const btn = document.getElementById('mobile-nav-toggle');
+  const isOpen = nav.classList.toggle('is-open');
+  btn.classList.toggle('is-open', isOpen);
+  btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  btn.setAttribute('aria-label', isOpen ? 'Menü schließen' : 'Menü öffnen');
+}
+// Klick außerhalb des geöffneten Menüs schließt es wieder -- erwartetes Verhalten bei jedem
+// Dropdown/Mobile-Menü, sonst bliebe es offen, bis man aktiv den Button erneut trifft.
+document.addEventListener('click', function (e) {
+  const nav = document.getElementById('main-nav');
+  const btn = document.getElementById('mobile-nav-toggle');
+  if (nav.classList.contains('is-open') && !nav.contains(e.target) && !btn.contains(e.target)) {
+    toggleMobileNav();
+  }
+});
 
 // Scroll-Reveal: Elemente mit .reveal/.reveal-grid blenden beim Scrollen sanft ein
 // (siehe app.css). Läuft auf jeder Seite, die dieses Layout nutzt, ist aber ein reines
