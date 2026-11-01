@@ -3374,16 +3374,37 @@ $router->get('/api/v1/live', function () {
     if ($key['member_id']) {
         // Pro Zählpunkt nur den jeweils neuesten Messwert im Fenster nehmen, nicht alle Zeilen
         // aufsummieren (bei 5s-Sende-Intervall sonst Werte um ein Vielfaches zu hoch).
+        //
+        // Zwei-Ansichten-Erweiterung (Patrick, 01.11.2026): "einmal seine wirklichen
+        // Zählerdaten, einmal die Daten über die Energiegemeinschaft" -- soll AUCH für einen
+        // Kunden funktionieren, der nur einspeist (z.B. sein Vater, reiner Einspeiser ohne
+        // Bezugsvertrag). mp_type wird pro Zählpunkt mitgelesen: "zaehlerdaten" unten ist
+        // IMMER die echte, unveränderte Messung (unabhängig vom Vertrag -- ein bidirektionaler
+        // Smart-Meter misst Bezug/Einspeisung ja physikalisch, egal was vertraglich vereinbart
+        // ist). "gemeinschaft" wendet zusätzlich dieselbe Unterscheidung an wie
+        // Billing::generateDrafts() und (seit demselben Tag) die Community-Live-Summen: Bezug
+        // zählt nur für type IN ('consumer','prosumer'), Einspeisung nur für IN ('producer',
+        // 'prosumer') -- bei einem reinen Einspeiser ist "gemeinschaft.bezug_w" also bewusst
+        // immer 0, selbst wenn "zaehlerdaten.bezug_w" gerade echten privaten Netzbezug zeigt.
         $own = DB::fetchOne(
-            "SELECT COALESCE(SUM(power_bezug_w), 0) AS bezug_w, COALESCE(SUM(power_einspeisung_w), 0) AS einspeisung_w
+            "SELECT
+                COALESCE(SUM(power_bezug_w), 0)        AS bezug_w,
+                COALESCE(SUM(power_einspeisung_w), 0)  AS einspeisung_w,
+                COALESCE(SUM(energy_bezug_wh), 0)       AS energy_bezug_wh,
+                COALESCE(SUM(energy_einspeisung_wh), 0) AS energy_einspeisung_wh,
+                COALESCE(SUM(CASE WHEN mp_type IN ('consumer','prosumer') THEN power_bezug_w ELSE 0 END), 0)        AS eeg_bezug_w,
+                COALESCE(SUM(CASE WHEN mp_type IN ('producer','prosumer') THEN power_einspeisung_w ELSE 0 END), 0)  AS eeg_einspeisung_w,
+                COALESCE(SUM(CASE WHEN mp_type IN ('consumer','prosumer') THEN energy_bezug_wh ELSE 0 END), 0)       AS eeg_energy_bezug_wh,
+                COALESCE(SUM(CASE WHEN mp_type IN ('producer','prosumer') THEN energy_einspeisung_wh ELSE 0 END), 0) AS eeg_energy_einspeisung_wh
              FROM (
-                SELECT DISTINCT ON (metering_point_id) power_bezug_w, power_einspeisung_w
-                FROM esp_measurements
-                WHERE community_id = ? AND time >= now() - INTERVAL '2 minutes'
-                  AND metering_point_id IN (SELECT id FROM metering_points WHERE member_id = ?)
-                ORDER BY metering_point_id, time DESC
+                SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w,
+                       em.energy_bezug_wh, em.energy_einspeisung_wh, mp.type AS mp_type
+                FROM esp_measurements em
+                JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.member_id = ?
+                WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 minutes'
+                ORDER BY em.metering_point_id, em.time DESC
              ) latest",
-            [$key['community_id'], $key['member_id']]
+            [$key['member_id'], $key['community_id']]
         );
     }
 
@@ -3396,6 +3417,20 @@ $router->get('/api/v1/live', function () {
         'bezug_w'                => $own !== null ? (int)$own['bezug_w'] : $community['bezug_w'],
         'einspeisung_w'          => $own !== null ? (int)$own['einspeisung_w'] : $community['einsp_w'],
         'community_autarkie_pct' => $autarkie,
+        // Nur bei einem persönlichen Mitglied-Key befüllt (member_id gesetzt) -- ein
+        // Community-Key hat keine "eigenen" Zählerdaten eines einzelnen Mitglieds.
+        'zaehlerdaten' => $own !== null ? [
+            'bezug_w'                => (int)$own['bezug_w'],
+            'einspeisung_w'          => (int)$own['einspeisung_w'],
+            'energy_bezug_wh'        => (int)$own['energy_bezug_wh'],
+            'energy_einspeisung_wh'  => (int)$own['energy_einspeisung_wh'],
+        ] : null,
+        'gemeinschaft' => $own !== null ? [
+            'bezug_w'                => (int)$own['eeg_bezug_w'],
+            'einspeisung_w'          => (int)$own['eeg_einspeisung_w'],
+            'energy_bezug_wh'        => (int)$own['eeg_energy_bezug_wh'],
+            'energy_einspeisung_wh'  => (int)$own['eeg_energy_einspeisung_wh'],
+        ] : null,
         'community' => [
             'bezug_w'       => $community['bezug_w'],
             'einspeisung_w' => $community['einsp_w'],

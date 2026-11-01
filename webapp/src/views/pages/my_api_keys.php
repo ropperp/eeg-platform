@@ -14,10 +14,16 @@
   $codeStyle = 'background:#dbeafe;color:#1d4ed8;padding:.1rem .3rem;border-radius:4px';
 ?>
 <div class="alert" style="margin-bottom:1.5rem;background:#eff6ff;color:#1d4ed8">
-  <?= icon('info') ?> <code style="<?= $codeStyle ?>">GET /api/v1/live</code> liefert Bezug/Einspeisung in Watt (sobald Sie
-  eine eigene Ausleseeinheit haben) und die Autarkiequote der Gemeinschaft --
-  Bearer-Authentifizierung mit einem der API-Keys unten. Testen lässt sich die Authentifizierung
-  auch mit <code style="<?= $codeStyle ?>">GET /api/v1/me</code>.
+  <?= icon('info') ?> <code style="<?= $codeStyle ?>">GET /api/v1/live</code> liefert Bezug/Einspeisung in Watt
+  und Wh (sobald Sie eine eigene Ausleseeinheit haben) sowie die Autarkiequote der
+  Gemeinschaft -- Bearer-Authentifizierung mit einem der API-Keys unten. Testen lässt sich die
+  Authentifizierung auch mit <code style="<?= $codeStyle ?>">GET /api/v1/me</code>.
+  <br><br>
+  Die eigenen Werte kommen zweifach: <code style="<?= $codeStyle ?>">zaehlerdaten</code> sind
+  Ihre echten, unveränderten Messwerte -- <code style="<?= $codeStyle ?>">gemeinschaft</code>
+  zeigt dieselben Werte, aber nur soweit sie auch tatsächlich über die Energiegemeinschaft
+  laufen (z. B. bei einem reinen Einspeisevertrag ist <code style="<?= $codeStyle ?>">gemeinschaft.bezug_w</code>
+  immer 0, auch wenn Sie gerade privat Strom vom Netz beziehen).
 </div>
 
 <?php if (!empty($newApiKey)): ?>
