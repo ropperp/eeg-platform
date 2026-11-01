@@ -19,6 +19,31 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Hamburger-Menü: Nachbesserung (01.11.2026, gleicher Tag)
+Patrick nach dem ersten Hamburger-Menü-Wurf: "sieht schon gut aus", vier konkrete
+Nachbesserungen gewünscht:
+
+- **Theme-Umschalter bleibt immer sichtbar neben dem Hamburger-Icon**, statt im aufklappbaren
+  Menü zu verschwinden. Dafür jetzt außerhalb von `#main-nav` in einem neuen Wrapper
+  `.navbar-controls`, der ihn zusammen mit Nav und Hamburger-Button hält -- auf Desktop ändert
+  sich dadurch visuell nichts (Umschalter sitzt weiterhin direkt vor den Nav-Links).
+- **Dropdown statt volle-Breite-Liste:** `#main-nav` ist mobil jetzt `position:absolute`
+  (nimmt am Seitenlayout gar nicht mehr teil), rechtsbündig unter dem Hamburger-Button
+  verankert, `width: min(62vw, 300px)` -- "ein bisschen nach links, bis zur Mitte des
+  Bildschirms, aber nicht über die ganze Breite". Buttons darin wieder in natürlicher Breite
+  statt gestreckt.
+- **Schwebt halbtransparent über dem Seiteninhalt** ("soll über das Bild drübergehen"):
+  `rgba(...,.88)`-Hintergrund mit `backdrop-filter: blur(10px)`, eigene Dark-Mode-Variante.
+  Ein-/Ausklappen per `opacity`/`transform`-Übergang (ein `display`-Sprung lässt sich nicht
+  animieren) -- "visibility" mit verzögertem Transition-Ende sorgt dafür, dass das unsichtbare
+  Menü im geschlossenen Zustand keine Klicks mehr abfängt.
+- **Schließt sich automatisch beim Scrollen** -- ein offenes, schwebendes Dropdown, das beim
+  Scrollen stehen bleibt, würde verdecken, wo auf der Seite man gerade ist.
+
+Per Playwright bei 390px Viewportbreite über einem simulierten Hero-Hintergrund verifiziert:
+Transparenz/Weichzeichner sichtbar, kein horizontaler Overflow, automatisches Schließen beim
+Scrollen bestätigt, Light- und Dark-Mode geprüft.
+
 ### Hamburger-Menü für die mobile Navbar (01.11.2026)
 Patrick, per Handy-Screenshot: "Live-Anzeige"/"Kontakt"/Hell-Dunkel-Umschalter/"Informieren und
 Beitreten"/"Anmelden" brachen mobil auf bis zu drei Zeilen um -- "sieht noch nicht so

@@ -60,19 +60,19 @@
       <img src="<?= htmlspecialchars(logoAssetUrl('light')) ?>" alt="Strom für alle" class="logo-img logo-img-light">
       <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle" class="logo-img logo-img-dark">
     </a>
-    <!-- Patrick, 01.11.2026 (Handy-Screenshot): "Live-Anzeige"/"Kontakt"/Hell-Dunkel-Umschalter/
-         "Informieren und Beitreten"/"Anmelden" brachen mobil auf bis zu drei Zeilen um --
-         "sieht noch nicht so professionell aus". Hamburger-Button NUR mobil sichtbar (siehe
-         app.css), öffnet/schließt per Klasse "is-open" auf #main-nav statt alles dauerhaft
-         umbrechen zu lassen. Auf Desktop bleibt die Navbar unverändert wie bisher. -->
-    <button id="mobile-nav-toggle" class="mobile-nav-toggle-btn" onclick="toggleMobileNav()"
-            aria-label="Menü öffnen" aria-expanded="false" aria-controls="main-nav">
-      <?= icon('list', 'mobile-nav-icon-open') ?><?= icon('x', 'mobile-nav-icon-close') ?>
-    </button>
-    <nav id="main-nav">
+    <!-- Patrick, 01.11.2026 (Handy-Screenshot + Nachbesserung): Hamburger-Menü statt dreizeiligem
+         Umbruch. Theme-Umschalter bewusst AUSSERHALB von #main-nav (eigener Nachbesserungs-
+         wunsch: "beim Hamburger-Symbol", also immer sichtbar, nicht im aufklappbaren Menü
+         versteckt) -- .navbar-controls hält beide zusammen, damit sich am Desktop-Layout
+         nichts ändert (dieselbe visuelle Abfolge wie vorher: Umschalter direkt vor den
+         Nav-Links). #main-nav selbst ist mobil ein schwebendes, halbtransparentes Dropdown
+         (siehe app.css) statt den Seiteninhalt nach unten zu schieben -- schließt sich
+         automatisch beim Scrollen (siehe closeMobileNavOnScroll() unten). -->
+    <div class="navbar-controls">
       <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
         <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
       </button>
+      <nav id="main-nav">
       <a href="<?= htmlspecialchars(marketingUrl('/live')) ?>">Live-Anzeige</a>
       <a href="<?= htmlspecialchars(marketingUrl('/rc108175/kontakt')) ?>">Kontakt</a>
       <?php if (Auth::check()): ?>
@@ -85,7 +85,12 @@
         <a href="<?= htmlspecialchars(marketingUrl('/beitreten')) ?>" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
         <a href="<?= htmlspecialchars(portalUrl('/portal/login')) ?>" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
       <?php endif; ?>
-    </nav>
+      </nav>
+      <button id="mobile-nav-toggle" class="mobile-nav-toggle-btn" onclick="toggleMobileNav()"
+              aria-label="Menü öffnen" aria-expanded="false" aria-controls="main-nav">
+        <?= icon('list', 'mobile-nav-icon-open') ?><?= icon('x', 'mobile-nav-icon-close') ?>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -137,10 +142,12 @@ function toggleDark() {
   // kein Textaustausch mehr nötig.
 }
 
-// Hamburger-Menü (nur mobil sichtbar, siehe app.css) -- "is-open" schaltet #main-nav von
-// display:none auf eine gestapelte Liste um, der Button selbst tauscht per derselben Klasse
-// zwischen Listen- und X-Icon (gleiches Muster wie der Mond/Sonne-Umschalter: beide Icons sind
-// immer im DOM, CSS blendet je nach Klasse/Attribut das passende ein).
+// Hamburger-Menü (nur mobil sichtbar, siehe app.css) -- "is-open" blendet #main-nav als
+// schwebendes Dropdown ein/aus (position:absolute, schiebt also nie den übrigen Seiteninhalt
+// nach unten, liegt stattdessen halbtransparent über dem, was gerade darunter ist -- Patrick,
+// 01.11.2026: "soll über das Bild drübergehen"). Der Button selbst tauscht per derselben
+// Klasse zwischen Listen- und X-Icon (gleiches Muster wie der Mond/Sonne-Umschalter: beide
+// Icons sind immer im DOM, CSS blendet je nach Klasse das passende ein).
 function toggleMobileNav() {
   const nav = document.getElementById('main-nav');
   const btn = document.getElementById('mobile-nav-toggle');
@@ -158,6 +165,15 @@ document.addEventListener('click', function (e) {
     toggleMobileNav();
   }
 });
+// Patrick, 01.11.2026: "Wenn man [...] weiterscrollen möchte, soll das Menü [...] selbst
+// zugehen" -- ein offenes, schwebendes Dropdown, das beim Scrollen über dem Seiteninhalt
+// stehen bleibt, wäre verwirrend (zeigt dann nicht mehr an, WO auf der Seite man eigentlich
+// ist). { passive: true } ist hier unbedenklich (kein preventDefault() nötig) und vermeidet,
+// dass der Scroll-Handler das Scrollen selbst ausbremst.
+window.addEventListener('scroll', function () {
+  const nav = document.getElementById('main-nav');
+  if (nav && nav.classList.contains('is-open')) { toggleMobileNav(); }
+}, { passive: true });
 
 // Scroll-Reveal: Elemente mit .reveal/.reveal-grid blenden beim Scrollen sanft ein
 // (siehe app.css). Läuft auf jeder Seite, die dieses Layout nutzt, ist aber ein reines
