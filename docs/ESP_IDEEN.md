@@ -40,8 +40,53 @@ weiterhin als ungetestet auf echter Hardware.
 
 ---
 
+### 7. Lokale HTTP-API am ESP für Blind-/Scheinleistung (Architektur-Entscheidung Patrick, 01.11.2026)
+**Anlass:** Patrick wollte über die Plattform-API auch Blindenergie/Scheinenergie und
+Blindleistung/Scheinleistung auslesbar machen (zusätzlich zur bestehenden Wirkenergie/
+Wirkleistung). Entscheidung (Patrick, 01.11.2026): **nur die für die EEG relevanten Daten
+weiterhin per MQTT an die Plattform** (Wirkleistung/Wirkenergie Bezug+Einspeisung -- siehe
+`/api/v1/live` mit der neuen `zaehlerdaten`/`gemeinschaft`-Aufteilung, bereits umgesetzt).
+**Alles andere (Blind-/Scheinleistung) für lokale Anwendungen direkt vom ESP** über eine
+eigene HTTP-Request-API, NICHT über Plattform/MQTT/DB -- analog zu den bestehenden
+`/config`- und `/log`-Endpunkten des Sketches (gleiches HTTP-Basic-Auth-Muster), z.B. ein
+neuer `GET /livedata` o. Ä. direkt am Gerät im lokalen Netz.
+
+**Noch zu klären, BEVOR das umgesetzt werden kann (siehe `parseObis()` in
+`p1-smart-meter.ino`):** Der aktuelle Parser liest P+/P- (1.7.0/1.8.0/2.7.0/2.8.0) an FESTEN
+Byte-Offsets im entschlüsselten DLMS/COSEM-Frame (`read32(plain, 57/62/77/82)`), nicht
+generisch über die OBIS-Codes im Klartext. Für Blind-/Scheinleistung fehlen zwei Dinge:
+1. Ob das Kärnten-Netz-Telegramm (Iskraemeco AM550) in der hier verwendeten Konfiguration
+   überhaupt Blindenergie-OBIS-Codes (z.B. 1-0:3.8.0/4.8.0 Bezug/Einspeisung Blindenergie)
+   sendet -- bei Standard-Haushaltszählern in Österreich nicht garantiert (eher bei
+   Gewerbe-/Großanschlüssen üblich). Scheinleistung ist zudem kein eigener OBIS-Code, sondern
+   müsste aus Wirk- und Blindleistung berechnet werden (sofern beide vorhanden sind).
+2. Falls ja: der exakte Byte-Offset im Telegramm dieses Zählermodells -- lässt sich nur über
+   eine echte Rohdaten-Hex-Aufnahme eines Testgeräts ermitteln (Feld "Rohdaten (Hex)" auf der
+   Geräte-Weboberfläche, siehe Firmware-README).
+Ohne diese beiden Punkte zuerst zu klären, würde ein geschätzter Byte-Offset nur
+Zufallswerte liefern -- nicht blind implementieren, sondern zuerst mit echter Hardware
+verifizieren (ESP-Code-Chat).
+
+**Status:** Architektur entschieden, Blind-/Scheinleistung selbst noch offen (Hardware-
+Verifikation nötig, siehe oben).
+
+---
+
 ## Umgesetzt
 
+- **`/api/v1/live`: Zwei-Ansichten-Erweiterung "zaehlerdaten"/"gemeinschaft" (Patrick,
+  01.11.2026):** "einmal seine wirklichen Zählerdaten, einmal die Daten über die
+  Energiegemeinschaft" -- soll auch für einen Kunden funktionieren, der nur einspeist (sein
+  Vater, reiner Einspeiser ohne Bezugsvertrag). Neu in der JSON-Antwort bei einem persönlichen
+  Mitglied-Key: `zaehlerdaten` (echte, unveränderte Messwerte inkl. Wh-Zählerstände, unabhängig
+  vom Vertrag) und `gemeinschaft` (dieselben Werte, aber nur soweit sie auch tatsächlich über
+  die EEG laufen -- Bezug zählt nur bei `type IN ('consumer','prosumer')`, Einspeisung nur bei
+  `IN ('producer','prosumer')`, exakt wie `Billing::generateDrafts()`). Bei einem reinen
+  Einspeiser ist `gemeinschaft.bezug_w` dadurch bewusst immer 0, selbst wenn
+  `zaehlerdaten.bezug_w` gerade echten privaten Netzbezug zeigt. Bestehende Top-Level-Felder
+  (`bezug_w`/`einspeisung_w`) unverändert (= `zaehlerdaten`, wie bisher). Siehe auch den
+  gleichzeitigen Bugfix in `communityLivePower()` (CHANGELOG.md) -- dieselbe Unterscheidung,
+  jetzt konsistent an allen Live-Stellen.
 - **MQTT-Fernkonfiguration der Geräte (Patrick, 12.08.2026):** "kann ich bei einer neueren
   Firmware-Version auch MQTT Userdaten ändern und die werden dann mit überschrieben? z.B. der
   Umzug auf eine andere Domain oder einen anderen MQTT User oder Port?" -- nach Klärung, dass

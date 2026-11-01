@@ -45,6 +45,36 @@ Mitglieds (`memberCurrentNetPowerW()`, `/portal/api/current-power`, der `own`-Te
 `/api/v1/live`) bleibt bewusst unverändert -- dort sieht ein Mitglied nur seine eigenen,
 echten Zählerdaten, ohne jede Zuordnung zur EEG, das ist korrekt und nicht irreführend.
 
+### API: `/api/v1/live` liefert jetzt "zaehlerdaten" (eigene) und "gemeinschaft" (EEG-relevante) getrennt (01.11.2026)
+Patrick: "Weiteres können wir umsetzen, dass jeder Kunde über die API-Schnittstelle die
+Möglichkeit hat, seine Live-Daten ... auszulesen ... Auch wenn ein Kunde jetzt nur einspeist,
+kann er seine Bezugsleistung trotzdem über die API-Schnittstelle abrufen: einmal seine
+wirklichen Zählerdaten, einmal die Daten über die Energiegemeinschaft."
+
+Bei einem persönlichen Mitglied-API-Key (`member_api_keys`, über `/portal/my/api-keys`
+erzeugt) liefert `GET /api/v1/live` jetzt zusätzlich zu den bisherigen Top-Level-Feldern zwei
+neue Objekte:
+- `zaehlerdaten`: die echten, unveränderten Messwerte des eigenen Zählers (`bezug_w`,
+  `einspeisung_w`, plus neu `energy_bezug_wh`/`energy_einspeisung_wh` -- die aktuellen
+  Zählerstände) -- unabhängig vom Vertrag, weil ein bidirektionaler Smart-Meter physikalisch
+  misst, egal was vereinbart ist.
+- `gemeinschaft`: dieselben vier Werte, aber nur soweit sie tatsächlich über die
+  Energiegemeinschaft laufen -- dieselbe Unterscheidung wie im gleichzeitigen
+  Live-Anzeige-Bugfix oben (`type IN ('consumer','prosumer')` für Bezug, `IN ('producer',
+  'prosumer')` für Einspeisung). Bei einem reinen Einspeiser ist `gemeinschaft.bezug_w` also
+  bewusst immer 0, selbst wenn `zaehlerdaten.bezug_w` gerade echten privaten Netzbezug zeigt --
+  genau die Unterscheidung, die Patrick für seinen Vater wollte.
+
+Bestehende Top-Level-Felder (`bezug_w`/`einspeisung_w`) unverändert (= weiterhin die eigenen,
+unveränderten Zählerdaten) -- rückwärtskompatibel für bestehende Node-RED-Skripte. Bei einem
+Community-weiten Key (Obmann/Platform-Admin, kein `member_id`) sind beide neuen Felder `null`.
+
+**Bewusst nicht Teil dieser Änderung:** Blind-/Scheinleistung/-energie. Patricks
+Architektur-Entscheidung dazu: EEG-relevante Daten (Wirkleistung/Wirkenergie) weiterhin per
+MQTT, alles andere für lokale Anwendungen künftig direkt vom ESP über eine eigene, neue
+HTTP-API am Gerät selbst -- nicht über die Plattform. Details, offene Hardware-Fragen (ob das
+Telegramm diese OBIS-Werte überhaupt enthält) und Status: `docs/ESP_IDEEN.md`, Punkt 7.
+
 ### Nav-Reihenfolge: Anmelden vor Informieren und Beitreten (01.11.2026)
 Patrick: "erst den Anmeldebutton, dann 'Informieren', 'Beitreten'". Reihenfolge in
 `layouts/base.php` getauscht -- gilt einheitlich für Desktop-Navbar und Hamburger-Menü (beide
