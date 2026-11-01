@@ -116,7 +116,7 @@ $paymentMeta = [
             $isReleased = ($inv['run_status'] ?? '') === 'done';
             $hasMandat  = trim((string)($inv['member_iban'] ?? '')) !== '' && trim((string)($inv['mandatsreferenz'] ?? '')) !== '';
           ?>
-          <span class="badge badge-<?= $psBadge ?>" style="font-size:.72rem"><?= htmlspecialchars($psLabel) ?></span>
+          <span class="badge badge-<?= $psBadge ?>" style="font-size:.72rem"><?= $psLabel ?></span>
           <?php if ($isReleased && $ps === 'offen'): ?>
             <?php if ($betrag > 0): ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
