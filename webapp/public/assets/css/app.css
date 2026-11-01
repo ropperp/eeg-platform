@@ -117,6 +117,10 @@ a:hover { text-decoration: underline; }
   box-shadow: var(--shadow);
 }
 .navbar .inner { display: flex; align-items: center; justify-content: space-between; }
+/* Hält Theme-Umschalter, Nav-Links und den (mobil sichtbaren) Hamburger-Button zusammen --
+   "position:relative" ist der Anker für das mobile Dropdown weiter unten (position:absolute
+   relativ zu DIESEM Element, nicht zum ganzen .inner/.container). */
+.navbar-controls { display: flex; align-items: center; position: relative; }
 .navbar .logo { display: flex; align-items: center; }
 .navbar .logo-img { height: 34px; width: auto; display: block; }
 .navbar .logo-img-dark { display: none; }
@@ -559,24 +563,50 @@ footer {
   .container { padding: 0 1rem; }
 
   /* Navbar: Hamburger-Menü statt Umbrechen (Vorfall 01.11.2026, Patrick per Handy-Screenshot:
-     bis zu drei Zeilen Nav-Umbruch "sieht noch nicht so professionell aus"). Logo + Button
-     bleiben in einer Zeile, #main-nav klappt als volle Breite darunter auf/zu -- siehe
-     toggleMobileNav() in base.php. */
+     bis zu drei Zeilen Nav-Umbruch "sieht noch nicht so professionell aus"). Logo + Theme-
+     Umschalter + Hamburger-Button bleiben immer in einer Zeile (siehe .navbar-controls oben --
+     Theme-Umschalter liegt dafür bewusst AUSSERHALB von #main-nav).
+     Nachbesserung (gleicher Tag, Patrick): #main-nav NICHT mehr volle Breite + Seiteninhalt
+     nach unten schiebend, sondern ein schwebendes Dropdown ("soll über das Bild drübergehen,
+     in einem [...] transparenten Modus") -- position:absolute (nimmt dadurch am Layout
+     überhaupt nicht mehr teil, kein Einfluss auf .navbar-controls' eigene Breite/Zeilenumbruch),
+     rechtsbündig unter dem Hamburger-Button verankert ("ein bisschen nach links, vielleicht
+     bis zur Mitte des Bildschirms"), halbtransparenter Hintergrund mit Weichzeichner.
+     opacity/transform statt direkt display:none/flex für den Übergang -- ein display-Sprung
+     lässt sich nicht animieren, "visibility" mit verzögertem Transition-Ende sorgt dafür, dass
+     das unsichtbare Menü trotzdem keine Klicks mehr abfängt, sobald es zu ist. */
   .mobile-nav-toggle-btn { display: inline-flex; }
-  .navbar .inner { flex-wrap: wrap; }
-  .navbar nav {
-    display: none;
+  #main-nav {
+    position: absolute;
+    top: calc(100% + .6rem);
+    right: 0;
+    width: min(62vw, 300px);
+    max-width: calc(100vw - 2rem);
     flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    order: 3;
-    margin-top: .75rem;
-    gap: .25rem;
+    align-items: flex-start;
+    gap: .15rem;
+    padding: .6rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+    z-index: 150;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px) scale(.96);
+    transform-origin: top right;
+    transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s;
   }
-  .navbar nav.is-open { display: flex; }
-  .navbar nav a { margin-left: 0; padding: .6rem .25rem; font-size: .95rem; }
-  .navbar nav .btn { margin-left: 0; justify-content: center; }
-  .navbar nav #theme-toggle { align-self: flex-start; padding: .6rem .25rem; }
+  [data-theme="dark"] #main-nav { background: rgba(30, 41, 59, .88); }
+  #main-nav.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+    transition: opacity .2s ease, transform .2s ease, visibility 0s linear;
+  }
+  .navbar nav a { margin-left: 0; padding: .55rem .5rem; font-size: .95rem; }
+  .navbar nav .btn { margin-left: 0; width: auto; }
   .navbar .logo-img { height: 26px; }
 
   /* Hero */
