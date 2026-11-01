@@ -788,14 +788,25 @@ def refresh_live_stats_for_community(conn, community_id: str) -> None:
     Live-Anzeige, ohne dass die Webapp dafür esp_measurements selbst abfragen muss.
     """
     with conn.cursor() as cur:
+        # mp.type-Filter (Patrick, 01.11.2026, am Beispiel seines Vaters -- reiner Einspeiser,
+        # kein Bezugsvertrag mit der EEG, bezieht seinen Strom ganz normal direkt von der
+        # Kelag): ein bidirektionaler Smart-Meter misst an einem reinen Einspeise-Zählpunkt
+        # (type = 'producer') trotzdem echte power_bezug_w-Werte, sobald das Haus mehr
+        # verbraucht als die PV gerade liefert -- das ist privater Bezug von dessen eigenem
+        # Energieversorger, NIE über die Energiegemeinschaft. Ohne diesen Filter floss dieser
+        # Bezug hier in JEDE Community-weite Live-Summe ein (dies ist der Pfad, der fast immer
+        # tatsächlich gelesen wird, siehe community_live_stats) und suggerierte fälschlich, er
+        # würde über die EEG laufen. Exakt dieselbe Unterscheidung wie in
+        # Billing::generateDrafts() (type IN ('consumer','prosumer') für Bezug, IN ('producer',
+        # 'prosumer') für Einspeisung) -- die Abrechnung selbst war von diesem Bug nie betroffen.
         cur.execute(
             """
             SELECT
-                COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
-                COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
+                COALESCE(SUM(CASE WHEN mp_type IN ('consumer','prosumer') THEN power_bezug_w ELSE 0 END), 0)       AS total_bezug_w,
+                COALESCE(SUM(CASE WHEN mp_type IN ('producer','prosumer') THEN power_einspeisung_w ELSE 0 END), 0) AS total_einspeisung_w,
                 COUNT(*)                                AS active_meters
             FROM (
-                SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w
+                SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w, mp.type AS mp_type
                 FROM esp_measurements em
                 JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
                 WHERE em.community_id = %s AND em.time >= now() - INTERVAL '2 minutes'

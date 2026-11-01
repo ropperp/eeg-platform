@@ -307,11 +307,24 @@ function communityLivePower(string $communityId): array
     // (Patrick, 06.09.2026: "es dürfen die Daten nicht doppelt in dem Energiefluss angezeigt
     // werden"). Die eigene "Aktuelle Leistung"-Kachel des Demo-Mitglieds bleibt davon unberührt,
     // die fragt gezielt nur die eigenen Zählpunkte ab (memberCurrentNetPowerW()).
+    //
+    // mp.type-Filter (Patrick, 01.11.2026, am Beispiel seines Vaters -- reiner Einspeiser,
+    // kein Bezugsvertrag mit der EEG, bezieht seinen eigenen Strom ganz normal und direkt von
+    // der Kelag): ein bidirektionaler Smart-Meter misst an einem reinen Einspeise-Zählpunkt
+    // (type = 'producer') trotzdem echte power_bezug_w-Werte, sobald das Haus mehr verbraucht
+    // als die PV gerade liefert -- das ist aber privater Bezug von dessen Energieversorger, NIE
+    // über die Energiegemeinschaft. Ohne diesen Filter floss dieser Bezug in JEDE
+    // Community-weite Live-Summe ein (Dashboard, öffentliche Live-Anzeige, API) und suggerierte
+    // fälschlich, er würde über die EEG laufen. Exakt dieselbe Unterscheidung wie in
+    // Billing::generateDrafts() (type IN ('consumer','prosumer') für Bezug, IN ('producer',
+    // 'prosumer') für Einspeisung) -- dort schon immer korrekt, hier bei der reinen
+    // Live-Anzeige bisher gefehlt. Die Abrechnung selbst war von diesem Bug nie betroffen.
     $row = DB::fetchOne(
-        "SELECT COALESCE(SUM(power_einspeisung_w),0) AS einsp_w, COALESCE(SUM(power_bezug_w),0) AS bezug_w,
+        "SELECT COALESCE(SUM(CASE WHEN mp_type IN ('producer','prosumer') THEN power_einspeisung_w ELSE 0 END),0) AS einsp_w,
+                COALESCE(SUM(CASE WHEN mp_type IN ('consumer','prosumer') THEN power_bezug_w ELSE 0 END),0) AS bezug_w,
                 COUNT(*) AS active_meters
          FROM (
-            SELECT DISTINCT ON (em.metering_point_id) em.power_einspeisung_w, em.power_bezug_w
+            SELECT DISTINCT ON (em.metering_point_id) em.power_einspeisung_w, em.power_bezug_w, mp.type AS mp_type
             FROM esp_measurements em
             JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
             WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 minutes'
@@ -1658,13 +1671,17 @@ $router->get('/api/live/:slug', function ($params) {
     // Community-weite Ausschluss-Logik läuft in communityLivePower() (für die eingeloggte
     // Dashboard-Ansicht) bereits seit demselben Update als JOIN und crashte dort nie -- jetzt auf
     // exakt dasselbe, erprobte Muster vereinheitlicht.
+    // mp.type-Filter: siehe ausführlicher Kommentar in communityLivePower() -- ein reiner
+    // Einspeise-Zählpunkt (type='producer', kein Bezugsvertrag mit der EEG) darf seinen
+    // privaten Netzbezug von dessen eigenem Energieversorger NICHT in die Community-weite
+    // Bezugs-Summe dieser öffentlichen Seite einfließen lassen (Patrick, 01.11.2026).
     $agg = DB::fetchOne(
         "SELECT
-            COALESCE(SUM(power_bezug_w), 0)        AS total_bezug_w,
-            COALESCE(SUM(power_einspeisung_w), 0)  AS total_einspeisung_w,
+            COALESCE(SUM(CASE WHEN mp_type IN ('consumer','prosumer') THEN power_bezug_w ELSE 0 END), 0)       AS total_bezug_w,
+            COALESCE(SUM(CASE WHEN mp_type IN ('producer','prosumer') THEN power_einspeisung_w ELSE 0 END), 0) AS total_einspeisung_w,
             COUNT(*)                                AS active_meters
          FROM (
-            SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w
+            SELECT DISTINCT ON (em.metering_point_id) em.power_bezug_w, em.power_einspeisung_w, mp.type AS mp_type
             FROM esp_measurements em
             JOIN metering_points mp ON mp.id = em.metering_point_id AND mp.mirror_source_metering_point_id IS NULL
             WHERE em.community_id = ? AND em.time >= now() - INTERVAL '2 minutes'
