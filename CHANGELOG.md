@@ -19,6 +19,28 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Mitgliederzahl + Zählpunkte in der Live-Anzeige (01.11.2026)
+Patrick: "wäre cool, irgendwo im Bereich unserer Energiegemeinschaft [...] Live-Daten zu sehen,
+wie viele Mitglieder wir sind. Einfach die Zählpunkte auflisten und auch solche Animationen,
+wie etwas hochzählt [...] bei dem Echtzeitbezug und der Einspeisung".
+
+Die Hochzähl-Animation für Bezug/Einspeisung/Autarkie gibt es auf der Startseite ("Unser
+Pilotprojekt") bereits seit Längerem (GSAP-Countup beim Scrollen ins Bild, siehe
+`site-animations.js`) und funktioniert live nachweislich korrekt -- vermutlich einfach noch
+nicht aufgefallen, weil der Abschnitt erst weiter unten auf der Seite liegt.
+
+- **`/api/live/:slug`** liefert jetzt zusätzlich `member_count` (aktive, nicht-Demo-Mitglieder
+  der Community -- reine Anzahl, keine Einzeldaten, DSGVO-unbedenklich für eine öffentliche
+  Seite). `total_meters` (Zählpunkte) gab es als Feld bereits, wurde aber bisher nirgends
+  angezeigt.
+- **Startseite:** zwei neue Kacheln "Mitglieder"/"Zählpunkte" unterhalb der bestehenden
+  Live-Kennzahlen, mit derselben Hochzähl-Animation beim Scrollen ins Bild.
+- **`/live`-Seite:** dieselben zwei Werte als zusätzliche Stat-Cards -- bewusst OHNE
+  Hochzähl-Animation, weil diese Seite alle 5 Sekunden per Intervall aktualisiert; ein Wert, der
+  bei jeder kleinen Änderung erneut von 0 hochzählt, wäre unruhig statt professionell. Die
+  Animation passt für einen einmaligen Reveal beim Scrollen (Startseite), nicht für einen
+  fortlaufend aktualisierten Dashboard-Wert.
+
 ### "Anmelden"-Button praktisch unlesbar: zwei CSS-Spezifitäts-Bugs (01.11.2026)
 Patrick, nach erneuter Google-Barrierefreiheitsprüfung + eigenem Augenschein: "der Kontrast ist
 jetzt katastrophal... man sieht weder im Light- noch im Dark-Mode den Schriftzug im

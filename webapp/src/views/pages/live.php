@@ -38,6 +38,20 @@ ob_start();
         <div class="stat-value" id="today-kwh">—</div>
         <div class="stat-label">Erzeugung heute (kWh)</div>
       </div>
+      <!-- Mitglieder/Zählpunkte (Patrick, 01.11.2026) -- bewusst OHNE die Hochzähl-Animation der
+           Startseite: diese Seite aktualisiert alle 5s per Intervall (siehe refresh() unten),
+           ein Wert, der bei JEDER kleinen Änderung erneut von 0 hochzählt, wäre unruhig/
+           störend statt "professionell" -- die Animation passt für einen einmaligen Reveal beim
+           Scrollen (Startseite), nicht für einen fortlaufend aktualisierten Dashboard-Wert.
+           Nur die Anzahl, keine Einzeldaten -- siehe Kommentar bei member_count in index.php. -->
+      <div class="card stat-card">
+        <div class="stat-value" id="member-count">—</div>
+        <div class="stat-label">Mitglieder</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-value" id="total-meters">—</div>
+        <div class="stat-label">Zählpunkte</div>
+      </div>
     </div>
 
     <p id="live-disclaimer" style="display:none;margin:-1rem 0 1.5rem;font-size:.8rem;color:#b45309;text-align:center">
@@ -210,6 +224,8 @@ async function refresh() {
     document.getElementById('bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
     document.getElementById('einsp-w').textContent = d.einspeisung_w.toLocaleString('de-AT') + ' W';
     document.getElementById('today-kwh').textContent = d.today_kwh.toLocaleString('de-AT') + ' kWh';
+    document.getElementById('member-count').textContent = d.member_count.toLocaleString('de-AT');
+    document.getElementById('total-meters').textContent = d.total_meters.toLocaleString('de-AT');
     document.getElementById('autarkie-pct').textContent = d.autarkie_pct + '%';
     document.getElementById('live-disclaimer').style.display = (d.active_meters < d.total_meters) ? 'block' : 'none';
     document.getElementById('demo-disclaimer').style.display = d.demo_simulation ? 'block' : 'none';

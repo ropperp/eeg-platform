@@ -1590,6 +1590,18 @@ $router->get('/api/live/:slug', function ($params) {
 
     DB::setCommunity($community['id']);
 
+    // Mitgliederzahl (Patrick, 01.11.2026: "wie viele Mitglieder wir sind" für die
+    // animierte Live-Kennzahlen-Anzeige auf der Startseite) -- bewusst nur "active"
+    // (pending/inactive zählen nicht als echtes, aktuelles Mitglied) und is_demo=false
+    // (dieselbe Ausschluss-Logik wie bei den Demo-Zählpunkten weiter unten: ein fiktiver
+    // Messe-Demo-Login-Datensatz ist kein echtes Mitglied und soll hier nicht mitzählen).
+    // Rein aggregierte Zahl, keine Einzeldaten -- unbedenklich für eine öffentliche Seite.
+    $memberCount = DB::fetchOne(
+        "SELECT COUNT(*) AS cnt FROM members WHERE community_id = ? AND status = 'active' AND is_demo = false",
+        [$community['id']]
+    );
+    $memberCount = (int)($memberCount['cnt'] ?? 0);
+
     // Vorberechnete Werte bevorzugen (Patrick, 09.10.2026: "Die Autarkie kann immer vorberechnet
     // werden und beim Aufruf nur aus einem gespeicherten Wert herausgelesen werden [...] aktuelle
     // Erzeugung, den aktuellen Verbrauch [...] Erzeugung heute [...] Das kann nicht sein, dass es
@@ -1618,6 +1630,7 @@ $router->get('/api/live/:slug', function ($params) {
             'today_kwh'     => round(((float)$precomputed['today_wh']) / 1000, 2),
             'active_meters' => (int)$precomputed['active_meters'],
             'total_meters'  => (int)$precomputed['total_meters'],
+            'member_count'  => $memberCount,
             'demo_simulation' => (bool)($community['messe_demo_enabled'] ?? false),
             'series'        => $series,
         ];
@@ -1740,6 +1753,7 @@ $router->get('/api/live/:slug', function ($params) {
         'today_kwh'     => round(($today['today_wh'] ?? 0) / 1000, 2),
         'active_meters' => (int)($agg['active_meters'] ?? 0),
         'total_meters'  => (int)($totalMeters['cnt'] ?? 0),
+        'member_count'  => $memberCount,
         'demo_simulation' => (bool)($community['messe_demo_enabled'] ?? false),
         'series'        => $series,
     ];
