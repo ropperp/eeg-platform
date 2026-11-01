@@ -19,6 +19,52 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### "Anmelden"-Button praktisch unlesbar: zwei CSS-Spezifitäts-Bugs (01.11.2026)
+Patrick, nach erneuter Google-Barrierefreiheitsprüfung + eigenem Augenschein: "der Kontrast ist
+jetzt katastrophal... man sieht weder im Light- noch im Dark-Mode den Schriftzug im
+Anmeldebutton". Per Live-Check (Playwright gegen stromfueralle.at) bestätigt: der Navbar-
+"Anmelden"-Button zeigte tatsächlich `color: rgb(75, 85, 99)` (Light) bzw. `rgb(148, 163, 184)`
+(Dark) -- NICHT das in `.btn-primary` vorgesehene Weiß.
+
+**Ursache:** zwei CSS-Spezifitäts-Kollisionen, beide schon länger latent vorhanden:
+1. `.navbar nav a { color: var(--gray-600); ... }` (Spezifität 0-1-2: eine Klasse + zwei
+   Typselektoren) gewann gegen `.btn-primary { color: var(--on-color) }` (Spezifität 0-1-0) --
+   CSS-Spezifität zählt Selektor-BESTANDTEILE, nicht "gefühlte" Genauigkeit. Betraf JEDEN
+   `<a class="btn ...">` innerhalb der Navbar.
+2. `[data-theme="dark"] a { color: #86efac; }` (eigener Fix vom 29.10.2026 für normale Links im
+   Dark Mode) traf aus demselben Grund zusätzlich im Dark Mode zu, da Buttons ebenfalls
+   `<a>`-Elemente sind.
+
+Kontrastwerte: 1,51:1 (Light) bzw. 1,96:1 (Dark) -- WCAG AA verlangt 4,5:1. War schon VOR dem
+Kontrast-Fix vom 29.10.2026 kaputt (2,29:1 auf dem damals helleren `--green`-Hintergrund, auch
+schon unter dem Grenzwert), wurde durch das dunklere `--green-dark` als Hintergrund aber
+unabsichtlich von "schlecht lesbar" zu "praktisch unsichtbar" verschärft -- der damalige Fix
+hatte weißen Text für `.btn-primary` ungeprüft vorausgesetzt, statt den tatsächlich gerenderten
+Wert zu messen.
+
+**Fix:** `.navbar nav a:not(.btn)` bzw. `[data-theme="dark"] a:not(.btn)` -- Buttons bestimmen
+ihre Textfarbe jetzt wieder selbst, unabhängig vom umgebenden Kontext. Der gemeinsame
+`margin-left` für den Abstand zwischen den Nav-Elementen bleibt für alle `<a>`-Kinder (Links
+UND Buttons) erhalten, nur Farbe/Schriftgröße sind jetzt auf reine Textlinks beschränkt.
+Live via Playwright verifiziert: Button-Text jetzt in beiden Modi `rgb(255, 255, 255)` auf
+`rgb(21, 128, 61)` (5,02:1).
+
+**Beim selben Durchgang zwei weitere, unabhängig gefundene Kontrastverstöße behoben** (beim
+letzten Audit übersehen, weil nur generische `a`/`.btn-primary`/`.legal .price` geprüft wurden,
+nicht die Hero-spezifischen Button-Varianten):
+- `.hero .btn-white` ("Live-Anzeige"): `var(--green)` auf Weiß nur 3,3:1, im Dark Mode (Hero-
+  Button-Hintergrund wird dort dunkles Blaugrau statt Weiß) sogar nur 4,44:1 -- beides unter
+  4,5:1. Jetzt `var(--green-dark)` (Light, 5,02:1) bzw. `#86efac` (Dark, 10,42:1).
+- `.hero .btn-outline` ("Anmelden" im Hero): transparenter Button direkt auf dem Hero-FOTO --
+  Kontrast hing dadurch vom jeweils hochgeladenen Bild an exakt dieser Stelle ab (z.B. ein
+  helles Pflaster/heller Himmel), nicht zuverlässig vorhersagbar. Jetzt ein dunkler
+  Scrim-Hintergrund (60% Deckkraft) direkt hinter dem Button statt nur transparent -- rechnerisch
+  verifiziert: selbst im theoretisch schlechtesten Fall (Bildinhalt an der Textstelle reinweiß)
+  bleiben noch 5,7:1 Kontrast, unabhängig vom tatsächlichen Bildinhalt.
+
+Alle vier Fixes zusätzlich per Playwright-Screenshot (Light/Dark, inkl. eines bewusst
+weißen Worst-Case-Hero-Hintergrunds) visuell bestätigt.
+
 ### Favicon mit transparentem Hintergrund + eigener Upload (30.10.2026)
 Patrick: das Favicon (Browser-Tab-Icon) hatte einen weißen quadratischen Hintergrund -- sticht
 im Dark Mode des Browsers unschön ab. Wunsch: ein Upload-Feld, über das sich ein Bild ohne

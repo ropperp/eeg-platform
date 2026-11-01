@@ -57,7 +57,13 @@
    ~2,9-3,6:1) -- hier greift wie beim bereits bestehenden .badge-green/.alert-success-Muster
    das helle #86efac. var(--green) bleibt unverändert für großen/fetten Text (Kennzahlen,
    Icons), wo nur 3:1 nötig ist und die hellere Markenfarbe optisch besser passt. */
-[data-theme="dark"] a,
+/* ":not(.btn)" hier aus demselben Grund wie bei .navbar nav a weiter unten (Vorfall
+   01.11.2026): Buttons sind ebenfalls <a>-Elemente, diese Regel hatte dadurch auch
+   .btn-primary im Dark Mode getroffen und dessen eigentlich vorgesehenes Weiß durch #86efac
+   ersetzt -- dort allein zwar noch kein Totalausfall (3,6:1 auf dem dunkelgrünen
+   Button-Hintergrund), aber trotzdem unter den geforderten 4,5:1 und unnötig inkonsistent zum
+   Light Mode. Buttons bestimmen ihre Textfarbe selbst, unabhängig vom Theme. */
+[data-theme="dark"] a:not(.btn),
 [data-theme="dark"] .legal h2,
 [data-theme="dark"] .legal .price { color: #86efac; }
 
@@ -126,12 +132,29 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
 }
-.navbar nav a {
-  margin-left: 1.5rem;
+/* Abstand zwischen den Nav-Elementen -- gilt bewusst für ALLE <a>-Kinder (Links UND Buttons),
+   .navbar nav hat selbst kein "gap". */
+.navbar nav a { margin-left: 1.5rem; }
+/* Vorfall 01.11.2026 (Patrick, per Google-Barrierefreiheitsprüfung + eigenem Augenschein):
+   ":not(.btn)" hier ist KEIN Stilmittel, sondern ein Bugfix. Ohne das gewann diese
+   Farb-/Schriftgrößen-Regel (Spezifität 0-1-2: eine Klasse + zwei Typselektoren "nav"/"a")
+   gegen die eigentlich zuständige .btn-primary-Regel (Spezifität 0-1-0: nur eine Klasse) --
+   CSS-Spezifität zählt Selektor-Bestandteile, nicht "wie spezifisch sich eine Regel anfühlt".
+   Der "Anmelden"-Button in der Navbar bekam dadurch seit jeher WEDER das eigentlich
+   vorgesehene Weiß (.btn-primary) NOCH Absicht -- sondern dieses blasse Grau hier, kaum vom
+   dunkelgrünen Hintergrund zu unterscheiden (1,5:1 Kontrast in Light-, 2,0:1 in Dark-Mode --
+   WCAG AA verlangt 4,5:1). Fiel lange nicht auf, weil der Hintergrund vorher das hellere
+   --green war (dort immerhin noch 2,3:1) -- der Kontrast-Fix vom 29.10.2026 (dunkleres
+   --green-dark als Hintergrund, WEGEN dieses ungeprüft angenommenen weißen Texts) hat den
+   ohnehin vorhandenen Bug dadurch unabsichtlich von "schlecht lesbar" zu "praktisch
+   unsichtbar" verschärft. ":not(.btn)" beschränkt Farbe/Schriftgröße auf die reinen Textlinks
+   (Live-Anzeige, Kontakt), für die sie ursprünglich gedacht waren -- Buttons bestimmen ihre
+   Textfarbe jetzt wieder selbst, der gemeinsame Abstand oben bleibt für beide erhalten. */
+.navbar nav a:not(.btn) {
   color: var(--gray-600);
   font-size: .9rem;
 }
-.navbar nav a:hover { color: var(--green); }
+.navbar nav a:not(.btn):hover { color: var(--green); }
 
 /* ─── Buttons ────────────────────────────────────── */
 .btn {
@@ -368,16 +391,32 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
 .hero h1, .hero p { text-shadow: 0 1px 12px rgba(0,0,0,.35); }
 .hero h1 { font-size: 2.75rem; font-weight: 800; margin-bottom: 1rem; }
 .hero p  { font-size: 1.2rem; opacity: .9; margin-bottom: 2rem; }
+/* Kontrast-Audit 01.11.2026: var(--green) auf Weiß nur 3,3:1 (WCAG AA braucht 4,5:1 für normal
+   großen, fetten 16px-Text) -- hier wie beim generischen a{}-Fix vom 29.10.2026 auf
+   --green-dark (5,02:1). [data-theme="dark"] .hero .btn-white etwas weiter unten: der
+   Hintergrund wird dort (var(--white) ist im Dark Mode dunkles Blaugrau) selbst ohne jede
+   Änderung schon dunkel -- --green-dark bliebe darauf mit nur 2,x:1 fast so schlecht wie vorher,
+   deshalb dort das bereits etablierte helle #86efac (10,4:1). */
 .hero .btn-white {
-  background: var(--white); color: var(--green);
+  background: var(--white); color: var(--green-dark);
   font-weight: 700;
 }
+[data-theme="dark"] .hero .btn-white { color: #86efac; }
+/* Transparenter Button direkt auf dem Hero-FOTO -- Kontrast hängt dadurch vom jeweils
+   hochgeladenen Bild an exakt dieser Stelle ab und ist nicht zuverlässig vorhersagbar (z.B.
+   ein helles Pflaster/heller Himmel an der Textposition). Eigener, dunkler Scrim-Hintergrund
+   direkt hinter dem Button (statt nur transparent) garantiert ausreichenden Kontrast für den
+   weißen Text UNABHÄNGIG vom Bildinhalt -- gleiches Prinzip wie der text-shadow bei
+   .hero h1/.hero p oben, nur als Fläche statt als Schlagschatten. 60% Deckkraft ist kein
+   Zufallswert: selbst im theoretisch schlechtesten Fall (Bildinhalt an der Textstelle reinweiß)
+   bleiben damit noch 5,7:1 Kontrast -- WCAG AA verlangt 4,5:1, der Puffer fängt auch dunklere
+   Rechner-/Handy-Bildschirme mit etwas Blickwinkel-Verblassung ab. */
 .hero .btn-outline {
-  background: transparent; color: var(--on-color);
+  background: rgba(0,0,0,.6); color: var(--on-color);
   border: 2px solid rgba(255,255,255,.6);
   margin-left: 1rem;
 }
-.hero .btn-outline:hover { background: rgba(255,255,255,.1); }
+.hero .btn-outline:hover { background: rgba(0,0,0,.75); }
 
 /* Hero-Einstieg: standardmäßig sofort sichtbar (funktioniert ohne JS). Nur wenn JS aktiv ist
    (Klasse "js-anim" wird synchron in <head> gesetzt, siehe layouts) UND GSAP darauf noch vor
