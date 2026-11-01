@@ -19,6 +19,11 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Nav-Reihenfolge: Anmelden vor Informieren und Beitreten (01.11.2026)
+Patrick: "erst den Anmeldebutton, dann 'Informieren', 'Beitreten'". Reihenfolge in
+`layouts/base.php` getauscht -- gilt einheitlich für Desktop-Navbar und Hamburger-Menü (beide
+nutzen dieselbe Markup-Reihenfolge).
+
 ### Hamburger-Menü: Nachbesserung (01.11.2026, gleicher Tag)
 Patrick nach dem ersten Hamburger-Menü-Wurf: "sieht schon gut aus", vier konkrete
 Nachbesserungen gewünscht:

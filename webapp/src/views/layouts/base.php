@@ -82,8 +82,8 @@
         <?php endif; ?>
         <a href="<?= htmlspecialchars(portalUrl('/portal/logout')) ?>">Abmelden (<?= htmlspecialchars(Auth::userName()) ?>)</a>
       <?php else: ?>
-        <a href="<?= htmlspecialchars(marketingUrl('/beitreten')) ?>" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
         <a href="<?= htmlspecialchars(portalUrl('/portal/login')) ?>" class="btn btn-primary" style="padding:.4rem .9rem">Anmelden</a>
+        <a href="<?= htmlspecialchars(marketingUrl('/beitreten')) ?>" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
       <?php endif; ?>
       </nav>
       <button id="mobile-nav-toggle" class="mobile-nav-toggle-btn" onclick="toggleMobileNav()"
