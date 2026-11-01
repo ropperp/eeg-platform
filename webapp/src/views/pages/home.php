@@ -119,18 +119,37 @@ ob_start();
          statisch/DB-unabhängig (robust, auch wenn die DB mal down ist); schlägt der Abruf fehl,
          bleibt die Zeile einfach unsichtbar (kein kaputtes UI). Die Zahlen zählen beim
          Erscheinen sanft hoch (siehe site-animations.js), respektiert prefers-reduced-motion. -->
-    <div id="pilot-live-stats" class="grid-3" style="max-width:640px;margin:0 auto 2rem;display:none">
-      <div>
-        <div class="stat-value" data-live-value="bezug_w" style="font-size:1.5rem;color:#dc2626">0</div>
-        <div style="font-size:.78rem;color:var(--gray-600)">W Bezug gerade</div>
+    <div id="pilot-live-stats" style="max-width:640px;margin:0 auto 2rem;display:none">
+      <div class="grid-3">
+        <div>
+          <div class="stat-value" data-live-value="bezug_w" style="font-size:1.5rem;color:#dc2626">0</div>
+          <div style="font-size:.78rem;color:var(--gray-600)">W Bezug gerade</div>
+        </div>
+        <div>
+          <div class="stat-value" data-live-value="einspeisung_w" style="font-size:1.5rem;color:#16a34a">0</div>
+          <div style="font-size:.78rem;color:var(--gray-600)">W Einspeisung gerade</div>
+        </div>
+        <div>
+          <div class="stat-value" data-live-value="autarkie_pct" style="font-size:1.5rem;color:var(--green-dark)">0</div>
+          <div style="font-size:.78rem;color:var(--gray-600)">% Autarkie</div>
+        </div>
       </div>
-      <div>
-        <div class="stat-value" data-live-value="einspeisung_w" style="font-size:1.5rem;color:#16a34a">0</div>
-        <div style="font-size:.78rem;color:var(--gray-600)">W Einspeisung gerade</div>
-      </div>
-      <div>
-        <div class="stat-value" data-live-value="autarkie_pct" style="font-size:1.5rem;color:var(--green-dark)">0</div>
-        <div style="font-size:.78rem;color:var(--gray-600)">% Autarkie</div>
+      <!-- Mitglieder/Zählpunkte (Patrick, 01.11.2026: "wie viele Mitglieder wir sind [...]
+           einfach die Zählpunkte auflisten") -- bewusst nur die ANZAHL, keine Einzeldaten
+           (welche Zählpunkte, wie viel einzelne Mitglieder verbrauchen) -- das wäre
+           personenbezogen und hätte auf einer öffentlichen Seite nichts verloren, siehe
+           "DSGVO-konform"-Punkt weiter oben auf dieser Seite. Eigene, kleinere Zeile statt in
+           dieselbe grid-3 oben gequetscht -- andere Art Kennzahl (Mitgliederbestand statt
+           Live-Leistung), optisch leicht abgesetzt. -->
+      <div class="grid-2" style="max-width:360px;margin:1.5rem auto 0;padding-top:1.5rem;border-top:1px solid var(--gray-200)">
+        <div>
+          <div class="stat-value" data-live-value="member_count" style="font-size:1.5rem;color:var(--gray-800)">0</div>
+          <div style="font-size:.78rem;color:var(--gray-600)">Mitglieder</div>
+        </div>
+        <div>
+          <div class="stat-value" data-live-value="total_meters" style="font-size:1.5rem;color:var(--gray-800)">0</div>
+          <div style="font-size:.78rem;color:var(--gray-600)">Zählpunkte</div>
+        </div>
       </div>
     </div>
     <a href="/live?eeg=strompool-feldkirchen" class="btn btn-primary btn-lg">Echtzeit-Daten ansehen</a>
