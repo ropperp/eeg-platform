@@ -19,6 +19,32 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Bugfix: Privater Netzbezug reiner Einspeiser floss in Community-Live-Summe ein (01.11.2026)
+Patrick, am Beispiel seines Vaters (reiner Einspeiser in der EEG, kein Bezugsvertrag -- bezieht
+seinen eigenen Strom ganz normal und direkt von der Kelag, nie über die Energiegemeinschaft):
+"Wenn er mal aus dem Netz bezieht, wird das eigentlich auch auf der Plattform angezeigt? Das darf
+ja gar nicht angezeigt werden."
+
+**Ursache:** Ein bidirektionaler Smart-Meter misst an einem reinen Einspeise-Zählpunkt
+(`metering_points.type = 'producer'`) trotzdem echte `power_bezug_w`-Werte, sobald das Haus
+mehr verbraucht als die PV gerade liefert -- technisch korrekt, aber dieser Bezug kommt privat
+von dessen eigenem Energieversorger, nie über die EEG. Alle Live-Anzeige-Aggregationen
+(`communityLivePower()`, der Fallback-Query von `/api/live/:slug`, und vor allem
+`refresh_live_stats_for_community()` im mqtt-subscriber, dessen vorberechnete Werte fast immer
+tatsächlich gelesen werden) summierten `power_bezug_w` bisher über ALLE Zählpunkte einer
+Community, ohne nach `type` zu unterscheiden -- der private Bezug eines reinen Einspeisers
+floss dadurch in jede Community-weite Bezugssumme (Obmann-Dashboard, öffentliche Live-Anzeige,
+`/api/v1/live`) ein und suggerierte fälschlich, er würde über die EEG laufen.
+
+**Fix:** Dieselbe Unterscheidung wie in `Billing::generateDrafts()` (die Abrechnung selbst war
+nie betroffen, da EDA-basiert und schon immer korrekt nach `mp_type IN ('consumer','prosumer')`
+für Bezug bzw. `IN ('producer','prosumer')` für Einspeisung filtert) jetzt auch bei der
+Live-Anzeige: `power_bezug_w` zählt nur noch für Zählpunkte vom Typ `consumer`/`prosumer`,
+`power_einspeisung_w` nur für `producer`/`prosumer`. Die eigene "Aktuelle Leistung"-Kachel eines
+Mitglieds (`memberCurrentNetPowerW()`, `/portal/api/current-power`, der `own`-Teil von
+`/api/v1/live`) bleibt bewusst unverändert -- dort sieht ein Mitglied nur seine eigenen,
+echten Zählerdaten, ohne jede Zuordnung zur EEG, das ist korrekt und nicht irreführend.
+
 ### Nav-Reihenfolge: Anmelden vor Informieren und Beitreten (01.11.2026)
 Patrick: "erst den Anmeldebutton, dann 'Informieren', 'Beitreten'". Reihenfolge in
 `layouts/base.php` getauscht -- gilt einheitlich für Desktop-Navbar und Hamburger-Menü (beide
