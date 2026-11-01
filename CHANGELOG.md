@@ -19,6 +19,25 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Bugfix: Rohes SVG-Markup statt Häkchen-Icon bei "Eingezogen"/"Überwiesen" (01.11.2026)
+Patrick, Screenshot aus `/portal/billing/invoices`: bei Rechnungen mit Zahlungsstatus
+"Eingezogen"/"Überwiesen" stand in der Zahlung-Spalte der rohe SVG-Code
+(`<svg class="icon" ...><use href="...#ph-check"></use></svg> Überwiesen`) statt des
+Häkchen-Icons.
+
+**Ursache:** `$paymentMeta['ueberwiesen']`/`['eingezogen']` bauen ihr Label aus
+`icon('check') . ' Überwiesen'` zusammen (`icon()` liefert fertiges SVG-HTML). Die Ausgabe
+dieses Labels wurde aber zusätzlich durch `htmlspecialchars()` geschickt -- das maskiert das
+enthaltene SVG-HTML zu sichtbarem Text, statt es zu rendern. Alle anderen Icon-Ausgaben in
+derselben Datei (z. B. die "Versendet"-Badge direkt darüber) werden bewusst OHNE
+`htmlspecialchars()` ausgegeben, genau weil sie trusted HTML (aus `icon()`) enthalten, nicht
+rohen Nutzertext.
+
+**Fix:** `htmlspecialchars()` beim Badge-Label entfernt (`billing_invoices.php`). Unbedenklich,
+auch im Fallback-Zweig (`$paymentMeta[$ps] ?? [$ps, 'gray']`): `payment_status` hat einen
+harten DB-Constraint (`invoices_payment_status_check`, nur `offen`/`eingezogen`/`ueberwiesen`/
+`fehlgeschlagen`), der Fallback ist also mit echten Daten nie erreichbar.
+
 ### Bugfix: Privater Netzbezug reiner Einspeiser floss in Community-Live-Summe ein (01.11.2026)
 Patrick, am Beispiel seines Vaters (reiner Einspeiser in der EEG, kein Bezugsvertrag -- bezieht
 seinen eigenen Strom ganz normal und direkt von der Kelag, nie über die Energiegemeinschaft):
