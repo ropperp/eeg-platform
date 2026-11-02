@@ -10401,8 +10401,18 @@ function resizeContainTransparent($src, int $size)
  *
  * apple-touch-icon.png bekommt bewusst KEINE Transparenz: iOS füllt transparente Bereiche
  * beim "Zum Home-Bildschirm hinzufügen" selbst mit Schwarz statt sie durchscheinen zu lassen
- * (Apple-eigene Konvention/Einschränkung, anders als Browser-Tabs) -- deshalb hier auf Weiß
- * geflättet.
+ * (Apple-eigene Konvention/Einschränkung, anders als Browser-Tabs) -- deshalb hier geflättet,
+ * aber NICHT auf Weiß (Patrick, 02.11.2026: in Safaris Adressleisten-Vorschlägen/Favoriten --
+ * die dort IMMER das größere apple-touch-icon statt des kleinen favicon.ico verwenden,
+ * unabhängig von dessen eigener Transparenz -- wirkte ein reines Weiß im Dark Mode wie ein
+ * kaputter/transparenter Platzhalter). Komplett transparent lassen geht NICHT (siehe oben,
+ * würde auf iOS schwarz werden). Die naheliegende Alternative, die Marken-Grünfarbe
+ * (var(--green) #16a34a), wurde VERWORFEN -- das Logo selbst ist ein ähnlicher Grünton
+ * (~ rgb(18,160,145)), Kontrast zu #16a34a nur 1,01:1, also quasi unsichtbar. Stattdessen
+ * dasselbe dunkle Neutral, das auch das übrige Dark-Theme der Seite für Eingabefelder/Code
+ * verwendet (#0f172a, siehe app.css) -- 5,49:1 Kontrast zum Logo, passt zur Markenpalette und
+ * wirkt in Safaris Vorschlag-Kacheln (hell wie dunkel) wie ein bewusst gestaltetes App-Icon
+ * statt wie ein Platzhalter.
  */
 function generateFaviconAssets(string $sourcePath, string $outDir): void
 {
@@ -10426,8 +10436,8 @@ function generateFaviconAssets(string $sourcePath, string $outDir): void
 
     $appleIcon = resizeContainTransparent($src, 180);
     $appleCanvas = imagecreatetruecolor(180, 180);
-    $white = imagecolorallocate($appleCanvas, 255, 255, 255);
-    imagefill($appleCanvas, 0, 0, $white);
+    $darkSlate = imagecolorallocate($appleCanvas, 0x0f, 0x17, 0x2a); // Dark-Theme-Neutral, siehe app.css
+    imagefill($appleCanvas, 0, 0, $darkSlate);
     imagecopy($appleCanvas, $appleIcon, 0, 0, 0, 0, 180, 180);
     imagepng($appleCanvas, $outDir . '/apple-touch-icon.png');
     imagedestroy($appleIcon);
