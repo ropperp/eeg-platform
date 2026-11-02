@@ -19,6 +19,39 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Fix: Weißer Kasten um das Icon in Safaris Adressleisten-Vorschlägen/Favoriten (02.11.2026)
+Patrick, extra in einem privaten Tab getestet (um Caching auszuschließen) und mit Chrome
+verglichen: "in Chrome wird es richtig angezeigt" -- nur in Safari zeigte die
+Adressleisten-/Verlaufs-Vorschlagszeile weiterhin einen weißen Kasten ums Logo, obwohl
+favicon.ico/-16/-32/icon-192/icon-512 nachweislich transparent sind (per `curl` geprüft:
+Alpha-Kanal vorhanden, Eckpixel komplett durchsichtig).
+
+**Ursache:** Safari verwendet für diese größeren Vorschau-Kacheln (Adressleisten-Vorschläge,
+Favoriten, "Zum Home-Bildschirm") nicht das kleine `favicon.ico`, sondern IMMER das größere
+`apple-touch-icon.png` -- unabhängig von dessen eigener Transparenz. Dieses wird aber von
+`generateFaviconAssets()` bewusst undurchsichtig erzeugt (iOS füllt transparente Bereiche beim
+"Zum Home-Bildschirm hinzufügen" sonst selbst mit Schwarz, siehe Kommentar im Code) und war
+bisher auf reines Weiß geflättet -- das stach im Dark Mode wie ein kaputter/transparenter
+Platzhalter hervor.
+
+**Fix:** Nicht mehr auf Weiß geflättet, sondern auf dasselbe dunkle Neutral, das auch das
+übrige Dark-Theme der Seite für Eingabefelder/Code verwendet (`#0f172a`, siehe `app.css`).
+Komplett transparent lassen ging NICHT (iOS-Einschränkung, siehe oben) -- die naheliegende
+Alternative Marken-Grün (`#16a34a`) wurde VERWORFEN, nachdem eine Kontrastprüfung zeigte: das
+Logo selbst ist ein ähnlicher Grünton, Kontrast zu Marken-Grün nur 1,01:1 (praktisch
+unsichtbar) gegenüber 5,49:1 beim gewählten dunklen Neutral. `generateFaviconAssets()` sowie
+die mitgelieferte Standard-Fassung (`webapp/assets-default/apple-touch-icon.png`) entsprechend
+angepasst.
+
+**Wichtig für den Server:** Wie beim LaTeX-Vorlagen-Vorfall vom 18.10.2026 (siehe weiter oben
+in dieser Datei) überdeckt ein bereits einmal hochgeladenes/generiertes `apple-touch-icon.png`
+im persistenten Volume (`/opt/eeg/latex-templates/apple-touch-icon.png`) jeden Code-Deploy --
+ein reines `git pull && docker compose up -d --build` ändert an der bereits generierten Datei
+NICHTS. Nach diesem Deploy entweder die Favicon-Quelle unter `/admin/templates` einmal neu
+hochladen (regeneriert alle Favicon-Dateien inkl. des neuen apple-touch-icon.png automatisch)
+ODER `/opt/eeg/latex-templates/apple-touch-icon.png` auf dem Server löschen (dann greift die im
+Image mitgelieferte, jetzt korrigierte Standard-Fassung).
+
 ### Bugfix: Rohes SVG-Markup statt Häkchen-Icon bei "Eingezogen"/"Überwiesen" (01.11.2026)
 Patrick, Screenshot aus `/portal/billing/invoices`: bei Rechnungen mit Zahlungsstatus
 "Eingezogen"/"Überwiesen" stand in der Zahlung-Spalte der rohe SVG-Code
