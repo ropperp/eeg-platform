@@ -6,7 +6,7 @@ ob_start();
 
 <div class="legal">
   <h1>Datenschutzerklärung</h1>
-  <div class="legal-meta">EEG Strompool Feldkirchen Süd-West · Stand: Juli 2026</div>
+  <div class="legal-meta">EEG Strompool Feldkirchen Süd-West · Stand: 7. November 2026</div>
 
   <h2>1. Verantwortlicher</h2>
   <p>
@@ -22,6 +22,8 @@ ob_start();
         bereitgestellt werden</li>
     <li>Abrechnungs- und Vertragsdaten (Verträge, Rechnungen, Zahlungsstatus)</li>
     <li>Technische Zugangsdaten (Login-Session) zur Nutzung des Mitgliederportals</li>
+    <li>Zählerspezifischer Schlüssel der Kundenschnittstelle (P1) des Smart Meters, sofern für den
+        Betrieb der Ausleseeinheit erforderlich (siehe Punkt 9)</li>
   </ul>
 
   <h2>3. Zweck der Verarbeitung</h2>
@@ -38,9 +40,12 @@ ob_start();
     mit dem Energiegemeinschaftengesetz (Art. 6 Abs. 1 lit. c DSGVO).
   </p>
 
-  <h2>5. Weitergabe von Daten</h2>
+  <h2>5. Weitergabe und Herkunft von Daten</h2>
   <p>
-    Energiedaten werden vom zuständigen Netzbetreiber an die Plattform übermittelt. Eine
+    Energiedaten werden vom zuständigen Netzbetreiber (Kärnten Netz GmbH) an die Plattform
+    übermittelt. Von der Kärnten Netz GmbH stammt außerdem der zählerspezifische Schlüssel der
+    P1-Kundenschnittstelle, den die EEG aufgrund der Vollmacht in der Beitrittserklärung beim
+    Netzbetreiber anfordert, sofern ihn das Mitglied nicht selbst bereitstellt. Eine
     Weitergabe an Dritte außerhalb der Gemeinschaft erfolgt nicht, außer an die folgenden, von
     uns beauftragten Auftragsverarbeiter (Art. 28 DSGVO) sowie wenn dies gesetzlich
     vorgeschrieben ist. Jedes Mitglied sieht ausschließlich seine eigenen Daten.
@@ -103,6 +108,19 @@ ob_start();
     (Dauer der Mitgliedschaft sowie gesetzliche Aufbewahrungsfristen), danach Löschung bzw.
     Anonymisierung/Aggregation.
   </p>
+  <p>
+    <strong>Schlüssel der Kundenschnittstelle (P1):</strong> Die Daten der P1-Kundenschnittstelle
+    sind vom Netzbetreiber verschlüsselt. Den dafür nötigen zählerspezifischen Schlüssel fordert
+    die EEG aufgrund der in der Beitrittserklärung erteilten Vollmacht bei der Kärnten Netz GmbH an,
+    oder das Mitglied stellt ihn selbst bereit.
+  </p>
+  <ul>
+    <li><strong>Zweck:</strong> ausschließlich die Entschlüsselung der Daten der Ausleseeinheit.</li>
+    <li><strong>Speicherung:</strong> verschlüsselt; Zugriff haben nur berechtigte Administratoren
+        (Vorstand). Mitglieder sehen im Portal lediglich, ob ein Schlüssel hinterlegt ist.</li>
+    <li><strong>Löschung:</strong> mit Ende der Mitgliedschaft bzw. Außerbetriebnahme der
+        Ausleseeinheit.</li>
+  </ul>
   <p>
     Diese Funktion befindet sich in Entwicklung; die Verarbeitung beginnt erst mit Inbetriebnahme
     der Ausleseeinheit.

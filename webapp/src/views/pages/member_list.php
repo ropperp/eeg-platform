@@ -7,9 +7,15 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
 $contractsEnabled = $contractsEnabled ?? true;
 ?>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem">
   <h2><?= icon('users-three') ?> Mitglieder</h2>
-  <a href="/portal/members/new" class="btn btn-primary">+ Mitglied anlegen</a>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <a href="/portal/p1-sammelliste.csv" class="btn btn-secondary"
+       title="Alle aktiven Zählpunkte ohne hinterlegten P1-Schlüssel -- für die Anfrage beim Netzbetreiber">
+      <?= icon('download-simple') ?> Sammelliste P1-Freischaltung (CSV)
+    </a>
+    <a href="/portal/members/new" class="btn btn-primary">+ Mitglied anlegen</a>
+  </div>
 </div>
 
 <?php if (($_GET['success'] ?? '') === 'invite_sent'): ?>

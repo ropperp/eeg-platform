@@ -7,8 +7,10 @@ $pageDescription = 'Online-Beitrittserklärung für ' . $community['name'] . ' -
 $pageNoindex = true;
 $d = $_POST ?? [];
 $mpid = strtolower($community['marktpartner_id']);
-$downloadPdf = '/assets/docs/beitrittserklaerung-eeg-strompool-feldkirchen-suedwest.pdf';
-$hasDownloadPdf = $mpid === 'rc108175' && file_exists(ROOT . '/public' . $downloadPdf);
+// Papierformular wird von der Plattform erzeugt (gleiche Zustimmungstexte wie hier, siehe
+// /:rc/beitrittserklaerung.pdf in index.php).
+$downloadPdf = '/' . $mpid . '/beitrittserklaerung.pdf';
+$hasDownloadPdf = in_array($mpid, communitiesWithLegalPages(), true);
 ob_start();
 ?>
 
@@ -225,26 +227,35 @@ ob_start();
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen &amp; Erklärungen</h3>
-      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">Alle sechs Punkte sind Pflicht, bevor die Beitrittserklärung übermittelt werden kann.</p>
+      <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
+        Alle sechs Punkte sind Pflicht, bevor die Beitrittserklärung übermittelt werden kann.
+        Unter jedem Punkt steht der vollständige Wortlaut, dem Sie mit dem Anhaken zustimmen.
+      </p>
       <?php
-      $consents = [
-        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
-        'zustimmung_vollmacht'           => 'Vollmacht: Ich bevollmächtige den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
-        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt (siehe <a href="/' . htmlspecialchars($mpid) . '/widerruf" target="_blank">Widerrufsbelehrung</a>).',
-        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Ich stimme der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
-        'zustimmung_datenschutz'         => 'Datenschutz: Ich willige in die Verarbeitung meiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
-        'zustimmung_agb'                 => 'AGB &amp; Tarif-/Preisblatt: Ich bestätige, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
-      ];
-      foreach ($consents as $field => $label):
+      // Titel + Langfassung aus der einzigen Quelle webapp/src/consent_texts.php. Die Version
+      // geht als verstecktes Feld mit -- der Server speichert sie nur, wenn sie beim Absenden
+      // noch aktuell ist (sonst hätte jemand einen älteren Text gesehen als gespeichert wird).
+      $consentVersionShown = consentCurrentVersion();
+      foreach (consentFields() as $field => $title):
       ?>
-        <div class="form-group" style="margin-bottom:.6rem">
+        <div class="form-group consent-item" style="margin-bottom:.9rem">
           <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400">
             <input type="checkbox" name="<?= $field ?>" value="1" required style="width:auto;margin-top:.2rem"
+                   aria-describedby="<?= $field ?>-volltext"
                    <?= !empty($d[$field]) ? 'checked' : '' ?>>
-            <span style="font-size:.85rem"><?= $label ?></span>
+            <strong style="font-size:.9rem"><?= htmlspecialchars($title) ?></strong>
           </label>
+          <div id="<?= $field ?>-volltext" class="consent-volltext"
+               style="font-size:.82rem;line-height:1.5;color:var(--gray-700);margin:.3rem 0 0 1.6rem">
+            <?= consentHtml(consentText($consentVersionShown, $field, 'lang', $community)) ?>
+          </div>
         </div>
       <?php endforeach; ?>
+      <input type="hidden" name="consent_version" value="<?= htmlspecialchars($consentVersionShown) ?>">
+      <p style="font-size:.75rem;color:var(--gray-600);margin-top:.25rem">
+        Fassung vom <?= consentValidFromDisplay($consentVersionShown) ?> (Version <?= htmlspecialchars($consentVersionShown) ?>) --
+        alle Fassungen: <a href="/<?= htmlspecialchars($mpid) ?>/zustimmungen" target="_blank">stromfueralle.at/<?= htmlspecialchars($mpid) ?>/zustimmungen</a>
+      </p>
       <p style="font-size:.8rem;margin-top:.75rem">
         Bitte lesen Sie vorab
         <a href="/<?= htmlspecialchars($mpid) ?>/statuten" target="_blank">Statuten</a>,
@@ -274,6 +285,9 @@ ob_start();
       <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">
         Zusätzlich zur Beitrittserklärung benötigen wir Ihre gesonderte Unterschrift für das
         SEPA-Lastschriftmandat (Einzug von Mitgliedsbeitrag und Rechnungsbeträgen).
+      </p>
+      <p style="font-size:.82rem;line-height:1.5;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:.75rem;margin-bottom:.9rem">
+        <?= htmlspecialchars(sepaMandateText($community)) ?>
       </p>
       <div class="sig-pad-wrap">
         <canvas id="sepa-sig-pad" width="600" height="180" style="border:1px solid var(--gray-200);border-radius:8px;width:100%;max-width:600px;height:180px;touch-action:none;background:#fff"></canvas>

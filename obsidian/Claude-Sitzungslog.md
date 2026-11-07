@@ -8,6 +8,37 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-08 00:10 — Claude Code — Claude Opus 5.5
+**Auftrag:** Strukturierter Auftrag (Datei, Stand 07.11.2026) zu Rechtsdokumenten und
+Beitrittserklärung: Zustimmungstexte aus einer einzigen, versionierten Quelle (Langfassung im
+Portal, Kurzfassung im Online-PDF, Langfassung auf dem Papierformular), Vollmacht mit
+P1-Kundenschnittstelle, Korrekturen am Papierformular (Sitz St. Nikolai), Zeitzonen- und
+IP-Fehler im Online-PDF, AGB/Datenschutz-Anpassungen, P1-Schlüssel je Zählpunkt inkl.
+Sammelliste, EEG-Auswahlseite für generische Dokument-Pfade und Hinweis zur Ausleseeinheit.
+**Verbesserter Prompt:** "Führe die sechs Zustimmungstexte in einer versionierten Quelle
+zusammen (v2 neu, Bestand v1-online/v1-offline per Migration zuordnen) und verwende sie in
+Online-Formular (Langfassung), Online-PDF (Kurzfassung + Versionshinweis) und einem von der
+Plattform erzeugten Papierformular (Langfassung). Behebe: sepa_signed_at ohne Zeitzone
+gespeichert; signer_ip = Traefik-IP (Traefik trustedIPs + X-Forwarded-For von rechts). Passe
+AGB § 2/§ 7 und Datenschutz (P1-Schlüssel) an, Statuten nicht ändern. Ergänze einen
+verschlüsselten P1-Schlüssel je Zählpunkt (nur Vorstand, Mitglied sieht ja/nein, Löschung beim
+Austritt, CSV-Sammelliste) und Auswahlseiten für /datenschutz usw. Tests ergänzen, alles
+grün halten."
+**Ergebnis:** Neue zentrale Quelle `webapp/src/consent_texts.php`, Migration
+`migrate_20261107.sql` (gegen lokales Postgres 16 mit RLS getestet: idempotent, Trigger greift
+unter eingeschränkter Rolle), neue latex-service-Vorlage `beitrittserklaerung_leer.tex` (alle
+drei PDF-Vorlagen lokal mit pdflatex auf je eine Seite kompiliert und gesichtet), `clientIp()`/
+`fmtVienna()`, P1-Schlüssel-UI und -Export, Auswahlseiten, AGB/Datenschutz, 34 neue Tests
+(258 grün). Offen/manuell: Migration ausführen, `docker compose up -d --build` (Traefik muss neu
+starten), Infoblatt lokal neu kompilieren und hochladen.
+**Fehler/Lehre:** Der Auftrag verlangte den wörtlichen Prompt im Log; nach `CLAUDE.md`
+(öffentliches Repo, seit 10.10.2026) stehen hier nur Zusammenfassung und verbesserter Prompt.
+Beim Zeitzonen-Bug zeigte sich derselbe Fehler (Ortszeit ohne Zeitzone in `TIMESTAMPTZ`)
+auch beim Ablaufdatum der API-Keys -- bei solchen Bugs immer die ganze Codebasis nach dem
+Muster durchsuchen, nicht nur die gemeldete Stelle.
+
+---
+
 ## 2026-10-18 09:05 — Claude Code — Claude Sonnet 5
 **Auftrag:** Bei einer SEPA-Bestandsaufnahme fiel auf, dass im SEPA-Mandatstext der online
 erzeugten Beitrittserklärung-PDF die Gläubiger-ID fest eingetragen war (Patricks eigene EEG),

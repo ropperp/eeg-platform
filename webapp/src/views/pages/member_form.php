@@ -315,26 +315,24 @@ ob_start();
   <div class="card" style="margin-bottom:1.5rem">
     <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen &amp; Erklärungen</h3>
     <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
-      Bitte erst anhaken, wenn das Mitglied die Beitrittserklärung unterschrieben hat.
-      Alle sechs Punkte sind Pflicht, bevor das Mitglied angelegt werden kann.
+      Bitte erst anhaken, wenn das Mitglied die (Papier-)Beitrittserklärung unterschrieben hat.
+      Alle sechs Punkte sind Pflicht, bevor das Mitglied angelegt werden kann. Gespeichert wird
+      die aktuelle Fassung <?= htmlspecialchars(consentCurrentVersion()) ?> vom
+      <?= consentValidFromDisplay(consentCurrentVersion()) ?> -- Wortlaut siehe
+      <a href="/<?= htmlspecialchars(activeCommunityRc()) ?>/zustimmungen" target="_blank">Zustimmungen</a>.
     </p>
     <?php
-    $consents = [
-      'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Das Mitglied beantragt die Mitgliedschaft im Verein und nimmt die Vereinsstatuten zur Kenntnis.',
-      'zustimmung_vollmacht'           => 'Vollmacht: Das Mitglied bevollmächtigt den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
-      'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Das Mitglied stimmt zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt.',
-      'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Das Mitglied stimmt der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
-      'zustimmung_datenschutz'         => 'Datenschutz: Das Mitglied willigt in die Verarbeitung seiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
-      'zustimmung_agb'                 => 'AGB &amp; Tarif-/Preisblatt: Das Mitglied bestätigt, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
-    ];
-    foreach ($consents as $field => $label):
+    // Titel + Kurzfassung aus der einzigen Quelle (consent_texts.php); die Kurzfassung hat
+    // keine EEG-spezifischen Platzhalter, deshalb reicht hier ein leerer EEG-Datensatz.
+    foreach (consentFields() as $field => $title):
     ?>
       <div class="form-group" style="margin-bottom:.6rem">
         <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400">
           <input type="checkbox" name="<?= $field ?>" value="1" required
                  style="width:auto;margin-top:.2rem"
                  <?= !empty($_POST[$field] ?? false) ? 'checked' : '' ?>>
-          <span style="font-size:.85rem"><?= $label ?></span>
+          <span style="font-size:.85rem"><strong><?= htmlspecialchars($title) ?>:</strong>
+            <?= htmlspecialchars(consentText(consentCurrentVersion(), $field, 'kurz', [])) ?></span>
         </label>
       </div>
     <?php endforeach; ?>

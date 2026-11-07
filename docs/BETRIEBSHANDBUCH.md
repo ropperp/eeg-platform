@@ -1161,3 +1161,38 @@ docker compose up -d --build
 > (explizite Content-Types für `sitemap.xml`/`site.webmanifest`) greift automatisch mit dem
 > `--build`, da `webapp/Dockerfile` die Datei ins Image kopiert. Danach kurz prüfen:
 > `curl -I https://stromfueralle.at/favicon.ico` und `.../sitemap.xml` sollten `200` liefern.
+
+> **Einmalig nach dem Update vom 07.11.2026 -- Rechtsdokumente, Zustimmungs-Versionen,
+> Vollmacht P1, P1-Schlüssel, echte Client-IP, Zeitzonen-Fix** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> # Migration: consent_version (Bestand -> v1-online/v1-offline), P1-Schlüssel-Spalten +
+> # Austritts-Trigger, Korrektur der um 1-2 h verschobenen sepa_signed_at-Werte. Idempotent.
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261107.sql
+> # ALLE Container neu, nicht nur webapp: Traefik bekommt das neue Kommandozeilen-Flag
+> # forwardedHeaders.trustedIPs (sonst bleibt die gespeicherte IP 172.19.0.x), latex-service
+> # die neue Vorlage beitrittserklaerung_leer.tex.
+> docker compose up -d --build
+> ```
+> Danach prüfen:
+> - `curl -sI https://stromfueralle.at/rc108175/beitrittserklaerung.pdf` -> `200`,
+>   `Content-Type: application/pdf` (erster Abruf dauert ein paar Sekunden, danach aus dem
+>   Cache in `/opt/eeg/webapp-storage/cache/beitrittserklaerung/`).
+> - `https://stromfueralle.at/datenschutz` zeigt die EEG-Auswahlseite.
+> - Testweise eine Beitrittserklärung von einem Handy (mobiles Netz, nicht WLAN) absenden: im
+>   Online-PDF muss jetzt die echte IP stehen, nicht mehr `172.19.0.x`, und "Online eingereicht",
+>   "Digital unterschrieben" und das SEPA-Mandat zeigen dieselbe Uhrzeit.
+>
+> Falls die IP weiterhin 172.19.0.x ist: auf dem nginx-Proxy (10.0.0.144) prüfen, dass
+> `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` und `X-Real-IP $remote_addr;`
+> gesetzt sind (stehen laut `CLAUDE.md` schon drin), und ob sich die Proxy-IP geändert hat --
+> dann in der `.env` `TRUSTED_PROXY_IP=<neue IP>` setzen und `docker compose up -d` (gilt für
+> Traefik UND webapp zugleich).
+>
+> Manuell, außerhalb des Servers:
+> - **Infoblatt neu kompilieren** (`docs/vorlagen/InfoBlatt.tex`, Sitz jetzt St. Nikolai) und als
+>   `infoblatt.pdf` über `/admin/templates` hochladen -- die Grafiken dafür liegen nicht im Repo.
+> - Das Papier-Beitrittsformular muss NICHT mehr selbst kompiliert werden: die Plattform erzeugt
+>   es unter `/rc108175/beitrittserklaerung.pdf`. Alte Ausdrucke (Fassung `v1-offline`, ohne
+>   P1-Passus in der Vollmacht) bitte nicht mehr ausgeben.

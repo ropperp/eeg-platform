@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
+// Alle Anzeigen (Portal, Admin, PDF, E-Mails) in Wiener Ortszeit -- die DB speichert UTC
+// (TIMESTAMPTZ). Steht zusätzlich in docker/php.ini; hier explizit, damit es nicht davon abhängt,
+// dass die ini-Datei geladen wurde (Zeitzonen-Vorfall 07.11.2026, siehe fmtVienna()).
+date_default_timezone_set('Europe/Vienna');
 
 foreach (['DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push'] as $class) {
     require ROOT . '/src/' . $class . '.php';
@@ -10,6 +14,8 @@ foreach (['DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router',
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
 // sie ohne HTTP-/Router-Kontext testbar sind (tests/).
 require ROOT . '/src/functions.php';
+// Einzige Quelle der Zustimmungstexte der Beitrittserklärung (siehe Dateikopf).
+require ROOT . '/src/consent_texts.php';
 
 Auth::start();
 
@@ -725,19 +731,7 @@ function matchFileCategory(string $name): ?string
     return null;
 }
 
-/**
- * Extrahiert den Ort aus einer frei eingegebenen Adresse "Straße Nr., PLZ Ort"
- * (Community-Adresse ist ein einzelnes Freitextfeld ohne getrennte Ort-Spalte).
- * Nimmt das letzte Komma-Segment und entfernt eine vorangestellte PLZ.
- */
-function extractOrtFromAddress(?string $address): string
-{
-    $parts = explode(',', $address ?? '');
-    $last = trim(end($parts));
-    return trim(preg_replace('/^\d{3,6}\s*/', '', $last));
-}
-
-// texEscape nach src/functions.php ausgelagert (testbar).
+// extractOrtFromAddress und texEscape nach src/functions.php ausgelagert (testbar).
 
 /**
  * Baut ein 33-Kästchen-Raster (wie am Papier-Beitrittsformular) und trägt die
@@ -1103,10 +1097,10 @@ function createMemberRecord(string $communityId, array $f): array
             mandat_unterschrift_datum,
             geburtsdatum, stromlieferant, speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
             zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
-            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb, consent_version,
             email_anrede_mode
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             $communityId,
             $user['id'],
@@ -1139,6 +1133,9 @@ function createMemberRecord(string $communityId, array $f): array
             !empty($f['andere_eeg']) ? 'true' : 'false',
             trim($f['andere_eeg_name'] ?? '') ?: null,
             'true', 'true', 'true', 'true', 'true', 'true',
+            // Welche Fassung der Zustimmungen gilt (consent_texts.php): bei der Freigabe eines
+            // Online-Antrags die dort akzeptierte, sonst (Papierformular, App) die aktuelle.
+            consentVersion($f['consent_version'] ?? null) !== null ? $f['consent_version'] : consentCurrentVersion(),
             in_array($f['email_anrede_mode'] ?? 'auto', ['auto', 'herr', 'frau', 'familie'], true) ? ($f['email_anrede_mode'] ?? 'auto') : 'auto',
         ]
     );
@@ -1313,12 +1310,37 @@ $router->get('/', function () {
 // ─── Informieren und Beitreten: Auswahl der Energiegemeinschaft ─────────
 $router->get('/beitreten', function () {
     $communities = DB::fetchAll('SELECT * FROM communities WHERE active = true ORDER BY name');
-    // Communities mit bereits veröffentlichten Beitritts-/Rechtsunterlagen (Statuten, AGB, …).
     // Für neu angelegte EEGs ohne eigene Unterlagen wird "Informationen folgen in Kürze" angezeigt,
     // statt fälschlich die Texte einer anderen Energiegemeinschaft darzustellen.
-    $communitiesWithLegalPages = ['rc108175'];
+    $communitiesWithLegalPages = communitiesWithLegalPages();
     require ROOT . '/src/views/pages/beitreten_picker.php';
 });
+
+// ─── Generische Dokument-Adressen ohne RC-Nummer ───────────
+// stromfueralle.at/datenschutz usw. zeigen eine Auswahlseite aller aktiven EEGs (Patrick,
+// 07.11.2026: diese Pfade führten bisher ins Leere). Die RC-Nummer bleibt fester Bestandteil
+// der eigentlichen Dokument-URL; kein Redirect, auch bei nur einer EEG. Unbekannte Dokumente
+// haben keine Route und landen damit regulär auf der 404-Seite.
+function legalDocuments(): array
+{
+    return [
+        'datenschutz'      => 'Datenschutzerklärung',
+        'agb'              => 'Allgemeine Geschäftsbedingungen',
+        'statuten'         => 'Statuten',
+        'preisliste'       => 'Preisliste',
+        'widerruf'         => 'Widerrufsbelehrung',
+        'impressum'        => 'Impressum',
+        'barrierefreiheit' => 'Erklärung zur Barrierefreiheit',
+    ];
+}
+foreach (legalDocuments() as $docSlugRoute => $docTitleRoute) {
+    $router->get('/' . $docSlugRoute, function () use ($docSlugRoute, $docTitleRoute) {
+        $docSlug = $docSlugRoute;
+        $docTitle = $docTitleRoute;
+        $communities = DB::fetchAll('SELECT name, address, marktpartner_id FROM communities WHERE active = true ORDER BY name');
+        require ROOT . '/src/views/pages/legal_document_picker.php';
+    });
+}
 
 // ─── Rechtliches (rc108175 = Marktpartner-ID Strompool Feldkirchen Süd-West) ──
 $router->get('/rc108175/beitreten', function () {
@@ -1420,6 +1442,89 @@ $router->get('/rc108175/preisliste', function () {
     require ROOT . '/src/views/pages/legal_preisliste.php';
 });
 
+/** RC-Nummer (klein, z.B. "rc108175") der im Portal aktiven EEG -- für Links auf deren Rechtsseiten. */
+function activeCommunityRc(): string
+{
+    static $rc = null;
+    if ($rc === null) {
+        $id = Auth::activeCommunityId();
+        $row = $id ? DB::fetchOne('SELECT marktpartner_id FROM communities WHERE id = ?', [$id]) : null;
+        $rc = strtolower((string)($row['marktpartner_id'] ?? 'rc108175'));
+    }
+    return $rc;
+}
+
+/**
+ * EEGs mit veröffentlichten Rechtsunterlagen (Statuten, AGB, Datenschutz, ...). Neu angelegte
+ * EEGs ohne eigene Unterlagen bekommen "folgt in Kürze" statt der Texte einer anderen EEG.
+ */
+function communitiesWithLegalPages(): array
+{
+    return ['rc108175'];
+}
+
+/**
+ * Leeres Beitrittsformular zum Ausdrucken (Patrick, 07.11.2026). Ersetzt die statische
+ * public/assets/docs/beitrittserklaerung-...pdf: erzeugt aus latex-service
+ * beitrittserklaerung_leer.tex, Zustimmungen (Langfassung) und SEPA-Text aus derselben Quelle
+ * wie das Online-Formular (consent_texts.php). Ergebnis wird je Textstand zwischengespeichert --
+ * der Hash über alle Template-Variablen ändert sich automatisch, sobald sich Texte oder
+ * EEG-Stammdaten ändern; die 1-Tages-Frist fängt Layoutänderungen an der Vorlage selbst ab.
+ */
+$router->get('/:communityid/beitrittserklaerung.pdf', function ($params) {
+    $rc = strtolower($params['communityid']);
+    if (!in_array($rc, communitiesWithLegalPages(), true)) {
+        http_response_code(404); require ROOT . '/src/views/pages/404.php'; return;
+    }
+    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [$rc]);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+
+    $vars = offlineBeitrittserklaerungVars($community);
+    $cacheDir = '/var/www/html/storage/cache/beitrittserklaerung';
+    $cacheFile = $cacheDir . '/' . $rc . '_' . sha1(json_encode($vars)) . '.pdf';
+    if (!is_file($cacheFile) || filemtime($cacheFile) < time() - 86400) {
+        $error = null;
+        $pdf = generateLatexPdf('beitrittserklaerung_leer', $vars, [], $error);
+        if ($pdf === null) {
+            error_log('[beitrittserklaerung.pdf] ' . $error);
+            http_response_code(503);
+            echo 'Das Formular kann gerade nicht erzeugt werden. Bitte versuchen Sie es später erneut oder treten Sie online bei: /beitreten';
+            return;
+        }
+        if (!is_dir($cacheDir)) { @mkdir($cacheDir, 0775, true); }
+        foreach (glob($cacheDir . '/' . $rc . '_*.pdf') ?: [] as $old) { @unlink($old); }
+        @file_put_contents($cacheFile, $pdf);
+    } else {
+        $pdf = file_get_contents($cacheFile);
+    }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="beitrittserklaerung-' . $rc . '.pdf"');
+    header('Content-Length: ' . strlen($pdf));
+    echo $pdf;
+});
+
+// Alte, statische Adresse des Papierformulars (Infoblatt, E-Mails) -> neue, erzeugte Fassung.
+$router->get('/assets/docs/beitrittserklaerung-eeg-strompool-feldkirchen-suedwest.pdf', function () {
+    header('Location: /rc108175/beitrittserklaerung.pdf', true, 301);
+    exit;
+});
+
+/**
+ * Vollständiger Wortlaut aller Fassungen der sechs Zustimmungen. Darauf verweist der
+ * Versionshinweis im Online-PDF ("Es gilt der vollständige Wortlaut ... abrufbar unter
+ * stromfueralle.at/rc.../zustimmungen") -- deshalb auch ältere Fassungen, die Bestandsmitglieder
+ * unterschrieben haben.
+ */
+$router->get('/:communityid/zustimmungen', function ($params) {
+    $rc = strtolower($params['communityid']);
+    if (!in_array($rc, communitiesWithLegalPages(), true)) {
+        http_response_code(404); require ROOT . '/src/views/pages/404.php'; return;
+    }
+    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [$rc]);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    require ROOT . '/src/views/pages/legal_zustimmungen.php';
+});
+
 // ─── Online-Beitrittserklärung ──────────────────────────
 $router->get('/:communityid/beitreten/formular', function ($params) {
     $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [strtolower($params['communityid'])]);
@@ -1452,6 +1557,15 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             require ROOT . '/src/views/pages/beitreten_formular.php';
             return;
         }
+    }
+    // Gespeichert wird consentCurrentVersion() -- das stimmt nur, wenn das Formular auch mit
+    // dieser Fassung angezeigt wurde. War die Seite schon vor einem Update der Texte offen,
+    // Haken zurücksetzen und die neue Fassung zum erneuten Lesen anzeigen.
+    if (($_POST['consent_version'] ?? '') !== consentCurrentVersion()) {
+        foreach ($consentFields as $cf) { unset($_POST[$cf]); }
+        $error = 'Die Zustimmungstexte wurden in der Zwischenzeit aktualisiert. Bitte lesen Sie sie erneut und bestätigen Sie sie.';
+        require ROOT . '/src/views/pages/beitreten_formular.php';
+        return;
     }
 
     // Zählpunktnummer: normalizeZaehlpunkt() entfernt Leerzeichen VOR der Längenprüfung, damit
@@ -1516,9 +1630,9 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             speicher_status, speicher_kwh, andere_eeg, andere_eeg_name,
             iban, bic, kontoinhaber, konto_adresse,
             zustimmung_mitgliedschaft, zustimmung_vollmacht, zustimmung_widerrufsfrist,
-            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb,
+            zustimmung_email_kommunikation, zustimmung_datenschutz, zustimmung_agb, consent_version,
             signature_image, signed_at, signer_ip, sepa_signature_image, sepa_signed_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?, ?, ?)',
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?, ?, now())',
         [
             $communityId,
             $_POST['salutation'] ?? null,
@@ -1549,10 +1663,13 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             trim($_POST['kontoinhaber'] ?? '') ?: null,
             trim($_POST['konto_adresse'] ?? '') ?: null,
             'true', 'true', 'true', 'true', 'true', 'true',
+            consentCurrentVersion(),
             $signature,
-            $_SERVER['REMOTE_ADDR'] ?? null,
+            clientIp(),
             $sepaSignature,
-            date('Y-m-d H:i:s'),
+            // sepa_signed_at: now() wie signed_at -- bis 06.11.2026 stand hier
+            // date('Y-m-d H:i:s') (Ortszeit OHNE Zeitzone), Postgres las das als UTC und das
+            // SEPA-Mandat erschien im PDF 1-2 h später (siehe migrate_20261107.sql).
         ]
     );
     $application = DB::fetchOne(
@@ -2502,7 +2619,7 @@ $router->post('/portal/my/contract/:type/sign', function ($params) {
             contract_{$type}_signed_at = now(),
             contract_{$type}_signer_ip = ?
          WHERE id = ?",
-        [$signature, $_SERVER['REMOTE_ADDR'] ?? null, $member['id']]
+        [$signature, clientIp(), $member['id']]
     );
     // Interne Benachrichtigung an die Manager der EEG (analog zur Beitrittserklärung-
     // Benachrichtigung oben) -- damit die Rückmeldung "Vertrag wurde unterschrieben" ankommt,
@@ -2877,7 +2994,8 @@ $router->post('/portal/my/api-keys', function () {
         exit;
     }
     $validityDays = ['30' => 30, '90' => 90, '365' => 365][$_POST['validity'] ?? ''] ?? null;
-    $expiresAt = $validityDays ? date('Y-m-d H:i:s', strtotime("+{$validityDays} days")) : null;
+    // date('c') statt 'Y-m-d H:i:s': mit Zeitzonen-Offset, sonst liest Postgres die Ortszeit als UTC.
+    $expiresAt = $validityDays ? date('c', strtotime("+{$validityDays} days")) : null;
 
     // Eigener Zufallstoken statt bcrypt-Passwort: 32 Byte Zufall sind selbst schon die
     // Sicherheit, ein sha256-Hash reicht zur Speicherung (siehe migrate_20260730.sql).
@@ -3711,7 +3829,8 @@ $router->get('/api/v1/metering-points', function () {
     DB::setCommunity($ctx['community_id']);
 
     $points = DB::fetchAll(
-        'SELECT id, zaehlpunkt_nr, type, active, registered_at FROM metering_points WHERE member_id = ? ORDER BY registered_at',
+        'SELECT id, zaehlpunkt_nr, type, active, registered_at, (p1_key_enc IS NOT NULL) AS p1_key_hinterlegt
+         FROM metering_points WHERE member_id = ? ORDER BY registered_at',
         [$ctx['member_id']]
     );
 
@@ -3721,6 +3840,8 @@ $router->get('/api/v1/metering-points', function () {
         'type'           => $p['type'],
         'active'         => (bool)$p['active'],
         'registered_at'  => appDate($p['registered_at']),
+        // Nur ja/nein -- der Schlüssel selbst ist ausschließlich für Vorstand/Admin.
+        'p1_key_hinterlegt' => in_array($p['p1_key_hinterlegt'], [true, 't', '1', 1], true),
     ], $points)]);
 });
 
@@ -3875,7 +3996,7 @@ $router->post('/api/v1/contracts/:type/sign', function ($params) {
             contract_{$type}_signed_at = now(),
             contract_{$type}_signer_ip = ?
          WHERE id = ?",
-        [$signature, $_SERVER['REMOTE_ADDR'] ?? null, $member['id']]
+        [$signature, clientIp(), $member['id']]
     );
     DB::execute(
         'INSERT INTO notifications (community_id, typ, titel, text, referenz_typ, referenz_id)
@@ -5908,6 +6029,93 @@ $router->get('/portal/members/:id', function ($params) {
     $member = demoMaskMember($member, $isDemo);
     $metering_points = demoMaskMeteringPoints($metering_points, $isDemo);
     require ROOT . '/src/views/pages/member_detail.php';
+});
+
+/**
+ * P1-Kundenschnittstellen-Schlüssel eines Zählpunkts setzen oder löschen (Patrick, 07.11.2026).
+ * Nur Obmann/Platform-Admin; gespeichert ausschließlich verschlüsselt (encryptSecret(), Schlüssel
+ * aus APP_SECRET der .env). Im Audit-Log steht nur DASS geändert wurde, nie der Schlüssel selbst.
+ */
+$router->post('/portal/members/:id/metering-points/:mpid/p1-key', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $mp = DB::fetchOne('SELECT id, zaehlpunkt_nr FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $member['id']]);
+    if (!$mp) { http_response_code(404); echo 'Zählpunkt nicht gefunden'; return; }
+    $back = '/portal/members/' . $member['id'];
+
+    if (($_POST['action'] ?? '') === 'delete') {
+        DB::execute('UPDATE metering_points SET p1_key_enc = NULL, p1_key_updated_at = now() WHERE id = ?', [$mp['id']]);
+        logAudit($member['community_id'], 'p1_key.delete', 'metering_point', $mp['id'],
+            'P1-Schlüssel für Zählpunkt ' . $mp['zaehlpunkt_nr'] . ' gelöscht');
+        header('Location: ' . $back . '?success=p1_key_deleted'); exit;
+    }
+
+    $key = normalizeP1Key($_POST['p1_key'] ?? '');
+    if ($key === null) {
+        header('Location: ' . $back . '?error=' . urlencode('Ungültiger P1-Schlüssel: es werden genau 32 Hex-Zeichen (0-9, A-F) erwartet.'));
+        exit;
+    }
+    DB::execute('UPDATE metering_points SET p1_key_enc = ?, p1_key_updated_at = now() WHERE id = ?', [encryptSecret($key), $mp['id']]);
+    logAudit($member['community_id'], 'p1_key.set', 'metering_point', $mp['id'],
+        'P1-Schlüssel für Zählpunkt ' . $mp['zaehlpunkt_nr'] . ' hinterlegt/geändert');
+    header('Location: ' . $back . '?success=p1_key_saved'); exit;
+});
+
+/**
+ * Hinterlegten P1-Schlüssel im Klartext abrufen -- erst auf Klick (nicht im Seiten-HTML), und
+ * jeder Abruf wird protokolliert. Im Demo-Login nie (echte Schlüssel echter Mitglieder).
+ */
+$router->get('/portal/members/:id/metering-points/:mpid/p1-key', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    header('Content-Type: application/json; charset=UTF-8');
+    header('Cache-Control: no-store');
+    if (Auth::isDemo()) { http_response_code(403); echo json_encode(['error' => 'Im Demo-Zugang nicht verfügbar.']); return; }
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $mp = DB::fetchOne('SELECT id, zaehlpunkt_nr, p1_key_enc FROM metering_points WHERE id = ? AND member_id = ?', [$params['mpid'], $member['id']]);
+    if (!$mp) { http_response_code(404); echo json_encode(['error' => 'Zählpunkt nicht gefunden']); return; }
+    if (empty($mp['p1_key_enc'])) { echo json_encode(['key' => null]); return; }
+    logAudit($member['community_id'], 'p1_key.view', 'metering_point', $mp['id'],
+        'P1-Schlüssel für Zählpunkt ' . $mp['zaehlpunkt_nr'] . ' angezeigt');
+    echo json_encode(['key' => decryptSecret($mp['p1_key_enc'])]);
+});
+
+/**
+ * Sammelliste P1-Freischaltung (CSV) für die Anfrage beim Netzbetreiber: alle aktiven
+ * Zählpunkte aktiver Mitglieder, für die noch KEIN P1-Schlüssel hinterlegt ist. Spalten siehe
+ * p1SammellisteColumns() -- bewusst dort zentral, weil die Formatvorgaben von Kärnten Netz noch
+ * ausstehen. "Vollmacht umfasst P1" zeigt, ob das Mitglied die Vollmacht in einer Fassung
+ * erteilt hat, die die P1-Freischaltung abdeckt (erst ab Zustimmungs-Fassung v2).
+ * Eigener Pfad außerhalb von /portal/members/..., damit /portal/members/:id ihn nicht schluckt.
+ */
+$router->get('/portal/p1-sammelliste.csv', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    denyDemoFileDownload();
+    $communityId = Auth::activeCommunityId();
+    DB::setCommunity($communityId);
+    $rows = DB::fetchAll(
+        "SELECT m.last_name, m.first_name, m.address, m.zip, m.city, m.beitrittsdatum, m.consent_version,
+                mp.zaehlpunkt_nr, mp.meter_code
+         FROM metering_points mp
+         JOIN members m ON m.id = mp.member_id
+         WHERE mp.community_id = ? AND mp.active = true AND mp.p1_key_enc IS NULL
+           AND mp.mirror_source_metering_point_id IS NULL
+           AND m.status = 'active' AND m.is_demo = false
+         ORDER BY m.last_name, m.first_name, mp.zaehlpunkt_nr",
+        [$communityId]
+    );
+    foreach ($rows as &$r) {
+        $r['vollmacht_p1'] = consentCoversP1($r['consent_version'])
+            ? 'ja'
+            : 'nein (Fassung ' . ($r['consent_version'] ?: 'unbekannt') . ')';
+    }
+    unset($r);
+    logAudit($communityId, 'p1_key.export', null, null, 'Sammelliste P1-Freischaltung exportiert (' . count($rows) . ' Zählpunkte)');
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="p1-freischaltung-' . date('Y-m-d') . '.csv"');
+    header('Cache-Control: no-store');
+    echo p1SammellisteCsv($rows);
 });
 
 /**
@@ -8417,13 +8625,6 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     $isTrue = fn($v) => in_array($v, [true, 't', '1', 1], true);
     $cb = fn(bool $checked) => $checked ? '\\cbon' : '\\cb';
 
-    $eegNameEsc = texEscape($community['name']);
-    $eegZvrEsc  = texEscape($community['zvr_number'] ?? '--');
-    $eegOrtEsc  = texEscape(extractOrtFromAddress($community['address']));
-    $eegCreditorIdEsc = trim((string)($community['creditor_id'] ?? '')) !== ''
-        ? texEscape($community['creditor_id'])
-        : 'nicht hinterlegt';
-
     // Anrede-Checkboxen (Divers hat am Papierformular kein eigenes Kästchen,
     // wird stattdessen im Titel-Feld vermerkt)
     $salutation = $a['salutation'] ?? '';
@@ -8444,6 +8645,11 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     // bisschen weiter rechts wäre") -- \floatsig zentriert stattdessen über der ganzen Linie.
     $sigOffset = communitySignatureOffsetCm($communityId);
     $sigOffsetX = communitySignatureOffsetXCm($communityId);
+    // Zustimmungen in der Fassung, die DIESER Antrag akzeptiert hat (consent_version) -- ein
+    // alter Antrag zeigt weiterhin den damals angezeigten Text, nicht den heutigen (Patrick,
+    // 07.11.2026). Kurzfassung + Hinweis auf den vollständigen Wortlaut, siehe consent_texts.php.
+    $consentBlock = onlineBeitrittConsentLatex($a, $community);
+    $consentVersionA = $consentBlock['version'];
     $sepaAssets = [];
     if (trim($a['iban'] ?? '') !== '') {
         $sepaSigBox = '';
@@ -8451,7 +8657,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
             $sepaAssets['sepa_unterschrift.png'] = $a['sepa_signature_image'];
             $sepaSigBox = '\\floatsig{' . floatsigHalfWidth(3.25, $sigOffsetX) . '}{' . signatureRaise(0.85, $sigOffset) . '}{\\includegraphics[height=0.85cm]{sepa_unterschrift.png}}';
         }
-        $sepaSignedAt = $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '--';
+        $sepaSignedAt = fmtVienna($a['sepa_signed_at']);
         $sepaBlock =
             '\\begin{tcolorbox}[colback=egreenlight, colframe=egreen, boxrule=0.6pt, arc=2pt, left=7pt, right=7pt, top=3pt, bottom=3pt]' . "\n"
             . '\\small\\noindent' . "\n"
@@ -8463,13 +8669,9 @@ $router->get('/portal/applications/:id/formular', function ($params) {
             . 'Adresse (falls abw.): ' . ($a['konto_adresse'] ? texEscape($a['konto_adresse']) : '--') . "\n"
             . '\\end{minipage}\\hfill' . "\n"
             . '\\begin{minipage}[t]{8.8cm}' . "\n"
-            . '\\scriptsize Hiermit ermächtige ich die Erneuerbare-Energie-Gemeinschaft ' . $eegNameEsc . ', ZVR ' . $eegZvrEsc
-            . ', Sitz ' . $eegOrtEsc . ', Creditor-ID: \\textbf{' . $eegCreditorIdEsc . '}, widerruflich, die von mir zu entrichtenden'
-            . ' Zahlungen bei Fälligkeit zu Lasten meines Kontos mittels wiederkehrender SEPA-Lastschriften einzuziehen.'
-            . ' Zugleich weise ich mein Kreditinstitut an, die von der ' . $eegNameEsc . ' auf mein Konto gezogenen'
-            . ' SEPA-Lastschriften einzulösen. Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die'
-            . ' Erstattung des belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten'
-            . ' Bedingungen.' . "\n"
+            // Der Satz "Ich erkläre ausdrücklich ... berechtigt zu sein" kam erst mit v2 dazu --
+            // ältere Online-Anträge haben ihn nicht gesehen, also auch nicht im Nachdruck.
+            . '\\scriptsize ' . texEscape(sepaMandateText($community, $consentVersionA !== 'v1-online')) . "\n"
             . '\\end{minipage}\\par' . "\n"
             . '\\vspace{1cm}\\noindent' . "\n"
             . $sepaSigBox . '\\rule{6.5cm}{0.4pt}\\\\[1pt]' . "\n"
@@ -8482,29 +8684,13 @@ $router->get('/portal/applications/:id/formular', function ($params) {
             . '\\end{tcolorbox}';
     }
 
-    // Rechtliche Zustimmungen: voller Wortlaut (nicht nur Kurzlabel) -- dieser Ausdruck ist
-    // der nachvollziehbare Beleg dessen, was tatsächlich online unterschrieben wurde, und soll
-    // deshalb für sich stehen können, unabhängig davon ob/wie die Website später geändert wird.
-    $consentTexts = [
-        'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft: Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
-        'zustimmung_vollmacht'           => 'Vollmacht: Ich bevollmächtige den Vorstand zur Zustimmungserklärung und Übermittlung der Viertelstundenwerte gegenüber dem Netzbetreiber.',
-        'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist: Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt.',
-        'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz: Ich stimme der Zustellung von Rechnungen und vereinsrelevanten Dokumenten per E-Mail zu.',
-        'zustimmung_datenschutz'         => 'Datenschutz: Ich willige in die Verarbeitung meiner Stamm-, Erzeugungs- und Verbrauchsdaten gemäß Datenschutzerklärung ein.',
-        'zustimmung_agb'                 => 'AGB \\& Tarif-/Preisblatt: Ich bestätige, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
-    ];
-    $zustimmungenLines = implode("\n", array_map(
-        fn($field, $text) => '\\item[' . $cb($isTrue($a[$field])) . ']  ' . $text,
-        array_keys($consentTexts), $consentTexts
-    ));
-
     $assets = ['unterschrift_beitritt.png' => $a['signature_image']] + $sepaAssets;
 
     streamLatexPdf('beitrittserklaerung_formular', [
         'EEG_NAME'                  => $community['name'],
         'EEG_ZVR'                   => $community['zvr_number'] ?? '--',
         'EEG_ADRESSE'               => $community['address'] ?? '',
-        'EINGEREICHT_AM'            => date('d.m.Y H:i', strtotime($a['created_at'])),
+        'EINGEREICHT_AM'            => fmtVienna($a['created_at']),
         'TITEL'                     => $titelDisplay ?: '--',
         'VORNAME'                   => $a['first_name'],
         'NACHNAME'                  => $a['last_name'],
@@ -8530,10 +8716,11 @@ $router->get('/portal/applications/:id/formular', function ($params) {
         'RAW_ZP_BEZUG_GRID'         => zpGridTikz($isTrue($a['bezug_gewuenscht']) ? $a['bezug_zaehlpunkt'] : null),
         'RAW_ZP_EINSPEISUNG_GRID'   => zpGridTikz($isTrue($a['einspeisung_gewuenscht']) ? $a['einspeisung_zaehlpunkt'] : null),
         'RAW_SEPA_BLOCK'            => $sepaBlock,
-        'RAW_ZUSTIMMUNGEN_LISTE'    => $zustimmungenLines,
+        'RAW_ZUSTIMMUNGEN_LISTE'    => $consentBlock['liste'],
+        'RAW_ZUSTIMMUNGEN_HINWEIS'  => $consentBlock['hinweis'],
         'RAW_UNTERSCHRIFT_BILD'     => '\\floatsig{' . floatsigHalfWidth(3.25, $sigOffsetX) . '}{' . signatureRaise(1.3, $sigOffset) . '}{\\includegraphics[height=1.3cm]{unterschrift_beitritt.png}}',
-        'UNTERSCHRIEBEN_DATUM'      => $a['signed_at'] ? date('d.m.Y', strtotime($a['signed_at'])) : '--',
-        'UNTERSCHRIEBEN_AM'         => $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '--',
+        'UNTERSCHRIEBEN_DATUM'      => fmtVienna($a['signed_at'], 'd.m.Y'),
+        'UNTERSCHRIEBEN_AM'         => fmtVienna($a['signed_at']),
         'SIGNER_IP'                 => $a['signer_ip'] ?: '--',
     ], 'Beitrittserklaerung_' . $a['last_name'] . '.pdf', $assets);
 });
@@ -8561,6 +8748,7 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         'kontoinhaber' => $application['kontoinhaber'], 'konto_adresse' => $application['konto_adresse'],
         'member_since' => date('Y-m-d'),
         'email_anrede_mode' => $_POST['email_anrede_mode'] ?? 'auto',
+        'consent_version' => $application['consent_version'] ?? null,
     ]);
 
     // Vom Antragsteller angegebene Zählpunkte übernehmen, damit sie nicht händisch
@@ -9148,7 +9336,8 @@ $router->post('/portal/settings/live-api-keys', function () {
         exit;
     }
     $validityDays = ['30' => 30, '90' => 90, '365' => 365][$_POST['validity'] ?? ''] ?? null;
-    $expiresAt = $validityDays ? date('Y-m-d H:i:s', strtotime("+{$validityDays} days")) : null;
+    // date('c') statt 'Y-m-d H:i:s': mit Zeitzonen-Offset, sonst liest Postgres die Ortszeit als UTC.
+    $expiresAt = $validityDays ? date('c', strtotime("+{$validityDays} days")) : null;
 
     $token = bin2hex(random_bytes(32));
     $newKey = DB::fetchOne(

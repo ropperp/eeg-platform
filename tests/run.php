@@ -46,6 +46,7 @@ function assertContains(string $needle, string $haystack, string $msg = ''): voi
 
 // Zu testender Code (reine Funktionen/Methoden, kein DB-/HTTP-Kontext nötig).
 require __DIR__ . '/../webapp/src/functions.php';
+require __DIR__ . '/../webapp/src/consent_texts.php';
 require __DIR__ . '/../webapp/src/Billing.php';
 // Nur die DB-freien Methoden (Token-Signieren/-Prüfen) werden hier getestet -- DB wird erst zur
 // Laufzeit innerhalb der DB-gestützten Methoden aufgelöst, ein require reicht ohne DB-Verbindung.

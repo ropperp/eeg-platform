@@ -19,6 +19,84 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Rechtsdokumente, Beitrittserklärung, Vollmacht P1 (07.11.2026)
+Umsetzung des Auftrags "Rechtsdokumente, Beitrittserklärung, Vollmacht P1" (Patrick,
+07.11.2026). Migration: `database/migrate_20261107.sql`; Update-Schritte siehe
+`docs/BETRIEBSHANDBUCH.md` (Eintrag 07.11.2026).
+
+**Zustimmungstexte: eine einzige Quelle.** Offline-Formular, Online-Formular und Online-PDF
+hatten drei verschiedene Textfassungen. Jetzt steht der Wortlaut aller sechs Zustimmungen
+ausschließlich in `webapp/src/consent_texts.php`, versioniert (`v2` aktuell, gültig ab
+07.11.2026; `v1-online`/`v1-offline` als bisherige Fassungen), je mit Kurz- und Langfassung,
+Platzhalter für RC-Nummer und Vereinsname aus den EEG-Stammdaten.
+- **Online-Formular:** unter jeder Checkbox steht die vollständige Langfassung (vorher nur die
+  Kurzfassung). Die angezeigte Version geht mit; wurden die Texte geändert, während das Formular
+  offen war, werden die Haken zurückgesetzt und die neue Fassung angezeigt.
+- **Online-PDF:** Kurzfassung DER Fassung, die der jeweilige Antrag akzeptiert hat (alte Anträge
+  zeigen weiter den damals gezeigten Text), darunter Versionshinweis mit Datum und Links auf
+  Zustimmungen, Statuten, AGB, Preisliste und Datenschutz.
+- **Neue Seite `/rc<RC>/zustimmungen`:** vollständiger Wortlaut aller Fassungen.
+- **Gespeichert wird die akzeptierte Fassung** (`consent_version` an Antrag und Mitglied).
+  Bestand per Migration: Online-Anträge und daraus aufgenommene Mitglieder -> `v1-online`, alle
+  übrigen Mitglieder -> `v1-offline`. Niemand wird angeschrieben oder zu etwas aufgefordert.
+- Ein Test (`tests/consent_texts_test.php`) schlägt fehl, sobald der Wortlaut wieder in einer
+  Vorlage oder View fest eingetragen wird.
+
+**Vollmacht v2 mit P1-Passus** (Freischaltung der Kundenschnittstelle samt zählerspezifischem
+Schlüssel), **Datenschutz-Punkt als Kenntnisnahme** statt Einwilligung (Rechtsgrundlage
+Art. 6 Abs. 1 lit. b/c/f DSGVO), AGB-Punkt mit Hinweis auf die verpflichtende Ausleseeinheit.
+
+**Offline-Beitrittserklärung wird jetzt von der Plattform erzeugt** (`/rc<RC>/beitrittserklaerung.pdf`,
+neue latex-service-Vorlage `beitrittserklaerung_leer.tex`, Langfassung aus derselben Quelle,
+Logo als Vektorgrafik, passt auf eine Seite). Ersetzt die statische
+`docs/vorlagen/Beitrittserklaerung.tex` bzw. das daraus kompilierte PDF; die alte Adresse leitet
+weiter. Korrigiert: Sitz **St. Nikolai** (vorher "Feldkirchen in Kärnten"), Datenschutz-Link mit
+RC-Nummer, neue Kopfzeile ("per E-Mail ... oder persönlich abgeben. Online-Beitritt:
+stromfueralle.at/beitreten"). Die Statuten blieben unverändert.
+
+**SEPA-Mandat:** fehlender Satz "Ich erkläre ausdrücklich, hinsichtlich des angegebenen Kontos
+berechtigt zu sein, ein SEPA-Lastschrift-Mandat zu erteilen." ergänzt -- auch im Online-Formular,
+wo bisher gar kein Mandatstext stand. Gemeinsame Quelle `sepaMandateText()`.
+
+**Bugfix Zeitzone:** Im PDF stand "Online eingereicht 19:59", beim SEPA-Mandat aber "21:59".
+Ursache: `sepa_signed_at` wurde als Ortszeit OHNE Zeitzone geschrieben (`date('Y-m-d H:i:s')`),
+Postgres las das als UTC. Jetzt `now()` wie bei `signed_at`; die Migration korrigiert bestehende
+Werte, die genau um 0,5-2,5 h abweichen. Derselbe Fehler steckte im Ablaufdatum von API-Keys
+(jetzt mit Zeitzonen-Offset). Neue Hilfsfunktion `fmtVienna()` formatiert DB-Zeitstempel
+ausdrücklich in Europe/Vienna; zusätzlich `date_default_timezone_set()` im Bootstrap.
+
+**Bugfix IP-Adresse:** Gespeichert wurde immer `172.19.0.3` (Traefik). Neue Funktion
+`clientIp()`: wertet `X-Forwarded-For` nur aus, wenn die Verbindung von einem vertrauenswürdigen
+Proxy kommt, und liest ihn von rechts (der erste Eintrag ist vom Client fälschbar), Rückfall auf
+`X-Real-IP`/`REMOTE_ADDR`. Traefik übernimmt die Header jetzt vom nginx-Proxy
+(`forwardedHeaders.trustedIPs`, Variable `TRUSTED_PROXY_IP`, Standard 10.0.0.144). Gilt für
+Beitrittserklärung, Vertragsunterschriften und das Login-Rate-Limit (das zählte bisher alle
+Besucher unter derselben Traefik-IP). Bestehende Datensätze bleiben unverändert.
+
+**AGB:** § 2 neu (Voraussetzungen, Beitritt online/schriftlich, Anmeldung beim Netzbetreiber
+per Vollmacht, Pflicht zur Ausleseeinheit), § 7 Abs. 2 (Freischaltung durch Mitglied oder per
+Vollmacht durch die EEG), neuer Abs. 7 (Folgen bei Nichtbetrieb). Stand 7. November 2026.
+**Datenschutzerklärung:** zählerspezifischer P1-Schlüssel (Zweck, verschlüsselte Speicherung,
+Zugriff, Löschung), Kärnten Netz als Herkunft. Stand 7. November 2026.
+
+**P1-Schlüssel je Zählpunkt** (neu, gab es noch nicht): 32 Hex-Zeichen, verschlüsselt gespeichert
+(`encryptSecret()`, Schlüssel aus `APP_SECRET`). Nur Obmann/Admin sehen und bearbeiten ihn
+(Mitgliedsdetail -> Zählpunkt -> "P1-Schlüssel"); Anzeigen erst auf Klick, jeder Abruf im
+Audit-Log. Mitglieder sehen nur "hinterlegt: ja/nein" (Dashboard und App-API). Beim Austritt
+löscht ein DB-Trigger den Schlüssel automatisch. **Sammelliste P1-Freischaltung** (CSV, Button in
+der Mitgliederliste): alle aktiven Zählpunkte ohne Schlüssel mit Name, Anschrift, Zählpunkt-,
+Zählernummer, Beitrittsdatum und ob die erteilte Vollmacht P1 bereits umfasst (erst ab `v2`).
+Spalten zentral in `p1SammellisteColumns()`, damit sich das Format leicht an die noch
+ausstehenden Vorgaben von Kärnten Netz anpassen lässt.
+
+**Generische Dokument-Pfade:** `/datenschutz`, `/agb`, `/statuten`, `/preisliste`, `/widerruf`,
+`/impressum`, `/barrierefreiheit` zeigen eine Auswahlseite aller aktiven EEGs (mit Suchfeld,
+keine automatische Weiterleitung). Unbekannte Dokumente -> 404.
+
+**Beitrittsseiten:** Hinweis auf die verpflichtende Ausleseeinheit (AGB § 7, ca. € 30,–, in
+Entwicklung) auf `/beitreten` und `/rc<RC>/beitreten`, Suchfeld auf `/beitreten`, Download des
+Papierformulars auf `/rc<RC>/beitreten`.
+
 ### Fix: Weißer Kasten um das Icon in Safaris Adressleisten-Vorschlägen/Favoriten (02.11.2026)
 Patrick, extra in einem privaten Tab getestet (um Caching auszuschließen) und mit Chrome
 verglichen: "in Chrome wird es richtig angezeigt" -- nur in Safari zeigte die

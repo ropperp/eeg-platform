@@ -95,11 +95,11 @@ class RateLimiter
 
     private static function clientIp(): string
     {
-        // Kein Trusted-Proxy-Header (X-Forwarded-For) -- der wird traefik-seitig nicht
-        // konsequent gesetzt/validiert, ein Client könnte ihn sonst selbst fälschen, um den
-        // IP-Zähler zu umgehen. REMOTE_ADDR ist innerhalb des Docker-Netzes ohnehin die
-        // tatsächliche Verbindung von Traefik.
-        return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        // clientIp() (functions.php) wertet X-Forwarded-For nur hinter einem vertrauenswürdigen
+        // Proxy aus und liest ihn von rechts -- ein vom Client gefälschter Header kann den
+        // IP-Zähler deshalb nicht umgehen. Vorher stand hier REMOTE_ADDR: das war immer
+        // Traefiks Docker-IP, alle Besucher teilten sich also EINEN IP-Zähler.
+        return clientIp();
     }
 
     /** true = Login-Versuch aktuell gesperrt (zu viele Fehlversuche zuletzt). */

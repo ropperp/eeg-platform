@@ -31,6 +31,12 @@ services:
       - "--providers.file.filename=/etc/traefik/dynamic.yml"
       - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
+      # X-Forwarded-For/X-Real-IP vom nginx-Proxy (SSL-Terminierung, 10.0.0.144) übernehmen
+      # statt verwerfen -- sonst sieht die webapp nur Traefik bzw. den Proxy als Client und
+      # speichert z.B. bei Beitrittserklärung/Vertragsunterschrift 172.19.0.3 statt der echten
+      # Client-IP (Patrick, 07.11.2026). NUR diese eine Proxy-IP: von jedem anderen Absender
+      # verwirft Traefik die Header weiterhin (Schutz gegen gefälschte IP-Angaben).
+      - "--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}"
     environment:
       - DOCKER_API_VERSION=1.40
     ports:
@@ -232,6 +238,9 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       DOMAIN: ${DOMAIN}
+      # Derselbe nginx-Proxy, dem Traefik oben vertraut -- clientIp() (functions.php)
+      # überspringt ihn beim Auslesen von X-Forwarded-For.
+      TRUSTED_PROXY_IP: ${TRUSTED_PROXY_IP:-10.0.0.144}
     volumes:
       # Persistente Ablage für Mitglieder-Uploads, Verträge, Beitrittserklärungen etc.
       # (vorher nur im Container — ging bei jedem --build verloren!)

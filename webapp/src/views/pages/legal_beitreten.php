@@ -22,7 +22,17 @@ ob_start();
     <a href="/infoblatt.pdf" class="btn btn-secondary" target="_blank" rel="noopener">
       Infoblatt ansehen (PDF)
     </a>
+    <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/beitrittserklaerung.pdf" class="btn btn-secondary" target="_blank" rel="noopener">
+      Beitrittserklärung zum Ausdrucken (PDF)
+    </a>
   </div>
+
+  <p class="alert" style="background:var(--green-light);font-size:.9rem">
+    <?= icon('info') ?> Mitglieder erhalten eine <strong>Ausleseeinheit für den Smart Meter</strong>.
+    Ihr Betrieb ist laut <a href="/<?= htmlspecialchars(strtolower($community['marktpartner_id'])) ?>/agb">AGB (§ 7)</a>
+    verpflichtender Teil der Teilnahme; voraussichtlicher Preis ca. € 30,–. Die Ausleseeinheit
+    befindet sich derzeit in Entwicklung.
+  </p>
 
   <h2>Bevor Sie unterschreiben</h2>
   <p>Bitte lesen Sie vorab die folgenden Unterlagen:</p>
@@ -31,6 +41,7 @@ ob_start();
     <li><a href="/rc108175/datenschutz">Datenschutz</a> — Umgang mit Ihren personenbezogenen Daten</li>
     <li><a href="/rc108175/agb">AGBs</a> — allgemeine Geschäftsbedingungen der Mitgliedschaft</li>
     <li><a href="/rc108175/preisliste">Preisliste</a> — aktuelle Tarife und Mitgliedsbeitrag</li>
+    <li><a href="/rc108175/zustimmungen">Zustimmungen</a> — vollständiger Wortlaut der Erklärungen in der Beitrittserklärung</li>
   </ul>
 </div>
 

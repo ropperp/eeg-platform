@@ -462,6 +462,171 @@ function normalizeZaehlpunkt(string $zp): string
  * Escaped einen String für sichere Verwendung in LaTeX-Zellwerten.
  * Nicht für RAW_-Variablen verwenden (die enthalten bereits LaTeX-Syntax).
  */
+/**
+ * Extrahiert den Ort aus einer frei eingegebenen Adresse "Straße Nr., PLZ Ort"
+ * (Community-Adresse ist ein einzelnes Freitextfeld ohne getrennte Ort-Spalte).
+ * Nimmt das letzte Komma-Segment und entfernt eine vorangestellte PLZ.
+ */
+function extractOrtFromAddress(?string $address): string
+{
+    $parts = explode(',', $address ?? '');
+    $last = trim((string)end($parts));
+    return trim((string)preg_replace('/^\d{3,6}\s*/', '', $last));
+}
+
+/**
+ * Formatiert einen DB-Zeitstempel (TIMESTAMPTZ, in der DB immer UTC) für die Anzeige
+ * ausdrücklich in Europe/Vienna -- unabhängig von date.timezone der PHP-Installation (das
+ * webapp-Image setzt sie zwar, CLI-Skripte/Tests aber nicht zwingend). Ein Wert OHNE
+ * Zeitzonenangabe wird als UTC interpretiert, nicht als Ortszeit (Vorfall 07.11.2026:
+ * sepa_signed_at wurde als lokale Uhrzeit ohne Zeitzone gespeichert und erschien im PDF
+ * 2 Stunden später als die übrigen Zeitstempel). Leerer Wert -> $empty.
+ */
+function fmtVienna(?string $timestamp, string $format = 'd.m.Y H:i', string $empty = '--'): string
+{
+    if ($timestamp === null || trim($timestamp) === '') return $empty;
+    try {
+        $dt = new DateTimeImmutable($timestamp, new DateTimeZone('UTC'));
+    } catch (\Exception $e) {
+        return $empty;
+    }
+    return $dt->setTimezone(new DateTimeZone('Europe/Vienna'))->format($format);
+}
+
+/** true, wenn $ip in einem der Netze/IPs aus $cidrs liegt (IPv4/IPv6, "a.b.c.d/nn" oder Einzel-IP). */
+function ipInCidrs(string $ip, array $cidrs): bool
+{
+    $ipBin = @inet_pton($ip);
+    if ($ipBin === false) return false;
+    foreach ($cidrs as $cidr) {
+        $cidr = trim($cidr);
+        if ($cidr === '') continue;
+        [$net, $bits] = str_contains($cidr, '/') ? explode('/', $cidr, 2) : [$cidr, null];
+        $netBin = @inet_pton($net);
+        if ($netBin === false || strlen($netBin) !== strlen($ipBin)) continue;
+        $bits = $bits === null ? strlen($netBin) * 8 : (int)$bits;
+        $fullBytes = intdiv($bits, 8);
+        if (substr($ipBin, 0, $fullBytes) !== substr($netBin, 0, $fullBytes)) continue;
+        $rest = $bits % 8;
+        if ($rest === 0) return true;
+        $mask = chr((0xFF << (8 - $rest)) & 0xFF);
+        if ((($ipBin[$fullBytes] ^ $netBin[$fullBytes]) & $mask) === "\0") return true;
+    }
+    return false;
+}
+
+/**
+ * Vertrauenswürdige Proxys vor der webapp: localhost, das Docker-Netz (Traefik) und der
+ * nginx-Proxy für die SSL-Terminierung (TRUSTED_PROXY_IP aus der .env, Standard 10.0.0.144,
+ * siehe CLAUDE.md "Netzwerk-Architektur" -- dieselbe Variable steuert in docker-compose.yml
+ * auch Traefiks forwardedHeaders.trustedIPs).
+ */
+function trustedProxies(): array
+{
+    $proxy = trim((string)(getenv('TRUSTED_PROXY_IP') ?: '10.0.0.144'));
+    return ['127.0.0.1', '::1', '172.16.0.0/12', $proxy];
+}
+
+/**
+ * Echte Client-IP hinter der Proxy-Kette Client -> nginx-Proxy -> Traefik -> webapp.
+ * Bis 06.11.2026 wurde überall REMOTE_ADDR gespeichert -- das ist immer Traefiks Docker-IP
+ * (z.B. 172.19.0.3), nie der Client.
+ *
+ * Sicherheit: X-Forwarded-For wird NUR ausgewertet, wenn die Verbindung selbst von einem
+ * vertrauenswürdigen Proxy kommt. Und dann von RECHTS gelesen, nicht der erste Eintrag:
+ * nginx hängt mit $proxy_add_x_forwarded_for an einen vom Client mitgeschickten Header nur
+ * an -- der erste Eintrag ist also frei fälschbar ("X-Forwarded-For: 1.2.3.4"). Von rechts
+ * nach links werden alle bekannten Proxys übersprungen; der erste Eintrag, der KEIN eigener
+ * Proxy ist, ist die Adresse, die sich tatsächlich mit dem nginx-Proxy verbunden hat.
+ * Fallback X-Real-IP (setzt der nginx-Proxy auf $remote_addr), sonst REMOTE_ADDR.
+ */
+function clientIp(?array $server = null, ?array $trusted = null): string
+{
+    $server ??= $_SERVER;
+    $trusted ??= trustedProxies();
+    $remote = (string)($server['REMOTE_ADDR'] ?? '');
+    if ($remote === '' || !ipInCidrs($remote, $trusted)) {
+        return $remote !== '' ? $remote : 'unknown';
+    }
+
+    $xff = (string)($server['HTTP_X_FORWARDED_FOR'] ?? '');
+    if ($xff !== '') {
+        $hops = array_reverse(array_map('trim', explode(',', $xff)));
+        foreach ($hops as $hop) {
+            if (filter_var($hop, FILTER_VALIDATE_IP) === false) break;
+            if (!ipInCidrs($hop, $trusted)) return $hop;
+        }
+    }
+
+    $realIp = trim((string)($server['HTTP_X_REAL_IP'] ?? ''));
+    if ($realIp !== '' && filter_var($realIp, FILTER_VALIDATE_IP) !== false && !ipInCidrs($realIp, $trusted)) {
+        return $realIp;
+    }
+    return $remote;
+}
+
+/**
+ * Normalisiert einen P1-Kundenschnittstellen-Schlüssel (AES-128, vom Netzbetreiber pro Zähler
+ * vergeben): Leerzeichen/Bindestriche/Doppelpunkte entfernen, Großbuchstaben. Gültig sind genau
+ * 32 Hex-Zeichen, sonst null.
+ */
+function normalizeP1Key(?string $key): ?string
+{
+    $k = strtoupper((string)preg_replace('/[\s:\-]/', '', (string)$key));
+    return preg_match('/^[0-9A-F]{32}$/', $k) ? $k : null;
+}
+
+/**
+ * Spalten der "Sammelliste P1-Freischaltung" (Spaltenüberschrift => Feld der Datenzeile).
+ * Bewusst als eigene Liste: die Formatvorgaben von Kärnten Netz stehen noch aus -- eine
+ * Änderung (Reihenfolge, Bezeichnung, zusätzliche Spalte) betrifft dann nur diese Funktion.
+ */
+function p1SammellisteColumns(): array
+{
+    return [
+        'Nachname'                    => 'last_name',
+        'Vorname'                     => 'first_name',
+        'Straße'                      => 'address',
+        'PLZ'                         => 'zip',
+        'Ort'                         => 'city',
+        'Zählpunktnummer'             => 'zaehlpunkt_nr',
+        'Zählernummer'                => 'meter_code',
+        'Beitrittsdatum (Vollmacht)'  => 'beitrittsdatum',
+        'Vollmacht umfasst P1'        => 'vollmacht_p1',
+    ];
+}
+
+/**
+ * Baut die Sammelliste als CSV (Semikolon + UTF-8-BOM, damit ein österreichisches Excel sie
+ * per Doppelklick korrekt öffnet). Datumswerte im Format TT.MM.JJJJ.
+ */
+function p1SammellisteCsv(array $rows): string
+{
+    $cols = p1SammellisteColumns();
+    $fh = fopen('php://temp', 'r+');
+    fwrite($fh, "\xEF\xBB\xBF");
+    fputcsv($fh, array_keys($cols), ';', '"', '');
+    foreach ($rows as $r) {
+        $line = [];
+        foreach ($cols as $field) {
+            $v = (string)($r[$field] ?? '');
+            if ($field === 'beitrittsdatum' && $v !== '') {
+                $v = date('d.m.Y', strtotime($v));
+            }
+            // Formel-Injection verhindern (=, +, -, @ am Zellanfang würde Excel ausführen).
+            if ($v !== '' && strpbrk($v[0], '=+-@') !== false) {
+                $v = "'" . $v;
+            }
+            $line[] = $v;
+        }
+        fputcsv($fh, $line, ';', '"', '');
+    }
+    rewind($fh);
+    $csv = stream_get_contents($fh);
+    fclose($fh);
+    return $csv;
+}
+
 function texEscape(string $s): string
 {
     return strtr($s, [

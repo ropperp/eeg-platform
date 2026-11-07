@@ -107,6 +107,10 @@
   <div class="alert alert-success" style="margin-bottom:1rem">Link zum Passwort-Zurücksetzen wurde per E-Mail verschickt (10 Minuten gültig).</div>
 <?php elseif (($_GET['success'] ?? '') === 'live_reset'): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Live-ESP-Messdaten für alle Zählpunkte dieses Mitglieds wurden gelöscht.</div>
+<?php elseif (($_GET['success'] ?? '') === 'p1_key_saved'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">P1-Schlüssel wurde verschlüsselt gespeichert.</div>
+<?php elseif (($_GET['success'] ?? '') === 'p1_key_deleted'): ?>
+  <div class="alert alert-success" style="margin-bottom:1rem">P1-Schlüssel wurde gelöscht.</div>
 <?php elseif (($_GET['success'] ?? '') === 'invite_sent'): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Freigegeben — Einladung mit Erstlogin-Link wurde per E-Mail verschickt.</div>
 <?php elseif (($_GET['error'] ?? '') === 'mail'): ?>
@@ -225,6 +229,16 @@
                 <code style="font-size:.75rem;color:#16a34a"><?= htmlspecialchars($mp['meter_code']) ?></code>
               <?php else: ?>
                 <span style="color:var(--gray-600);font-size:.8rem">—</span>
+              <?php endif; ?>
+              <?php if (!Auth::isDemo()): ?>
+                <?php $hasP1Key = !empty($mp['p1_key_enc']); ?>
+                <br>
+                <button type="button" onclick="openP1Key('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'], ENT_QUOTES) ?>',<?= $hasP1Key ? 'true' : 'false' ?>)"
+                        class="badge <?= $hasP1Key ? 'badge-green' : 'badge-gray' ?>"
+                        style="font-size:.68rem;border:none;cursor:pointer;margin-top:.2rem"
+                        title="P1-Kundenschnittstelle: zählerspezifischer Schlüssel (nur Vorstand/Admin)">
+                  <?= $hasP1Key ? icon('key') . ' P1-Schlüssel hinterlegt' : 'P1-Schlüssel fehlt' ?>
+                </button>
               <?php endif; ?>
             </td>
             <td><?= $mp['type'] === 'consumer' ? icon('arrow-down') . ' Bezug' : icon('arrow-up') . ' Einspeisung' ?></td>
@@ -554,6 +568,38 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   </form>
 </dialog>
 
+<!-- P1-Schlüssel (nur Vorstand/Admin; im HTML steht nie der Schlüssel selbst) -->
+<dialog id="p1-dialog" style="border:1px solid var(--gray-200);border-radius:12px;padding:1.5rem;min-width:400px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.1)">
+  <h3 style="margin-bottom:.25rem">P1-Schlüssel</h3>
+  <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
+    Zählpunkt <code id="p1-dialog-znr"></code> -- zählerspezifischer Schlüssel der
+    Kundenschnittstelle (32 Hex-Zeichen, von Kärnten Netz). Wird verschlüsselt gespeichert;
+    jedes Anzeigen wird protokolliert. Beim Austritt des Mitglieds automatisch gelöscht.
+  </p>
+  <div id="p1-dialog-current" style="display:none;margin-bottom:1rem">
+    <span class="badge badge-green"><?= icon('key') ?> hinterlegt</span>
+    <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:.5rem" onclick="revealP1Key()">Anzeigen</button>
+    <code id="p1-dialog-reveal" style="display:block;margin-top:.5rem;word-break:break-all"></code>
+  </div>
+  <form method="post" id="p1-form">
+    <div class="form-group">
+      <label for="p1-key-input">Neuer Schlüssel</label>
+      <input type="text" name="p1_key" id="p1-key-input" required autocomplete="off" spellcheck="false"
+             pattern="[0-9A-Fa-f :\-]{32,47}" placeholder="z. B. 0A1B2C3D4E5F60718293A4B5C6D7E8F9"
+             style="font-family:monospace">
+    </div>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <button type="button" onclick="document.getElementById('p1-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+    </div>
+  </form>
+  <form method="post" id="p1-delete-form" style="display:none;margin-top:1rem"
+        onsubmit="return confirm('P1-Schlüssel für diesen Zählpunkt wirklich löschen?')">
+    <input type="hidden" name="action" value="delete">
+    <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;font-size:.8rem;text-decoration:underline">Schlüssel löschen</button>
+  </form>
+</dialog>
+
 <script src="/assets/js/avatar-crop.js"></script>
 <script>
   initAvatarCropper({
@@ -581,6 +627,25 @@ function openEditMp(id, znr, mc, type, jahresverbrauch, kwp, geplant) {
   document.getElementById('edit-mp-geplant').value = geplant;
   toggleMpTypeFields('edit');
   document.getElementById('edit-mp-dialog').showModal();
+}
+
+let p1CurrentMp = null;
+function openP1Key(mpId, znr, hasKey) {
+  p1CurrentMp = mpId;
+  const base = '/portal/members/<?= $member['id'] ?>/metering-points/' + mpId + '/p1-key';
+  document.getElementById('p1-form').action = base;
+  document.getElementById('p1-delete-form').action = base;
+  document.getElementById('p1-dialog-znr').textContent = znr;
+  document.getElementById('p1-dialog-current').style.display = hasKey ? '' : 'none';
+  document.getElementById('p1-delete-form').style.display = hasKey ? '' : 'none';
+  document.getElementById('p1-dialog-reveal').textContent = '';
+  document.getElementById('p1-key-input').value = '';
+  document.getElementById('p1-dialog').showModal();
+}
+async function revealP1Key() {
+  const res = await fetch('/portal/members/<?= $member['id'] ?>/metering-points/' + p1CurrentMp + '/p1-key');
+  const d = await res.json();
+  document.getElementById('p1-dialog-reveal').textContent = d.error ? d.error : (d.key || '—');
 }
 
 // WLAN-Diagnoseinfos (SSID/IP/Passwort) erst auf Klick abrufen -- landet so nicht unnötig im
