@@ -31,7 +31,9 @@ drei PDF-Vorlagen lokal mit pdflatex auf je eine Seite kompiliert und gesichtet)
 `fmtVienna()`, P1-Schlüssel-UI und -Export, Auswahlseiten, AGB/Datenschutz, 34 neue Tests
 (258 grün). Nachtrag (gleiche Sitzung): Infoblatt mit aus dem alten PDF extrahierten Grafiken
 neu kompiliert (Grafiken jetzt im Repo), neuer ZIP-Export "Sicherung herunterladen" unter
-`/admin/templates` (alle Vorlagen/PDFs mit Datumsordner, LIESMICH.txt). Offen/manuell: Migration
+`/admin/templates` (alle Vorlagen/PDFs mit Datumsordner, LIESMICH.txt). Danach: Admin- und
+EEG-Einstellungen in animierte Reiter aufgeteilt (wiederverwendbare Tab-Komponente) und
+"© 2026 Strom für alle" unten im Portal und auf der Website ergänzt. Offen/manuell: Migration
 ausführen, `docker compose up -d --build` (Traefik muss neu starten), neues Infoblatt hochladen.
 **Fehler/Lehre:** Der Auftrag verlangte den wörtlichen Prompt im Log; nach `CLAUDE.md`
 (öffentliches Repo, seit 10.10.2026) stehen hier nur Zusammenfassung und verbesserter Prompt.

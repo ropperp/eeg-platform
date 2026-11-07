@@ -754,3 +754,72 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; border-top-color: var(--gray-200); opacity: .6; }
 }
+
+/* ─── Reiter (Tabs) für Einstellungsseiten ────────────────────────────────────
+   Patrick, 08.11.2026: lange Einstellungsseiten in Bereiche zum Hin- und Herspringen
+   aufteilen, mit Animation. Markup: views/partials/tabs_nav.php, Logik: assets/js/tabs.js.
+   Kontrast (WCAG AA): inaktiv --gray-600 auf Seitenhintergrund 7,5:1 hell / 7:1 dunkel,
+   aktiv --green-dark 5:1 hell bzw. #86efac auf dunkel. */
+.tabs {
+  position: relative;
+  display: flex;
+  gap: .25rem;
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: .75rem 1rem;
+  font: inherit;
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  transition: color .2s ease, background-color .2s ease;
+}
+.tab-btn:hover { color: var(--gray-800); background: var(--gray-100); }
+.tab-btn[aria-selected="true"] { color: var(--green-dark); }
+[data-theme="dark"] .tab-btn[aria-selected="true"] { color: #86efac; }
+.tab-btn:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+.tab-indicator {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--green);
+}
+.tabs-ready .tab-indicator {
+  transition: transform .35s cubic-bezier(.4, 0, .2, 1), width .35s cubic-bezier(.4, 0, .2, 1);
+}
+.tab-panel[hidden] { display: none; }
+.tab-panel:focus { outline: none; }
+.tab-panel.tab-enter { animation: tab-enter-right .32s cubic-bezier(.4, 0, .2, 1); }
+.tab-panel.tab-enter-left { animation-name: tab-enter-left; }
+@keyframes tab-enter-right { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes tab-enter-left  { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .tabs-ready .tab-indicator { transition: none; }
+  .tab-panel.tab-enter { animation: none; }
+}
+
+/* Copyright-Zeile am Ende jeder Portal-Seite */
+.portal-footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-200);
+  font-size: .8rem;
+  color: var(--gray-600);
+  text-align: center;
+}

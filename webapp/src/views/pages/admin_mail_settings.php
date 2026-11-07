@@ -18,10 +18,18 @@
   <div class="alert alert-error" style="margin-bottom:1rem">Test-Mail fehlgeschlagen: <code style="font-size:.8rem"><?= htmlspecialchars($testError) ?></code></div>
 <?php endif; ?>
 
-<h3 style="margin:0 0 .75rem;color:var(--gray-600);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">
-  Plattform-Technik
-</h3>
+<?php
+$tabsKey = 'admin-einstellungen';
+$tabs = [
+  'allgemein' => ['label' => 'Allgemein', 'icon' => 'flask'],
+  'geraete'   => ['label' => 'Ausleseeinheiten & MQTT', 'icon' => 'broadcast'],
+  'email'     => ['label' => 'E-Mail (Microsoft)', 'icon' => 'envelope-simple'],
+  'eda'       => ['label' => 'EDA', 'icon' => 'folder-open'],
+];
+require __DIR__ . '/../partials/tabs_nav.php';
+?>
 
+<section class="tab-panel" id="tab-allgemein" role="tabpanel" aria-labelledby="tabbtn-allgemein" tabindex="0">
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('flask') ?> Testmodus / Echtbetrieb</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
@@ -39,7 +47,9 @@
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>
 </div>
+</section>
 
+<section class="tab-panel" id="tab-geraete" role="tabpanel" aria-labelledby="tabbtn-geraete" tabindex="0" hidden>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('broadcast') ?> ESP32 / Ausleseeinheiten</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
@@ -158,11 +168,9 @@ function suggestMqttPassword() {
   document.getElementById('mqtt-pass-input').value = pw;
 }
 </script>
+</section>
 
-<h3 style="margin:0 0 .75rem;color:var(--gray-600);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">
-  E-Mail (Microsoft Graph)
-</h3>
-
+<section class="tab-panel" id="tab-email" role="tabpanel" aria-labelledby="tabbtn-email" tabindex="0" hidden>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Azure-App-Registrierung</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
@@ -252,36 +260,6 @@ function suggestMqttPassword() {
       </div>
     </div>
     <button type="submit" class="btn btn-primary">Speichern</button>
-  </form>
-</div>
-
-<div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:.5rem"><?= icon('folder-open') ?> EDA-Automatik</h3>
-  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
-    Postfach, das die monatlichen Exportlinks aus dem EDA-Anwenderportal empfängt (eigene
-    Shared Mailbox, zusätzlich zur Absenderadresse oben -- benötigt Anwendungsberechtigung
-    <code>Mail.Read</code> für dieselbe Azure-App-Registrierung). Ungelesene Mails darin werden
-    regelmäßig per Cron automatisch heruntergeladen und importiert (<code>scripts/eda_auto_import.php</code>,
-    siehe <code>EdaAutoImporter.php</code>) -- die EDA-Login-Zugangsdaten je EEG werden bei der
-    jeweiligen <a href="/admin">EEG selbst</a> hinterlegt.
-  </p>
-  <?php if (isset($_GET['eda_run'])): ?>
-    <div class="alert alert-success" style="margin-bottom:1rem;white-space:pre-line"><?= htmlspecialchars($_GET['eda_run']) ?></div>
-  <?php endif; ?>
-  <?php if (isset($_GET['eda_run_error'])): ?>
-    <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['eda_run_error']) ?></div>
-  <?php endif; ?>
-  <form method="post" action="/admin/mail-settings" style="margin-bottom:1rem">
-    <div class="form-group" style="max-width:24rem">
-      <label>Postfachadresse</label>
-      <input type="email" name="eda_import_mailbox_address" value="<?= htmlspecialchars($mailConfig['eda_import_mailbox_address'] ?? '') ?>" placeholder="eda@stromfueralle.at">
-      <small style="color:var(--gray-600)">Leer = Automatik deaktiviert.</small>
-    </div>
-    <button type="submit" class="btn btn-primary">Speichern</button>
-  </form>
-  <form method="post" action="/admin/mail-settings/eda-import-run">
-    <button type="submit" class="btn btn-secondary">Jetzt prüfen</button>
-    <small style="color:var(--gray-600);margin-left:.5rem">Liest das Postfach sofort aus, statt auf den nächsten Cron-Durchlauf zu warten.</small>
   </form>
 </div>
 
@@ -496,5 +474,40 @@ function suggestMqttPassword() {
     <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700);height:38px">Test-Mail senden</button>
   </form>
 </div>
+</section>
+
+<section class="tab-panel" id="tab-eda" role="tabpanel" aria-labelledby="tabbtn-eda" tabindex="0" hidden>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('folder-open') ?> EDA-Automatik</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Postfach, das die monatlichen Exportlinks aus dem EDA-Anwenderportal empfängt (eigene
+    Shared Mailbox, zusätzlich zur Absenderadresse oben -- benötigt Anwendungsberechtigung
+    <code>Mail.Read</code> für dieselbe Azure-App-Registrierung). Ungelesene Mails darin werden
+    regelmäßig per Cron automatisch heruntergeladen und importiert (<code>scripts/eda_auto_import.php</code>,
+    siehe <code>EdaAutoImporter.php</code>) -- die EDA-Login-Zugangsdaten je EEG werden bei der
+    jeweiligen <a href="/admin">EEG selbst</a> hinterlegt.
+  </p>
+  <?php if (isset($_GET['eda_run'])): ?>
+    <div class="alert alert-success" style="margin-bottom:1rem;white-space:pre-line"><?= htmlspecialchars($_GET['eda_run']) ?></div>
+  <?php endif; ?>
+  <?php if (isset($_GET['eda_run_error'])): ?>
+    <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['eda_run_error']) ?></div>
+  <?php endif; ?>
+  <form method="post" action="/admin/mail-settings" style="margin-bottom:1rem">
+    <div class="form-group" style="max-width:24rem">
+      <label>Postfachadresse</label>
+      <input type="email" name="eda_import_mailbox_address" value="<?= htmlspecialchars($mailConfig['eda_import_mailbox_address'] ?? '') ?>" placeholder="eda@stromfueralle.at">
+      <small style="color:var(--gray-600)">Leer = Automatik deaktiviert.</small>
+    </div>
+    <button type="submit" class="btn btn-primary">Speichern</button>
+  </form>
+  <form method="post" action="/admin/mail-settings/eda-import-run">
+    <button type="submit" class="btn btn-secondary">Jetzt prüfen</button>
+    <small style="color:var(--gray-600);margin-left:.5rem">Liest das Postfach sofort aus, statt auf den nächsten Cron-Durchlauf zu warten.</small>
+  </form>
+</div>
+</section>
+
+<script src="/assets/js/tabs.js?v=<?= @filemtime(ROOT . '/public/assets/js/tabs.js') ?: time() ?>"></script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

@@ -110,6 +110,7 @@
       <a href="https://kaerntennetz.at/erneuerbare-energiegemeinschaften-eeg.htm" target="_blank" rel="noopener">Kärnten Netz: Netzgebiet prüfen</a>
     </div>
     Strom für alle · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner
+    <div style="margin-top:.5rem"><?= htmlspecialchars(copyrightLine()) ?></div>
   </div>
 </footer>
 

@@ -19,6 +19,22 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Einstellungen in Reitern, Copyright-Zeile (08.11.2026)
+Patrick: die Einstellungen sind zu unübersichtlich -- lieber Reiter zum Hin- und Herspringen
+(Vorbild: seine HTL-Wahl-Seite), mit einer schönen Animation; dazu unten "© 2026 Strom für alle".
+- **Admin-Einstellungen** (`/admin/mail-settings`) in vier Reitern: *Allgemein* (Testmodus/
+  Echtbetrieb), *Ausleseeinheiten & MQTT*, *E-Mail (Microsoft)* (Azure, Vorschau, Vorlagen,
+  Test-Mail) und *EDA*. **EEG-Einstellungen** (`/portal/settings`) in *Stammdaten & Bank*,
+  *Tarif & Steuer*, *Logo & Unterschrift* und *Live-Daten-API*. Inhalte und Formulare unverändert,
+  nur neu gruppiert; die Stammdaten bleiben ein einziges Formular in einem Reiter.
+- Wiederverwendbare Komponente (`views/partials/tabs_nav.php`, `assets/js/tabs.js`, CSS in
+  `app.css`): Unterstreichung gleitet zum aktiven Reiter, Inhalt blendet je nach Richtung von
+  links/rechts ein (ohne Animation bei "Bewegung reduzieren"). Der offene Reiter bleibt nach dem
+  Speichern erhalten (sessionStorage) und ist per Link adressierbar (`#email`, `#eda`, ...).
+  Tastatur: Pfeiltasten, Pos1/Ende; auf dem Handy waagrecht scrollbar. Kontrast hell/dunkel AA.
+- **Copyright-Zeile** "© 2026 Strom für alle" unten auf allen Portal-Seiten und in der Fußzeile
+  der Website (ab 2027 automatisch "© 2026–2027").
+
 ### Sicherung aller Vorlagen als ZIP, Infoblatt neu kompiliert (08.11.2026)
 Patrick: per Klick alle PDFs und LaTeX-Dateien mit dem heutigen Datum herunterladen, um sie im
 OneDrive-Ordner der EEG abzulegen und bei Verlust wieder hochladen zu können.

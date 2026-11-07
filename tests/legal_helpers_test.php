@@ -132,3 +132,8 @@ test('buildBackupZip: Dateien + LIESMICH im Datumsordner, fehlende Dateien über
         rmdir($dir);
     }
 });
+
+test('copyrightLine: 2026 allein, ab 2027 als Zeitraum', function () {
+    assertSame('© 2026 Strom für alle', copyrightLine(2026));
+    assertSame('© 2026–2028 Strom für alle', copyrightLine(2028));
+});

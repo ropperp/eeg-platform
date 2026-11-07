@@ -9,6 +9,18 @@
   <div class="alert alert-success" style="margin-bottom:1rem">Einstellungen gespeichert.</div>
 <?php endif; ?>
 
+<?php
+$tabsKey = 'eeg-einstellungen';
+$tabs = [
+  'stammdaten' => ['label' => 'Stammdaten & Bank', 'icon' => 'buildings'],
+  'tarif'      => ['label' => 'Tarif & Steuer', 'icon' => 'currency-eur'],
+  'dokumente'  => ['label' => 'Logo & Unterschrift', 'icon' => 'signature'],
+  'api'        => ['label' => 'Live-Daten-API', 'icon' => 'plug'],
+];
+require __DIR__ . '/../partials/tabs_nav.php';
+?>
+
+<section class="tab-panel" id="tab-stammdaten" role="tabpanel" aria-labelledby="tabbtn-stammdaten" tabindex="0">
 <!-- Stammdaten -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Stammdaten</h3>
@@ -147,30 +159,9 @@
     <button type="submit" class="btn btn-primary">Stammdaten speichern</button>
   </form>
 </div>
+</section>
 
-<!-- Logo für Rechnungen/Verträge -->
-<div class="card" style="margin-bottom:1.5rem">
-  <h3 style="margin-bottom:.5rem">Logo für Rechnungen/Verträge</h3>
-  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
-    Erscheint auf Rechnungen (und künftig weiteren PDF-Dokumenten) dieser EEG. Ohne eigenes Logo wird
-    ersatzweise das Website-Logo verwendet. Getrennt vom Website-Logo unter Plattform-Admin -&gt; Dateien,
-    das für alle Besucher der Website gilt.
-  </p>
-  <?php if ($hasCustomLogo): ?>
-    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-      <img src="/portal/settings/logo/preview?v=<?= time() ?>" alt="Logo" style="max-height:60px;background:var(--gray-100);padding:.5rem;border-radius:6px">
-      <span class="badge badge-yellow">Eigenes Logo aktiv</span>
-    </div>
-  <?php endif; ?>
-  <form method="post" action="/portal/settings/logo" enctype="multipart/form-data" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-    <input type="file" name="logo" accept=".png,.jpg,.jpeg" required>
-    <button type="submit" class="btn btn-primary">Hochladen</button>
-    <?php if ($hasCustomLogo): ?>
-      <button type="submit" formaction="/portal/settings/logo/delete" formnovalidate class="btn btn-tint-red">Entfernen (Standard-Logo verwenden)</button>
-    <?php endif; ?>
-  </form>
-</div>
-
+<section class="tab-panel" id="tab-tarif" role="tabpanel" aria-labelledby="tabbtn-tarif" tabindex="0" hidden>
 <!-- Tarif -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Tarif</h3>
@@ -258,9 +249,34 @@
     <button type="submit" class="btn btn-primary">Neue Steuerkonfiguration anlegen</button>
   </form>
 </div>
+</section>
+
+<section class="tab-panel" id="tab-dokumente" role="tabpanel" aria-labelledby="tabbtn-dokumente" tabindex="0" hidden>
+<!-- Logo für Rechnungen/Verträge -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem">Logo für Rechnungen/Verträge</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Erscheint auf Rechnungen (und künftig weiteren PDF-Dokumenten) dieser EEG. Ohne eigenes Logo wird
+    ersatzweise das Website-Logo verwendet. Getrennt vom Website-Logo unter Plattform-Admin -&gt; Dateien,
+    das für alle Besucher der Website gilt.
+  </p>
+  <?php if ($hasCustomLogo): ?>
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+      <img src="/portal/settings/logo/preview?v=<?= time() ?>" alt="Logo" style="max-height:60px;background:var(--gray-100);padding:.5rem;border-radius:6px">
+      <span class="badge badge-yellow">Eigenes Logo aktiv</span>
+    </div>
+  <?php endif; ?>
+  <form method="post" action="/portal/settings/logo" enctype="multipart/form-data" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+    <input type="file" name="logo" accept=".png,.jpg,.jpeg" required>
+    <button type="submit" class="btn btn-primary">Hochladen</button>
+    <?php if ($hasCustomLogo): ?>
+      <button type="submit" formaction="/portal/settings/logo/delete" formnovalidate class="btn btn-tint-red">Entfernen (Standard-Logo verwenden)</button>
+    <?php endif; ?>
+  </form>
+</div>
 
 <!-- Unterschrift für Verträge -->
-<div class="card" style="margin-top:1.5rem">
+<div class="card">
   <h3 style="margin-bottom:.5rem">Unterschrift für Verträge</h3>
   <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
     Wird beim Erzeugen von Bezugs-/Einspeisevereinbarungen über der Unterschriftslinie
@@ -296,9 +312,11 @@
     </div>
   </form>
 </div>
+</section>
 
+<section class="tab-panel" id="tab-api" role="tabpanel" aria-labelledby="tabbtn-api" tabindex="0" hidden>
 <!-- Live-Daten-API (Community-weit) -->
-<div class="card" style="margin-top:1.5rem">
+<div class="card">
   <h3 style="margin-bottom:.5rem"><?= icon('plug') ?> Live-Daten-API (ganze Community)</h3>
   <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">
     API-Keys für ein eigenes Node-RED-/Home-Assistant-Dashboard mit den Live-Werten der
@@ -390,6 +408,7 @@
     </table>
   </div>
 </div>
+</section>
 
 <script>
 (function() {
@@ -448,5 +467,7 @@
   });
 })();
 </script>
+
+<script src="/assets/js/tabs.js?v=<?= @filemtime(ROOT . '/public/assets/js/tabs.js') ?: time() ?>"></script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';
