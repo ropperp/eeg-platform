@@ -359,6 +359,7 @@
       </div>
     <?php endif; ?>
     <?= $content ?>
+    <div class="portal-footer"><?= htmlspecialchars(copyrightLine()) ?></div>
   </main>
 </div>
 

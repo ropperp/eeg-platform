@@ -1746,3 +1746,10 @@ function buildBackupZip(string $zipPath, string $folder, array $files, string $r
     $zip->close();
     return $count;
 }
+
+/** "© 2026 Strom für alle" -- ab 2027 automatisch "© 2026–2027 Strom für alle". */
+function copyrightLine(?int $year = null): string
+{
+    $year ??= (int)date('Y');
+    return '© ' . ($year > 2026 ? '2026–' . $year : '2026') . ' Strom für alle';
+}
