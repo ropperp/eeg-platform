@@ -19,6 +19,24 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Sicherung aller Vorlagen als ZIP, Infoblatt neu kompiliert (08.11.2026)
+Patrick: per Klick alle PDFs und LaTeX-Dateien mit dem heutigen Datum herunterladen, um sie im
+OneDrive-Ordner der EEG abzulegen und bei Verlust wieder hochladen zu können.
+- **Neuer Button "Sicherung herunterladen" unter `/admin/templates`** (nur Platform-Admin):
+  ZIP `stromfueralle-sicherung-JJJJ-MM-TT.zip` mit gleichnamigem Ordner, darin jede verwaltete
+  Datei in der gerade wirksamen Fassung (LaTeX-Vorlagen, Infoblatt, Logos, Hero-Banner,
+  Favicon-Quelle), zusätzlich die Statuten als PDF und eine `LIESMICH.txt` (Herkunft
+  individuell/Standard, Stand, Anleitung zum Wiederherstellen). Jeder Download steht im
+  Audit-Log. Ein direkter Schreibzugriff auf den OneDrive-Ordner ist vom Server aus nicht möglich
+  -- das ZIP wird ganz normal im Browser heruntergeladen und dort abgelegt.
+- Die neue Papierformular-Vorlage `beitrittserklaerung_leer.tex` ist jetzt ebenfalls unter
+  `/admin/templates` aufgeführt (herunter-/hochladbar, in der Sicherung enthalten); ein Upload
+  verwirft die zwischengespeicherten PDFs sofort.
+- **Infoblatt neu kompiliert** (Sitz St. Nikolai, Stand November 2026). Die beiden Grafiken
+  (`icon-white.png`, `EEG Grafik.png`) wurden in voller Auflösung aus dem bisherigen PDF
+  extrahiert und liegen jetzt in `docs/vorlagen/` -- das Infoblatt lässt sich damit künftig
+  direkt aus dem Repo kompilieren. Auch die im Image mitgelieferte Standard-Fassung ist aktualisiert.
+
 ### Rechtsdokumente, Beitrittserklärung, Vollmacht P1 (07.11.2026)
 Umsetzung des Auftrags "Rechtsdokumente, Beitrittserklärung, Vollmacht P1" (Patrick,
 07.11.2026). Migration: `database/migrate_20261107.sql`; Update-Schritte siehe

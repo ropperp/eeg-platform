@@ -1721,3 +1721,28 @@ function filenameWithExtension(string $displayName, string $storedPath): string
     if (strtolower(pathinfo($displayName, PATHINFO_EXTENSION)) === strtolower($ext)) return $displayName;
     return $displayName . '.' . $ext;
 }
+
+/**
+ * Packt Dateien in ein ZIP mit einem Unterordner (z.B. "stromfueralle-sicherung-2026-11-08/"),
+ * plus LIESMICH.txt -- Grundlage der Sicherung unter /admin/templates (Patrick, 08.11.2026:
+ * alle PDFs/LaTeX-Dateien mit Datum auf den Laptop bzw. ins OneDrive sichern, um sie bei Bedarf
+ * wieder hochladen zu können). $files: [Dateiname im ZIP => absoluter Pfad]; fehlende Pfade
+ * werden übersprungen. Gibt die Anzahl der aufgenommenen Dateien zurück.
+ */
+function buildBackupZip(string $zipPath, string $folder, array $files, string $readme): int
+{
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('ZIP-Datei konnte nicht angelegt werden.');
+    }
+    $folder = trim($folder, '/');
+    $count = 0;
+    foreach ($files as $name => $path) {
+        if (!is_file($path)) continue;
+        $zip->addFile($path, $folder . '/' . basename($name));
+        $count++;
+    }
+    $zip->addFromString($folder . '/LIESMICH.txt', $readme);
+    $zip->close();
+    return $count;
+}

@@ -1190,9 +1190,11 @@ docker compose up -d --build
 > dann in der `.env` `TRUSTED_PROXY_IP=<neue IP>` setzen und `docker compose up -d` (gilt für
 > Traefik UND webapp zugleich).
 >
-> Manuell, außerhalb des Servers:
-> - **Infoblatt neu kompilieren** (`docs/vorlagen/InfoBlatt.tex`, Sitz jetzt St. Nikolai) und als
->   `infoblatt.pdf` über `/admin/templates` hochladen -- die Grafiken dafür liegen nicht im Repo.
+> Infoblatt (Sitz jetzt St. Nikolai, seit 08.11.2026 fertig kompiliert im Repo): auf dem Server
+> liegt eine früher hochgeladene `infoblatt.pdf` im Volume, die die neue Standard-Fassung
+> überdeckt -- deshalb die neue Fassung über `/admin/templates` hochladen (oder
+> `rm /opt/eeg/latex-templates/infoblatt.pdf`, dann greift die mitgelieferte neue Fassung).
+> Danach unter `/admin/templates` einmal "Sicherung herunterladen" und das ZIP im OneDrive ablegen.
 > - Das Papier-Beitrittsformular muss NICHT mehr selbst kompiliert werden: die Plattform erzeugt
 >   es unter `/rc108175/beitrittserklaerung.pdf`. Alte Ausdrucke (Fassung `v1-offline`, ohne
 >   P1-Passus in der Vollmacht) bitte nicht mehr ausgeben.

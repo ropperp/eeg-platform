@@ -3,9 +3,13 @@
 Quellmaterial für die geplante Erweiterung (siehe `Anweisung_Plattform_Gesamt.md`).
 Noch nicht in die Plattform integriert — dient als Basis für kommende Phasen.
 
-- `InfoBlatt.tex` — bestehende LaTeX-Quelle im CI-Design (Grün/Türkis-Verlauf, `tcolorbox`).
-  Wird lokal kompiliert (braucht `icon-white.png` und `EEG Grafik.png`, nicht im Repo) und als
-  `infoblatt.pdf` über `/admin/templates` hochgeladen.
+- `InfoBlatt.tex` — LaTeX-Quelle des Infoblatts im CI-Design (Grün/Türkis-Verlauf, `tcolorbox`).
+  Die beiden Grafiken `icon-white.png` und `EEG Grafik.png` liegen seit 08.11.2026 daneben (aus
+  dem bisherigen Infoblatt-PDF in voller Auflösung extrahiert). Kompilieren direkt in diesem
+  Ordner: `pdflatex InfoBlatt.tex` (zweimal). Das Ergebnis als `infoblatt.pdf` über
+  `/admin/templates` hochladen und zusätzlich nach
+  `webapp/public/assets/docs/infoblatt-eeg-strompool-feldkirchen-suedwest.pdf` kopieren (das ist
+  die im Image mitgelieferte Standard-Fassung).
 - ~~`Beitrittserklaerung.tex`~~ — **seit 07.11.2026 entfernt.** Das Papier-Beitrittsformular
   erzeugt jetzt die Plattform selbst (`latex-service/templates/beitrittserklaerung_leer.tex`,
   abrufbar unter `/rc<RC>/beitrittserklaerung.pdf`), mit denselben Zustimmungstexten wie das

@@ -100,3 +100,35 @@ test('extractOrtFromAddress: Ort ohne PLZ aus der letzten Adresszeile', function
     assertSame('Wien', extractOrtFromAddress('1010 Wien'));
     assertSame('', extractOrtFromAddress(null));
 });
+
+// ─── Sicherung /admin/templates (ZIP mit Datumsordner) ──────────────────────────────────────
+test('buildBackupZip: Dateien + LIESMICH im Datumsordner, fehlende Dateien übersprungen', function () {
+    $dir = sys_get_temp_dir() . '/backuptest_' . bin2hex(random_bytes(4));
+    mkdir($dir);
+    file_put_contents($dir . '/rechnung.tex', '\\documentclass{article}');
+    file_put_contents($dir . '/infoblatt.pdf', '%PDF-1.5');
+    $zipPath = $dir . '/out.zip';
+    try {
+        $count = buildBackupZip($zipPath, 'stromfueralle-sicherung-2026-11-08', [
+            'rechnung.tex'  => $dir . '/rechnung.tex',
+            'infoblatt.pdf' => $dir . '/infoblatt.pdf',
+            'fehlt.png'     => $dir . '/gibt-es-nicht.png',
+        ], "Inhalt\r\n");
+        assertSame(2, $count);
+        $zip = new ZipArchive();
+        assertTrue($zip->open($zipPath) === true);
+        $names = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) { $names[] = $zip->getNameIndex($i); }
+        sort($names);
+        assertSame([
+            'stromfueralle-sicherung-2026-11-08/LIESMICH.txt',
+            'stromfueralle-sicherung-2026-11-08/infoblatt.pdf',
+            'stromfueralle-sicherung-2026-11-08/rechnung.tex',
+        ], $names);
+        assertSame('\\documentclass{article}', $zip->getFromName('stromfueralle-sicherung-2026-11-08/rechnung.tex'));
+        $zip->close();
+    } finally {
+        array_map('unlink', glob($dir . '/*'));
+        rmdir($dir);
+    }
+});

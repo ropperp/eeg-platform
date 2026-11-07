@@ -15,6 +15,18 @@
   <a href="/admin/templates/variablen.csv">als CSV</a>
 </p>
 
+<div class="card" style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+  <div style="font-size:.875rem;max-width:40rem">
+    <strong><?= icon('shield-check') ?> Sicherung</strong><br>
+    Lädt alle Dateien dieser Seite (LaTeX-Vorlagen, Infoblatt, Logos, Hero-Banner, Favicon) in der
+    aktuell wirksamen Fassung plus die Statuten als ZIP herunter -- Ordner mit heutigem Datum,
+    z.&nbsp;B. für den OneDrive-Ordner der EEG. Jede Datei lässt sich unten wieder hochladen.
+  </div>
+  <a href="/admin/templates/sicherung.zip" class="btn btn-primary">
+    <?= icon('download-simple') ?> Sicherung herunterladen (<?= date('d.m.Y') ?>)
+  </a>
+</div>
+
 <?php if (!empty($_GET['success'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['success']) ?></div>
 <?php endif; ?>
