@@ -79,25 +79,19 @@ ob_start();
 
   <div class="card">
     <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen</h3>
-    <?php
-    $consentLabels = [
-      'zustimmung_mitgliedschaft'      => 'Vereins- und EEG-Mitgliedschaft',
-      'zustimmung_vollmacht'           => 'Vollmacht',
-      'zustimmung_widerrufsfrist'      => 'Beginn vor Ablauf der Rücktrittsfrist',
-      'zustimmung_email_kommunikation' => 'E-Mail-Rechnung/-Korrespondenz',
-      'zustimmung_datenschutz'         => 'Datenschutz',
-      'zustimmung_agb'                 => 'AGB & Tarif-/Preisblatt',
-    ];
-    ?>
+    <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.5rem">
+      Akzeptierte Fassung: <strong><?= htmlspecialchars($a['consent_version'] ?? 'v1-online') ?></strong>
+      (<a href="/<?= htmlspecialchars(activeCommunityRc()) ?>/zustimmungen" target="_blank">Wortlaut</a>)
+    </p>
     <ul style="padding-left:1.2rem">
-      <?php foreach ($consentLabels as $field => $label): ?>
+      <?php foreach (consentFields() as $field => $label): ?>
         <li style="font-size:.85rem;margin-bottom:.3rem">
           <?= in_array($a[$field], [true, 't', '1', 1], true) ? icon('check-circle') : icon('x-circle') ?> <?= htmlspecialchars($label) ?>
         </li>
       <?php endforeach; ?>
     </ul>
     <p style="font-size:.8rem;color:var(--gray-600);margin-top:.5rem">
-      Unterschrieben am <?= $a['signed_at'] ? date('d.m.Y H:i', strtotime($a['signed_at'])) : '—' ?>
+      Unterschrieben am <?= fmtVienna($a['signed_at'], 'd.m.Y H:i', '—') ?>
       <?php if (!empty($a['signer_ip'])): ?> von IP <?= htmlspecialchars($a['signer_ip']) ?><?php endif; ?>
     </p>
   </div>
@@ -115,7 +109,7 @@ ob_start();
   <h3 style="margin-bottom:1rem">Unterschrift SEPA-Lastschriftmandat</h3>
   <img src="<?= htmlspecialchars($a['sepa_signature_image']) ?>" alt="SEPA-Unterschrift" style="max-width:400px;border:1px solid var(--gray-200);border-radius:8px;background:#fff">
   <p style="font-size:.8rem;color:var(--gray-600);margin-top:.5rem">
-    Unterschrieben am <?= $a['sepa_signed_at'] ? date('d.m.Y H:i', strtotime($a['sepa_signed_at'])) : '—' ?>
+    Unterschrieben am <?= fmtVienna($a['sepa_signed_at'], 'd.m.Y H:i', '—') ?>
   </p>
 </div>
 <?php endif; ?>

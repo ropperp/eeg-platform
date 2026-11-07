@@ -134,6 +134,12 @@ Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Doc
 - Traefik hört **nur auf Port 80** (kein HTTPS, kein Let's Encrypt) — SSL macht der nginx-Proxy
 - `DOCKER_API_VERSION=1.40` gesetzt (Docker Engine 29.x braucht mindestens 1.40)
 - `--providers.docker.exposedbydefault=false` → nur Container mit `traefik.enable=true` werden geroutet
+- `--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}` (seit 07.11.2026):
+  Traefik übernimmt `X-Forwarded-For`/`X-Real-IP` NUR vom nginx-Proxy, sonst verwirft er sie --
+  ohne das speicherte die webapp bei Beitritt/Vertragsunterschrift immer `172.19.0.x` statt der
+  echten Client-IP. Die webapp liest die IP über `clientIp()` (`webapp/src/functions.php`):
+  `X-Forwarded-For` nur hinter einem vertrauenswürdigen Proxy und von RECHTS gelesen (der erste
+  Eintrag ist vom Client fälschbar). Ändert sich die Proxy-IP: `TRUSTED_PROXY_IP` in der `.env`.
 - **Traefik v3-Falle:** `Host()` akzeptiert nur noch **einen** Wert pro Aufruf. Mehrere Hosts
   immer mit `Host(\`a\`) || Host(\`b\`)`, NICHT `Host(\`a\`, \`b\`)` (v2-Syntax, bricht den Router).
 

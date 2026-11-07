@@ -367,10 +367,13 @@ nötig). 404, wenn die ID nicht existiert; 403, wenn sie einem anderen Mitglied 
 
 ```json
 { "metering_points": [
-  { "id": "uuid", "zaehlpunkt_nr": "AT0070000000000000000000012345", "type": "consumer", "active": true, "registered_at": "2026-01-15" }
+  { "id": "uuid", "zaehlpunkt_nr": "AT0070000000000000000000012345", "type": "consumer", "active": true, "registered_at": "2026-01-15", "p1_key_hinterlegt": false }
 ] }
 ```
 `type`: `consumer` (Verbraucher), `producer` (Einspeiser/PV), `prosumer` (beides).
+`p1_key_hinterlegt` (seit 07.11.2026): ob für diesen Zählpunkt der Schlüssel der
+P1-Kundenschnittstelle hinterlegt ist -- nur ja/nein, der Schlüssel selbst ist ausschließlich für
+Vorstand/Admin im Web-Portal sichtbar.
 
 ---
 

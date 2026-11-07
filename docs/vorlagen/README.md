@@ -3,8 +3,15 @@
 Quellmaterial für die geplante Erweiterung (siehe `Anweisung_Plattform_Gesamt.md`).
 Noch nicht in die Plattform integriert — dient als Basis für kommende Phasen.
 
-- `Beitrittserklaerung.tex`, `InfoBlatt.tex` — bestehende LaTeX-Quellen im CI-Design
-  (Grün/Türkis-Verlauf, `tcolorbox`), Basis für Kopf-/Fußzeile künftiger Vertrags-Templates.
+- `InfoBlatt.tex` — bestehende LaTeX-Quelle im CI-Design (Grün/Türkis-Verlauf, `tcolorbox`).
+  Wird lokal kompiliert (braucht `icon-white.png` und `EEG Grafik.png`, nicht im Repo) und als
+  `infoblatt.pdf` über `/admin/templates` hochgeladen.
+- ~~`Beitrittserklaerung.tex`~~ — **seit 07.11.2026 entfernt.** Das Papier-Beitrittsformular
+  erzeugt jetzt die Plattform selbst (`latex-service/templates/beitrittserklaerung_leer.tex`,
+  abrufbar unter `/rc<RC>/beitrittserklaerung.pdf`), mit denselben Zustimmungstexten wie das
+  Online-Formular (einzige Quelle: `webapp/src/consent_texts.php`). Die alte Fassung steht in der
+  Git-Historie; ihr Zustimmungswortlaut ist als Version `v1-offline` in `consent_texts.php`
+  erhalten.
 - `EnergieundLeistungsbezugsvereinbarungV2August2022.docx`,
   `VereinbarungUeberschusseinspeiserV2August2022.docx` — Vertragsmuster der Koordinationsstelle,
   Text 1:1 in die neuen LaTeX-Templates zu übernehmen (gelb markierte Stellen → Variablen).

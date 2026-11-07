@@ -6,7 +6,7 @@ ob_start();
 
 <div class="legal">
   <h1>Allgemeine Geschäftsbedingungen</h1>
-  <div class="legal-meta">EEG Strompool Feldkirchen Süd-West · Stand: Juli 2026</div>
+  <div class="legal-meta">EEG Strompool Feldkirchen Süd-West · Stand: 7. November 2026</div>
 
   <h2>1. Geltungsbereich</h2>
   <p>
@@ -16,11 +16,24 @@ ob_start();
   </p>
 
   <h2>2. Mitgliedschaft</h2>
-  <p>
-    Voraussetzung für die Teilnahme ist ein aktiver Zählpunkt im Netzgebiet der Gemeinschaft
-    sowie die Zustimmung zu den Statuten. Die Anmeldung erfolgt über den zuständigen
-    Netzbetreiber und die Registrierung als Mitglied in der Plattform.
-  </p>
+  <ol>
+    <li>
+      Voraussetzung für die Teilnahme ist ein aktiver Zählpunkt im Netzgebiet der Gemeinschaft
+      sowie die Zustimmung zu den Statuten und diesen AGB.
+    </li>
+    <li>
+      Der Beitritt erfolgt über die Online-Beitrittserklärung unter
+      <a href="/beitreten">stromfueralle.at/beitreten</a> oder schriftlich. Über die Aufnahme
+      entscheidet der Vorstand gemäß den Statuten.
+    </li>
+    <li>
+      Die Anmeldung der Zählpunkte beim Netzbetreiber (Zustimmungserklärung, EDA-Prozess)
+      übernimmt die EEG aufgrund der in der Beitrittserklärung erteilten Vollmacht.
+    </li>
+    <li>
+      Mit der Teilnahme verpflichtet sich das Mitglied zum Betrieb der Ausleseeinheit gemäß § 7.
+    </li>
+  </ol>
 
   <h2>3. Energiebezug &amp; Einspeisung</h2>
   <p>
@@ -60,7 +73,8 @@ ob_start();
       Der Betrieb der Ausleseeinheit ist verpflichtender Bestandteil der Teilnahme an der EEG. Das
       Mitglied verpflichtet sich, die Ausleseeinheit nach Bereitstellung in Betrieb zu nehmen,
       dauerhaft betriebsbereit zu halten und die dafür erforderliche Freischaltung der
-      P1-Kundenschnittstelle beim Netzbetreiber zu veranlassen.
+      P1-Kundenschnittstelle beim Netzbetreiber zu veranlassen. Die Freischaltung veranlasst das
+      Mitglied selbst oder die EEG aufgrund der in der Beitrittserklärung erteilten Vollmacht.
     </li>
     <li>
       Die Ausleseeinheit befindet sich derzeit in Entwicklung. Der Zeitpunkt der Bereitstellung wird
@@ -81,6 +95,11 @@ ob_start();
     <li>
       Die Abrechnung erfolgt unabhängig von der Ausleseeinheit auf Basis der vom Netzbetreiber
       übermittelten Viertelstundenwerte.
+    </li>
+    <li>
+      Kommt ein Mitglied der Pflicht zum Betrieb der Ausleseeinheit trotz schriftlicher
+      Aufforderung nicht nach, kann dies als Verletzung der Mitgliedspflichten im Sinne der
+      Statuten behandelt werden.
     </li>
   </ol>
 

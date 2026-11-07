@@ -300,6 +300,10 @@ function onDashboardRangeChange(v) {
         <tr>
           <th style="white-space:nowrap"><?= $mp['type'] === 'producer' ? icon('arrow-up') : icon('arrow-down') ?></th>
           <td><code style="font-size:.78rem"><?= htmlspecialchars($mp['zaehlpunkt_nr']) ?></code></td>
+          <?php // Mitglied sieht nur, OB ein P1-Schlüssel hinterlegt ist -- nie den Schlüssel selbst. ?>
+          <td style="font-size:.78rem;color:var(--gray-600);white-space:nowrap">
+            P1-Schlüssel hinterlegt: <?= !empty($mp['p1_key_enc']) ? 'ja' : 'nein' ?>
+          </td>
         </tr>
       <?php endforeach; ?>
     </table>

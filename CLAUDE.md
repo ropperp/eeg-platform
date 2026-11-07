@@ -170,6 +170,12 @@ Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende S
 - Traefik hört **nur auf Port 80** (kein HTTPS, kein Let's Encrypt) — SSL macht der nginx-Proxy
 - `DOCKER_API_VERSION=1.40` ist als Env-Var gesetzt (Docker Engine 29.x braucht mindestens 1.40, Traefik v3.x würde sonst 1.24 verwenden → Fehler)
 - `--providers.docker.exposedbydefault=false` → nur Container mit `traefik.enable=true` werden geroutet
+- `--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}` (seit 07.11.2026):
+  Traefik übernimmt `X-Forwarded-For`/`X-Real-IP` NUR vom nginx-Proxy, sonst verwirft er sie --
+  ohne das speicherte die webapp bei Beitritt/Vertragsunterschrift immer `172.19.0.x` statt der
+  echten Client-IP. Die webapp liest die IP über `clientIp()` (`webapp/src/functions.php`):
+  `X-Forwarded-For` nur hinter einem vertrauenswürdigen Proxy und von RECHTS gelesen (der erste
+  Eintrag ist vom Client fälschbar). Ändert sich die Proxy-IP: `TRUSTED_PROXY_IP` in der `.env`.
 - Zusätzlich zum Docker-Provider läuft seit 25.09.2026 ein **File-Provider**
   (`--providers.file.filename=/etc/traefik/dynamic.yml`, Datei im Repo: `docker/traefik/dynamic.yml`)
   für die webapp-Router — Grund siehe "Webapp-Router" unten.
