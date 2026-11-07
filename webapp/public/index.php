@@ -10305,7 +10305,8 @@ function adminFileRegistry(): array
         'bezugsvereinbarung.tex'           => ['label' => 'Bezugsvereinbarung', 'type' => 'tex'],
         'einspeisevereinbarung.tex'        => ['label' => 'Einspeisevereinbarung', 'type' => 'tex'],
         'rechnung.tex'                     => ['label' => 'Rechnung', 'type' => 'tex'],
-        'beitrittserklaerung_formular.tex' => ['label' => 'Beitrittserklärung', 'type' => 'tex'],
+        'beitrittserklaerung_formular.tex' => ['label' => 'Beitrittserklärung (Online-Ausdruck)', 'type' => 'tex'],
+        'beitrittserklaerung_leer.tex'     => ['label' => 'Beitrittserklärung (Papierformular)', 'type' => 'tex'],
         'infoblatt.pdf'                    => ['label' => 'Infoblatt (Website)', 'type' => 'pdf'],
         'logo-light.png'                   => ['label' => 'Logo (Light-Mode)', 'type' => 'image'],
         'logo-dark.png'                    => ['label' => 'Logo (Dark-Mode)', 'type' => 'image'],
@@ -10448,9 +10449,21 @@ function adminFileVariables(): array
             'RAW_ANDERE_EEG_NEIN' => 'Ankreuzfeld andere EEG „Nein" (RAW, nicht escapen)',
             'RAW_ZP_BEZUG_GRID' => 'Vorformatiertes Raster der Bezugs-Zählpunkte (RAW, nicht escapen)',
             'RAW_ZP_EINSPEISUNG_GRID' => 'Vorformatiertes Raster der Einspeise-Zählpunkte (RAW, nicht escapen)',
-            'RAW_ZUSTIMMUNGEN_LISTE' => 'Vorformatierte Liste der Zustimmungen (RAW, nicht escapen)',
+            'RAW_ZUSTIMMUNGEN_LISTE' => 'Kurzfassung der Zustimmungen in der akzeptierten Fassung (RAW, nicht escapen)',
+            'RAW_ZUSTIMMUNGEN_HINWEIS' => 'Versionshinweis + Links auf den vollständigen Wortlaut (RAW, nicht escapen)',
             'RAW_SEPA_BLOCK' => 'Vorformatierter SEPA-Block (RAW, nicht escapen)',
             'RAW_UNTERSCHRIFT_BILD' => 'Eingebettete Unterschrift-Grafik (RAW, nicht escapen)',
+        ],
+        'beitrittserklaerung_leer.tex' => [
+            'EEG_NAME' => 'Name der Energiegemeinschaft',
+            'EEG_ZVR' => 'ZVR-Zahl der Energiegemeinschaft',
+            'EEG_RC' => 'RC-Nummer ohne "RC"-Präfix (z.B. 108175)',
+            'EEG_ADRESSE' => 'Adresse/Sitz der Energiegemeinschaft',
+            'KONTAKT_EMAIL' => 'Kontakt-E-Mail (Fallback office@stromfueralle.at)',
+            'RAW_KONTAKT' => 'Kontaktzeile E-Mail + Telefon (RAW, nicht escapen)',
+            'RAW_SEPA_TEXT' => 'Wortlaut des SEPA-Mandats aus consent_texts.php (RAW, nicht escapen)',
+            'RAW_ZUSTIMMUNGEN_LISTE' => 'Langfassung der sechs Zustimmungen aus consent_texts.php (RAW, nicht escapen)',
+            'RAW_ZUSTIMMUNGEN_HINWEIS' => 'Fassung/Version + Link auf alle Fassungen (RAW, nicht escapen)',
         ],
     ];
 }
@@ -10793,6 +10806,63 @@ $router->get('/admin/templates/variablen.csv', function () {
     fclose($out);
 });
 
+/**
+ * Sicherung aller verwalteten Dateien als ZIP (Patrick, 08.11.2026): LaTeX-Vorlagen, Infoblatt-PDF,
+ * Logos, Hero-Banner, Favicon-Quelle -- jeweils die gerade WIRKSAME Fassung (individuell
+ * hochgeladen oder Standard), dazu die Statuten als PDF. Ordner und Dateiname tragen das
+ * heutige Datum, damit mehrere Sicherungen nebeneinander im OneDrive liegen können. Jede Datei
+ * lässt sich später unter /admin/templates einzeln wieder hochladen (siehe LIESMICH.txt im ZIP).
+ */
+$router->get('/admin/templates/sicherung.zip', function () {
+    Auth::requireLogin();
+    denyDemoFileDownload();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+
+    $date = date('Y-m-d');
+    $folder = 'stromfueralle-sicherung-' . $date;
+    $files = [];
+    $lines = [];
+    foreach (adminFileRegistry() as $filename => $info) {
+        $path = adminFilePath($filename);
+        if (!$path) {
+            $lines[] = sprintf('- %-34s %s -- NICHT VORHANDEN', $filename, $info['label']);
+            continue;
+        }
+        $files[$filename] = $path;
+        $custom = str_starts_with($path, '/var/www/html/latex-templates/');
+        $lines[] = sprintf('- %-34s %s -- %s, Stand %s', $filename, $info['label'],
+            $custom ? 'individuell hochgeladen' : 'Standard-Fassung', date('d.m.Y H:i', filemtime($path)));
+    }
+    $statuten = ROOT . '/public/assets/docs/statuten-eeg-strompool-feldkirchen-suedwest.pdf';
+    if (is_file($statuten)) {
+        $files['statuten-eeg-strompool-feldkirchen-suedwest.pdf'] = $statuten;
+        $lines[] = sprintf('- %-34s %s', 'statuten-...pdf', 'Statuten (nur zur Ablage, nicht über /admin/templates hochladbar)');
+    }
+
+    $readme = 'Sicherung Strom für alle -- erstellt am ' . date('d.m.Y, H:i') . " Uhr\r\n\r\n"
+        . "Enthalten (jeweils die zum Zeitpunkt der Sicherung wirksame Fassung):\r\n"
+        . implode("\r\n", $lines) . "\r\n\r\n"
+        . "Wiederherstellen: im Portal unter Administration -> Dateien (/admin/templates) bei der\r\n"
+        . "jeweiligen Datei die Fassung aus diesem Ordner hochladen. Der Dateiname muss dabei nicht\r\n"
+        . "stimmen, die Zuordnung erfolgt über das Feld, in das hochgeladen wird.\r\n";
+
+    $tmp = tempnam(sys_get_temp_dir(), 'sicherung');
+    try {
+        $count = buildBackupZip($tmp, $folder, $files, $readme);
+    } catch (\Throwable $e) {
+        @unlink($tmp);
+        http_response_code(500); echo 'Sicherung fehlgeschlagen: ' . htmlspecialchars($e->getMessage()); return;
+    }
+    logAudit(null, 'template.backup', 'admin_file', null, 'Sicherung aller Vorlagen/Dateien als ZIP heruntergeladen (' . $count . ' Dateien)');
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $folder . '.zip"');
+    header('Content-Length: ' . filesize($tmp));
+    header('Cache-Control: no-store');
+    readfile($tmp);
+    @unlink($tmp);
+    exit;
+});
+
 $router->get('/admin/templates/:name/download', function ($params) {
     Auth::requireLogin();
     denyDemoFileDownload();
@@ -10847,6 +10917,11 @@ $router->post('/admin/templates/:name/upload', function ($params) {
     // Seitenaufruf. Schlägt das fehl (z.B. korruptes Bild trotz bestandener getimagesize()-
     // Prüfung oben), bleiben die bisherigen Favicon-Dateien unverändert bestehen statt kaputt
     // zu werden -- die neue Quelldatei ist dann zwar gespeichert, aber ohne sichtbaren Effekt.
+    // Neue Papierformular-Vorlage: zwischengespeicherte PDFs (/:rc/beitrittserklaerung.pdf)
+    // sofort verwerfen, sonst bliebe bis zu einen Tag die alte Fassung online.
+    if ($params['name'] === 'beitrittserklaerung_leer.tex') {
+        foreach (glob('/var/www/html/storage/cache/beitrittserklaerung/*.pdf') ?: [] as $cached) { @unlink($cached); }
+    }
     if ($params['name'] === 'favicon-source.png') {
         try {
             generateFaviconAssets($target, '/var/www/html/latex-templates');
