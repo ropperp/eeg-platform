@@ -31,7 +31,8 @@ $efNetzLabel    = $efNetzW > 0 ? 'Netz (Einspeisung)' : ($efNetzW < 0 ? 'Netz (B
   <div class="eflow-node" data-eflow-node="pv">
     <div class="eflow-circle eflow-circle-pv"><?= icon('sun') ?></div>
     <div class="eflow-text">
-      <div class="eflow-value" id="ef-pv"><?= number_format($efEinspW, 0, ',', '.') ?> W</div>
+      <?php // 0 W sähe nach Störung aus -- deshalb Klartext (Patrick, 08.11.2026). ?>
+      <div class="eflow-value" id="ef-pv"><?= round($efEinspW) >= 1 ? number_format($efEinspW, 0, ',', '.') . ' W' : '<span class="eflow-value-none">aktuell keine Einspeisung</span>' ?></div>
       <div class="eflow-label">PV-Erzeugung</div>
     </div>
   </div>

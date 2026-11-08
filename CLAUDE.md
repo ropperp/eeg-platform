@@ -381,6 +381,17 @@ Sinuskurve mit Höchstwert um 13:00; Verbraucher haben nachts eine Kühlschrank-
 (nie 0) und je einen Buckel morgens, mittags und (am stärksten) abends -- 1:1 mit der echten
 Uhrzeit, kein Zeitraffer, weil der Schalter wochenlang durchlaufen soll.
 
+**Einspeisung nach echtem Wetter** (seit 08.11.2026, Patrick: im November bei Nebel passten
+11-12 kW Einspeisung nicht mehr): die Einspeiser rechnen mit der aktuellen Einstrahlung auf eine
+30° nach Süden geneigte Fläche vom kostenlosen Wetterdienst **Open-Meteo** (kein API-Schlüssel,
+Abruf alle 10 min aus dem `mqtt-subscriber`-Container, braucht also ausgehendes HTTPS zu
+`api.open-meteo.com`) -- Leistung = Nennleistung × Einstrahlung/1000 × 0,85, bei gemeldetem Nebel
+zusätzlich × 0,3. Sonnenauf-/-untergang aus dem echten Sonnenstand statt fix 06/20 Uhr; nachts
+exakt 0 W. Standort per `MESSE_DEMO_LAT`/`MESSE_DEMO_LON` in der `.env` (leer = Feldkirchen in
+Kärnten). Ist Open-Meteo nicht erreichbar: Schätzung aus dem Sonnenstand (halbe
+Schönwetter-Leistung) und Warnung im Log (`docker compose logs mqtt-subscriber | grep Wetter`).
+Die Oberfläche zeigt bei 0 W Einspeisung „aktuell keine Einspeisung“ statt „0 W“.
+
 **Sichtbarer Hinweis, wenn aktiv** (Patrick: "mach mir [...] einen Hinweis [...] dass diese
 Werte fiktive Werte sind [...] und diese jetzt noch nicht stimmen"): sowohl auf dem
 Energiefluss im Obmann-/Mitglied-Dashboard (`energy_flow.php`) als auch auf der öffentlichen

@@ -43,6 +43,9 @@ EEG-Auswahlseiten, alle `/<rc>/...`-Seiten für jede EEG, Schalter „EEG ohne A
 `migrate_20261108.sql`, 270 Tests grün, Editor per Playwright geprüft. Offen/manuell: beide
 Migrationen ausführen, `docker compose up -d --build` (Traefik muss neu starten), neues
 Infoblatt hochladen, im allgemeinen Datenschutz-Teil den Plattform-Betreiber eintragen.
+Nachtrag: Messe-Demo-Einspeisung folgt jetzt echtem Wetter (Open-Meteo, Nebel gedrosselt) und
+echtem Sonnenstand (nachts exakt 0 W); bei 0 W zeigt die Oberfläche „aktuell keine
+Einspeisung“. Danach `docker compose up -d --build mqtt-subscriber webapp`.
 **Fehler/Lehre:** Der Auftrag verlangte den wörtlichen Prompt im Log; nach `CLAUDE.md`
 (öffentliches Repo, seit 10.10.2026) stehen hier nur Zusammenfassung und verbesserter Prompt.
 Beim Zeitzonen-Bug zeigte sich derselbe Fehler (Ortszeit ohne Zeitzone in `TIMESTAMPTZ`)

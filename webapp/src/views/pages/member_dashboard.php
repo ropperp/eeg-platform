@@ -147,7 +147,9 @@ ob_start();
   <div id="current-power-tile">
   <?php if ($currentNetPowerW === null): ?>
     <p style="font-size:.85rem;color:var(--gray-600)">Keine Live-Daten verfügbar (Ausleseeinheit nicht installiert oder gerade offline).</p>
-  <?php elseif ($currentNetPowerW >= 0): ?>
+  <?php elseif (round($currentNetPowerW) == 0): ?>
+    <div class="stat-value stat-value-text">aktuell kein Bezug und keine Einspeisung</div>
+  <?php elseif ($currentNetPowerW > 0): ?>
     <div class="stat-value" style="color:#dc2626"><?= icon('arrow-down') ?> <?= number_format($currentNetPowerW, 0, ',', '') ?> W</div>
     <div class="stat-label">wird gerade bezogen</div>
   <?php else: ?>
@@ -168,7 +170,9 @@ setInterval(async () => {
     const icon = (name) => '<svg class="icon" aria-hidden="true" focusable="false"><use href="/assets/icons/phosphor-sprite.svg#ph-' + name + '"></use></svg>';
     if (d.net_w === null) {
       tile.innerHTML = '<p style="font-size:.85rem;color:var(--gray-600)">Keine Live-Daten verfügbar (Ausleseeinheit nicht installiert oder gerade offline).</p>';
-    } else if (d.net_w >= 0) {
+    } else if (Math.round(d.net_w) === 0) {
+      tile.innerHTML = '<div class="stat-value stat-value-text">aktuell kein Bezug und keine Einspeisung</div>';
+    } else if (d.net_w > 0) {
       tile.innerHTML = '<div class="stat-value" style="color:#dc2626">' + icon('arrow-down') + ' ' + Math.round(d.net_w).toLocaleString('de-AT') + ' W</div>'
         + '<div class="stat-label">wird gerade bezogen</div>';
     } else {

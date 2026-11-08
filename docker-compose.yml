@@ -183,6 +183,10 @@ services:
       # Für die Verschlüsselung des ESP-WLAN-Passworts (eeg/+/meter/+/status), gleicher
       # Schlüssel wie encryptSecret()/decryptSecret() in webapp/src/functions.php.
       APP_SECRET: ${APP_SECRET}
+      # Standort für die Wetterdaten der Messe-Demo (simulierte PV-Einspeisung, siehe main.py).
+      # Leer = Feldkirchen in Kärnten.
+      MESSE_DEMO_LAT: ${MESSE_DEMO_LAT:-}
+      MESSE_DEMO_LON: ${MESSE_DEMO_LON:-}
     depends_on:
       mosquitto:
         condition: service_healthy

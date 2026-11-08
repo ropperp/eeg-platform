@@ -228,8 +228,11 @@ kleinen Schalter [...] unter den Einstellungen." Jetzt: Checkbox "Simulierte Wer
 den Obmann-Einstellungen (ganz oben) -- läuft als Daemon-Thread dauerhaft im
 `mqtt-subscriber`-Container, legt bei Bedarf automatisch 20 fiktive Zählpunkte (8 Einspeiser,
 12 Verbraucher, nie abrechnungsrelevant) an und publiziert echte MQTT-Werte mit echtem,
-echtzeit-synchronem Tagesprofil (Einspeiser nur 06:00-20:00 mit Mittagsspitze, Verbraucher mit
-Nacht-Grundlast + Morgen-/Mittags-/Abendspitze). Läuft über den kompletten echten Pfad bis zur
+echtzeit-synchronem Tagesprofil (Verbraucher mit Nacht-Grundlast + Morgen-/Mittags-/
+Abendspitze). Die Einspeiser folgen seit 08.11.2026 dem echten Wetter (Einstrahlung von
+Open-Meteo, alle 10 min; Nebel gedrosselt) und dem echten Sonnenstand, nachts exakt 0 W --
+Standort über `MESSE_DEMO_LAT`/`MESSE_DEMO_LON` in der `.env`. Bei 0 W zeigt die Oberfläche
+„aktuell keine Einspeisung“. Läuft über den kompletten echten Pfad bis zur
 Live-Anzeige, kein Frontend-Fake -- dort erscheint dafür ein deutlicher Hinweis, dass die Werte
 teilweise simuliert sind, solange der Schalter an ist. Details: `CLAUDE.md`.
 

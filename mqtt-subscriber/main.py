@@ -29,6 +29,8 @@ import os
 import random
 import threading
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -618,6 +620,7 @@ def reconfig_broadcast_loop(client: mqtt.Client) -> None:
 # haben: Einspeiser liefern 0 W vor 06:00/nach 20:00 mit Sinuskurve und Höchstwert um 13:00,
 # Verbraucher haben nachts eine Kühlschrank-/Standby-Grundlast (nie 0) mit Buckeln morgens,
 # mittags und (am stärksten) abends -- siehe messe_producer_envelope()/messe_consumer_envelope().
+# Einspeiser: Nennleistung der simulierten PV-Anlage in W (bei 1000 W/m² Einstrahlung).
 MESSE_PRODUCER_BASELINES_W = [600, 900, 1200, 1500, 1800, 2200, 2600, 3000]
 MESSE_CONSUMER_BASELINES_W = [80, 120, 150, 200, 250, 300, 350, 450, 550, 700, 900, 1200]
 MESSE_DEMO_EMAIL = "messe-demo@stromfueralle.local"
@@ -653,10 +656,125 @@ def messe_meter_defs() -> list[tuple[str, str, float]]:
 
 
 def messe_producer_envelope(hour: float) -> float:
+    """Altes, festes Tagesprofil (06-20 Uhr Sinus) -- nur noch Notnagel für Tests; die Simulation
+    nutzt seit 08.11.2026 pv_irradiance_w_m2() (echter Sonnenstand + echtes Wetter)."""
     if hour <= MESSE_SUNRISE_H or hour >= MESSE_SUNSET_H:
         return 0.0
     x = math.pi * (hour - MESSE_SUNRISE_H) / (MESSE_SUNSET_H - MESSE_SUNRISE_H)
     return math.sin(x)
+
+
+# ─── Echtes Wetter für die simulierte PV-Einspeisung (Patrick, 08.11.2026) ─────────────────────
+# "Jetzt haben wir ja schon Herbst [...] die 11.000 oder 12.000 passen gerade nicht so dazu [...]
+# mit der aktuellen Wetterlage abgleichen [...] mit Uhrzeit ein bisschen genauer [...] weil wir
+# jetzt voll Nebel haben." Bisher lieferten die Einspeiser jeden Tag 06-20 Uhr eine Sinuskurve
+# mit Höchstwert um 13 Uhr -- auch im November bei Nebel bis zu ~12 kW.
+#
+# Jetzt: aktuelle Einstrahlung auf eine nach Süden geneigte Fläche (global_tilted_irradiance) vom
+# kostenlosen Wetterdienst Open-Meteo (kein API-Schlüssel, alle 10 min abgefragt, Werte im
+# 15-Minuten-Raster). Leistung je Anlage = Nennleistung × Einstrahlung/1000 × Systemwirkungsgrad.
+# Bei gemeldetem Nebel (WMO-Code 45/48) zusätzlich gedrosselt, weil die Wettermodelle
+# Talnebel/Hochnebel im Klagenfurter Becken oft unterschätzen. Sonnenauf-/-untergang ergeben
+# sich aus dem echten Sonnenstand (sun_elevation_deg()) statt fixer 06/20 Uhr.
+# Ist der Wetterdienst nicht erreichbar: Schätzung für wolkenlosen Himmel aus dem Sonnenstand,
+# gedämpft auf die Hälfte (lieber zu wenig als die alte Sommerkurve), Warnung im Log.
+# Standort: MESSE_DEMO_LAT/MESSE_DEMO_LON (docker-compose/.env), Standard Feldkirchen in Kärnten.
+WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+WEATHER_REFRESH_S = 600
+WEATHER_MAX_AGE_S = 3 * 3600        # ältere Wetterdaten nicht mehr verwenden
+WEATHER_FOG_CODES = (45, 48)        # WMO: Nebel, Nebel mit Reifansatz
+WEATHER_FOG_FACTOR = 0.3
+PV_TILT_DEG = 30
+PV_AZIMUTH_DEG = 0                  # Open-Meteo: 0 = Süden
+PV_SYSTEM_EFFICIENCY = 0.85         # Wechselrichter, Leitungen, Temperatur, Verschmutzung
+FALLBACK_CLEAR_SKY_FACTOR = 0.5
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+
+
+MESSE_DEMO_LAT = _env_float("MESSE_DEMO_LAT", 46.7228)
+MESSE_DEMO_LON = _env_float("MESSE_DEMO_LON", 14.0949)
+
+_weather: dict = {"fetched_at": 0.0, "data_at": 0.0, "gti": None, "code": None, "warned_at": 0.0}
+
+
+def sun_elevation_deg(when_utc: datetime, lat: float, lon: float) -> float:
+    """Sonnenhöhe über dem Horizont in Grad (NOAA-Näherung, auf ~0,5° genau -- reicht für
+    Sonnenauf-/-untergang und den Tagesverlauf)."""
+    doy = when_utc.timetuple().tm_yday
+    hour = when_utc.hour + when_utc.minute / 60 + when_utc.second / 3600
+    g = 2 * math.pi / 365 * (doy - 1 + (hour - 12) / 24)
+    eqtime = 229.18 * (0.000075 + 0.001868 * math.cos(g) - 0.032077 * math.sin(g)
+                       - 0.014615 * math.cos(2 * g) - 0.040849 * math.sin(2 * g))
+    decl = (0.006918 - 0.399912 * math.cos(g) + 0.070257 * math.sin(g) - 0.006758 * math.cos(2 * g)
+            + 0.000907 * math.sin(2 * g) - 0.002697 * math.cos(3 * g) + 0.00148 * math.sin(3 * g))
+    true_solar_min = hour * 60 + eqtime + 4 * lon
+    ha = math.radians(true_solar_min / 4 - 180)
+    la = math.radians(lat)
+    cos_zen = math.sin(la) * math.sin(decl) + math.cos(la) * math.cos(decl) * math.cos(ha)
+    return 90 - math.degrees(math.acos(max(-1.0, min(1.0, cos_zen))))
+
+
+def clear_sky_ghi_w_m2(elevation_deg: float) -> float:
+    """Globalstrahlung bei wolkenlosem Himmel (Haurwitz-Modell)."""
+    if elevation_deg <= 0:
+        return 0.0
+    cz = math.sin(math.radians(elevation_deg))
+    return 1098 * cz * math.exp(-0.057 / cz)
+
+
+def fetch_weather(lat: float, lon: float) -> tuple[float | None, int | None, float]:
+    """Aktuelle Einstrahlung auf die geneigte PV-Fläche (W/m²), WMO-Wettercode und Zeitpunkt
+    der Messung (Unix-Zeit) von Open-Meteo. Wirft bei Netzwerk-/Formatfehlern."""
+    query = urllib.parse.urlencode({
+        "latitude": f"{lat:.4f}", "longitude": f"{lon:.4f}",
+        "current": "global_tilted_irradiance,shortwave_radiation,weather_code",
+        "tilt": PV_TILT_DEG, "azimuth": PV_AZIMUTH_DEG, "timezone": "UTC",
+    })
+    req = urllib.request.Request(f"{WEATHER_URL}?{query}", headers={"User-Agent": "eeg-platform-messe-demo/1.0"})
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    cur = data["current"]
+    gti = cur.get("global_tilted_irradiance")
+    if gti is None:
+        gti = cur.get("shortwave_radiation")
+    code = cur.get("weather_code")
+    data_at = datetime.fromisoformat(cur["time"]).replace(tzinfo=timezone.utc).timestamp()
+    return (float(gti) if gti is not None else None, int(code) if code is not None else None, data_at)
+
+
+def refresh_weather_if_due(now_ts: float) -> None:
+    if now_ts - _weather["fetched_at"] < WEATHER_REFRESH_S:
+        return
+    _weather["fetched_at"] = now_ts  # auch bei Fehler erst in 10 min erneut versuchen
+    try:
+        gti, code, data_at = fetch_weather(MESSE_DEMO_LAT, MESSE_DEMO_LON)
+        _weather.update(gti=gti, code=code, data_at=data_at)
+        log.info("Messe-Demo: Wetter aktualisiert -- Einstrahlung %s W/m², Wettercode %s", gti, code)
+    except Exception as e:
+        log.warning("Messe-Demo: Wetterdaten nicht abrufbar (%s) -- nutze Sonnenstand-Schätzung", e)
+
+
+def pv_irradiance_w_m2(now_utc: datetime) -> float:
+    """Einstrahlung, mit der die simulierten PV-Anlagen gerade rechnen (W/m²). Nachts immer 0."""
+    elevation = sun_elevation_deg(now_utc, MESSE_DEMO_LAT, MESSE_DEMO_LON)
+    if elevation <= 0:
+        return 0.0
+    now_ts = now_utc.timestamp()
+    if _weather["gti"] is not None and now_ts - _weather["data_at"] <= WEATHER_MAX_AGE_S:
+        irradiance = _weather["gti"]
+        if _weather["code"] in WEATHER_FOG_CODES:
+            irradiance *= WEATHER_FOG_FACTOR
+        return max(0.0, irradiance)
+    if now_ts - _weather["warned_at"] > 3600:
+        _weather["warned_at"] = now_ts
+        log.warning("Messe-Demo: keine aktuellen Wetterdaten -- PV-Werte aus Sonnenstand geschätzt")
+    return clear_sky_ghi_w_m2(elevation) * FALLBACK_CLEAR_SKY_FACTOR
 
 
 def messe_consumer_envelope(hour: float) -> float:
@@ -715,8 +833,12 @@ def demo_simulation_tick(client: mqtt.Client) -> None:
             cur.execute("SELECT id, slug, marktpartner_id FROM communities WHERE messe_demo_enabled = true")
             enabled = cur.fetchall()
 
-        now = datetime.now(timezone.utc).astimezone(AUSTRIA_TZ)
+        now_utc = datetime.now(timezone.utc)
+        now = now_utc.astimezone(AUSTRIA_TZ)
         sim_hour = now.hour + now.minute / 60 + now.second / 3600
+        if enabled:
+            refresh_weather_if_due(now_utc.timestamp())
+        pv_factor = pv_irradiance_w_m2(now_utc) / 1000 * PV_SYSTEM_EFFICIENCY
 
         for community_id, slug, marktpartner_id in enabled:
             rc = (marktpartner_id or slug or "").strip().lower()
@@ -734,10 +856,17 @@ def demo_simulation_tick(client: mqtt.Client) -> None:
                 key = f"{community_id}:{meter_code}"
                 state = _messe_meter_state.setdefault(key, {"current_w": 0.0, "energy_wh": random.randint(500_000, 5_000_000)})
 
-                envelope = messe_producer_envelope(sim_hour) if kind == "producer" else messe_consumer_envelope(sim_hour)
+                envelope = pv_factor if kind == "producer" else messe_consumer_envelope(sim_hour)
                 target = baseline_w * envelope
-                noise = random.gauss(0, max(target, baseline_w * 0.05) * 0.08)
-                state["current_w"] = max(0.0, state["current_w"] + (target - state["current_w"]) * 0.3 + noise)
+                if kind == "producer" and target < 1:
+                    # Nacht/kein Licht: sauber auf 0 auslaufen, ohne Rauschen (sonst stünden
+                    # nachts ein paar Watt "Einspeisung" da).
+                    state["current_w"] *= 0.5
+                    if state["current_w"] < 1:
+                        state["current_w"] = 0.0
+                else:
+                    noise = random.gauss(0, max(target, baseline_w * 0.05) * 0.08)
+                    state["current_w"] = max(0.0, state["current_w"] + (target - state["current_w"]) * 0.3 + noise)
 
                 w = round(state["current_w"])
                 state["energy_wh"] += round(w * DEMO_TICK_INTERVAL_S / 3600)

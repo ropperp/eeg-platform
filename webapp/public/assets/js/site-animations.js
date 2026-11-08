@@ -70,6 +70,14 @@
         liveStats.style.display = '';
         liveStats.querySelectorAll('[data-live-value]').forEach(function (el) {
           var target = Number(d[el.getAttribute('data-live-value')]) || 0;
+          // Keine Einspeisung: Klartext statt "0" (sähe nach Störung aus, Patrick 08.11.2026).
+          if (el.getAttribute('data-live-value') === 'einspeisung_w' && Math.round(target) < 1) {
+            el.textContent = 'aktuell keine';
+            el.classList.add('stat-value-text');
+            var unit = el.nextElementSibling;
+            if (unit) unit.textContent = 'Einspeisung';
+            return;
+          }
           if (reduceMotion) {
             el.textContent = target.toLocaleString('de-AT');
             return;

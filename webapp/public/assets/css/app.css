@@ -878,3 +878,7 @@ footer {
 .rich-editor-area:focus { outline: none; box-shadow: inset 0 0 0 2px var(--green-dark); }
 [data-theme="dark"] .rich-editor-area:focus { box-shadow: inset 0 0 0 2px #86efac; }
 .rich-editor-area > :first-child { margin-top: 0; }
+
+/* Klartext statt "0 W" (z.B. "aktuell keine Einspeisung", 08.11.2026) */
+.stat-value.stat-value-text { font-size: 1rem; font-weight: 600; color: var(--gray-600) !important; line-height: 1.3; }
+.eflow-value-none { font-size: .8rem; font-weight: 600; color: var(--gray-600); white-space: nowrap; }
