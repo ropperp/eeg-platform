@@ -2,7 +2,7 @@
 $pageTitle = 'Zustimmungen zur Beitrittserklärung — ' . $community['name'];
 $pageDescription = 'Vollständiger Wortlaut der rechtlichen Zustimmungen der Beitrittserklärung von ' . $community['name'] . ', inklusive früherer Fassungen.';
 $rc = strtolower($community['marktpartner_id']);
-$current = consentCurrentVersion();
+$current = consentCurrentVersionFor($community);
 ob_start();
 ?>
 
@@ -17,6 +17,9 @@ ob_start();
   </p>
 
   <?php foreach (consentVersions() as $version => $v): ?>
+    <?php if (!empty($v['community_id']) && $v['community_id'] !== $community['id']) continue; ?>
+    <?php // Plattform-Fassung für den jeweils anderen Typ (mit/ohne Ausleseeinheit) betrifft diese EEG nicht. ?>
+    <?php if ($version !== $current && $version === (communityUsesAusleseeinheit($community) ? 'v2-ohne-ae' : 'v2')) continue; ?>
     <?php $isCurrent = $version === $current; ?>
     <?php if (!$isCurrent): ?><details style="margin-top:1.5rem"><summary style="cursor:pointer;font-weight:600"><?php endif; ?>
     <?php if ($isCurrent): ?><h2><?php endif; ?>

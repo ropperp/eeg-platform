@@ -1198,3 +1198,24 @@ docker compose up -d --build
 > - Das Papier-Beitrittsformular muss NICHT mehr selbst kompiliert werden: die Plattform erzeugt
 >   es unter `/rc108175/beitrittserklaerung.pdf`. Alte Ausdrucke (Fassung `v1-offline`, ohne
 >   P1-Passus in der Vollmacht) bitte nicht mehr ausgeben.
+
+> **Einmalig nach dem Update vom 08.11.2026 -- Rechtstexte pro EEG, `/portal/dokumente`,
+> EEG ohne Ausleseeinheit** (siehe `CHANGELOG.md`):
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> # Tabellen legal_documents + consent_versions, Spalte communities.uses_ausleseeinheit. Idempotent.
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261108.sql
+> docker compose up -d --build webapp
+> ```
+> Danach prüfen:
+> - `https://stromfueralle.at/datenschutz` zeigt die EEG-Auswahl mit Suche und darunter den
+>   allgemeinen Plattform-Teil; `/rc108175/datenschutz` zeigt Teil 1 + Teil 2.
+> - Als Obmann `/portal/dokumente` öffnen: die bisherigen Texte stehen als „Standardfassung“ drin.
+>   Erst beim ersten Speichern entsteht eine eigene Fassung in der Datenbank.
+> - Hochgeladene Infoblätter der EEGs landen in `/opt/eeg/webapp-storage/eeg-dokumente/<EEG-ID>/`
+>   (liegt im bestehenden, gesicherten Storage-Volume; Rechte wie gehabt `82:82`).
+> - Den allgemeinen Datenschutz-Teil (Reiter „Plattform: Datenschutz“) einmal durchlesen und den
+>   Betreiber der Plattform (Name/Anschrift) eintragen -- er ist in der Standardfassung bewusst
+>   offen gelassen.
+

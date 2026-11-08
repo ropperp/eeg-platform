@@ -33,8 +33,16 @@ drei PDF-Vorlagen lokal mit pdflatex auf je eine Seite kompiliert und gesichtet)
 neu kompiliert (Grafiken jetzt im Repo), neuer ZIP-Export "Sicherung herunterladen" unter
 `/admin/templates` (alle Vorlagen/PDFs mit Datumsordner, LIESMICH.txt). Danach: Admin- und
 EEG-Einstellungen in animierte Reiter aufgeteilt (wiederverwendbare Tab-Komponente) und
-"© 2026 Strom für alle" unten im Portal und auf der Website ergänzt. Offen/manuell: Migration
-ausführen, `docker compose up -d --build` (Traefik muss neu starten), neues Infoblatt hochladen.
+"© 2026 Strom für alle" unten im Portal und auf der Website ergänzt. Zuletzt: Rechtstexte pro
+Energiegemeinschaft -- neue Seite `/portal/dokumente` (Obmann pflegt AGB, Statuten,
+Datenschutz-Ergänzung, Widerruf, Impressum, Zustimmungstexte und Infoblatt selbst; Text-Editor
+mit Word-Einfügen und serverseitiger HTML-Bereinigung, Versionsverlauf mit Wiederherstellen),
+Datenschutz zweiteilig (allgemeiner Plattform-Teil + EEG-Teil), Fußzeilen-Links als
+EEG-Auswahlseiten, alle `/<rc>/...`-Seiten für jede EEG, Schalter „EEG ohne Ausleseeinheit“
+(blendet Ausleseeinheit/P1/Live-Daten überall aus, Zustimmungsfassung `v2-ohne-ae`). Migration
+`migrate_20261108.sql`, 270 Tests grün, Editor per Playwright geprüft. Offen/manuell: beide
+Migrationen ausführen, `docker compose up -d --build` (Traefik muss neu starten), neues
+Infoblatt hochladen, im allgemeinen Datenschutz-Teil den Plattform-Betreiber eintragen.
 **Fehler/Lehre:** Der Auftrag verlangte den wörtlichen Prompt im Log; nach `CLAUDE.md`
 (öffentliches Repo, seit 10.10.2026) stehen hier nur Zusammenfassung und verbesserter Prompt.
 Beim Zeitzonen-Bug zeigte sich derselbe Fehler (Ortszeit ohne Zeitzone in `TIMESTAMPTZ`)

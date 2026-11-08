@@ -312,18 +312,18 @@ ob_start();
   </div>
 
   <?php if (!isset($member)): ?>
+  <?php $memberFormConsentVersion = consentCurrentVersionFor(communityById(Auth::activeCommunityId())); ?>
   <div class="card" style="margin-bottom:1.5rem">
     <h3 style="margin-bottom:1rem">Rechtliche Zustimmungen &amp; Erklärungen</h3>
     <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:1rem">
       Bitte erst anhaken, wenn das Mitglied die (Papier-)Beitrittserklärung unterschrieben hat.
       Alle sechs Punkte sind Pflicht, bevor das Mitglied angelegt werden kann. Gespeichert wird
-      die aktuelle Fassung <?= htmlspecialchars(consentCurrentVersion()) ?> vom
-      <?= consentValidFromDisplay(consentCurrentVersion()) ?> -- Wortlaut siehe
+      die aktuelle Fassung <?= htmlspecialchars($memberFormConsentVersion) ?> vom
+      <?= consentValidFromDisplay($memberFormConsentVersion) ?> -- Wortlaut siehe
       <a href="/<?= htmlspecialchars(activeCommunityRc()) ?>/zustimmungen" target="_blank">Zustimmungen</a>.
     </p>
     <?php
-    // Titel + Kurzfassung aus der einzigen Quelle (consent_texts.php); die Kurzfassung hat
-    // keine EEG-spezifischen Platzhalter, deshalb reicht hier ein leerer EEG-Datensatz.
+    // Titel + Kurzfassung aus der einzigen Quelle (consent_texts.php) bzw. der EEG-eigenen Fassung.
     foreach (consentFields() as $field => $title):
     ?>
       <div class="form-group" style="margin-bottom:.6rem">
@@ -332,7 +332,7 @@ ob_start();
                  style="width:auto;margin-top:.2rem"
                  <?= !empty($_POST[$field] ?? false) ? 'checked' : '' ?>>
           <span style="font-size:.85rem"><strong><?= htmlspecialchars($title) ?>:</strong>
-            <?= htmlspecialchars(consentText(consentCurrentVersion(), $field, 'kurz', [])) ?></span>
+            <?= htmlspecialchars(consentText($memberFormConsentVersion, $field, 'kurz', communityById(Auth::activeCommunityId()) ?? [])) ?></span>
         </label>
       </div>
     <?php endforeach; ?>

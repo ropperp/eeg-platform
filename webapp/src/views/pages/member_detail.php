@@ -1,4 +1,7 @@
-<?php $pageTitle = 'Mitglied: ' . htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ob_start(); ?>
+<?php $pageTitle = 'Mitglied: ' . htmlspecialchars($member['first_name'] . ' ' . $member['last_name']);
+// EEG ohne Ausleseeinheiten: ESP-/Zähler-Spalten, P1-Schlüssel und MQTT-Topics ausblenden (08.11.2026).
+$usesAE = activeCommunityUsesAusleseeinheit($member['community_id'] ?? null);
+ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
   <a href="/portal/members" style="color:var(--gray-600);text-decoration:none">← Mitgliederliste</a>
@@ -193,8 +196,10 @@
             <th>Zählernummer</th>
             <th>Typ</th>
             <th>Details</th>
+            <?php if ($usesAE): ?>
             <th>ESP</th>
             <th>Zähler</th>
+            <?php endif; ?>
             <th>Aktionen</th>
           </tr>
         </thead>
@@ -230,7 +235,7 @@
               <?php else: ?>
                 <span style="color:var(--gray-600);font-size:.8rem">—</span>
               <?php endif; ?>
-              <?php if (!Auth::isDemo()): ?>
+              <?php if (!Auth::isDemo() && $usesAE): ?>
                 <?php $hasP1Key = !empty($mp['p1_key_enc']); ?>
                 <br>
                 <button type="button" onclick="openP1Key('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'], ENT_QUOTES) ?>',<?= $hasP1Key ? 'true' : 'false' ?>)"
@@ -250,6 +255,7 @@
                 <?= $mp['geplante_einspeisung_kwh'] ? ' · ' . number_format((float)$mp['geplante_einspeisung_kwh'], 0, ',', '.') . ' kWh/Jahr geplant' : '' ?>
               <?php endif; ?>
             </td>
+            <?php if ($usesAE): ?>
             <td style="font-size:.78rem;white-space:nowrap">
               <?php if (empty($mp['meter_code'])): ?>
                 <span style="color:var(--gray-600)">—</span>
@@ -306,6 +312,7 @@
                 <span class="badge badge-gray" style="color:var(--gray-600)">Keine Daten</span>
               <?php endif; ?>
             </td>
+            <?php endif; // $usesAE ?>
             <td style="white-space:nowrap">
               <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>')"
                       style="background:none;border:none;cursor:pointer;color:var(--gray-600)"><?= icon('pencil-simple') ?></button>
@@ -320,7 +327,7 @@
       </table>
     <?php endif; ?>
 
-    <?php if (platformTestMode() && !empty($metering_points)): ?>
+    <?php if (platformTestMode() && !empty($metering_points) && $usesAE): ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-live-data"
             style="margin-bottom:1.25rem;padding-top:.75rem;border-top:1px solid var(--gray-200)">
         <button type="submit" class="btn btn-secondary" style="color:#ef4444"
@@ -388,7 +395,7 @@ foreach ($metering_points as $mp) {
     }
 }
 ?>
-<?php if ($uniqueMeterCodes): ?>
+<?php if ($uniqueMeterCodes && $usesAE): ?>
 <?php $mqttId = Auth::activeCommunityMqttId() ?? '…'; ?>
 <div class="card" style="font-size:.8rem;color:var(--gray-600);margin-bottom:1.5rem">
   <strong>MQTT-Topics (Live-Daten):</strong>

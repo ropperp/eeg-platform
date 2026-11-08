@@ -1,36 +1,41 @@
 <?php
-$pageTitle = 'Kontakt — EEG Strompool Feldkirchen Süd-West';
-$pageDescription = 'Kontaktmöglichkeiten der EEG Strompool Feldkirchen Süd-West für Interessierte und Mitglieder.';
+// Kontaktseite einer EEG -- Daten aus den Stammdaten (Einstellungen -> Kontakt-E-Mail/-Telefon).
+$rc = strtolower($community['marktpartner_id']);
+$kontaktEmail = trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at';
+$kontaktTel = trim((string)($community['contact_phone'] ?? ''));
+$pageTitle = 'Kontakt — ' . $community['name'];
+$pageDescription = 'Kontaktmöglichkeiten der ' . $community['name'] . ' für Interessierte und Mitglieder.';
 ob_start();
 ?>
 
 <div class="legal">
   <h1>Kontakt</h1>
-  <div class="legal-meta">EEG Strompool Feldkirchen Süd-West · ZVR 1778816746</div>
+  <div class="legal-meta"><?= htmlspecialchars($community['name']) ?><?php if (!empty($community['zvr_number'])): ?> · ZVR <?= htmlspecialchars($community['zvr_number']) ?><?php endif; ?></div>
 
   <p>
     Sie haben Fragen — zur Mitgliedschaft, zur Abrechnung oder zu Ihren bei uns
     gespeicherten personenbezogenen Daten? Melden Sie sich gerne direkt bei uns.
   </p>
 
-  <h2>Ansprechpartner</h2>
+  <h2>Kontakt</h2>
   <p>
-    Patrick Ropper (Obmann)<br>
-    E-Mail: <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a><br>
-    Telefon: <a href="tel:+436506044812">+43 650 6044812</a>
+    E-Mail: <a href="mailto:<?= htmlspecialchars($kontaktEmail) ?>"><?= htmlspecialchars($kontaktEmail) ?></a>
+    <?php if ($kontaktTel !== ''): ?><br>Telefon: <a href="tel:<?= htmlspecialchars(preg_replace('/[^0-9+]/', '', $kontaktTel)) ?>"><?= htmlspecialchars($kontaktTel) ?></a><?php endif; ?>
   </p>
+  <p>Vertretungsbefugte Personen siehe <a href="/<?= htmlspecialchars($rc) ?>/impressum">Impressum</a>.</p>
 
+  <?php if (!empty($community['address'])): ?>
   <h2>Vereinssitz</h2>
   <p>
-    EEG Strompool Feldkirchen Süd-West<br>
-    Eichenweg 2, 9560 St. Nikolai<br>
-    Feldkirchen in Kärnten
+    <?= htmlspecialchars($community['name']) ?><br>
+    <?= htmlspecialchars($community['address']) ?>
   </p>
+  <?php endif; ?>
 
   <h2>Fragen zum Datenschutz</h2>
   <p>
     Für Anfragen zu Auskunft, Berichtigung oder Löschung Ihrer Daten siehe auch unsere
-    <a href="/rc108175/datenschutz">Datenschutzerklärung</a> — oder nutzen Sie das Formular
+    <a href="/<?= htmlspecialchars($rc) ?>/datenschutz">Datenschutzerklärung</a> — oder nutzen Sie das Formular
     unten (Anliegen "Datenschutz") bzw. schreiben Sie uns direkt eine E-Mail.
   </p>
 
@@ -41,7 +46,7 @@ ob_start();
   <?php if (isset($_GET['error'])): ?>
     <div class="alert alert-error"><?= htmlspecialchars($_GET['error']) ?></div>
   <?php endif; ?>
-  <form method="post" action="/rc108175/kontakt" style="max-width:480px">
+  <form method="post" action="/<?= htmlspecialchars($rc) ?>/kontakt" style="max-width:480px">
     <!-- Honeypot gegen Spam-Bots: für Menschen unsichtbar, ein Bot füllt oft jedes Feld aus. -->
     <div style="position:absolute;left:-9999px" aria-hidden="true">
       <label for="website">Bitte freilassen</label>

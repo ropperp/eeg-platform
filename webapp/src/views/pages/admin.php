@@ -38,6 +38,16 @@
         <input type="text" name="address" placeholder="Musterstraße 1, 1234 Musterort">
       </div>
     </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="uses_ausleseeinheit" value="1" checked>
+        Mitglieder bekommen eine Ausleseeinheit (Live-Daten über die P1-Kundenschnittstelle)
+      </label>
+      <p style="font-size:.8rem;color:var(--gray-600);margin-top:.25rem">
+        Abwählen für eine „normale“ Energiegemeinschaft ohne eigene Messgeräte: dann verschwinden
+        Ausleseeinheit, P1-Schlüssel und Live-Werte aus Beitritt, Portal und Rechtstexten.
+      </p>
+    </div>
     <button class="btn btn-primary">EEG anlegen</button>
   </form>
 </div>

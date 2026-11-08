@@ -197,7 +197,7 @@ ob_start();
     <p style="color:var(--gray-600);margin-bottom:1.5rem">
       Sie möchten Ihre EEG auf unserer Plattform verwalten? Kontaktieren Sie uns.
     </p>
-    <a href="/rc108175/kontakt" class="btn btn-secondary btn-lg">Kontakt aufnehmen</a>
+    <a href="/kontakt" class="btn btn-secondary btn-lg">Kontakt aufnehmen</a>
   </div>
 </section>
 

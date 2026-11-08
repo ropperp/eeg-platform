@@ -74,7 +74,7 @@
       </button>
       <nav id="main-nav">
       <a href="<?= htmlspecialchars(marketingUrl('/live')) ?>">Live-Anzeige</a>
-      <a href="<?= htmlspecialchars(marketingUrl('/rc108175/kontakt')) ?>">Kontakt</a>
+      <a href="<?= htmlspecialchars(marketingUrl('/kontakt')) ?>">Kontakt</a>
       <?php if (Auth::check()): ?>
         <a href="<?= htmlspecialchars(portalUrl('/portal/dashboard')) ?>">Portal</a>
         <?php if (Auth::isPlatformAdmin()): ?>
@@ -99,14 +99,15 @@
 <footer>
   <div class="container">
     <div style="margin-bottom:.75rem">
-      <a href="/rc108175/impressum">Impressum</a> ·
-      <a href="/rc108175/statuten">Statuten</a> ·
-      <a href="/rc108175/datenschutz">Datenschutz</a> ·
-      <a href="/rc108175/agb">AGBs</a> ·
-      <a href="/rc108175/widerruf">Widerrufsbelehrung</a> ·
-      <a href="/rc108175/barrierefreiheit">Barrierefreiheit</a> ·
-      <a href="/rc108175/preisliste">Preisliste</a> ·
-      <a href="/rc108175/kontakt">Kontakt</a> ·
+      <?php // Je EEG verschiedene Dokumente führen auf eine Auswahlseite (mit Suche), plattformweite direkt. ?>
+      <a href="/impressum">Impressum</a> ·
+      <a href="/statuten">Statuten</a> ·
+      <a href="/datenschutz">Datenschutz</a> ·
+      <a href="/agb">AGBs</a> ·
+      <a href="/widerruf">Widerrufsbelehrung</a> ·
+      <a href="/barrierefreiheit">Barrierefreiheit</a> ·
+      <a href="/preisliste">Preisliste</a> ·
+      <a href="/kontakt">Kontakt</a> ·
       <a href="https://kaerntennetz.at/erneuerbare-energiegemeinschaften-eeg.htm" target="_blank" rel="noopener">Kärnten Netz: Netzgebiet prüfen</a>
     </div>
     Strom für alle · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner

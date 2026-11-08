@@ -709,7 +709,8 @@ Platform-Admin. Verknüpfte Mitglieder bleiben erhalten, verlieren nur die Login
   "community": {
     "id": "uuid", "name": "EEG Feldkirchen Südwest", "slug": "eeg-feldkirchen-sudwest",
     "marktpartner_id": "RC108175", "zvr_number": "...", "address": "...", "iban": "...",
-    "bic": "...", "active": true, "eda_login_email": "...", "eda_login_password_set": true
+    "bic": "...", "active": true, "eda_login_email": "...", "eda_login_password_set": true,
+    "uses_ausleseeinheit": true
   },
   "members": [ { "id": "uuid", "kundennummer": 10001, "name": "Anna Mustermann", "company_name": null, "email": "...", "status": "active" } ]
 }
@@ -717,14 +718,15 @@ Platform-Admin. Verknüpfte Mitglieder bleiben erhalten, verlieren nur die Login
 
 ### POST /api/v1/admin/communities
 
-Legt eine neue EEG an. Body: `{"name": "...", "marktpartner_id": "...", "address": "..."}`
-(`name` Pflicht). Erfolg: `{"status": "ok", "id": "uuid"}`.
+Legt eine neue EEG an. Body: `{"name": "...", "marktpartner_id": "...", "address": "...",
+"uses_ausleseeinheit": true}` (`name` Pflicht; `uses_ausleseeinheit` optional, Standard `true`,
+`false` = EEG ohne Ausleseeinheiten). Erfolg: `{"status": "ok", "id": "uuid"}`.
 
 ### POST /api/v1/admin/communities/:id
 
 Bearbeitet Stammdaten. Body: `name`, `marktpartner_id`, `zvr_number`, `address`, `iban`, `bic`,
 `active` (bool), `eda_login_email`, `eda_login_password` (nur bei tatsächlicher Änderung
-mitschicken).
+mitschicken), `uses_ausleseeinheit` (bool; fehlt das Feld, bleibt der bisherige Wert).
 
 ### POST /api/v1/admin/communities/:id/delete
 

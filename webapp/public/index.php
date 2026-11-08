@@ -1018,6 +1018,7 @@ function denyDemoApiFileDownload(array $ctx): bool
  */
 function createMemberRecord(string $communityId, array $f): array
 {
+    loadCommunityConsentVersions($communityId);
     $email = strtolower(trim($f['email']));
     $user = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
     $tempPw = null;
@@ -1135,7 +1136,7 @@ function createMemberRecord(string $communityId, array $f): array
             'true', 'true', 'true', 'true', 'true', 'true',
             // Welche Fassung der Zustimmungen gilt (consent_texts.php): bei der Freigabe eines
             // Online-Antrags die dort akzeptierte, sonst (Papierformular, App) die aktuelle.
-            consentVersion($f['consent_version'] ?? null) !== null ? $f['consent_version'] : consentCurrentVersion(),
+            consentVersion($f['consent_version'] ?? null) !== null ? $f['consent_version'] : consentCurrentVersionFor(communityById($communityId)),
             in_array($f['email_anrede_mode'] ?? 'auto', ['auto', 'herr', 'frau', 'familie'], true) ? ($f['email_anrede_mode'] ?? 'auto') : 'auto',
         ]
     );
@@ -1316,21 +1317,141 @@ $router->get('/beitreten', function () {
     require ROOT . '/src/views/pages/beitreten_picker.php';
 });
 
-// ─── Generische Dokument-Adressen ohne RC-Nummer ───────────
-// stromfueralle.at/datenschutz usw. zeigen eine Auswahlseite aller aktiven EEGs (Patrick,
-// 07.11.2026: diese Pfade führten bisher ins Leere). Die RC-Nummer bleibt fester Bestandteil
-// der eigentlichen Dokument-URL; kein Redirect, auch bei nur einer EEG. Unbekannte Dokumente
-// haben keine Route und landen damit regulär auf der 404-Seite.
+// ─── Rechtsdokumente je Energiegemeinschaft ───────────────
+// Patrick, 08.11.2026: Dokumente, die pro EEG verschieden sind (AGB, Statuten, Widerruf,
+// Impressum, EEG-Teil der Datenschutzerklärung), pflegt der Obmann selbst unter
+// /portal/dokumente; der allgemeine Teil der Datenschutzerklärung und die
+// Barrierefreiheitserklärung gelten für die ganze Plattform (Plattform-Admin). Gespeichert wird
+// jede Änderung als neue Zeile in legal_documents (Verlauf); ohne Zeile gilt die im Code
+// hinterlegte Standardfassung (views/legal_defaults/<rc>/ bzw. /plattform/).
+
+/** Verwaltete Rechtsdokumente: Schlüssel => Titel + wer sie pflegt (eeg/plattform/beides). */
+function legalDocumentDefs(): array
+{
+    return [
+        'agb'              => ['title' => 'Allgemeine Geschäftsbedingungen', 'scope' => 'eeg'],
+        'statuten'         => ['title' => 'Statuten', 'scope' => 'eeg'],
+        'widerruf'         => ['title' => 'Widerrufsbelehrung', 'scope' => 'eeg'],
+        'impressum'        => ['title' => 'Impressum', 'scope' => 'eeg'],
+        'datenschutz'      => ['title' => 'Datenschutzerklärung', 'scope' => 'beides'],
+        'barrierefreiheit' => ['title' => 'Erklärung zur Barrierefreiheit', 'scope' => 'plattform'],
+    ];
+}
+
+/** Aktive EEG zu einer RC-Nummer aus der URL (z.B. "rc108175"), sonst null. */
+function communityByRc(string $rc): ?array
+{
+    if (!preg_match('/^[a-z0-9]{2,20}$/i', $rc)) return null;
+    return DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [strtolower($rc)]) ?: null;
+}
+
+/** EEG-Zeile nach ID (pro Request zwischengespeichert). */
+function communityById(?string $id): ?array
+{
+    static $cache = [];
+    if (!$id) return null;
+    if (!array_key_exists($id, $cache)) {
+        $cache[$id] = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$id]) ?: null;
+    }
+    return $cache[$id];
+}
+
+/** Registriert die EEG-eigenen Zustimmungs-Fassungen (consent_versions) für consent_texts.php. */
+function loadCommunityConsentVersions(?string $communityId): void
+{
+    static $loaded = [];
+    if (!$communityId || isset($loaded[$communityId])) return;
+    $loaded[$communityId] = true;
+    $versions = [];
+    foreach (DB::fetchAll('SELECT * FROM consent_versions WHERE community_id = ? ORDER BY created_at DESC', [$communityId]) as $row) {
+        $versions[$row['version_key']] = consentVersionFromRow($row);
+    }
+    consentRegisterVersions($versions);
+}
+
+/** Aktuell gültige Zustimmungs-Fassung einer EEG (eigene Fassung > v2 bzw. v2-ohne-ae). */
+function consentCurrentVersionFor(?array $community): string
+{
+    if ($community) loadCommunityConsentVersions($community['id']);
+    return consentCurrentVersion($community);
+}
+
+/** Jüngste gespeicherte Fassung (community_id null = Plattform) inkl. Name der bearbeitenden Person. */
+function legalDocumentLatestRow(?string $communityId, string $docKey): ?array
+{
+    $sql = 'SELECT d.*, u.first_name AS editor_first_name, u.last_name AS editor_last_name
+            FROM legal_documents d LEFT JOIN users u ON u.id = d.created_by
+            WHERE d.doc_key = ? AND ' . ($communityId === null ? 'd.community_id IS NULL' : 'd.community_id = ?') . '
+            ORDER BY d.created_at DESC LIMIT 1';
+    return DB::fetchOne($sql, $communityId === null ? [$docKey] : [$docKey, $communityId]) ?: null;
+}
+
+/** Datei der im Code hinterlegten Standardfassung, falls es eine gibt. */
+function legalDefaultFile(?array $community, string $docKey): ?string
+{
+    $dir = $community === null ? 'plattform' : strtolower((string)$community['marktpartner_id']);
+    if (!preg_match('/^[a-z0-9]+$/', $dir) || !preg_match('/^[a-z]+$/', $docKey)) return null;
+    $file = ROOT . '/src/views/legal_defaults/' . $dir . '/' . $docKey . '.php';
+    return is_file($file) ? $file : null;
+}
+
+/**
+ * Aktuell gültiger Text eines Rechtsdokuments: ['html', 'stand', 'meta', 'source' (eigen|standard), 'row'],
+ * oder null, wenn die EEG das Dokument noch nicht veröffentlicht hat. $community null = Plattform-Teil.
+ */
+function legalDocument(?array $community, string $docKey): ?array
+{
+    $row = legalDocumentLatestRow($community['id'] ?? null, $docKey);
+    if ($row) {
+        return ['html' => sanitizeLegalHtml($row['content_html']), 'stand' => datumLang($row['created_at']),
+                'meta' => null, 'source' => 'eigen', 'row' => $row];
+    }
+    $file = legalDefaultFile($community, $docKey);
+    if (!$file) return null;
+    $legalStand = '';
+    $legalMeta = null;
+    ob_start();
+    include $file;
+    $html = ob_get_clean();
+    return ['html' => $html, 'stand' => $legalStand, 'meta' => $legalMeta, 'source' => 'standard', 'row' => null];
+}
+
+/**
+ * EEGs mit veröffentlichten Rechtsunterlagen: eine im Code hinterlegte Standardfassung oder
+ * mindestens ein selbst gespeichertes Dokument. EEGs ohne eigene Unterlagen bekommen "folgt in
+ * Kürze" statt der Texte einer anderen EEG.
+ */
+function communitiesWithLegalPages(): array
+{
+    static $rcs = null;
+    if ($rcs === null) {
+        $rcs = [];
+        foreach (glob(ROOT . '/src/views/legal_defaults/*', GLOB_ONLYDIR) ?: [] as $dir) {
+            if (basename($dir) !== 'plattform') $rcs[] = basename($dir);
+        }
+        foreach (DB::fetchAll('SELECT DISTINCT LOWER(c.marktpartner_id) AS rc FROM legal_documents d
+                               JOIN communities c ON c.id = d.community_id WHERE c.active = true') as $r) {
+            $rcs[] = $r['rc'];
+        }
+        $rcs = array_values(array_unique($rcs));
+    }
+    return $rcs;
+}
+
+// Generische Adressen ohne RC-Nummer (Fußzeile): Auswahlseite aller aktiven EEGs mit Suchfeld
+// (Patrick, 07./08.11.2026). Kein Redirect, auch bei nur einer EEG. Unbekannte Dokumente haben
+// keine Route und landen regulär auf der 404-Seite. Die Barrierefreiheitserklärung gilt für die
+// ganze Plattform und hat deshalb keine Auswahl.
 function legalDocuments(): array
 {
     return [
-        'datenschutz'      => 'Datenschutzerklärung',
-        'agb'              => 'Allgemeine Geschäftsbedingungen',
-        'statuten'         => 'Statuten',
-        'preisliste'       => 'Preisliste',
-        'widerruf'         => 'Widerrufsbelehrung',
-        'impressum'        => 'Impressum',
-        'barrierefreiheit' => 'Erklärung zur Barrierefreiheit',
+        'datenschutz' => 'Datenschutzerklärung',
+        'agb'         => 'Allgemeine Geschäftsbedingungen',
+        'statuten'    => 'Statuten',
+        'preisliste'  => 'Preisliste',
+        'widerruf'    => 'Widerrufsbelehrung',
+        'impressum'   => 'Impressum',
+        'kontakt'     => 'Kontakt',
     ];
 }
 foreach (legalDocuments() as $docSlugRoute => $docTitleRoute) {
@@ -1338,33 +1459,72 @@ foreach (legalDocuments() as $docSlugRoute => $docTitleRoute) {
         $docSlug = $docSlugRoute;
         $docTitle = $docTitleRoute;
         $communities = DB::fetchAll('SELECT name, address, marktpartner_id FROM communities WHERE active = true ORDER BY name');
+        // Datenschutz: unter der Auswahl steht immer der allgemeine Plattform-Teil.
+        $platformDoc = $docSlug === 'datenschutz' ? legalDocument(null, 'datenschutz') : null;
         require ROOT . '/src/views/pages/legal_document_picker.php';
     });
 }
 
-// ─── Rechtliches (rc108175 = Marktpartner-ID Strompool Feldkirchen Süd-West) ──
-$router->get('/rc108175/beitreten', function () {
-    $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ?', ['rc108175']);
+$router->get('/barrierefreiheit', function () {
+    $community = null;
+    $docKey = 'barrierefreiheit';
+    $docTitle = legalDocumentDefs()[$docKey]['title'];
+    $doc = legalDocument(null, $docKey);
+    require ROOT . '/src/views/pages/legal_document.php';
+});
+$router->get('/:communityid/barrierefreiheit', function () {
+    header('Location: /barrierefreiheit', true, 301);
+    exit;
+});
+
+foreach (['agb', 'statuten', 'widerruf', 'impressum'] as $docKeyRoute) {
+    $router->get('/:communityid/' . $docKeyRoute, function ($params) use ($docKeyRoute) {
+        $community = communityByRc($params['communityid']);
+        if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+        $docKey = $docKeyRoute;
+        $docTitle = legalDocumentDefs()[$docKey]['title'];
+        $doc = legalDocument($community, $docKey);
+        require ROOT . '/src/views/pages/legal_document.php';
+    });
+}
+
+$router->get('/:communityid/datenschutz', function ($params) {
+    $community = communityByRc($params['communityid']);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    $platformDoc = legalDocument(null, 'datenschutz');
+    $doc = legalDocument($community, 'datenschutz');
+    require ROOT . '/src/views/pages/legal_datenschutz.php';
+});
+
+$router->get('/:communityid/beitreten', function ($params) {
+    $community = communityByRc($params['communityid']);
+    if (!$community || !in_array(strtolower($community['marktpartner_id']), communitiesWithLegalPages(), true)) {
+        http_response_code(404); require ROOT . '/src/views/pages/404.php'; return;
+    }
     require ROOT . '/src/views/pages/legal_beitreten.php';
 });
 
-$router->get('/rc108175/kontakt', function () {
+$router->get('/:communityid/kontakt', function ($params) {
+    $community = communityByRc($params['communityid']);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
     require ROOT . '/src/views/pages/legal_kontakt.php';
 });
 
 /**
  * Kontaktformular der öffentlichen Kontaktseite -- auch für Datenschutz-Anfragen gedacht
  * (Auskunft/Berichtigung/Löschung), damit nicht zwingend ein eigenes E-Mail-Programm nötig ist.
- * Versendet per Mailer (Microsoft-Graph-Anbindung wie überall sonst) an die EEG-Kontaktadresse;
- * schlägt der Versand fehl (z.B. Graph nicht konfiguriert), wird NICHT der Nutzer mit einem
- * Fehler konfrontiert, sondern geloggt und als "gesendet" quittiert, sobald die Nachricht
- * wenigstens inhaltlich gültig war -- gleiches Prinzip wie notifySupportTicketCreated(): ein
- * Besucher darf nie an einer internen Mail-Konfiguration scheitern, er sieht den Fehler ohnehin
- * nicht nachvollziehbar und hat (siehe Kontaktseite) immer noch die direkte E-Mail-Adresse.
+ * Versendet per Mailer (Microsoft-Graph-Anbindung wie überall sonst) an die Kontaktadresse der
+ * jeweiligen EEG (Einstellungen -> Kontakt-E-Mail, sonst office@stromfueralle.at); schlägt der
+ * Versand fehl (z.B. Graph nicht konfiguriert), wird NICHT der Nutzer mit einem Fehler
+ * konfrontiert, sondern geloggt und als "gesendet" quittiert, sobald die Nachricht wenigstens
+ * inhaltlich gültig war -- gleiches Prinzip wie notifySupportTicketCreated().
  * Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot es aus, wird stillschweigend
  * ohne Mailversand auf die Erfolgsseite umgeleitet (kein Hinweis an den Bot, dass er entdeckt wurde).
  */
-$router->post('/rc108175/kontakt', function () {
+$router->post('/:communityid/kontakt', function ($params) {
+    $community = communityByRc($params['communityid']);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    $back = '/' . strtolower($community['marktpartner_id']) . '/kontakt';
     $name = trim((string)($_POST['name'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
     $anliegen = trim((string)($_POST['anliegen'] ?? ''));
@@ -1372,11 +1532,11 @@ $router->post('/rc108175/kontakt', function () {
     $honeypot = trim((string)($_POST['website'] ?? ''));
 
     if ($honeypot !== '') {
-        header('Location: /rc108175/kontakt?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
+        header('Location: ' . $back . '?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
         exit;
     }
     if ($name === '' || $nachricht === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        header('Location: /rc108175/kontakt?error=' . urlencode('Bitte Name, eine gültige E-Mail-Adresse und eine Nachricht angeben.'));
+        header('Location: ' . $back . '?error=' . urlencode('Bitte Name, eine gültige E-Mail-Adresse und eine Nachricht angeben.'));
         exit;
     }
 
@@ -1387,58 +1547,34 @@ $router->post('/rc108175/kontakt', function () {
         'sonstiges'      => 'Sonstiges',
     ];
     $anliegenLabel = $anliegenLabels[$anliegen] ?? 'Allgemeine Frage';
+    $to = trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at';
 
     try {
-        $body = '<p>Neue Nachricht über das Kontaktformular (' . htmlspecialchars($anliegenLabel) . '):</p>'
+        $body = '<p>Neue Nachricht über das Kontaktformular der ' . htmlspecialchars($community['name'])
+            . ' (' . htmlspecialchars($anliegenLabel) . '):</p>'
             . '<p><strong>Von:</strong> ' . htmlspecialchars($name) . ' (' . htmlspecialchars($email) . ')</p>'
             . '<p>' . nl2br(htmlspecialchars($nachricht)) . '</p>'
             . '<p style="color:#6b7280;font-size:.85rem">Antwort bitte direkt an die oben genannte E-Mail-Adresse.</p>';
-        Mailer::send('office@stromfueralle.at', 'Kontaktformular: ' . $anliegenLabel, $body);
+        Mailer::send($to, 'Kontaktformular: ' . $anliegenLabel, $body);
     } catch (\Throwable $e) {
         error_log('[kontaktformular_mail] ' . $e->getMessage());
     }
 
-    header('Location: /rc108175/kontakt?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
+    header('Location: ' . $back . '?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
     exit;
 });
 
-$router->get('/rc108175/impressum', function () {
-    require ROOT . '/src/views/pages/legal_impressum.php';
-});
-
-$router->get('/rc108175/statuten', function () {
-    require ROOT . '/src/views/pages/legal_statuten.php';
-});
-
-$router->get('/rc108175/datenschutz', function () {
-    require ROOT . '/src/views/pages/legal_datenschutz.php';
-});
-
-$router->get('/rc108175/agb', function () {
-    require ROOT . '/src/views/pages/legal_agb.php';
-});
-
-$router->get('/rc108175/widerruf', function () {
-    require ROOT . '/src/views/pages/legal_widerruf.php';
-});
-
-$router->get('/rc108175/barrierefreiheit', function () {
-    require ROOT . '/src/views/pages/legal_barrierefreiheit.php';
-});
-
-$router->get('/rc108175/preisliste', function () {
+$router->get('/:communityid/preisliste', function ($params) {
     // Datengetrieben: aktuelle Preise + vollständige Änderungshistorie aus tariff_config
     // (jede Tarifänderung legt dort einen neuen Datensatz mit valid_from an). So können
     // Mitglieder jederzeit nachvollziehen, welcher Preis seit wann galt.
-    $community = DB::fetchOne("SELECT * FROM communities WHERE lower(marktpartner_id) = 'rc108175' LIMIT 1");
-    $tariffHistory = [];
-    if ($community) {
-        DB::setCommunity($community['id']);
-        $tariffHistory = DB::fetchAll(
-            'SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC, created_at DESC',
-            [$community['id']]
-        );
-    }
+    $community = communityByRc($params['communityid']);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    DB::setCommunity($community['id']);
+    $tariffHistory = DB::fetchAll(
+        'SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC, created_at DESC',
+        [$community['id']]
+    );
     require ROOT . '/src/views/pages/legal_preisliste.php';
 });
 
@@ -1454,14 +1590,6 @@ function activeCommunityRc(): string
     return $rc;
 }
 
-/**
- * EEGs mit veröffentlichten Rechtsunterlagen (Statuten, AGB, Datenschutz, ...). Neu angelegte
- * EEGs ohne eigene Unterlagen bekommen "folgt in Kürze" statt der Texte einer anderen EEG.
- */
-function communitiesWithLegalPages(): array
-{
-    return ['rc108175'];
-}
 
 /**
  * Leeres Beitrittsformular zum Ausdrucken (Patrick, 07.11.2026). Ersetzt die statische
@@ -1479,6 +1607,7 @@ $router->get('/:communityid/beitrittserklaerung.pdf', function ($params) {
     $community = DB::fetchOne('SELECT * FROM communities WHERE LOWER(marktpartner_id) = ? AND active = true', [$rc]);
     if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
 
+    loadCommunityConsentVersions($community['id']);
     $vars = offlineBeitrittserklaerungVars($community);
     $cacheDir = '/var/www/html/storage/cache/beitrittserklaerung';
     $cacheFile = $cacheDir . '/' . $rc . '_' . sha1(json_encode($vars)) . '.pdf';
@@ -1501,6 +1630,32 @@ $router->get('/:communityid/beitrittserklaerung.pdf', function ($params) {
     header('Content-Disposition: inline; filename="beitrittserklaerung-' . $rc . '.pdf"');
     header('Content-Length: ' . strlen($pdf));
     echo $pdf;
+});
+
+/** Ablage EEG-eigener Dateien (z.B. Infoblatt), vom Obmann unter /portal/dokumente hochgeladen. */
+function communityDocDir(string $communityId): string
+{
+    return '/var/www/html/storage/eeg-dokumente/' . preg_replace('/[^a-f0-9-]/', '', strtolower($communityId));
+}
+
+/**
+ * Infoblatt einer EEG: vom Obmann hochgeladene Fassung, sonst für die Pilot-EEG die bisherige
+ * plattformweite Datei (/admin/templates -> infoblatt.pdf).
+ */
+$router->get('/:communityid/infoblatt.pdf', function ($params) {
+    $community = communityByRc($params['communityid']);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    $path = communityDocDir($community['id']) . '/infoblatt.pdf';
+    if (!is_file($path)) {
+        // Bisheriges plattformweites Infoblatt nur für EEGs mit Standardfassungen im Code (Pilot-EEG).
+        $path = is_dir(ROOT . '/src/views/legal_defaults/' . strtolower($community['marktpartner_id'])) ? adminFilePath('infoblatt.pdf') : null;
+    }
+    if (!$path || !is_file($path)) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="infoblatt-' . strtolower($community['marktpartner_id']) . '.pdf"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
 });
 
 // Alte, statische Adresse des Papierformulars (Infoblatt, E-Mails) -> neue, erzeugte Fassung.
@@ -1558,10 +1713,10 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             return;
         }
     }
-    // Gespeichert wird consentCurrentVersion() -- das stimmt nur, wenn das Formular auch mit
+    // Gespeichert wird consentCurrentVersionFor() -- das stimmt nur, wenn das Formular auch mit
     // dieser Fassung angezeigt wurde. War die Seite schon vor einem Update der Texte offen,
     // Haken zurücksetzen und die neue Fassung zum erneuten Lesen anzeigen.
-    if (($_POST['consent_version'] ?? '') !== consentCurrentVersion()) {
+    if (($_POST['consent_version'] ?? '') !== consentCurrentVersionFor($community)) {
         foreach ($consentFields as $cf) { unset($_POST[$cf]); }
         $error = 'Die Zustimmungstexte wurden in der Zwischenzeit aktualisiert. Bitte lesen Sie sie erneut und bestätigen Sie sie.';
         require ROOT . '/src/views/pages/beitreten_formular.php';
@@ -1663,7 +1818,7 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             trim($_POST['kontoinhaber'] ?? '') ?: null,
             trim($_POST['konto_adresse'] ?? '') ?: null,
             'true', 'true', 'true', 'true', 'true', 'true',
-            consentCurrentVersion(),
+            consentCurrentVersionFor($community),
             $signature,
             clientIp(),
             $sepaSignature,
@@ -5054,6 +5209,7 @@ $router->get('/api/v1/admin/communities/:id', function ($params) {
             'active'             => (bool)$community['active'],
             'eda_login_email'    => $community['eda_login_email'],
             'eda_login_password_set' => !empty($community['eda_login_password_enc']),
+            'uses_ausleseeinheit' => communityUsesAusleseeinheit($community),
         ],
         'members' => array_map(fn($m) => [
             'id'            => $m['id'],
@@ -5081,8 +5237,9 @@ $router->post('/api/v1/admin/communities', function () {
     }
     $slug = preg_replace('/[^a-z0-9-]/', '-', strtolower($name));
     $community = DB::fetchOne(
-        'INSERT INTO communities (name, slug, marktpartner_id, address) VALUES (?, ?, ?, ?) RETURNING id',
-        [$name, $slug, $body['marktpartner_id'] ?? null, $body['address'] ?? null]
+        'INSERT INTO communities (name, slug, marktpartner_id, address, uses_ausleseeinheit) VALUES (?, ?, ?, ?, ?) RETURNING id',
+        [$name, $slug, $body['marktpartner_id'] ?? null, $body['address'] ?? null,
+         array_key_exists('uses_ausleseeinheit', $body) && !$body['uses_ausleseeinheit'] ? 'false' : 'true']
     );
     logAudit(null, 'community.create', 'community', $community['id'], 'EEG "' . $name . '" angelegt.');
     echo json_encode(['status' => 'ok', 'id' => $community['id']]);
@@ -5095,7 +5252,7 @@ $router->post('/api/v1/admin/communities/:id', function ($params) {
     header('Content-Type: application/json; charset=UTF-8');
 
     $body = jsonBody();
-    $current = DB::fetchOne('SELECT eda_login_password_enc FROM communities WHERE id = ?', [$params['id']]);
+    $current = DB::fetchOne('SELECT eda_login_password_enc, uses_ausleseeinheit FROM communities WHERE id = ?', [$params['id']]);
     if (!$current) { http_response_code(404); echo json_encode(['error' => 'EEG nicht gefunden.']); return; }
     // EDA-Portal-Passwort nur überschreiben, wenn tatsächlich ein neues mitgeschickt wurde --
     // gleiches "leer = unverändert"-Prinzip wie im Web (siehe /admin/communities/:id).
@@ -5104,7 +5261,7 @@ $router->post('/api/v1/admin/communities/:id', function ($params) {
 
     DB::execute(
         'UPDATE communities SET name=?, marktpartner_id=?, zvr_number=?, address=?, iban=?, bic=?, active=?,
-             eda_login_email=?, eda_login_password_enc=? WHERE id=?',
+             eda_login_email=?, eda_login_password_enc=?, uses_ausleseeinheit=? WHERE id=?',
         [
             trim((string)($body['name'] ?? '')),
             trim((string)($body['marktpartner_id'] ?? '')) ?: null,
@@ -5115,6 +5272,10 @@ $router->post('/api/v1/admin/communities/:id', function ($params) {
             !empty($body['active']) ? 'true' : 'false',
             trim((string)($body['eda_login_email'] ?? '')) ?: null,
             $edaPasswordEnc,
+            // Feld fehlt (ältere App-Version) = bisherigen Wert behalten
+            array_key_exists('uses_ausleseeinheit', $body)
+                ? (!empty($body['uses_ausleseeinheit']) ? 'true' : 'false')
+                : (communityUsesAusleseeinheit($current) ? 'true' : 'false'),
             $params['id'],
         ]
     );
@@ -8648,6 +8809,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
     // Zustimmungen in der Fassung, die DIESER Antrag akzeptiert hat (consent_version) -- ein
     // alter Antrag zeigt weiterhin den damals angezeigten Text, nicht den heutigen (Patrick,
     // 07.11.2026). Kurzfassung + Hinweis auf den vollständigen Wortlaut, siehe consent_texts.php.
+    loadCommunityConsentVersions($communityId);
     $consentBlock = onlineBeitrittConsentLatex($a, $community);
     $consentVersionA = $consentBlock['version'];
     $sepaAssets = [];
@@ -9296,6 +9458,177 @@ $router->post('/portal/metering-points/:id/assign', function ($params) {
 });
 
 // ─── Portal: Einstellungen ──────────────────────────────
+// ─── Rechtsdokumente der EEG bearbeiten (/portal/dokumente) ─────────────────────
+// Patrick, 08.11.2026: Dokumente, die pro EEG verschieden sind, pflegt der Obmann selbst
+// ("andere möchten es lieber in ihrer Hand haben und selbst ändern können"). Jede Speicherung
+// ist eine neue Version (legal_documents/consent_versions), ältere bleiben im Verlauf und
+// lassen sich wiederherstellen. Der Plattform-Admin pflegt zusätzlich die plattformweiten
+// Dokumente (allgemeiner Datenschutz-Teil, Barrierefreiheit).
+
+/** Bearbeitbare Dokumente je Bereich: [Reiter-ID => [doc_key, Plattform?]] */
+function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity): array
+{
+    $docs = [];
+    if ($hasCommunity) {
+        foreach (['agb', 'statuten', 'datenschutz', 'widerruf', 'impressum'] as $k) {
+            $docs[$k] = ['doc_key' => $k, 'platform' => false];
+        }
+    }
+    if ($isPlatformAdmin) {
+        $docs['plattform-datenschutz'] = ['doc_key' => 'datenschutz', 'platform' => true];
+        $docs['plattform-barrierefreiheit'] = ['doc_key' => 'barrierefreiheit', 'platform' => true];
+    }
+    return $docs;
+}
+
+/** Prüft Zugriff und liefert [$community|null, $isPlatform] für eine Speicher-Aktion -- bricht sonst ab. */
+function legalDocEditContext(string $tabId): array
+{
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $community = communityById(Auth::activeCommunityId());
+    $docs = editableLegalDocs(Auth::isPlatformAdmin(), $community !== null);
+    if (!isset($docs[$tabId])) { http_response_code(403); echo 'Kein Zugriff'; exit; }
+    return [$docs[$tabId]['platform'] ? null : $community, $docs[$tabId]['doc_key']];
+}
+
+$router->get('/portal/dokumente', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $community = communityById(Auth::activeCommunityId());
+    $isPlatformAdmin = Auth::isPlatformAdmin();
+    $editDocs = [];
+    foreach (editableLegalDocs($isPlatformAdmin, $community !== null) as $tabId => $def) {
+        $owner = $def['platform'] ? null : $community;
+        $current = legalDocument($owner, $def['doc_key']);
+        $history = DB::fetchAll(
+            'SELECT d.id, d.created_at, u.first_name, u.last_name FROM legal_documents d
+             LEFT JOIN users u ON u.id = d.created_by
+             WHERE d.doc_key = ? AND ' . ($owner ? 'd.community_id = ?' : 'd.community_id IS NULL') . '
+             ORDER BY d.created_at DESC LIMIT 15',
+            $owner ? [$def['doc_key'], $owner['id']] : [$def['doc_key']]
+        );
+        $editDocs[$tabId] = $def + [
+            'title'       => legalDocumentDefs()[$def['doc_key']]['title'],
+            'current'     => $current,
+            'history'     => $history,
+            'has_default' => legalDefaultFile($owner, $def['doc_key']) !== null,
+            'public_url'  => $def['doc_key'] === 'barrierefreiheit' ? '/barrierefreiheit'
+                : ($owner ? '/' . strtolower($owner['marktpartner_id']) . '/' . $def['doc_key'] : '/datenschutz'),
+        ];
+    }
+    $consentCurrent = null;
+    $consentHistory = [];
+    $infoblatt = null;
+    if ($community) {
+        $consentCurrent = consentCurrentVersionFor($community);
+        $consentHistory = DB::fetchAll(
+            'SELECT c.version_key, c.gueltig_ab, c.created_at, u.first_name, u.last_name FROM consent_versions c
+             LEFT JOIN users u ON u.id = c.created_by WHERE c.community_id = ? ORDER BY c.created_at DESC',
+            [$community['id']]
+        );
+        $own = communityDocDir($community['id']) . '/infoblatt.pdf';
+        $infoblatt = is_file($own) ? ['own' => true, 'size' => filesize($own), 'mtime' => filemtime($own)] : ['own' => false];
+    }
+    require ROOT . '/src/views/pages/portal_dokumente.php';
+});
+
+/** Zustimmungstexte der EEG als neue Fassung speichern (gilt ab sofort für neue Beitritte).
+ *  Muss VOR /portal/dokumente/:tab/save stehen, sonst fängt jene Route "zustimmungen" ab. */
+$router->post('/portal/dokumente/zustimmungen/save', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $community = communityById(Auth::activeCommunityId());
+    if (!$community) { http_response_code(403); echo 'Keine Energiegemeinschaft aktiv'; return; }
+    $texts = [];
+    foreach (array_keys(consentFields()) as $field) {
+        foreach (['kurz', 'lang'] as $variant) {
+            $t = trim(str_replace("\r\n", "\n", (string)($_POST[$field . '_' . $variant] ?? '')));
+            if ($t === '' || mb_strlen($t) > 5000) {
+                header('Location: /portal/dokumente?error=' . urlencode('Bitte alle zwölf Felder ausfüllen (je max. 5000 Zeichen).') . '#zustimmungen');
+                exit;
+            }
+            $texts[$field][$variant] = $t;
+        }
+    }
+    $n = (int)DB::fetchOne('SELECT COUNT(*) AS n FROM consent_versions WHERE community_id = ?', [$community['id']])['n'] + 1;
+    $key = strtolower($community['marktpartner_id']) . '-' . $n;
+    DB::execute('INSERT INTO consent_versions (community_id, version_key, texts, gueltig_ab, created_by) VALUES (?, ?, ?, CURRENT_DATE, ?)',
+        [$community['id'], $key, json_encode($texts, JSON_UNESCAPED_UNICODE), Auth::userId()]);
+    // Zwischengespeicherte Papierformulare dieser EEG verwerfen (enthalten die Zustimmungstexte).
+    foreach (glob('/var/www/html/storage/cache/beitrittserklaerung/' . strtolower($community['marktpartner_id']) . '_*.pdf') ?: [] as $f) { @unlink($f); }
+    logAudit($community['id'], 'consent_version.save', null, null, 'Neue Fassung der Zustimmungstexte gespeichert (' . $key . ')');
+    header('Location: /portal/dokumente?success=' . urlencode('Neue Fassung ' . $key . ' gespeichert -- gilt ab sofort für neue Beitrittserklärungen.') . '#zustimmungen');
+    exit;
+});
+
+$router->post('/portal/dokumente/:tab/save', function ($params) {
+    [$owner, $docKey] = legalDocEditContext($params['tab']);
+    $html = sanitizeLegalHtml((string)($_POST['content_html'] ?? ''));
+    $back = '/portal/dokumente';
+    if (trim(strip_tags($html)) === '') {
+        header('Location: ' . $back . '?error=' . urlencode('Der Text ist leer -- nichts gespeichert.') . '#' . $params['tab']); exit;
+    }
+    if (strlen($html) > 500000) {
+        header('Location: ' . $back . '?error=' . urlencode('Der Text ist zu lang (max. ca. 500 kB).') . '#' . $params['tab']); exit;
+    }
+    DB::execute('INSERT INTO legal_documents (community_id, doc_key, content_html, created_by) VALUES (?, ?, ?, ?)',
+        [$owner['id'] ?? null, $docKey, $html, Auth::userId()]);
+    logAudit($owner['id'] ?? null, 'legal_document.save', 'legal_document', null,
+        legalDocumentDefs()[$docKey]['title'] . ($owner ? '' : ' (Plattform)') . ' als neue Fassung gespeichert');
+    header('Location: ' . $back . '?success=' . urlencode(legalDocumentDefs()[$docKey]['title'] . ' gespeichert und sofort veröffentlicht.') . '#' . $params['tab']);
+    exit;
+});
+
+/** Ältere Fassung bzw. die Standardfassung erneut als neueste Fassung speichern (Verlauf bleibt vollständig). */
+$router->post('/portal/dokumente/:tab/restore', function ($params) {
+    [$owner, $docKey] = legalDocEditContext($params['tab']);
+    $back = '/portal/dokumente';
+    if (($_POST['version_id'] ?? '') === 'standard') {
+        $file = legalDefaultFile($owner, $docKey);
+        if (!$file) { http_response_code(404); echo 'Keine Standardfassung vorhanden'; return; }
+        $legalStand = ''; $legalMeta = null;
+        ob_start(); include $file; $html = sanitizeLegalHtml(ob_get_clean());
+        $what = 'Standardfassung';
+    } else {
+        $old = DB::fetchOne(
+            'SELECT content_html FROM legal_documents WHERE id = ? AND doc_key = ? AND '
+            . ($owner ? 'community_id = ?' : 'community_id IS NULL'),
+            $owner ? [$_POST['version_id'] ?? '', $docKey, $owner['id']] : [$_POST['version_id'] ?? '', $docKey]
+        );
+        if (!$old) { http_response_code(404); echo 'Fassung nicht gefunden'; return; }
+        $html = $old['content_html'];
+        $what = 'frühere Fassung';
+    }
+    DB::execute('INSERT INTO legal_documents (community_id, doc_key, content_html, created_by) VALUES (?, ?, ?, ?)',
+        [$owner['id'] ?? null, $docKey, $html, Auth::userId()]);
+    logAudit($owner['id'] ?? null, 'legal_document.restore', 'legal_document', null,
+        legalDocumentDefs()[$docKey]['title'] . ': ' . $what . ' wiederhergestellt');
+    header('Location: ' . $back . '?success=' . urlencode(ucfirst($what) . ' wiederhergestellt.') . '#' . $params['tab']);
+    exit;
+});
+
+$router->post('/portal/dokumente/infoblatt', function () {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $community = communityById(Auth::activeCommunityId());
+    if (!$community) { http_response_code(403); echo 'Keine Energiegemeinschaft aktiv'; return; }
+    $dir = communityDocDir($community['id']);
+    $target = $dir . '/infoblatt.pdf';
+    if (($_POST['action'] ?? '') === 'delete') {
+        @unlink($target);
+        logAudit($community['id'], 'infoblatt.delete', null, null, 'Infoblatt der EEG gelöscht');
+        header('Location: /portal/dokumente?success=' . urlencode('Infoblatt gelöscht.') . '#infoblatt'); exit;
+    }
+    $file = $_FILES['infoblatt'] ?? null;
+    if (!$file || $file['error'] !== UPLOAD_ERR_OK || $file['size'] > 20 * 1024 * 1024
+        || file_get_contents($file['tmp_name'], false, null, 0, 5) !== '%PDF-') {
+        header('Location: /portal/dokumente?error=' . urlencode('Bitte eine PDF-Datei (max. 20 MB) auswählen.') . '#infoblatt'); exit;
+    }
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+    if (!move_uploaded_file($file['tmp_name'], $target)) {
+        header('Location: /portal/dokumente?error=' . urlencode('Speichern fehlgeschlagen (Dateirechte im Speicher-Ordner prüfen).') . '#infoblatt'); exit;
+    }
+    logAudit($community['id'], 'infoblatt.upload', null, null, 'Infoblatt der EEG hochgeladen (' . round($file['size'] / 1024) . ' kB)');
+    header('Location: /portal/dokumente?success=' . urlencode('Infoblatt hochgeladen und veröffentlicht.') . '#infoblatt'); exit;
+});
+
 $router->get('/portal/settings', function () {
     Auth::requireLogin(); Auth::requireRole('manager');
     $communityId = Auth::activeCommunityId();
@@ -9646,8 +9979,8 @@ $router->post('/admin/communities', function () {
     $name = trim($_POST['name'] ?? '');
     $slug = preg_replace('/[^a-z0-9-]/', '-', strtolower($name));
     DB::execute(
-        'INSERT INTO communities (name, slug, marktpartner_id, address) VALUES (?, ?, ?, ?)',
-        [$name, $slug, $_POST['marktpartner_id'] ?? null, $_POST['address'] ?? null]
+        'INSERT INTO communities (name, slug, marktpartner_id, address, uses_ausleseeinheit) VALUES (?, ?, ?, ?, ?)',
+        [$name, $slug, $_POST['marktpartner_id'] ?? null, $_POST['address'] ?? null, isset($_POST['uses_ausleseeinheit']) ? 'true' : 'false']
     );
     header('Location: /admin');
     exit;
@@ -9856,7 +10189,7 @@ $router->post('/admin/communities/:id', function ($params) {
 
     DB::execute(
         'UPDATE communities SET name=?, marktpartner_id=?, zvr_number=?, address=?, iban=?, bic=?, active=?,
-             eda_login_email=?, eda_login_password_enc=? WHERE id=?',
+             eda_login_email=?, eda_login_password_enc=?, uses_ausleseeinheit=? WHERE id=?',
         [
             trim($_POST['name'] ?? ''),
             trim($_POST['marktpartner_id'] ?? '') ?: null,
@@ -9867,6 +10200,7 @@ $router->post('/admin/communities/:id', function ($params) {
             isset($_POST['active']) ? 'true' : 'false',
             trim($_POST['eda_login_email'] ?? '') ?: null,
             $edaPasswordEnc,
+            isset($_POST['uses_ausleseeinheit']) ? 'true' : 'false',
             $params['id'],
         ]
     );

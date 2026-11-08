@@ -1,7 +1,8 @@
 <?php
-$pageTitle = 'Preisliste — EEG Strompool Feldkirchen Süd-West';
-$pageDescription = 'Aktuelle und historische Tarife für Bezug und Einspeisung der EEG Strompool Feldkirchen Süd-West.';
-// $tariffHistory kommt aus der Route (/rc108175/preisliste), neueste zuerst.
+$rc = strtolower($community['marktpartner_id']);
+$pageTitle = 'Preisliste — ' . $community['name'];
+$pageDescription = 'Aktuelle und historische Tarife für Bezug und Einspeisung der ' . $community['name'] . '.';
+// $tariffHistory kommt aus der Route (/:rc/preisliste), neueste zuerst.
 $history = $tariffHistory ?? [];
 $current = $history[0] ?? null;
 $fmt = fn($v) => number_format((float)$v, 2, ',', '.');
@@ -11,7 +12,7 @@ ob_start();
 <div class="legal">
   <h1>Preisliste</h1>
   <div class="legal-meta">
-    EEG Strompool Feldkirchen Süd-West
+    <?= htmlspecialchars($community['name']) ?>
     <?php if ($current): ?>· gültig ab <?= date('d.m.Y', strtotime($current['valid_from'])) ?><?php endif; ?>
   </div>
 
@@ -33,10 +34,12 @@ ob_start();
         <td>Mitgliedsbeitrag</td>
         <td class="price"><?= $fmt((float)$current['mitgliedsbeitrag_eur'] / 12) ?> € / Monat</td>
       </tr>
+      <?php if (communityUsesAusleseeinheit($community)): ?>
       <tr>
         <td>Ausleseeinheit für Smart Meter (P1-Schnittstelle)</td>
         <td class="price">in Vorbereitung – voraussichtlich ca. 30,00 €</td>
       </tr>
+      <?php endif; ?>
     </tbody>
   </table>
 
@@ -76,10 +79,12 @@ ob_start();
   </table>
   <?php endif; ?>
 
+  <?php if (communityUsesAusleseeinheit($community)): ?>
   <p>
     Der endgültige Preis der Ausleseeinheit wird dem Mitglied vor Übergabe bekannt gegeben
-    (siehe <a href="/rc108175/agb">AGB</a>).
+    (siehe <a href="/<?= htmlspecialchars($rc) ?>/agb">AGB</a>).
   </p>
+  <?php endif; ?>
 
   <p>
     Die Abrechnung erfolgt quartalsweise auf Basis der vom Netzbetreiber übermittelten
@@ -88,8 +93,8 @@ ob_start();
   </p>
 
   <p>
-    Aktuelle Details entnehmen Sie den <a href="/rc108175/agb">AGB</a> sowie den
-    <a href="/rc108175/statuten">Statuten</a>.
+    Aktuelle Details entnehmen Sie den <a href="/<?= htmlspecialchars($rc) ?>/agb">AGB</a> sowie den
+    <a href="/<?= htmlspecialchars($rc) ?>/statuten">Statuten</a>.
   </p>
 </div>
 

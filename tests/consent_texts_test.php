@@ -159,3 +159,53 @@ test('Zustimmungstexte stehen in keiner Vorlage/View fest codiert (nur in consen
     assertContains('<<<RAW_ZUSTIMMUNGEN_LISTE>>>', file_get_contents($root . '/latex-service/templates/beitrittserklaerung_leer.tex'));
     assertContains('<<<RAW_ZUSTIMMUNGEN_HINWEIS>>>', file_get_contents($root . '/latex-service/templates/beitrittserklaerung_formular.tex'));
 });
+
+// ─── EEG ohne Ausleseeinheit / EEG-eigene Fassungen (08.11.2026) ────────────────────────────
+
+test('v2-ohne-ae: kein P1-/Ausleseeinheit-Passus, sonst vollständig', function () use ($ctCommunity) {
+    foreach (array_keys(consentFields()) as $field) {
+        foreach (['kurz', 'lang'] as $variant) {
+            $t = consentText('v2-ohne-ae', $field, $variant, $ctCommunity);
+            assertFalse(str_contains($t, 'P1'), "P1 in $field/$variant");
+            assertFalse(str_contains($t, 'Ausleseeinheit'), "Ausleseeinheit in $field/$variant");
+        }
+    }
+    assertContains('(b) die Zustimmung zur Übermittlung der Viertelstundenwerte', consentText('v2-ohne-ae', 'zustimmung_vollmacht', 'lang', $ctCommunity));
+    assertFalse(consentCoversP1('v2-ohne-ae'));
+});
+
+test('communityUsesAusleseeinheit: Standard ja, DB-Werte f/false/0 = nein', function () {
+    assertTrue(communityUsesAusleseeinheit([]));
+    assertTrue(communityUsesAusleseeinheit(['uses_ausleseeinheit' => 't']));
+    assertFalse(communityUsesAusleseeinheit(['uses_ausleseeinheit' => 'f']));
+    assertFalse(communityUsesAusleseeinheit(['uses_ausleseeinheit' => false]));
+});
+
+test('consentCurrentVersion: EEG-Fassung vor Plattform-Standard, ohne Ausleseeinheit -> v2-ohne-ae', function () {
+    consentClearRegisteredVersions();
+    try {
+        $a = ['id' => 'aaa', 'marktpartner_id' => 'RC1', 'name' => 'A'];
+        $b = ['id' => 'bbb', 'marktpartner_id' => 'RC2', 'name' => 'B', 'uses_ausleseeinheit' => 'f'];
+        assertSame('v2', consentCurrentVersion($a));
+        assertSame('v2-ohne-ae', consentCurrentVersion($b));
+        assertSame('v2', consentCurrentVersion());
+
+        $row = ['community_id' => 'aaa', 'gueltig_ab' => '2026-11-08', 'texts' => json_encode([
+            'zustimmung_vollmacht' => ['kurz' => 'Eigene Vollmacht.', 'lang' => 'Eigene Vollmacht inkl. P1.'],
+        ])];
+        consentRegisterVersions(['rc1-1' => consentVersionFromRow($row)]);
+        assertSame('rc1-1', consentCurrentVersion($a));
+        assertSame('v2-ohne-ae', consentCurrentVersion($b), 'andere EEG bleibt beim Standard');
+        assertSame('Eigene Vollmacht.', consentText('rc1-1', 'zustimmung_vollmacht', 'kurz', $a));
+        assertTrue(consentCoversP1('rc1-1'));
+        // Nicht ausgefüllte Punkte werden aus v2 ergänzt, nie leer.
+        assertSame(consentText('v2', 'zustimmung_agb', 'lang', $a), consentText('rc1-1', 'zustimmung_agb', 'lang', $a));
+        assertSame('Fassung der Energiegemeinschaft vom 08.11.2026', consentVersion('rc1-1')['bezeichnung']);
+
+        $newer = ['community_id' => 'aaa', 'gueltig_ab' => '2026-11-09', 'texts' => '{}'];
+        consentRegisterVersions(['rc1-2' => consentVersionFromRow($newer)]);
+        assertSame('rc1-2', consentCurrentVersion($a), 'jüngste EEG-Fassung gilt');
+    } finally {
+        consentClearRegisteredVersions();
+    }
+});
