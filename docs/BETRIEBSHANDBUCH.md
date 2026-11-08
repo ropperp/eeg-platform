@@ -1219,3 +1219,13 @@ docker compose up -d --build
 >   Betreiber der Plattform (Name/Anschrift) eintragen -- er ist in der Standardfassung bewusst
 >   offen gelassen.
 
+> **Einmalig nach dem Update vom 08.11.2026 (b) -- allgemeiner Plattform-Teil, Plattform-Kontakt**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261108b.sql
+> docker compose up -d --build webapp
+> ```
+> Danach unter `/portal/dokumente` → „Plattform: Impressum“ und „Plattform: Kontakt“ die
+> Anschrift (und ggf. Telefon) des Plattformbetreibers ergänzen -- die Standardfassung enthält
+> nur Name und E-Mail (§ 5 ECG verlangt eine ladungsfähige Anschrift).
+

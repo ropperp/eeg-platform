@@ -1332,9 +1332,10 @@ function legalDocumentDefs(): array
         'agb'              => ['title' => 'Allgemeine Geschäftsbedingungen', 'scope' => 'eeg'],
         'statuten'         => ['title' => 'Statuten', 'scope' => 'eeg'],
         'widerruf'         => ['title' => 'Widerrufsbelehrung', 'scope' => 'eeg'],
-        'impressum'        => ['title' => 'Impressum', 'scope' => 'eeg'],
+        'impressum'        => ['title' => 'Impressum', 'scope' => 'beides'],
         'datenschutz'      => ['title' => 'Datenschutzerklärung', 'scope' => 'beides'],
         'barrierefreiheit' => ['title' => 'Erklärung zur Barrierefreiheit', 'scope' => 'plattform'],
+        'kontakt'          => ['title' => 'Kontakt', 'scope' => 'plattform'],
     ];
 }
 
@@ -1459,8 +1460,9 @@ foreach (legalDocuments() as $docSlugRoute => $docTitleRoute) {
         $docSlug = $docSlugRoute;
         $docTitle = $docTitleRoute;
         $communities = DB::fetchAll('SELECT name, address, marktpartner_id FROM communities WHERE active = true ORDER BY name');
-        // Datenschutz: unter der Auswahl steht immer der allgemeine Plattform-Teil.
-        $platformDoc = $docSlug === 'datenschutz' ? legalDocument(null, 'datenschutz') : null;
+        // Allgemeiner Plattform-Teil VOR der Auswahl (Patrick, 08.11.2026): Datenschutz, Impressum
+        // und Kontakt haben einen eigenen Plattform-Text; die übrigen Seiten einen kurzen Hinweis.
+        $platformDoc = in_array($docSlug, ['datenschutz', 'impressum', 'kontakt'], true) ? legalDocument(null, $docSlug) : null;
         require ROOT . '/src/views/pages/legal_document_picker.php';
     });
 }
@@ -1521,36 +1523,51 @@ $router->get('/:communityid/kontakt', function ($params) {
  * Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot es aus, wird stillschweigend
  * ohne Mailversand auf die Erfolgsseite umgeleitet (kein Hinweis an den Bot, dass er entdeckt wurde).
  */
-$router->post('/:communityid/kontakt', function ($params) {
-    $community = communityByRc($params['communityid']);
-    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
-    $back = '/' . strtolower($community['marktpartner_id']) . '/kontakt';
-    $name = trim((string)($_POST['name'] ?? ''));
-    $email = trim((string)($_POST['email'] ?? ''));
-    $anliegen = trim((string)($_POST['anliegen'] ?? ''));
-    $nachricht = trim((string)($_POST['nachricht'] ?? ''));
-    $honeypot = trim((string)($_POST['website'] ?? ''));
-
-    if ($honeypot !== '') {
-        header('Location: ' . $back . '?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
-        exit;
-    }
-    if ($name === '' || $nachricht === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        header('Location: ' . $back . '?error=' . urlencode('Bitte Name, eine gültige E-Mail-Adresse und eine Nachricht angeben.'));
-        exit;
-    }
-
-    $anliegenLabels = [
+/** Anliegen-Auswahl der Kontaktformulare: Plattform (/kontakt) bzw. Energiegemeinschaft (/<rc>/kontakt). */
+function contactFormTopics(bool $platform): array
+{
+    return $platform ? [
+        'eeg'         => 'Energiegemeinschaft gründen / auf die Plattform bringen',
+        'plattform'   => 'Frage zur Plattform oder zum Mitgliederportal',
+        'datenschutz' => 'Datenschutz',
+        'sonstiges'   => 'Sonstiges (Presse, Schule, Kooperation …)',
+    ] : [
+        'allgemein'      => 'Allgemeine Frage',
         'mitgliedschaft' => 'Mitgliedschaft',
         'rechnung'       => 'Rechnung & Zahlung',
         'datenschutz'    => 'Datenschutz (Auskunft/Berichtigung/Löschung)',
         'sonstiges'      => 'Sonstiges',
     ];
-    $anliegenLabel = $anliegenLabels[$anliegen] ?? 'Allgemeine Frage';
-    $to = trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at';
+}
 
+/**
+ * Verarbeitet ein Kontaktformular -- auch für Datenschutz-Anfragen gedacht (Auskunft/Berichtigung/
+ * Löschung), damit nicht zwingend ein eigenes E-Mail-Programm nötig ist. Versand per Mailer
+ * (Microsoft Graph); schlägt er fehl (z.B. Graph nicht konfiguriert), wird geloggt und trotzdem
+ * quittiert, sobald die Nachricht inhaltlich gültig war -- gleiches Prinzip wie
+ * notifySupportTicketCreated(). Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot
+ * es aus, wird stillschweigend ohne Mailversand auf die Erfolgsseite umgeleitet.
+ */
+function handleContactForm(string $back, string $to, string $recipientLabel, array $topics): void
+{
+    $name = trim((string)($_POST['name'] ?? ''));
+    $email = trim((string)($_POST['email'] ?? ''));
+    $anliegen = trim((string)($_POST['anliegen'] ?? ''));
+    $nachricht = trim((string)($_POST['nachricht'] ?? ''));
+    $honeypot = trim((string)($_POST['website'] ?? ''));
+    $ok = $back . '?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.') . '#kontaktformular';
+
+    if ($honeypot !== '') {
+        header('Location: ' . $ok);
+        exit;
+    }
+    if ($name === '' || $nachricht === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header('Location: ' . $back . '?error=' . urlencode('Bitte Name, eine gültige E-Mail-Adresse und eine Nachricht angeben.') . '#kontaktformular');
+        exit;
+    }
+    $anliegenLabel = $topics[$anliegen] ?? 'Allgemeine Frage';
     try {
-        $body = '<p>Neue Nachricht über das Kontaktformular der ' . htmlspecialchars($community['name'])
+        $body = '<p>Neue Nachricht über das Kontaktformular ' . htmlspecialchars($recipientLabel)
             . ' (' . htmlspecialchars($anliegenLabel) . '):</p>'
             . '<p><strong>Von:</strong> ' . htmlspecialchars($name) . ' (' . htmlspecialchars($email) . ')</p>'
             . '<p>' . nl2br(htmlspecialchars($nachricht)) . '</p>'
@@ -1559,9 +1576,25 @@ $router->post('/:communityid/kontakt', function ($params) {
     } catch (\Throwable $e) {
         error_log('[kontaktformular_mail] ' . $e->getMessage());
     }
-
-    header('Location: ' . $back . '?success=' . urlencode('Danke für Ihre Nachricht! Wir melden uns so bald wie möglich.'));
+    header('Location: ' . $ok);
     exit;
+}
+
+/** Plattform-Kontaktformular (/kontakt) -- geht an den Plattformbetreiber, nicht an eine EEG. */
+$router->post('/kontakt', function () {
+    handleContactForm('/kontakt', 'office@stromfueralle.at', 'der Plattform „Strom für alle“', contactFormTopics(true));
+});
+
+/** Kontaktformular einer EEG -- an deren Kontakt-E-Mail (Einstellungen), sonst office@stromfueralle.at. */
+$router->post('/:communityid/kontakt', function ($params) {
+    $community = communityByRc($params['communityid']);
+    if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+    handleContactForm(
+        '/' . strtolower($community['marktpartner_id']) . '/kontakt',
+        trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at',
+        'der ' . $community['name'],
+        contactFormTopics(false)
+    );
 });
 
 $router->get('/:communityid/preisliste', function ($params) {
@@ -9476,6 +9509,8 @@ function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity): array
     }
     if ($isPlatformAdmin) {
         $docs['plattform-datenschutz'] = ['doc_key' => 'datenschutz', 'platform' => true];
+        $docs['plattform-impressum'] = ['doc_key' => 'impressum', 'platform' => true];
+        $docs['plattform-kontakt'] = ['doc_key' => 'kontakt', 'platform' => true];
         $docs['plattform-barrierefreiheit'] = ['doc_key' => 'barrierefreiheit', 'platform' => true];
     }
     return $docs;
@@ -9511,8 +9546,7 @@ $router->get('/portal/dokumente', function () {
             'current'     => $current,
             'history'     => $history,
             'has_default' => legalDefaultFile($owner, $def['doc_key']) !== null,
-            'public_url'  => $def['doc_key'] === 'barrierefreiheit' ? '/barrierefreiheit'
-                : ($owner ? '/' . strtolower($owner['marktpartner_id']) . '/' . $def['doc_key'] : '/datenschutz'),
+            'public_url'  => $owner ? '/' . strtolower($owner['marktpartner_id']) . '/' . $def['doc_key'] : '/' . $def['doc_key'],
         ];
     }
     $consentCurrent = null;

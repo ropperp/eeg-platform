@@ -19,6 +19,24 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Allgemeiner Plattform-Teil vor der EEG-Auswahl, Plattform-Kontakt und -Impressum (08.11.2026)
+Patrick: unter Kontakt fehlten die allgemeinen Daten der Plattform -- wer eine Energiegemeinschaft
+gründen oder auf die Plattform bringen will, landete nur bei der Auswahl der bestehenden EEGs.
+- `/kontakt`: zuerst der Plattformbetreiber (Text unter `/portal/dokumente` → „Plattform: Kontakt“)
+  mit eigenem Kontaktformular an office@stromfueralle.at (Anliegen u. a. „Energiegemeinschaft
+  gründen / auf die Plattform bringen“), darunter die Auswahl der Energiegemeinschaften.
+- `/impressum`: zuerst das Impressum der Plattform („Plattform: Impressum“), darunter die
+  Impressen der Energiegemeinschaften.
+- `/datenschutz`: Teil 1 (allgemeiner Plattform-Teil) steht jetzt VOR der Auswahl, mit
+  Sprunglink zur Auswahl. Zweck, Rechtsgrundlage, Herkunft/Weitergabe und Speicherdauer gelten
+  für alle EEGs und sind in den allgemeinen Teil gewandert; im Teil der EEG bleiben
+  Verantwortlicher, Netzbetreiber und Ausleseeinheit. Neu: Verantwortlicher für Website und
+  allgemeines Kontaktformular ist der Plattformbetreiber.
+- AGB, Statuten, Widerruf, Preisliste: kurzer allgemeiner Hinweis mit Links zu Kontakt,
+  Impressum und Datenschutz der Plattform vor der Auswahl.
+- Kontaktformular als gemeinsamer Baustein (`partials/contact_form.php`, `handleContactForm()`).
+- Migration `database/migrate_20261108b.sql` (Dokumentart „kontakt“).
+
 ### Messe-Demo: Einspeisung nach echtem Wetter, „aktuell keine Einspeisung“ statt 0 W (08.11.2026)
 Patrick: im November bei Nebel zeigte die Simulation mittags 11-12 kW Einspeisung -- jeder, der
 rausschaut, sieht, dass das nicht stimmen kann. Und „0 W“ wirkt, als wäre etwas kaputt.
