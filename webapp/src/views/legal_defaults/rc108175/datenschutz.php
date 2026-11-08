@@ -1,5 +1,7 @@
 <?php
-// EEG-eigener Teil der Datenschutzerklärung (ergänzt den allgemeinen Plattform-Teil).
+// EEG-eigener Teil der Datenschutzerklärung (ergänzt den allgemeinen Plattform-Teil). Zweck,
+// Rechtsgrundlage, Weitergabe und Speicherdauer gelten für alle EEGs und stehen seit 08.11.2026
+// im allgemeinen Teil (legal_defaults/plattform/datenschutz.php); hier nur das EEG-Spezifische.
 // Standardfassung; Änderungen durch den Obmann unter /portal/dokumente.
 $legalStand = '8. November 2026';
 ?>
@@ -10,34 +12,12 @@ $legalStand = '8. November 2026';
   <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a>.
 </p>
 
-<h2>Zweck der Verarbeitung</h2>
+<h2>Netzbetreiber</h2>
 <p>
-  Die Daten werden ausschließlich zur Verwaltung der Energiegemeinschaft verwendet: Zuordnung
-  von Zählpunkten, quartalsweise Abrechnung von Bezug und Einspeisung, Erstellung von
-  Vertragsunterlagen und Rechnungen sowie Kommunikation mit den Mitgliedern.
-</p>
-
-<h2>Rechtsgrundlage</h2>
-<p>
-  Die Verarbeitung erfolgt zur Erfüllung des Mitgliedschafts- bzw. Vertragsverhältnisses
-  (Art. 6 Abs. 1 lit. b DSGVO) sowie zur Erfüllung rechtlicher Verpflichtungen im Zusammenhang
-  mit dem Energiegemeinschaftengesetz (Art. 6 Abs. 1 lit. c DSGVO).
-</p>
-
-<h2>Weitergabe und Herkunft von Daten</h2>
-<p>
-  Energiedaten werden vom zuständigen Netzbetreiber (Kärnten Netz GmbH) an die Plattform
-  übermittelt. Von der Kärnten Netz GmbH stammt außerdem der zählerspezifische Schlüssel der
-  P1-Kundenschnittstelle, den die EEG aufgrund der Vollmacht in der Beitrittserklärung beim
-  Netzbetreiber anfordert, sofern ihn das Mitglied nicht selbst bereitstellt. Eine
-  Weitergabe an Dritte außerhalb der Gemeinschaft erfolgt nicht, außer an die im allgemeinen Teil
-  genannten Auftragsverarbeiter sowie wenn dies gesetzlich vorgeschrieben ist.
-</p>
-
-<h2>Speicherdauer</h2>
-<p>
-  Personenbezogene Daten werden für die Dauer der Mitgliedschaft sowie darüber hinaus im
-  Rahmen der gesetzlichen Aufbewahrungsfristen (insb. für Abrechnungsunterlagen) gespeichert.
+  Zuständiger Netzbetreiber ist die Kärnten Netz GmbH. Von ihr stammen die Energiedaten der
+  Zählpunkte (über EDA) sowie der zählerspezifische Schlüssel der P1-Kundenschnittstelle, den
+  die EEG aufgrund der Vollmacht in der Beitrittserklärung anfordert, sofern ihn das Mitglied
+  nicht selbst bereitstellt.
 </p>
 
 <h2>Echtzeit-Zählerdaten über die Ausleseeinheit</h2>

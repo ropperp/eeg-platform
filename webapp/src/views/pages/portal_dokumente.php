@@ -28,7 +28,7 @@ $tabsKey = 'dokumente';
 $tabs = [];
 foreach ($editDocs as $tabId => $d) {
     $label = ['agb' => 'AGB', 'statuten' => 'Statuten', 'datenschutz' => 'Datenschutz', 'widerruf' => 'Widerruf',
-              'impressum' => 'Impressum', 'barrierefreiheit' => 'Barrierefreiheit'][$d['doc_key']];
+              'impressum' => 'Impressum', 'barrierefreiheit' => 'Barrierefreiheit', 'kontakt' => 'Kontakt'][$d['doc_key']];
     $tabs[$tabId] = ['label' => $d['platform'] ? 'Plattform: ' . $label : $label];
 }
 if ($community) {
@@ -53,6 +53,9 @@ require __DIR__ . '/../partials/tabs_nav.php';
           <?php else: ?>
             Eigene Fassung vom <?= htmlspecialchars(fmtVienna($d['current']['row']['created_at'])) ?>,
             gespeichert von <?= htmlspecialchars(trim(($d['current']['row']['editor_first_name'] ?? '') . ' ' . ($d['current']['row']['editor_last_name'] ?? '')) ?: 'unbekannt') ?>.
+          <?php endif; ?>
+          <?php if ($d['platform'] && in_array($d['doc_key'], ['datenschutz', 'impressum', 'kontakt'], true)): ?>
+            <br>Steht auf <a href="/<?= $d['doc_key'] ?>">/<?= $d['doc_key'] ?></a> als allgemeiner Teil <strong>vor</strong> der Auswahl der Energiegemeinschaften<?= $d['doc_key'] === 'kontakt' ? '; das Kontaktformular (an office@stromfueralle.at) wird automatisch darunter angezeigt' : '' ?>.
           <?php endif; ?>
           <?php if ($d['doc_key'] === 'datenschutz' && !$d['platform']): ?>
             <br>Hier steht nur der <strong>Teil Ihrer Energiegemeinschaft</strong> (Verantwortlicher, Zwecke,
