@@ -28,11 +28,11 @@ ob_start();
     <div class="grid-3" style="margin-bottom:2rem">
       <div class="card stat-card">
         <div class="stat-value" id="bezug-w">—</div>
-        <div class="stat-label">Aktueller Bezug (W)</div>
+        <div class="stat-label">Aktueller Bezug</div>
       </div>
       <div class="card stat-card">
         <div class="stat-value" id="einsp-w">—</div>
-        <div class="stat-label">Aktuelle Einspeisung (W)</div>
+        <div class="stat-label">Aktuelle Einspeisung</div>
       </div>
       <div class="card stat-card">
         <div class="stat-value" id="today-kwh">—</div>
@@ -61,7 +61,9 @@ ob_start();
     <p id="demo-disclaimer" style="display:none;margin:-1rem 0 1.5rem;font-size:.8rem;color:#b45309;text-align:center;font-weight:600">
       <?= icon('warning-circle') ?> Hinweis: Ein Teil dieser Werte ist aktuell simuliert (Platzhalterdaten
       zur Veranschaulichung, solange noch nicht alle Mitglieder eine eigene Ausleseeinheit haben) --
-      entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen Einspeisung.
+      entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen Einspeisung. Die simulierte
+      PV-Erzeugung folgt dem aktuellen Wetter und Sonnenstand (Wetterdaten:
+      <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>).
     </p>
 
     <!-- Energiefluss-Diagramm (Patrick, 02.10.2026: "Hier wird aber noch kein
@@ -222,7 +224,15 @@ async function refresh() {
     document.getElementById('dashboard').style.display = 'block';
     document.getElementById('no-selection').style.display = 'none';
     document.getElementById('bezug-w').textContent = d.bezug_w.toLocaleString('de-AT') + ' W';
-    document.getElementById('einsp-w').textContent = d.einspeisung_w.toLocaleString('de-AT') + ' W';
+    const einspEl = document.getElementById('einsp-w');
+    // 0 W sähe nach Störung aus -- Klartext statt Zahl (Patrick, 08.11.2026).
+    if (Math.round(d.einspeisung_w) >= 1) {
+      einspEl.textContent = d.einspeisung_w.toLocaleString('de-AT') + ' W';
+      einspEl.classList.remove('stat-value-text');
+    } else {
+      einspEl.textContent = 'aktuell keine Einspeisung';
+      einspEl.classList.add('stat-value-text');
+    }
     document.getElementById('today-kwh').textContent = d.today_kwh.toLocaleString('de-AT') + ' kWh';
     document.getElementById('member-count').textContent = d.member_count.toLocaleString('de-AT');
     document.getElementById('total-meters').textContent = d.total_meters.toLocaleString('de-AT');

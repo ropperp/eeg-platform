@@ -19,6 +19,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Messe-Demo: Einspeisung nach echtem Wetter, „aktuell keine Einspeisung“ statt 0 W (08.11.2026)
+Patrick: im November bei Nebel zeigte die Simulation mittags 11-12 kW Einspeisung -- jeder, der
+rausschaut, sieht, dass das nicht stimmen kann. Und „0 W“ wirkt, als wäre etwas kaputt.
+- Simulierte PV-Einspeisung (`mqtt-subscriber/main.py`) rechnet jetzt mit der aktuellen
+  Einstrahlung von Open-Meteo (alle 10 min, kein API-Schlüssel) und dem echten Sonnenstand
+  (heute in Feldkirchen ca. 07:00-16:35 statt fix 06-20 Uhr). Bei Nebel zusätzlich gedrosselt,
+  nachts exakt 0 W ohne Rauschen. Ohne Wetterdaten: vorsichtige Schätzung aus dem Sonnenstand.
+- Standort einstellbar über `MESSE_DEMO_LAT`/`MESSE_DEMO_LON` (`.env`), Standard Feldkirchen in Kärnten.
+- Energiefluss, öffentliche Live-Seite und Startseite zeigen bei 0 W „aktuell keine Einspeisung“,
+  die Mitglieder-Kachel „aktuell kein Bezug und keine Einspeisung“.
+- Demo-Hinweis nennt die Wetterquelle (Open-Meteo.com, Quellenangabe laut deren Nutzungsbedingungen).
+
 ### Rechtstexte pro Energiegemeinschaft, Auswahlseiten, EEG ohne Ausleseeinheit (08.11.2026)
 Patrick: Unterlagen, die je Energiegemeinschaft verschieden sind, soll der Obmann selbst pflegen
 können -- nicht nur der Plattform-Admin. Andere EEGs schicken vielleicht nur ein Word-Dokument,

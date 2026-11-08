@@ -31,7 +31,8 @@
       <?= icon('warning-circle') ?> Hinweis: Ein Teil dieser Werte ist aktuell <strong>simuliert</strong>
       (Platzhalterdaten zur Veranschaulichung, solange noch nicht alle Mitglieder eine eigene
       Ausleseeinheit haben) -- entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen
-      Einspeisung.
+      Einspeisung. Die simulierte PV-Erzeugung folgt dem aktuellen Wetter und Sonnenstand
+      (Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>).
     </p>
   <?php endif; ?>
   <?php require __DIR__ . '/energy_flow_diagram.php'; ?>

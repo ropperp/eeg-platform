@@ -204,7 +204,14 @@
       // Text/Beschriftungen innerhalb des Diagramms -- nur gesetzt, falls im jeweiligen
       // Aufrufer vorhanden (beide Einbindungen haben sie aktuell, aber robust gegen Varianten).
       var pvEl = container.querySelector('#ef-pv');
-      if (pvEl) pvEl.textContent = Math.round(einspW).toLocaleString('de-AT') + ' W';
+      if (pvEl) {
+        // 0 W sähe nach Störung aus -- Klartext statt Zahl (Patrick, 08.11.2026).
+        if (Math.round(einspW) >= 1) {
+          pvEl.textContent = Math.round(einspW).toLocaleString('de-AT') + ' W';
+        } else {
+          pvEl.innerHTML = '<span class="eflow-value-none">aktuell keine Einspeisung</span>';
+        }
+      }
       var vbEl = container.querySelector('#ef-verbrauch');
       if (vbEl) vbEl.textContent = Math.round(bezugW).toLocaleString('de-AT') + ' W';
       var nzEl = container.querySelector('#ef-netz');
