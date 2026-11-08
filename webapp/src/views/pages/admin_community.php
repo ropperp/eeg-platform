@@ -39,6 +39,16 @@
           EEG aktiv
         </label>
       </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="uses_ausleseeinheit" value="1" <?= communityUsesAusleseeinheit($community) ? 'checked' : '' ?>>
+          Mitglieder bekommen eine Ausleseeinheit (P1-Kundenschnittstelle, Live-Daten)
+        </label>
+        <p style="font-size:.8rem;color:var(--gray-600);margin-top:.25rem">
+          Ohne Häkchen: „normale“ EEG ohne eigene Messgeräte -- Ausleseeinheit, P1-Schlüssel und
+          Live-Werte werden überall ausgeblendet, neue Beitritte nutzen die Zustimmungen ohne P1-Vollmacht.
+        </p>
+      </div>
     </div>
   </div>
 

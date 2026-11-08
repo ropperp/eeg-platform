@@ -119,12 +119,16 @@ $lastInvoice = $member ? DB::fetchOne(
     [$member['id']]
 ) : null;
 
+// EEG ohne Ausleseeinheiten (Patrick, 08.11.2026): keine Live-Kacheln, kein Energiefluss, kein P1.
+$usesAE = activeCommunityUsesAusleseeinheit($communityId);
 ob_start();
 ?>
 
 <h2 style="margin-bottom:1.5rem">Guten Tag, <?= htmlspecialchars($member['first_name'] ?? Auth::userName()) ?>!</h2>
 
+<?php if ($usesAE): ?>
 <div style="margin-bottom:1.5rem"><?php require __DIR__ . '/../partials/energy_flow.php'; ?></div>
+<?php endif; ?>
 
 <?php if (!$mpIds): ?>
 <div class="card" style="margin-bottom:1.5rem;text-align:center;padding:2.5rem 1.5rem">
@@ -137,6 +141,7 @@ ob_start();
 </div>
 <?php else: ?>
 
+<?php if ($usesAE): // Live-Werte nur mit Ausleseeinheit ?>
 <div class="card stat-card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('lightning') ?> Aktuelle Leistung</h3>
   <div id="current-power-tile">
@@ -173,6 +178,7 @@ setInterval(async () => {
   } catch (e) { /* naechster Versuch in 5s */ }
 }, 5000);
 </script>
+<?php endif; // $usesAE ?>
 
 <div class="grid-2" style="margin-bottom:1.5rem">
   <?php if ($hasConsumer): ?>
@@ -189,7 +195,7 @@ setInterval(async () => {
   <?php endif; ?>
 </div>
 
-<?php if ($hasProducer): ?>
+<?php if ($hasProducer && $usesAE): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('lightning') ?> Einspeisung in die Gemeinschaft
     <span style="font-weight:400;font-size:.75rem;color:var(--gray-600)">(Live-Schätzung)</span>
@@ -300,10 +306,11 @@ function onDashboardRangeChange(v) {
         <tr>
           <th style="white-space:nowrap"><?= $mp['type'] === 'producer' ? icon('arrow-up') : icon('arrow-down') ?></th>
           <td><code style="font-size:.78rem"><?= htmlspecialchars($mp['zaehlpunkt_nr']) ?></code></td>
-          <?php // Mitglied sieht nur, OB ein P1-Schlüssel hinterlegt ist -- nie den Schlüssel selbst. ?>
+          <?php if ($usesAE): // Mitglied sieht nur, OB ein P1-Schlüssel hinterlegt ist -- nie den Schlüssel selbst. ?>
           <td style="font-size:.78rem;color:var(--gray-600);white-space:nowrap">
             P1-Schlüssel hinterlegt: <?= !empty($mp['p1_key_enc']) ? 'ja' : 'nein' ?>
           </td>
+          <?php endif; ?>
         </tr>
       <?php endforeach; ?>
     </table>

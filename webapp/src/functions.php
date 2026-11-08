@@ -1753,3 +1753,124 @@ function copyrightLine(?int $year = null): string
     $year ??= (int)date('Y');
     return '© ' . ($year > 2026 ? '2026–' . $year : '2026') . ' Strom für alle';
 }
+
+/**
+ * Bereinigt HTML aus dem Dokumenten-Editor (/portal/dokumente) auf eine kleine Allowlist --
+ * die Texte erscheinen öffentlich auf der Website, also darf kein Skript/Stil/Event-Handler
+ * durchrutschen. Gleichzeitig sollen aus Word eingefügte Texte sauber werden (Patrick,
+ * 08.11.2026: "vielleicht bekomme ich ein Word-Dokument mit dem Text darin"): Word-Spans,
+ * Klassen, Inline-Stile, <o:p>, bedingte Kommentare und leere Absätze verschwinden, Überschriften,
+ * Absätze, Listen, Fett/Kursiv, Links und einfache Tabellen bleiben.
+ * - h1 -> h2 (die Seite hat ihre eigene h1), b -> strong, i -> em
+ * - unbekannte Elemente werden "ausgepackt" (Text bleibt), gefährliche samt Inhalt entfernt
+ * - Links nur http(s), mailto, seiteninterne Pfade (/...) und Anker (#...)
+ */
+function sanitizeLegalHtml(string $html): string
+{
+    $html = trim($html);
+    if ($html === '') return '';
+    $prev = libxml_use_internal_errors(true);
+    $doc = new DOMDocument('1.0', 'UTF-8');
+    $doc->loadHTML('<?xml encoding="UTF-8"?><div id="sanitize-root">' . $html . '</div>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
+    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+    $root = (new DOMXPath($doc))->query('//div[@id="sanitize-root"]')->item(0);
+    if (!$root) return '';
+    sanitizeLegalNode($root);
+    $out = '';
+    foreach ($root->childNodes as $child) {
+        $out .= $doc->saveHTML($child);
+    }
+    return trim($out);
+}
+
+/** Rekursiver Teil von sanitizeLegalHtml() -- bearbeitet die Kinder von $node an Ort und Stelle. */
+function sanitizeLegalNode(DOMNode $node): void
+{
+    static $allowed = ['h2', 'h3', 'h4', 'p', 'br', 'hr', 'ul', 'ol', 'li', 'strong', 'em', 'u', 'a',
+        'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td'];
+    static $drop = ['script', 'style', 'iframe', 'object', 'embed', 'head', 'meta', 'link', 'title',
+        'xml', 'noscript', 'svg', 'math', 'form', 'input', 'button', 'select', 'textarea', 'template', 'img'];
+    static $rename = ['h1' => 'h2', 'b' => 'strong', 'i' => 'em', 'h5' => 'h4', 'h6' => 'h4'];
+
+    foreach (iterator_to_array($node->childNodes) as $child) {
+        if ($child instanceof DOMComment || $child instanceof DOMProcessingInstruction) {
+            $node->removeChild($child);
+            continue;
+        }
+        if (!$child instanceof DOMElement) continue;
+
+        $tag = strtolower($child->nodeName);
+        if (in_array($tag, $drop, true)) {
+            $node->removeChild($child);
+            continue;
+        }
+        sanitizeLegalNode($child);
+
+        if (isset($rename[$tag])) {
+            $renamed = $child->ownerDocument->createElement($rename[$tag]);
+            while ($child->firstChild) { $renamed->appendChild($child->firstChild); }
+            $node->replaceChild($renamed, $child);
+            $child = $renamed;
+            $tag = $rename[$tag];
+        }
+
+        $href = $tag === 'a' ? trim($child->getAttribute('href')) : '';
+        while ($child->attributes->length > 0) {
+            $child->removeAttribute($child->attributes->item(0)->nodeName);
+        }
+
+        $unwrap = !in_array($tag, $allowed, true)
+            || ($tag === 'a' && !preg_match('~^(https?://|mailto:|/(?!/)|#)~i', $href));
+        if ($unwrap) {
+            while ($child->firstChild) { $node->insertBefore($child->firstChild, $child); }
+            $node->removeChild($child);
+            continue;
+        }
+        if ($tag === 'a') {
+            $child->setAttribute('href', $href);
+        }
+        // Leere Absätze/Überschriften (Word erzeugt viele "<p>&nbsp;</p>") entfernen.
+        if (in_array($tag, ['p', 'h2', 'h3', 'h4', 'li'], true)
+            && trim(str_replace("\u{00A0}", ' ', $child->textContent)) === '') {
+            $node->removeChild($child);
+        }
+    }
+}
+
+/** DB-Zeitstempel/Datum -> "8. November 2026" (Wiener Ortszeit, österreichische Monatsnamen). */
+function datumLang(?string $timestamp): string
+{
+    $ymd = fmtVienna($timestamp, 'Y-m-d', '');
+    if ($ymd === '') return '';
+    [$y, $m, $d] = array_map('intval', explode('-', $ymd));
+    $monate = [1 => 'Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni',
+        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    return $d . '. ' . $monate[$m] . ' ' . $y;
+}
+
+/**
+ * Nutzt die gerade aktive EEG Ausleseeinheiten (P1-Kundenschnittstelle, Live-Daten)? Bei
+ * "normalen" Energiegemeinschaften ohne eigene Messgeräte (communities.uses_ausleseeinheit =
+ * false, Patrick 08.11.2026) blenden Portal-Seiten alles rund um Ausleseeinheit, P1-Schlüssel
+ * und Live-Werte aus. Ohne aktive EEG (Platform-Admin) oder vor der Migration: true, d.h.
+ * bisheriges Verhalten.
+ */
+function activeCommunityUsesAusleseeinheit(?string $communityId = null): bool
+{
+    static $cache = [];
+    $communityId ??= Auth::activeCommunityId();
+    if (!$communityId) {
+        return true;
+    }
+    if (!array_key_exists($communityId, $cache)) {
+        try {
+            $row = DB::fetchOne('SELECT uses_ausleseeinheit FROM communities WHERE id = ?', [$communityId]);
+            $cache[$communityId] = $row ? communityUsesAusleseeinheit($row) : true;
+        } catch (Throwable $e) {
+            $cache[$communityId] = true; // Spalte fehlt noch (Migration nicht eingespielt)
+        }
+    }
+    return $cache[$communityId];
+}

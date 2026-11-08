@@ -235,7 +235,7 @@ ob_start();
       // Titel + Langfassung aus der einzigen Quelle webapp/src/consent_texts.php. Die Version
       // geht als verstecktes Feld mit -- der Server speichert sie nur, wenn sie beim Absenden
       // noch aktuell ist (sonst hätte jemand einen älteren Text gesehen als gespeichert wird).
-      $consentVersionShown = consentCurrentVersion();
+      $consentVersionShown = consentCurrentVersionFor($community);
       foreach (consentFields() as $field => $title):
       ?>
         <div class="form-group consent-item" style="margin-bottom:.9rem">

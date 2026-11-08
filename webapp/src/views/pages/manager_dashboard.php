@@ -53,6 +53,8 @@ $backupAgeHours = $backupStatus && !empty($backupStatus['unix'])
 // aktualisiert). $netzW (Erzeugung minus Verbrauch der ganzen Community) wird direkt im
 // eingebundenen Partial berechnet, siehe partials/energy_flow.php.
 $live = communityLivePower($communityId);
+// EEG ohne Ausleseeinheiten: keine ESP-Kachel, kein Live-Energiefluss (08.11.2026).
+$usesAE = activeCommunityUsesAusleseeinheit($communityId);
 
 ob_start();
 ?>
@@ -99,6 +101,7 @@ ob_start();
       <div style="font-weight:700;color:var(--gray-600)">Kein Status verfügbar</div>
     <?php endif; ?>
   </div>
+  <?php if ($usesAE): ?>
   <div class="card" style="padding:1rem">
     <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('plug') ?> ESP online</div>
     <?php if (($espStats['bekannt'] ?? 0) > 0): ?>
@@ -117,6 +120,7 @@ ob_start();
       </div>
     <?php endif; ?>
   </div>
+  <?php endif; // $usesAE ?>
   <div class="card" style="padding:1rem">
     <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:.35rem"><?= icon('receipt') ?> Offene Rechnungen</div>
     <div style="font-weight:700"><?= $openInvoices['cnt'] ?? 0 ?></div>
@@ -130,7 +134,7 @@ ob_start();
 
 <!-- Live-Daten -->
 <div class="grid-2" style="margin-bottom:2rem">
-  <?php require __DIR__ . '/../partials/energy_flow.php'; ?>
+  <?php if ($usesAE) { require __DIR__ . '/../partials/energy_flow.php'; } ?>
 
   <div class="card">
     <h3 style="margin-bottom:1rem"><?= icon('clipboard-text') ?> Schnellzugriff</h3>

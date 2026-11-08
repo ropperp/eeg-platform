@@ -12,13 +12,6 @@ ob_start();
     Preisliste) sowie die Möglichkeit, die Beitrittserklärung direkt online auszufüllen und zu
     unterschreiben.
   </p>
-  <p class="alert" style="background:var(--green-light);font-size:.9rem">
-    <?= icon('info') ?> Mitglieder erhalten eine <strong>Ausleseeinheit für den Smart Meter</strong>.
-    Ihr Betrieb ist laut AGB (§ 7) verpflichtender Teil der Teilnahme; voraussichtlicher Preis
-    ca. € 30,–. Die Ausleseeinheit befindet sich derzeit in Entwicklung.
-    <a href="/agb">Zu den AGB</a>
-  </p>
-
   <?php require __DIR__ . '/../partials/community_search.php'; ?>
 
   <div style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem">
@@ -30,6 +23,10 @@ ob_start();
           <strong style="font-size:1.05rem"><?= htmlspecialchars($c['name']) ?></strong>
           <?php if (!empty($c['address'])): ?>
             <div style="font-size:.85rem;color:var(--gray-600)"><?= htmlspecialchars($c['address']) ?></div>
+          <?php endif; ?>
+          <?php // Hinweis nur bei EEGs mit Ausleseeinheit -- war bis 08.11.2026 pauschal für alle über der Liste. ?>
+          <?php if (communityUsesAusleseeinheit($c)): ?>
+            <div style="font-size:.8rem;color:var(--gray-600);margin-top:.2rem"><?= icon('info') ?> Mitglieder erhalten eine Ausleseeinheit für den Smart Meter (Details in den AGB)</div>
           <?php endif; ?>
         </div>
         <?php if ($hasLegalPages): ?>

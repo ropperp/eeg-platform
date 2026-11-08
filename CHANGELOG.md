@@ -19,6 +19,40 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Rechtstexte pro Energiegemeinschaft, Auswahlseiten, EEG ohne Ausleseeinheit (08.11.2026)
+Patrick: Unterlagen, die je Energiegemeinschaft verschieden sind, soll der Obmann selbst pflegen
+können -- nicht nur der Plattform-Admin. Andere EEGs schicken vielleicht nur ein Word-Dokument,
+das eingebaut wird, oder wollen es selbst in der Hand haben.
+- **Neue Seite `/portal/dokumente`** (Menüpunkt „Dokumente“ beim Obmann, „Rechtstexte“ beim
+  Platform-Admin): Reiter für AGB, Statuten, Datenschutz (EEG-Teil), Widerruf, Impressum,
+  Zustimmungen und Infoblatt. Text-Editor mit Überschriften, Listen, Fett/Kursiv und Links; Text
+  aus Word lässt sich direkt einfügen, Word-Formatierungen werden entfernt. Speichern
+  veröffentlicht sofort, jede Fassung bleibt im Verlauf und lässt sich wiederherstellen (oder
+  zurück auf die mitgelieferte Standardfassung). Serverseitig wird jeder Text auf eine feste
+  Liste erlaubter HTML-Elemente bereinigt (`sanitizeLegalHtml()`), auch beim Ausliefern.
+- **Zustimmungstexte pro EEG:** der Obmann kann eine eigene Fassung der sechs Zustimmungen
+  speichern (Version `<rc>-<n>`), sie gilt sofort für neue Beitritte; bereits unterschriebene
+  Beitrittserklärungen behalten ihre Fassung. `/<rc>/zustimmungen` zeigt alle Fassungen.
+- **Infoblatt pro EEG** als PDF hochladen (`/<rc>/infoblatt.pdf`).
+- **Datenschutz zweiteilig:** Teil 1 allgemeiner Plattform-Teil (pflegt der Platform-Admin, gilt
+  für alle EEGs), Teil 2 Ergänzungen der jeweiligen EEG (pflegt der Obmann). `/datenschutz` zeigt
+  die EEG-Auswahl mit Suche und darunter immer den allgemeinen Teil.
+- **Fußzeile:** Impressum, Statuten, Datenschutz, AGB, Widerruf, Preisliste und Kontakt führen
+  jetzt auf Auswahlseiten (EEG wählen, mit Suche) statt fest auf RC108175. Barrierefreiheit ist
+  plattformweit (`/barrierefreiheit`, alte Adresse leitet um).
+- Alle Seiten unter `/<rc>/...` (Beitreten, Kontakt, Preisliste, Rechtstexte) funktionieren
+  jetzt für jede EEG, nicht nur RC108175. Die bisherigen RC108175-Texte sind unverändert als
+  Standardfassung hinterlegt (`views/legal_defaults/`), die Statuten wortgleich.
+- **EEG ohne Ausleseeinheit:** neuer Schalter beim Anlegen/Bearbeiten einer EEG
+  (`communities.uses_ausleseeinheit`, auch in der App-API). Ist er aus, verschwinden
+  Ausleseeinheit, P1-Schlüssel, Sammelliste, ESP-/Zähler-Status, Live-Energiefluss, Live-Kacheln,
+  Live-Daten-API, Messe-Demo und Preislisten-Zeile; neue Beitritte nutzen die Zustimmungsfassung
+  `v2-ohne-ae` (Vollmacht ohne P1-Kundenschnittstelle).
+- Kontaktseite einer EEG nutzt deren Kontakt-E-Mail/Telefon/Adresse; Nachrichten gehen an die
+  Kontakt-E-Mail der EEG.
+- Migration `database/migrate_20261108.sql` (Tabellen `legal_documents`, `consent_versions`,
+  Spalte `communities.uses_ausleseeinheit`).
+
 ### Einstellungen in Reitern, Copyright-Zeile (08.11.2026)
 Patrick: die Einstellungen sind zu unübersichtlich -- lieber Reiter zum Hin- und Herspringen
 (Vorbild: seine HTL-Wahl-Seite), mit einer schönen Animation; dazu unten "© 2026 Strom für alle".

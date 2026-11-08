@@ -55,7 +55,13 @@ function consentVersions(): array
         'zustimmung_agb'                 => 'Ich bestätige, die geltenden Konditionen laut Preisliste und AGB gelesen und akzeptiert zu haben.',
     ];
 
-    return [
+    $v2Mitgliedschaft = 'Ich beantrage die Mitgliedschaft im Verein „{eeg_name}“ und werde damit gleichzeitig Teilnehmer:in der Erneuerbare-Energie-Gemeinschaft (EEG). Ich nehme die Vereinsstatuten (stromfueralle.at/{rc}/statuten) zur Kenntnis und bestätige, dass die oben angeführten Daten korrekt sind.';
+    $v2Widerruf = 'Ich stimme zu, dass die Stromzuteilung bereits vor Ablauf der 14-tägigen Widerrufsfrist beginnt. Ich kann diese Beitrittserklärung binnen 14 Tagen schriftlich (per E-Mail) widerrufen (stromfueralle.at/{rc}/widerruf).';
+    $v2Email = 'Ich stimme der Zustellung von Rechnungen sowie beitritts- und vereinsrelevanten Dokumenten per E-Mail an die oben angeführte Adresse zu.';
+
+    // EEG-eigene Fassungen (Tabelle consent_versions, vom Obmann unter /portal/dokumente gepflegt)
+    // stehen vor den Plattform-Fassungen -- siehe consentRegisterVersions().
+    return consentRegisteredVersions() + [
         'v2' => [
             'bezeichnung' => 'Fassung 2 (Vollmacht inkl. P1-Kundenschnittstelle)',
             'gueltig_ab'  => '2026-11-07',
@@ -91,6 +97,45 @@ function consentVersions(): array
                 'zustimmung_agb' => [
                     'kurz' => 'Ich habe Preisliste und AGB (inkl. verpflichtender Ausleseeinheit) gelesen und akzeptiert.',
                     'lang' => 'Ich bestätige, dass ich die geltenden Konditionen laut Tarif- und Preisblatt (stromfueralle.at/{rc}/preisliste) sowie die AGB (stromfueralle.at/{rc}/agb) gelesen, verstanden und akzeptiert habe. Mir ist bekannt, dass der Betrieb der Ausleseeinheit für Smart Meter gemäß § 7 der AGB verpflichtender Bestandteil der Teilnahme ist.',
+                ],
+            ],
+        ],
+
+        // Plattform-Standard für Energiegemeinschaften OHNE Ausleseeinheit
+        // (communities.uses_ausleseeinheit = false, Patrick 08.11.2026: "dass wir auch normale
+        // Energiegemeinschaften betreiben ... da gehört das ganze Ausleseeinheit-Zeug weg"):
+        // wie v2, aber ohne P1-Passus in der Vollmacht und ohne Ausleseeinheit in Datenschutz/AGB.
+        'v2-ohne-ae' => [
+            'bezeichnung' => 'Fassung 2 (ohne Ausleseeinheit)',
+            'gueltig_ab'  => '2026-11-08',
+            'vollmacht_p1' => false,
+            'texte' => [
+                'zustimmung_mitgliedschaft' => [
+                    'kurz' => 'Ich beantrage die Mitgliedschaft im Verein und nehme die Vereinsstatuten zur Kenntnis.',
+                    'lang' => $v2Mitgliedschaft,
+                ],
+                'zustimmung_vollmacht' => [
+                    'kurz' => 'Ich bevollmächtige den Vorstand, mich gegenüber Netzbetreiber, Behörden und Energieversorgern in allen Belangen der EEG zu vertreten, inkl. Zustimmungserklärung und Viertelstundenwerten.',
+                    'lang' => "Ich bevollmächtige den Vorstand der EEG, mich in allen zur Teilnahme, Anmeldung und Abwicklung der Energiegemeinschaft erforderlichen Belangen gegenüber Behörden, dem Netzbetreiber (Kärnten Netz GmbH) und Energieversorgern zu vertreten. Dies umfasst insbesondere\n"
+                        . "(a) die Abgabe der Zustimmungserklärung zur Teilnahme sowie\n"
+                        . "(b) die Zustimmung zur Übermittlung der Viertelstundenwerte über das Netzkundenportal bzw. den EDA-Marktprozess.\n"
+                        . 'Die Vollmacht ist jederzeit schriftlich (per E-Mail) widerrufbar.',
+                ],
+                'zustimmung_widerrufsfrist' => [
+                    'kurz' => 'Ich stimme dem Beginn der Stromzuteilung vor Ablauf der 14-tägigen Widerrufsfrist zu.',
+                    'lang' => $v2Widerruf,
+                ],
+                'zustimmung_email_kommunikation' => [
+                    'kurz' => 'Ich stimme der Zustellung von Rechnungen und Dokumenten per E-Mail zu.',
+                    'lang' => $v2Email,
+                ],
+                'zustimmung_datenschutz' => [
+                    'kurz' => 'Ich nehme die Datenschutzerklärung zur Kenntnis.',
+                    'lang' => 'Ich nehme zur Kenntnis, dass die EEG meine Stamm-, Erzeugungs- und Verbrauchsdaten zur Abwicklung der Mitgliedschaft verarbeitet, speichert und im erforderlichen Umfang mit dem Netzbetreiber und beauftragten Dienstleistern (Auftragsverarbeiter iSd DSGVO) austauscht. Insbesondere verwendet die vom Verein beauftragte Abrechnungsplattform (stromfueralle.at) meine Daten zur Verbrauchs- und Erzeugungsabrechnung sowie zur Darstellung in meinem persönlichen Online-Zugang. Details siehe Datenschutzerklärung (stromfueralle.at/{rc}/datenschutz).',
+                ],
+                'zustimmung_agb' => [
+                    'kurz' => 'Ich habe Preisliste und AGB gelesen und akzeptiert.',
+                    'lang' => 'Ich bestätige, dass ich die geltenden Konditionen laut Tarif- und Preisblatt (stromfueralle.at/{rc}/preisliste) sowie die AGB (stromfueralle.at/{rc}/agb) gelesen, verstanden und akzeptiert habe.',
                 ],
             ],
         ],
@@ -141,8 +186,82 @@ function consentVersions(): array
     ];
 }
 
-function consentCurrentVersion(): string
+/**
+ * Zur Laufzeit registrierte EEG-eigene Fassungen (aus der Tabelle consent_versions, siehe
+ * loadCommunityConsentVersions() in index.php). Bewusst ein Register statt eines DB-Zugriffs
+ * hier drin: diese Datei bleibt dadurch ohne Datenbank testbar.
+ */
+function &consentRegistry(): array
 {
+    static $registry = [];
+    return $registry;
+}
+
+/** Registriert EEG-Fassungen ([version_key => Fassung], neueste zuerst, siehe consentVersionFromRow()). */
+function consentRegisterVersions(array $versions): void
+{
+    $registry = &consentRegistry();
+    $registry = $versions + $registry;
+}
+
+function consentRegisteredVersions(): array
+{
+    return consentRegistry();
+}
+
+function consentClearRegisteredVersions(): void
+{
+    $registry = &consentRegistry();
+    $registry = [];
+}
+
+/**
+ * Wandelt eine Zeile aus consent_versions in das Format von consentVersions() um. Fehlende
+ * Punkte (sollte das Formular verhindern) werden aus der Plattform-Fassung v2 ergänzt, damit
+ * nie eine Zustimmung ohne Text angezeigt wird.
+ */
+function consentVersionFromRow(array $row): array
+{
+    $texts = is_array($row['texts'] ?? null) ? $row['texts'] : (json_decode((string)($row['texts'] ?? ''), true) ?: []);
+    $fallback = consentVersions()['v2']['texte'];
+    $complete = [];
+    foreach (array_keys(consentFields()) as $field) {
+        foreach (['kurz', 'lang'] as $variant) {
+            $t = trim((string)($texts[$field][$variant] ?? ''));
+            $complete[$field][$variant] = $t !== '' ? $t : $fallback[$field][$variant];
+        }
+    }
+    return [
+        'bezeichnung'  => 'Fassung der Energiegemeinschaft vom ' . date('d.m.Y', strtotime((string)$row['gueltig_ab'])),
+        'gueltig_ab'   => (string)$row['gueltig_ab'],
+        'vollmacht_p1' => str_contains($complete['zustimmung_vollmacht']['lang'], 'P1'),
+        'texte'        => $complete,
+        'community_id' => (string)($row['community_id'] ?? ''),
+    ];
+}
+
+/** Ob eine EEG mit Ausleseeinheit arbeitet (communities.uses_ausleseeinheit, Standard ja). */
+function communityUsesAusleseeinheit(array $community): bool
+{
+    return !in_array($community['uses_ausleseeinheit'] ?? true, [false, 'f', 'false', '0', 0], true);
+}
+
+/**
+ * Aktuell gültige Fassung -- für eine bestimmte EEG ihre jüngste eigene Fassung, sonst der
+ * Plattform-Standard (v2 bzw. v2-ohne-ae für EEGs ohne Ausleseeinheit). Ohne EEG-Angabe v2.
+ */
+function consentCurrentVersion(?array $community = null): string
+{
+    if ($community !== null) {
+        foreach (consentRegisteredVersions() as $key => $v) {
+            if (($v['community_id'] ?? '') !== '' && $v['community_id'] === (string)($community['id'] ?? '')) {
+                return (string)$key;
+            }
+        }
+        if (!communityUsesAusleseeinheit($community)) {
+            return 'v2-ohne-ae';
+        }
+    }
     return CONSENT_CURRENT_VERSION;
 }
 
@@ -254,7 +373,7 @@ function sepaMandateText(array $community, bool $mitBerechtigungserklaerung = tr
  */
 function offlineBeitrittserklaerungVars(array $community): array
 {
-    $version = consentCurrentVersion();
+    $version = consentCurrentVersion($community);
     $rc = strtolower((string)($community['marktpartner_id'] ?? ''));
     $email = trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at';
     $phone = trim((string)($community['contact_phone'] ?? ''));

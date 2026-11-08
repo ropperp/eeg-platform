@@ -15,8 +15,12 @@ $tabs = [
   'stammdaten' => ['label' => 'Stammdaten & Bank', 'icon' => 'buildings'],
   'tarif'      => ['label' => 'Tarif & Steuer', 'icon' => 'currency-eur'],
   'dokumente'  => ['label' => 'Logo & Unterschrift', 'icon' => 'signature'],
-  'api'        => ['label' => 'Live-Daten-API', 'icon' => 'plug'],
 ];
+// Live-Daten-API und Messe-Demo nur für EEGs mit Ausleseeinheiten (Patrick, 08.11.2026).
+$usesAE = communityUsesAusleseeinheit($community ?? []);
+if ($usesAE) {
+  $tabs['api'] = ['label' => 'Live-Daten-API', 'icon' => 'plug'];
+}
 require __DIR__ . '/../partials/tabs_nav.php';
 ?>
 
@@ -25,6 +29,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Stammdaten</h3>
   <form method="post" action="/portal/settings/community">
+    <?php if ($usesAE): ?>
     <div class="form-group" style="margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--gray-200)">
       <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
         <input type="checkbox" name="messe_demo_enabled" value="1" style="width:auto"
@@ -40,6 +45,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
         Platzhalter-Mitglied) -- auf allen Seiten, auf denen sie mitzählen, wird zusätzlich ein
         deutlicher Hinweis angezeigt, dass es sich um Platzhalterdaten handelt.</small>
     </div>
+    <?php endif; ?>
     <div class="grid-2">
       <div class="form-group">
         <label>Name der EEG</label>
@@ -314,6 +320,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
 </div>
 </section>
 
+<?php if ($usesAE): ?>
 <section class="tab-panel" id="tab-api" role="tabpanel" aria-labelledby="tabbtn-api" tabindex="0" hidden>
 <!-- Live-Daten-API (Community-weit) -->
 <div class="card">
@@ -409,6 +416,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
   </div>
 </div>
 </section>
+<?php endif; // $usesAE ?>
 
 <script>
 (function() {

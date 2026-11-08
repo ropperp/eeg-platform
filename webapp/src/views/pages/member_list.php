@@ -5,15 +5,19 @@ $statusLabel = ['none' => '—', 'created' => 'Erstellt', 'signed' => icon('chec
 // statt Vertragsstatus die Zählpunktnummer für Bezug/Einspeisung -- das ist für sie die
 // praktisch relevantere Information (Patrick, 30.07.2026).
 $contractsEnabled = $contractsEnabled ?? true;
+// EEG ohne Ausleseeinheiten: Zähler-Status-Spalte/-Filter und P1-Sammelliste ausblenden (08.11.2026).
+$usesAE = activeCommunityUsesAusleseeinheit();
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem">
   <h2><?= icon('users-three') ?> Mitglieder</h2>
   <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <?php if ($usesAE): ?>
     <a href="/portal/p1-sammelliste.csv" class="btn btn-secondary"
        title="Alle aktiven Zählpunkte ohne hinterlegten P1-Schlüssel -- für die Anfrage beim Netzbetreiber">
       <?= icon('download-simple') ?> Sammelliste P1-Freischaltung (CSV)
     </a>
+    <?php endif; ?>
     <a href="/portal/members/new" class="btn btn-primary">+ Mitglied anlegen</a>
   </div>
 </div>
@@ -75,7 +79,7 @@ $contractsEnabled = $contractsEnabled ?? true;
       <option value="online">Nur Online-Beitritt</option>
       <option value="offline">Nur Offline angelegt</option>
     </select>
-    <select id="filter-esp" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="filter-esp" onchange="filterMembers()"<?= $usesAE ? '' : ' hidden' ?> style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Zähler-Status</option>
       <option value="fehler">Nur mit Fehler</option>
       <option value="ok">Nur ohne Fehler</option>
@@ -102,7 +106,9 @@ $contractsEnabled = $contractsEnabled ?? true;
         <?php endif; ?>
         <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" onclick="sortMembers(this)">Offener Betrag <span class="sort-arrow"></span></th>
         <th class="sortable" style="text-align:center" data-sort-key="herkunft" data-sort-type="str" onclick="sortMembers(this)">Herkunft <span class="sort-arrow"></span></th>
+        <?php if ($usesAE): ?>
         <th class="sortable" style="text-align:center" data-sort-key="esp" data-sort-type="num" onclick="sortMembers(this)">Zähler <span class="sort-arrow"></span></th>
+        <?php endif; ?>
         <th class="sortable" data-sort-key="lastlogin" data-sort-type="str" onclick="sortMembers(this)">Zuletzt angemeldet <span class="sort-arrow"></span></th>
         <th>Aktionen</th>
       </tr>
@@ -190,6 +196,7 @@ $contractsEnabled = $contractsEnabled ?? true;
             <span class="badge badge-gray" style="font-size:.68rem" title="Manuell angelegt, z. B. Beitrittserklärung offline per E-Mail"><?= icon('envelope-simple') ?> Offline</span>
           <?php endif; ?>
         </td>
+        <?php if ($usesAE): ?>
         <td style="text-align:center">
           <?php if ($hatEspFehler): ?>
             <span class="badge badge-red" style="font-size:.68rem" title="ESP offline oder Zähler (P1-Signal) nicht erreichbar"><?= icon('warning-circle') ?> Fehler</span>
@@ -199,6 +206,7 @@ $contractsEnabled = $contractsEnabled ?? true;
             <span class="badge badge-gray" style="font-size:.68rem" title="Noch keine ESP-Meldung erhalten">—</span>
           <?php endif; ?>
         </td>
+        <?php endif; ?>
         <td style="font-size:.8rem;white-space:nowrap">
           <?php if (empty($m['user_id'])): ?>
             <span style="color:var(--gray-400)">—</span>

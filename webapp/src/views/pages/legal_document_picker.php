@@ -41,6 +41,16 @@ ob_start();
       <p style="color:var(--gray-600)">Aktuell ist keine Energiegemeinschaft verfügbar.</p>
     <?php endif; ?>
   </div>
+
+  <?php if (!empty($platformDoc)): ?>
+    <?php // Datenschutz: der allgemeine Plattform-Teil gilt für alle EEGs und steht deshalb immer da. ?>
+    <p class="legal-part" style="margin-top:3rem">Allgemeiner Teil &ndash; gilt für alle Energiegemeinschaften auf „Strom für alle“<?php if ($platformDoc['stand'] !== ''): ?> (Stand: <?= htmlspecialchars($platformDoc['stand']) ?>)<?php endif; ?></p>
+    <?= $platformDoc['html'] ?>
+    <p style="margin-top:1.5rem;color:var(--gray-600)">
+      Welche Energiegemeinschaft für Ihre Daten verantwortlich ist und welche Ergänzungen dort gelten,
+      sehen Sie nach Auswahl der Energiegemeinschaft oben.
+    </p>
+  <?php endif; ?>
 </div>
 
 <?php

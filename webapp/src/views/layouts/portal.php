@@ -205,6 +205,9 @@
       <a href="/admin/templates" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/templates') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
       </a>
+      <a href="/portal/dokumente" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/dokumente') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('file-text') ?></span><span class="sidebar-text">Rechtstexte</span>
+      </a>
       <a href="/admin/backups" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/backups') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('floppy-disk') ?></span><span class="sidebar-text">Backups</span>
       </a>
@@ -320,6 +323,9 @@
         <span class="badge badge-yellow" style="margin-left:.4rem"><?= $unassignedMeteringPoints ?></span>
       </a>
       <?php endif; ?>
+      <a href="/portal/dokumente" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/dokumente') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('file-text') ?></span><span class="sidebar-text">Dokumente</span>
+      </a>
       <a href="/portal/settings" class="<?= str_contains($_SERVER['REQUEST_URI'], 'settings') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('gear') ?></span><span class="sidebar-text">Einstellungen</span>
       </a>
@@ -342,9 +348,11 @@
       <a href="/portal/invoices" class="<?= str_contains($_SERVER['REQUEST_URI'], 'invoices') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('receipt') ?></span><span class="sidebar-text">Rechnungen</span>
       </a>
+      <?php if (activeCommunityUsesAusleseeinheit()): // Live-Daten-API nur mit Ausleseeinheit ?>
       <a href="/portal/my/api-keys" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/api-keys') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('plug') ?></span><span class="sidebar-text">API-Zugänge</span>
       </a>
+      <?php endif; ?>
       <a href="/portal/my/support" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/my/support') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('chat-circle-text') ?></span><span class="sidebar-text">Support</span>
       </a>
