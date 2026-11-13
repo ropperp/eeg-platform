@@ -19,6 +19,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Umschaltbares Portal-Design „Neuer Look“ (Glas) (13.11.2026)
+Patrick: Dashboard-Design aus einem Video nachbauen, als Plattform-Admin-Einstellung zum Hin- und
+Herschalten zwischen neuem Look und dem bisherigen Dashboard.
+- Neuer Reiter **Design** unter Admin → Einstellungen: „Neuer Look“ oder „Klassisch“ (Standard),
+  mit Vorschau. Gilt für das ganze Portal (Admin, Obmänner, Mitglieder), Hell/Dunkel in beiden.
+- Neuer Look (`assets/css/glass.css`, nur geladen wenn aktiv): Blau-Türkis-Verlauf, schwebende
+  dunkle Glas-Kopfzeile und -Seitenleiste, helle Milchglas-Inhaltsfläche, Glas-Kacheln mit
+  Anheben beim Darüberfahren, Pillen-Knöpfe und Pillen-Reiter. Farben auf WCAG-AA-Kontrast geprüft.
+- Klassisches Design unverändert (`app.css`).
+- App-API: `POST /api/v1/admin/settings/design`, `portal_design` in `GET /api/v1/admin/settings`.
+- Migration `database/migrate_20261113.sql` (`platform_settings.portal_design`).
+
 ### Allgemeiner Plattform-Teil vor der EEG-Auswahl, Plattform-Kontakt und -Impressum (08.11.2026)
 Patrick: unter Kontakt fehlten die allgemeinen Daten der Plattform -- wer eine Energiegemeinschaft
 gründen oder auf die Plattform bringen will, landete nur bei der Auswahl der bestehenden EEGs.

@@ -1229,3 +1229,12 @@ docker compose up -d --build
 > Anschrift (und ggf. Telefon) des Plattformbetreibers ergänzen -- die Standardfassung enthält
 > nur Name und E-Mail (§ 5 ECG verlangt eine ladungsfähige Anschrift).
 
+> **Einmalig nach dem Update vom 13.11.2026 -- umschaltbares Portal-Design**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261113.sql
+> docker compose up -d --build webapp
+> ```
+> Danach Admin → Einstellungen → Reiter „Design“ → „Neuer Look“ wählen. Ohne Migration bleibt
+> alles beim klassischen Design (kein Fehler).
+

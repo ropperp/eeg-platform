@@ -789,6 +789,12 @@ Body: `{"test_mode": true|false}`.
 
 Body: `{"esp_offline_after_minutes": 5}`.
 
+### POST /api/v1/admin/settings/design
+
+Body: `{"portal_design": "glas"|"klassisch"}` -- Portal-Design der ganzen Plattform
+(„Neuer Look“ bzw. bisheriges Design). 400 bei anderem Wert. Aktueller Wert als
+`portal_design` in `GET /api/v1/admin/settings`.
+
 ### POST /api/v1/admin/settings/apns
 
 Setzt die APNs-Zugangsdaten für Push-Benachrichtigungen (siehe `webapp/src/Push.php`, echte

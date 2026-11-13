@@ -188,6 +188,35 @@ function platformTestMode(): bool
 }
 
 /**
+ * Portal-Design der ganzen Plattform: 'klassisch' (bisher) oder 'glas' (neuer Look nach Video-
+ * Vorbild, Patrick 13.11.2026) -- Platform-Admin -> Einstellungen -> Design. Fehlt die Spalte
+ * (Migration noch nicht eingespielt), bleibt alles beim klassischen Design.
+ */
+function platformDesign(): string
+{
+    static $design = null;
+    if ($design === null) {
+        try {
+            $design = (string)(DB::fetchOne('SELECT portal_design FROM platform_settings WHERE id = 1')['portal_design'] ?? 'klassisch');
+        } catch (\Throwable $e) {
+            $design = 'klassisch';
+        }
+        if (!in_array($design, ['klassisch', 'glas'], true)) $design = 'klassisch';
+    }
+    return $design;
+}
+
+/** Design umstellen (Web-Formular und App-API). */
+function savePlatformDesign(string $design, string $via): bool
+{
+    if (!in_array($design, ['klassisch', 'glas'], true)) return false;
+    DB::execute('UPDATE platform_settings SET portal_design = ?, updated_at = now() WHERE id = 1', [$design]);
+    logAudit(null, 'platform_settings.update', 'platform_settings', null,
+        'Portal-Design' . $via . ' auf „' . ($design === 'glas' ? 'Neuer Look (Glas)' : 'Klassisch') . '“ umgestellt');
+    return true;
+}
+
+/**
  * Liefert die konfigurierte ESP-Offline-Schwelle in Minuten (siehe migrate_20260823.sql,
  * Platform-Admin -> Einstellungen -> Abschnitt "ESP32 / Ausleseeinheiten"). Ein ESP gilt
  * nur dann als online, wenn die letzte Statusmeldung "online" war UND das nicht länger als
@@ -5407,6 +5436,7 @@ $router->get('/api/v1/admin/settings', function () {
         'platform' => $platformSettings ? [
             'test_mode'                  => !empty($platformSettings['test_mode']),
             'esp_offline_after_minutes'  => (int)($platformSettings['esp_offline_after_minutes'] ?? 5),
+            'portal_design'              => $platformSettings['portal_design'] ?? 'klassisch',
         ] : null,
         'mqtt' => $mqtt ? [
             'mqtt_user'          => $mqtt['mqtt_user'],
@@ -5633,6 +5663,20 @@ $router->post('/api/v1/admin/settings/test-mode', function () {
     DB::execute('UPDATE platform_settings SET test_mode = ?, updated_at = now() WHERE id = 1', [$testMode ? 'true' : 'false']);
     logAudit(null, 'platform_settings.update', 'platform_settings', null,
         'Plattform über die App auf ' . ($testMode ? 'Testmodus' : 'Echtbetrieb') . ' umgestellt.');
+    echo json_encode(['status' => 'ok']);
+});
+
+/** Portal-Design umstellen -- JSON-Äquivalent von POST /admin/settings/design. */
+$router->post('/api/v1/admin/settings/design', function () {
+    $ctx = AppApiAuth::requireAdminAuth();
+    if (!$ctx) return;
+    header('Content-Type: application/json; charset=UTF-8');
+    $body = jsonBody();
+    if (!savePlatformDesign((string)($body['portal_design'] ?? ''), ' über die App')) {
+        http_response_code(400);
+        echo json_encode(['error' => "portal_design muss 'klassisch' oder 'glas' sein."]);
+        return;
+    }
     echo json_encode(['status' => 'ok']);
 });
 
@@ -10461,6 +10505,17 @@ $router->get('/admin/backups', function () {
  * deaktivierten Mitgliedern auffüllen darf (siehe createMemberRecord()) -- im Echtbetrieb
  * wird eine einmal vergebene Nummer nie wieder verwendet.
  */
+$router->post('/admin/settings/design', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    if (!savePlatformDesign((string)($_POST['portal_design'] ?? ''), '')) {
+        header('Location: /admin/mail-settings?error=' . urlencode('Unbekanntes Design.') . '#design');
+        exit;
+    }
+    header('Location: /admin/mail-settings?success=1#design');
+    exit;
+});
+
 $router->post('/admin/settings/test-mode', function () {
     Auth::requireLogin();
     if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
