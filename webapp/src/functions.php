@@ -1874,3 +1874,6 @@ function activeCommunityUsesAusleseeinheit(?string $communityId = null): bool
     }
     return $cache[$communityId];
 }
+
+// Diagramm-Bausteine (Glas-Design der Dashboards)
+require_once __DIR__ . '/charts.php';

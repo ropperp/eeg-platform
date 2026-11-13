@@ -19,6 +19,20 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Diagramme im neuen Look (13.11.2026)
+Patrick: zum Glas-Design auch die Diagramme aus dem Video-Vorbild.
+- **Obmann-Dashboard:** Säulendiagramm „Energie in der Gemeinschaft“ (Bezug aus der Gemeinschaft
+  und Erzeugung je Monat, Umschalter 3/6/12 Monate), Ring „Autarkie“ (Anteil des Verbrauchs aus
+  der Gemeinschaft im letzten Monat mit Daten, dazu Verbrauch/aus der EEG/aus dem Netz) und
+  Kreisdiagramm „Zählpunkte“ nach Art (ohne Demo-Zählpunkte).
+- **Mitglieder-Dashboard:** „Ihr Verlauf“ (eigener Bezug/eigene Erzeugung je Monat) und Ring
+  „Aus der Gemeinschaft“ (Anteil des eigenen Verbrauchs); ersetzt im neuen Look die schmalen
+  Balken „Verlauf der letzten Monate“.
+- Werte aus den EDA-Daten (Monatswerte nur L1/L2 wie die Abrechnung, Monatsgrenzen in
+  österreichischer Zeit). Reines HTML/SVG ohne externes Paket (`src/charts.php`,
+  `assets/js/glass-charts.js`), Animation respektiert „Bewegung reduzieren“, 7 neue Tests.
+- Nur im neuen Look sichtbar; das klassische Dashboard bleibt unverändert.
+
 ### Umschaltbares Portal-Design „Neuer Look“ (Glas) (13.11.2026)
 Patrick: Dashboard-Design aus einem Video nachbauen, als Plattform-Admin-Einstellung zum Hin- und
 Herschalten zwischen neuem Look und dem bisherigen Dashboard.
