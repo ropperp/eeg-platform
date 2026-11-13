@@ -199,6 +199,9 @@ setInterval(async () => {
   <?php endif; ?>
 </div>
 
+<?php // Diagramme nur im neuen Look (Glas) -- ersetzen dort die schmalen Balken weiter unten. ?>
+<?php if (platformDesign() === 'glas') { require __DIR__ . '/../partials/dashboard_charts_member.php'; } ?>
+
 <?php if ($hasProducer && $usesAE): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('lightning') ?> Einspeisung in die Gemeinschaft
@@ -269,7 +272,7 @@ function onDashboardRangeChange(v) {
 </div>
 <?php endif; ?>
 
-<?php if ($monthly): ?>
+<?php if ($monthly && platformDesign() !== 'glas'): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem"><?= icon('chart-bar') ?> Verlauf der letzten Monate</h3>
   <div style="display:flex;flex-direction:column;gap:.6rem">

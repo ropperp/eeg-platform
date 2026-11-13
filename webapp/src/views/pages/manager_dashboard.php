@@ -79,6 +79,9 @@ ob_start();
   </div>
 </div>
 
+<?php // Diagramme nur im neuen Look (Glas) -- das klassische Dashboard bleibt unverändert. ?>
+<?php if (platformDesign() === 'glas') { require __DIR__ . '/../partials/dashboard_charts_manager.php'; } ?>
+
 <!-- Status-Kachelzeile: Betriebsreife auf einen Blick -->
 <div class="grid-4" style="margin-bottom:2rem">
   <div class="card" style="padding:1rem">
