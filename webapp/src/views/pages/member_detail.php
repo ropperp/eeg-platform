@@ -3,7 +3,7 @@
 $usesAE = activeCommunityUsesAusleseeinheit($member['community_id'] ?? null);
 ob_start(); ?>
 
-<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
+<div style="display:flex;align-items:center;gap:.75rem 1rem;margin-bottom:1.5rem;flex-wrap:wrap">
   <a href="/portal/members" style="color:var(--gray-600);text-decoration:none">← Mitgliederliste</a>
   <div style="position:relative">
     <img src="<?= htmlspecialchars(memberAvatarUrl($member['id'], $member['photo_path'], $member['salutation'])) ?>"
@@ -29,7 +29,7 @@ ob_start(); ?>
   <?php else: ?>
   <span class="badge badge-gray" title="Letzter Login">Zuletzt angemeldet: <?= date('d.m.Y H:i', strtotime($member['last_login_at'])) ?></span>
   <?php endif; ?>
-  <div style="margin-left:auto;display:flex;gap:.5rem">
+  <div style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap">
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php if ($hasConsumer && contractsEnabled($member['community_id'])): ?>
@@ -157,13 +157,77 @@ ob_start(); ?>
   </div>
 <?php endif; ?>
 
+<?php
+// Schnellinfo fürs Handy (Patrick, 13.11.2026: am Handy schnell die wichtigen Daten abrufen,
+// z.B. bei Anfragen an den Netzbetreiber): Adresse, Telefon/E-Mail zum Antippen und alle
+// Zählpunktnummern mit Kopieren-Knopf. Auf großen Bildschirmen stehen dieselben Daten unten.
+$qiName = trim(($member['company_name'] ?? '') ?: ($member['first_name'] . ' ' . $member['last_name']));
+$qiAdresse = trim($member['address'] . ', ' . $member['zip'] . ' ' . $member['city'], ', ');
+$qiLines = [$qiName . ' (KdNr ' . ($member['kundennummer'] ?? '—') . ')', $qiAdresse];
+if (!empty($member['phone'])) $qiLines[] = 'Tel. ' . $member['phone'];
+$qiLines[] = $member['email'];
+$qiMps = array_filter($metering_points, fn($mp) => in_array($mp['active'] ?? true, [true, 't', '1', 1], true));
+foreach ($qiMps as $qmp) {
+    $qiLines[] = ($qmp['type'] === 'consumer' ? 'Bezug' : ($qmp['type'] === 'producer' ? 'Einspeisung' : 'Bezug/Einspeisung'))
+        . ': ' . $qmp['zaehlpunkt_nr'] . (!empty($qmp['meter_code']) ? ' (Zähler ' . $qmp['meter_code'] . ')' : '');
+}
+?>
+<div class="card quickinfo mobile-only-block" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.9rem"><?= icon('info') ?> Schnellinfo</h3>
+  <dl>
+    <dt>Adresse</dt>
+    <dd><span><?= htmlspecialchars($qiAdresse) ?></span><button type="button" class="copy-btn" data-copy="<?= htmlspecialchars($qiAdresse) ?>">Kopieren</button></dd>
+    <?php if (!empty($member['phone'])): ?>
+    <dt>Telefon</dt>
+    <dd><a href="tel:<?= htmlspecialchars(preg_replace('/[^0-9+]/', '', $member['phone'])) ?>"><?= htmlspecialchars($member['phone']) ?></a></dd>
+    <?php endif; ?>
+    <dt>E-Mail</dt>
+    <dd><a href="mailto:<?= htmlspecialchars($member['email']) ?>"><?= htmlspecialchars($member['email']) ?></a></dd>
+    <?php foreach ($qiMps as $qmp): ?>
+    <dt><?= $qmp['type'] === 'consumer' ? 'ZP Bezug' : ($qmp['type'] === 'producer' ? 'ZP Einspeisung' : 'Zählpunkt') ?></dt>
+    <dd><code><?= htmlspecialchars($qmp['zaehlpunkt_nr']) ?></code><button type="button" class="copy-btn" data-copy="<?= htmlspecialchars($qmp['zaehlpunkt_nr']) ?>">Kopieren</button></dd>
+    <?php if (!empty($qmp['meter_code'])): ?>
+    <dt>Zählernr.</dt>
+    <dd><code><?= htmlspecialchars($qmp['meter_code']) ?></code><button type="button" class="copy-btn" data-copy="<?= htmlspecialchars($qmp['meter_code']) ?>">Kopieren</button></dd>
+    <?php endif; ?>
+    <?php endforeach; ?>
+  </dl>
+  <div class="quickinfo-actions">
+    <button type="button" class="btn btn-primary copy-btn-all" data-copy="<?= htmlspecialchars(implode("\n", $qiLines)) ?>"><?= icon('clipboard-text') ?> Alles kopieren</button>
+    <a href="/portal/members/<?= $member['id'] ?>/edit" class="btn btn-secondary"><?= icon('pencil-simple') ?> Bearbeiten</a>
+  </div>
+</div>
+<script>
+// Kopieren-Knöpfe (Schnellinfo): Zwischenablage, Rückmeldung "Kopiert" für 1,5 s.
+document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var text = btn.getAttribute('data-copy');
+    var done = function () {
+      var old = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.textContent = 'Kopiert ✓';
+      setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = old; }, 1500);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  });
+});
+</script>
+
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem">
   <!-- Stammdaten -->
   <div class="card">
     <h3 style="margin-bottom:1rem">Stammdaten</h3>
-    <table>
-      <tr><th>E-Mail</th><td><?= htmlspecialchars($member['email']) ?></td></tr>
-      <tr><th>Telefon</th><td><?= htmlspecialchars($member['phone'] ?? '—') ?></td></tr>
+    <table class="kv-table">
+      <tr><th>E-Mail</th><td><a href="mailto:<?= htmlspecialchars($member['email']) ?>"><?= htmlspecialchars($member['email']) ?></a></td></tr>
+      <tr><th>Telefon</th><td><?php if (!empty($member['phone'])): ?><a href="tel:<?= htmlspecialchars(preg_replace('/[^0-9+]/', '', $member['phone'])) ?>"><?= htmlspecialchars($member['phone']) ?></a><?php else: ?>—<?php endif; ?></td></tr>
       <tr><th>Adresse</th><td><?= htmlspecialchars($member['address'] . ', ' . $member['zip'] . ' ' . $member['city']) ?></td></tr>
       <tr><th>UID</th><td><?= htmlspecialchars($member['invoice_uid'] ?? '—') ?></td></tr>
       <tr><th>Mitglied seit</th><td><?= $member['member_since'] ? date('d.m.Y', strtotime($member['member_since'])) : '—' ?></td></tr>
@@ -189,7 +253,7 @@ ob_start(); ?>
     <?php if (empty($metering_points)): ?>
       <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1rem">Noch keine Zählpunkte registriert.</p>
     <?php else: ?>
-      <table style="margin-bottom:1.25rem;font-size:.85rem">
+      <table class="rtable" style="margin-bottom:1.25rem;font-size:.85rem">
         <thead>
           <tr>
             <th>Zählpunktnummer (AT...)</th>
@@ -228,8 +292,8 @@ ob_start(); ?>
             // eingetragen ist (Patrick, 09.08.2026).
           ?>
           <tr>
-            <td><code style="font-size:.75rem"><?= htmlspecialchars($mp['zaehlpunkt_nr']) ?></code></td>
-            <td>
+            <td class="rt-title"><code style="font-size:.75rem;overflow-wrap:anywhere"><?= htmlspecialchars($mp['zaehlpunkt_nr']) ?></code></td>
+            <td data-label="Zählernummer">
               <?php if ($mp['meter_code']): ?>
                 <code style="font-size:.75rem;color:#16a34a"><?= htmlspecialchars($mp['meter_code']) ?></code>
               <?php else: ?>
@@ -246,8 +310,8 @@ ob_start(); ?>
                 </button>
               <?php endif; ?>
             </td>
-            <td><?= $mp['type'] === 'consumer' ? icon('arrow-down') . ' Bezug' : icon('arrow-up') . ' Einspeisung' ?></td>
-            <td style="font-size:.78rem;color:var(--gray-600)">
+            <td class="rt-kdnr"><?= $mp['type'] === 'consumer' ? icon('arrow-down') . ' Bezug' : icon('arrow-up') . ' Einspeisung' ?></td>
+            <td style="font-size:.78rem;color:var(--gray-600)" data-label="Details">
               <?php if ($mp['type'] === 'consumer'): ?>
                 <?= $mp['jahresverbrauch_kwh'] ? number_format((float)$mp['jahresverbrauch_kwh'], 0, ',', '.') . ' kWh/Jahr' : '—' ?>
               <?php else: ?>
@@ -256,7 +320,7 @@ ob_start(); ?>
               <?php endif; ?>
             </td>
             <?php if ($usesAE): ?>
-            <td style="font-size:.78rem;white-space:nowrap">
+            <td style="font-size:.78rem;white-space:nowrap" data-label="ESP">
               <?php if (empty($mp['meter_code'])): ?>
                 <span style="color:var(--gray-600)">—</span>
               <?php elseif ($espEffectivelyOnline): ?>
@@ -298,7 +362,7 @@ ob_start(); ?>
                 <?php endif; ?>
               <?php endif; ?>
             </td>
-            <td style="font-size:.78rem;white-space:nowrap">
+            <td style="font-size:.78rem;white-space:nowrap" data-label="Zähler">
               <?php if (empty($mp['meter_code']) || empty($mp['esp_last_seen_at'])): ?>
                 <span style="color:var(--gray-600)">—</span>
               <?php elseif (!empty($mp['meter_reachable'])): ?>
@@ -313,7 +377,7 @@ ob_start(); ?>
               <?php endif; ?>
             </td>
             <?php endif; // $usesAE ?>
-            <td style="white-space:nowrap">
+            <td class="rt-actions" style="white-space:nowrap">
               <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>')"
                       style="background:none;border:none;cursor:pointer;color:var(--gray-600)"><?= icon('pencil-simple') ?></button>
               <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">

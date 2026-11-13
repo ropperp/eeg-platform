@@ -389,3 +389,12 @@
   .gchart-col.is-current .gchart-bar:hover b { opacity: 1; }
   .gchart-plot { padding-left: 2.4rem; }
 }
+
+/* Handy-Karten (rtable) im Glas-Look */
+@media (max-width: 700px) {
+  [data-design="glas"] table.rtable tr {
+    background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .85); border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(15, 60, 90, .08);
+  }
+  [data-design="glas"][data-theme="dark"] table.rtable tr { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .1); }
+}
