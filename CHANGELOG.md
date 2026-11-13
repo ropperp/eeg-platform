@@ -19,6 +19,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Mitgliederverwaltung am Handy (13.11.2026)
+Patrick: am Handy waren Mitgliederliste und Mitgliedsdaten kaum bedienbar -- für schnelle
+Anfragen (z.B. beim Netzbetreiber) musste der Laptop her.
+- **Mitgliederliste:** unter 700 px Breite eine Karte pro Mitglied (Name, KdNr, E-Mail, Status,
+  Zählpunkte, offener Betrag, Zählerstatus) statt einer 900 px breiten Tabelle; ganze Karte
+  antippbar, große Knöpfe „Details“/„Bearb.“. Filter hinter einem „Filter“-Knopf.
+- **Suche** findet jetzt auch Kundennummer und Zählpunktnummer (auch am Desktop).
+- **Mitgliedsdetail:** neue **Schnellinfo** am Handy -- Adresse, Telefon (antippen = anrufen),
+  E-Mail, alle aktiven Zählpunkt- und Zählernummern mit Kopieren-Knopf, „Alles kopieren“ als
+  fertiger Textblock. Zählpunkte als Karten, Stammdaten umbrechend, Knopfleiste oben umbrechend.
+- Allgemein: Rasterspalten (`.grid-2/3/4`) dürfen schmäler werden als ihr Inhalt -- lange
+  Nummern schoben Karten bisher über den Bildschirmrand. Desktop-Ansicht unverändert.
+
 ### Diagramme im neuen Look (13.11.2026)
 Patrick: zum Glas-Design auch die Diagramme aus dem Video-Vorbild.
 - **Obmann-Dashboard:** Säulendiagramm „Energie in der Gemeinschaft“ (Bezug aus der Gemeinschaft

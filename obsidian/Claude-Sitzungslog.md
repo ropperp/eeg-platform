@@ -22,7 +22,9 @@ Hell/Dunkel und Handy unterstützen, WCAG-AA-Kontrast einhalten."
 (`migrate_20261113.sql`), API-Endpunkt. Per Playwright hell/dunkel/mobil geprüft, 270 Tests grün.
 Nachtrag: Diagramme im neuen Look (Säulen mit 3/6/12-Monats-Umschalter, Autarkie-Ring,
 Zählpunkte-Kreis) für Obmann- und Mitglieder-Dashboard aus EDA-Daten (`src/charts.php`,
-7 neue Tests, SQL gegen Postgres geprüft).
+7 neue Tests, SQL gegen Postgres geprüft). Danach: Mitgliederverwaltung am Handy -- Liste als
+Karten, Suche nach KdNr/Zählpunkt, Schnellinfo mit Kopieren-Knöpfen im Mitgliedsdetail, auf
+iPhone-13-Größe per Playwright ohne Überbreite geprüft.
 **Fehler/Lehre:** Das Türkis des Vorbilds hatte mit weißer Schrift nur 2,4:1 Kontrast -- für
 Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
 

@@ -276,6 +276,9 @@ th.sortable .sort-arrow { display: inline-block; width: .8em; font-size: .75em; 
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+/* Rasterspalten dürfen schmäler werden als ihr breitester Inhalt (Standard min-width:auto) --
+   sonst schoben lange Zählpunktnummern/Tabellen Karten am Handy über den Rand (13.11.2026). */
+.grid-2 > *, .grid-3 > *, .grid-4 > * { min-width: 0; }
 @media (max-width: 768px) {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
@@ -911,3 +914,87 @@ footer {
 .design-preview-glas .dp-main { background: linear-gradient(160deg, rgba(236,245,250,.93), rgba(214,233,242,.9)); border-radius: 10px; }
 .design-preview-glas .dp-card, .design-preview-glas .dp-wide { background: rgba(255,255,255,.75); border-radius: 8px; box-shadow: 0 2px 6px rgba(15,60,90,.12); }
 .design-preview-glas .dp-card:first-child { background: linear-gradient(90deg, #0e8fb3, #22b8d6); }
+
+/* ─── Handy: Tabellen als Karten (Mitgliederliste, Zählpunkte im Mitgliedsdetail) ───────────
+   Patrick, 13.11.2026: am Handy war die Mitgliederverwaltung kaum bedienbar (Tabelle mit
+   min. 900 px Breite). Tabellen mit class="rtable" werden bis 700 px Breite zu Karten:
+   <td data-label="…"> zeigt die Beschriftung links, .rt-title/.rt-kdnr/.rt-sub bilden den
+   Kopf der Karte, .rt-hide fällt am Handy weg, .rt-actions wird zur Knopfleiste. */
+.mobile-only { display: none !important; }
+.mobile-only-block { display: none !important; }
+.member-filters { display: contents; }
+.rt-inline-label { display: none; }
+@media (max-width: 700px) {
+  .mobile-only { display: inline-flex !important; }
+  .mobile-only-block { display: block !important; }
+  .desktop-only { display: none !important; }
+  .member-filters { display: none; width: 100%; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .member-filters.open { display: grid; }
+  .member-filters select { width: 100%; min-width: 0; }
+  body .portal-content .card.member-table-card {
+    padding: 0; background: transparent; border: 0; box-shadow: none;
+    overflow: visible !important; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  body .portal-content .card.member-table-card:hover { transform: none; }
+  table.rtable { display: block; min-width: 0 !important; white-space: normal; overflow: visible; }
+  table.rtable thead { display: none; }
+  table.rtable tbody { display: flex; flex-direction: column; gap: .75rem; }
+  table.rtable tr {
+    display: grid; grid-template-columns: 1fr auto; gap: .45rem .75rem;
+    padding: .9rem 1rem; background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: 14px; box-shadow: var(--shadow);
+  }
+  table.rtable tr[data-href] { cursor: pointer; }
+  table.rtable td {
+    display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+    padding: 0; border: 0; background: none; text-align: left !important;
+    font-size: .88rem; grid-column: 1 / -1; white-space: normal !important; min-width: 0;
+    flex-wrap: wrap;
+  }
+  table.rtable td[data-label] { justify-content: flex-end; column-gap: .4rem; }
+  table.rtable td[data-label]::before { margin-right: auto; }
+  table.rtable td br { display: none; }
+  table.rtable td[data-label]::before {
+    content: attr(data-label); color: var(--gray-600); font-size: .78rem; font-weight: 500; flex-shrink: 0;
+  }
+  table.rtable td.rt-title { grid-column: 1; grid-row: 1; font-size: 1rem; display: block; }
+  table.rtable td.rt-kdnr { grid-column: 2; grid-row: 1; justify-self: end; font-size: .8rem; }
+  table.rtable .rt-inline-label { display: inline; font-weight: 400; color: var(--gray-600); }
+  table.rtable td.rt-sub { margin-top: -.3rem; color: var(--gray-600); font-size: .8rem; display: block; overflow-wrap: anywhere; }
+  table.rtable td.rt-hide { display: none; }
+  table.rtable td.rt-actions {
+    justify-content: flex-end; flex-wrap: wrap; gap: .5rem;
+    padding-top: .6rem; margin-top: .2rem; border-top: 1px solid var(--gray-200);
+  }
+  table.rtable td.rt-actions a,
+  table.rtable td.rt-actions button {
+    display: inline-flex; align-items: center; gap: .3rem; min-height: 40px;
+    padding: .4rem 1rem; border-radius: 999px; background: var(--gray-100);
+    font-size: .88rem !important; text-decoration: none;
+  }
+  table.rtable .rt-sep { display: none; }
+  table.rtable td code { overflow-wrap: anywhere; word-break: break-all; }
+  /* Zwei-Spalten-Tabellen (Feld/Wert, z.B. Stammdaten) umbrechen statt seitlich zu scrollen */
+  table.kv-table { display: table; white-space: normal; }
+  table.kv-table th { width: 38%; padding: .55rem .6rem; }
+  table.kv-table td { padding: .55rem .6rem; overflow-wrap: anywhere; }
+  /* Formulare in Karten (z.B. "Zählpunkt hinzufügen", Datei-Upload) nicht breiter als der Bildschirm */
+  .portal-content .card input, .portal-content .card select, .portal-content .card textarea { max-width: 100%; min-width: 0; }
+  .portal-content .card [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
+
+/* Schnellinfo (Mitgliedsdetail, Handy): wichtigste Daten + Kopieren für Anfragen beim Netzbetreiber */
+.quickinfo dl { display: grid; grid-template-columns: 1fr; gap: .15rem; margin: 0; }
+.quickinfo dt { color: var(--gray-600); font-size: .75rem; margin-top: .55rem; }
+.quickinfo dt:first-child { margin-top: 0; }
+.quickinfo dd { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-width: 0; font-size: .92rem; }
+.quickinfo dd > span, .quickinfo dd > a, .quickinfo dd > code { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
+.quickinfo code { font-size: .85rem; }
+.copy-btn {
+  flex-shrink: 0; border: 1px solid var(--gray-200); background: var(--gray-100); color: var(--gray-700);
+  border-radius: 999px; padding: .3rem .7rem; font-size: .78rem; font-weight: 600; cursor: pointer; min-height: 34px;
+}
+.copy-btn.copied { background: var(--green-light); color: #166534; border-color: #86efac; }
+[data-theme="dark"] .copy-btn.copied { color: #86efac; border-color: #166534; }
+.quickinfo-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+.quickinfo-actions .btn { flex: 1; justify-content: center; min-height: 44px; display: inline-flex; align-items: center; gap: .35rem; }

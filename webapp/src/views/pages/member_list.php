@@ -51,9 +51,13 @@ $usesAE = activeCommunityUsesAusleseeinheit();
 <!-- Suche & Filter -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-    <input type="text" id="search-input" placeholder="Name oder E-Mail suchen…"
+    <input type="search" id="search-input" placeholder="Name, E-Mail, KdNr oder Zählpunkt suchen…"
            style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
-           oninput="filterMembers()">
+           oninput="filterMembers()" autocomplete="off">
+    <?php // Handy: Filter hinter einem Knopf, damit die Suche + Liste sofort sichtbar sind (13.11.2026). ?>
+    <button type="button" class="btn btn-secondary mobile-only" id="filter-toggle" aria-expanded="false"
+            aria-controls="member-filters" onclick="toggleMemberFilters(this)" style="padding:.4rem .8rem;font-size:.85rem">Filter</button>
+    <div class="member-filters" id="member-filters">
     <select id="filter-status" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
       <option value="active">Aktiv</option>
@@ -84,12 +88,13 @@ $usesAE = activeCommunityUsesAusleseeinheit();
       <option value="fehler">Nur mit Fehler</option>
       <option value="ok">Nur ohne Fehler</option>
     </select>
+    </div>
     <span id="result-count" style="font-size:.8rem;color:var(--gray-600)"></span>
   </div>
 </div>
 
-<div class="card" style="overflow-x:auto">
-  <table id="member-table" style="min-width:900px">
+<div class="card member-table-card" style="overflow-x:auto">
+  <table id="member-table" class="rtable" style="min-width:900px">
     <thead>
       <tr>
         <th class="sortable" data-sort-key="kdnr" data-sort-type="num" onclick="sortMembers(this)">KdNr <span class="sort-arrow"></span></th>
@@ -133,6 +138,8 @@ $usesAE = activeCommunityUsesAusleseeinheit();
       $lastLoginAt = $m['last_login_at'] ?? null;
     ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
+          data-extra="<?= htmlspecialchars(strtolower(($m['kundennummer'] ?? '') . ' ' . ($m['znr_bezug'] ?? '') . ' ' . ($m['znr_einspeisung'] ?? ''))) ?>"
+          data-href="/portal/members/<?= $m['id'] ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
           data-status="<?= htmlspecialchars($m['status']) ?>"
           data-contract="<?= $allSigned ?>"
@@ -152,36 +159,36 @@ $usesAE = activeCommunityUsesAusleseeinheit();
           data-sort-herkunft="<?= $herkunft ?>"
           data-sort-esp="<?= $espSortVal ?>"
           data-sort-lastlogin="<?= htmlspecialchars($lastLoginAt ?? '') ?>">
-        <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
-        <td>
+        <td class="rt-kdnr" style="font-weight:600;color:#15803d"><span class="rt-inline-label">KdNr </span><?= htmlspecialchars((string)($m['kundennummer'] ?? '—')) ?></td>
+        <td class="rt-title">
           <strong><?= htmlspecialchars(trim(($m['company_name'] ?: '') ?: ($m['first_name'] . ' ' . $m['last_name']))) ?></strong>
           <?php if ($m['company_name']): ?>
             <div style="font-size:.8rem;color:var(--gray-600)"><?= htmlspecialchars($m['first_name'] . ' ' . $m['last_name']) ?></div>
           <?php endif; ?>
         </td>
-        <td style="font-size:.85rem"><?= htmlspecialchars($m['email']) ?></td>
-        <td style="font-size:.85rem;white-space:nowrap"><?= $m['member_since'] ? date('d.m.Y', strtotime($m['member_since'])) : '—' ?></td>
-        <td>
+        <td class="rt-sub" style="font-size:.85rem"><?= htmlspecialchars($m['email']) ?></td>
+        <td class="rt-hide" style="font-size:.85rem;white-space:nowrap"><?= $m['member_since'] ? date('d.m.Y', strtotime($m['member_since'])) : '—' ?></td>
+        <td data-label="Status">
           <?php $sb = ['active' => 'green', 'pending' => 'yellow', 'inactive' => 'gray']; ?>
           <?php $sl = ['active' => 'Aktiv', 'pending' => 'Ausstehend', 'inactive' => icon('archive') . ' Archiviert']; ?>
           <span class="badge badge-<?= $sb[$m['status']] ?? 'gray' ?>"><?= $sl[$m['status']] ?? htmlspecialchars($m['status']) ?></span>
         </td>
         <?php if ($contractsEnabled): ?>
-        <td style="text-align:center">
+        <td style="text-align:center" data-label="Bezugsvertrag">
           <span class="badge badge-<?= $statusBadge[$bezug] ?>" style="font-size:.75rem"><?= $statusLabel[$bezug] ?></span>
         </td>
-        <td style="text-align:center">
+        <td style="text-align:center" data-label="Einspeisevertrag">
           <span class="badge badge-<?= $statusBadge[$einsp] ?>" style="font-size:.75rem"><?= $statusLabel[$einsp] ?></span>
         </td>
         <?php else: ?>
-        <td style="text-align:center;font-family:monospace;font-size:.78rem" title="<?= htmlspecialchars($m['znr_bezug'] ?? '') ?>">
+        <td style="text-align:center;font-family:monospace;font-size:.78rem" data-label="ZP Bezug" title="<?= htmlspecialchars($m['znr_bezug'] ?? '') ?>">
           <?= $znrBezugLast8 ? '…' . htmlspecialchars($znrBezugLast8) : '<span style="color:var(--gray-400)">—</span>' ?>
         </td>
-        <td style="text-align:center;font-family:monospace;font-size:.78rem" title="<?= htmlspecialchars($m['znr_einspeisung'] ?? '') ?>">
+        <td style="text-align:center;font-family:monospace;font-size:.78rem" data-label="ZP Einspeisung" title="<?= htmlspecialchars($m['znr_einspeisung'] ?? '') ?>">
           <?= $znrEinspLast8 ? '…' . htmlspecialchars($znrEinspLast8) : '<span style="color:var(--gray-400)">—</span>' ?>
         </td>
         <?php endif; ?>
-        <td style="text-align:right;font-size:.85rem;white-space:nowrap">
+        <td style="text-align:right;font-size:.85rem;white-space:nowrap" data-label="Offen">
           <?php $amount = (float)($m['open_amount'] ?? 0); ?>
           <?php if ($amount > 0): ?>
             <span style="color:#dc2626;font-weight:600"><?= number_format($amount, 2, ',', '.') ?> €</span>
@@ -189,7 +196,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
             <span style="color:#16a34a">—</span>
           <?php endif; ?>
         </td>
-        <td style="text-align:center">
+        <td class="rt-hide" style="text-align:center">
           <?php if ($viaOnline): ?>
             <span class="badge badge-blue" style="font-size:.68rem" title="Über das Online-Beitrittsformular eingereicht"><?= icon('globe') ?> Online</span>
           <?php else: ?>
@@ -197,7 +204,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
           <?php endif; ?>
         </td>
         <?php if ($usesAE): ?>
-        <td style="text-align:center">
+        <td style="text-align:center" data-label="Zähler">
           <?php if ($hatEspFehler): ?>
             <span class="badge badge-red" style="font-size:.68rem" title="ESP offline oder Zähler (P1-Signal) nicht erreichbar"><?= icon('warning-circle') ?> Fehler</span>
           <?php elseif ($hatEspBekannt): ?>
@@ -207,7 +214,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
           <?php endif; ?>
         </td>
         <?php endif; ?>
-        <td style="font-size:.8rem;white-space:nowrap">
+        <td class="rt-hide" style="font-size:.8rem;white-space:nowrap">
           <?php if (empty($m['user_id'])): ?>
             <span style="color:var(--gray-400)">—</span>
           <?php elseif (empty($lastLoginAt)): ?>
@@ -220,9 +227,9 @@ $usesAE = activeCommunityUsesAusleseeinheit();
             <?= date('d.m.Y H:i', strtotime($lastLoginAt)) ?>
           <?php endif; ?>
         </td>
-        <td style="white-space:nowrap">
+        <td class="rt-actions" style="white-space:nowrap">
           <a href="/portal/members/<?= $m['id'] ?>" style="font-size:.8rem">Details</a>
-          &nbsp;·&nbsp;
+          <span class="rt-sep">&nbsp;·&nbsp;</span>
           <a href="/portal/members/<?= $m['id'] ?>/edit" style="font-size:.8rem;color:var(--gray-600)">Bearb.</a>
         </td>
       </tr>
@@ -245,7 +252,7 @@ function filterMembers() {
   const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
   let visible = 0;
   rows.forEach(row => {
-    const nm = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q);
+    const nm = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q) || (row.dataset.extra || '').includes(q.replace(/\s+/g, ''));
     const sm = !s || row.dataset.status === s;
     const cm = !c || row.dataset.contract === c;
     const am = !a || row.dataset.art === a;
@@ -258,6 +265,20 @@ function filterMembers() {
   document.getElementById('result-count').textContent = visible + ' Mitglied' + (visible !== 1 ? 'er' : '') + ' gefunden';
 }
 filterMembers();
+
+// Handy: Filter ein-/ausklappen; ganze Mitgliedskarte antippbar (öffnet die Details).
+function toggleMemberFilters(btn) {
+  const box = document.getElementById('member-filters');
+  const open = box.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+document.querySelectorAll('#member-table tbody tr[data-href]').forEach(row => {
+  row.addEventListener('click', e => {
+    if (!window.matchMedia('(max-width: 700px)').matches) return;
+    if (e.target.closest('a, button, form, input, select')) return;
+    window.location.href = row.dataset.href;
+  });
+});
 
 let currentSort = { key: null, dir: 1 };
 function sortMembers(th) {
