@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="de">
+<?php $portalDesign = platformDesign(); // 'klassisch' | 'glas', Platform-Admin -> Einstellungen -> Design ?>
+<html lang="de" data-design="<?= $portalDesign ?>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,6 +11,9 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
   <link rel="stylesheet" href="/assets/css/app.css?v=<?= @filemtime(ROOT . '/public/assets/css/app.css') ?: time() ?>">
+  <?php if ($portalDesign === 'glas'): ?>
+  <link rel="stylesheet" href="/assets/css/glass.css?v=<?= @filemtime(ROOT . '/public/assets/css/glass.css') ?: time() ?>">
+  <?php endif; ?>
   <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
 </head>
 <body>

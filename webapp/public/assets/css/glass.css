@@ -1,0 +1,284 @@
+/* ─── Portal-Design „Neuer Look“ (Glas) ─────────────────────────────────────────────────────
+   Patrick, 13.11.2026: Dashboard-Design nach einem Video-Vorbild, umschaltbar unter
+   Platform-Admin -> Einstellungen -> Design. Wird NUR geladen, wenn das Design aktiv ist
+   (layouts/portal.php); app.css bleibt unverändert = „Klassisch“.
+
+   Aufbau wie im Vorbild: dunkler Blau-Türkis-Verlauf als Hintergrund, Kopfzeile und Seitenleiste
+   als dunkle, schwebende Glasflächen (weiße Schrift), Inhalt als große, helle Milchglas-Fläche
+   mit Glas-Kacheln, Pillen-Knöpfen und leichtem Anheben beim Darüberfahren.
+
+   Kontrast: Schrift auf den dunklen Glasflächen ist weiß bzw. 75 % Weiß auf mind. #0b2a44-
+   Grundton (> 7:1); auf der hellen Inhaltsfläche bleibt die normale dunkle Schrift (die Fläche
+   ist zu 85-90 % deckend, damit der Verlauf dahinter den Kontrast nicht drückt). */
+
+[data-design="glas"] {
+  --glas-radius: 20px;
+  --glas-dark: rgba(8, 28, 46, .55);
+  --glas-dark-border: rgba(255, 255, 255, .14);
+  /* Akzent für Flächen mit weißer Schrift: #0e7490 → #0b7a96, beide ≥ 4,9:1 zu Weiß (WCAG AA).
+     Das hellere Türkis des Vorbilds (#22b8d6) hätte mit Weiß nur 2,4:1 -- nur als Leuchtschein. */
+  --glas-accent: #0b7a96;
+  --glas-accent-2: #0e7490;
+  --glas-glow: rgba(34, 184, 214, .4);
+}
+
+[data-design="glas"] body {
+  background:
+    radial-gradient(1100px 700px at 88% 105%, rgba(45, 190, 180, .55) 0%, transparent 60%),
+    radial-gradient(900px 650px at 5% -10%, rgba(30, 120, 180, .55) 0%, transparent 55%),
+    linear-gradient(160deg, #071c30 0%, #0b3550 50%, #0f5866 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* ─── Dunkle Glasflächen: Kopfzeile + Seitenleiste ──────────────────────────────────────────
+   Farb-Variablen hier lokal umdefiniert, damit auch Inline-Styles mit var(--gray-600) usw.
+   (z.B. EEG-Name in der Kopfzeile, Sidebar-Überschriften) hell werden. */
+[data-design="glas"] .navbar,
+[data-design="glas"] .sidebar {
+  --gray-600: rgba(255, 255, 255, .78);
+  --gray-700: rgba(255, 255, 255, .88);
+  --gray-800: #fff;
+  background: var(--glas-dark);
+  border: 1px solid var(--glas-dark-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .08);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  color: #fff;
+}
+
+[data-design="glas"] .navbar {
+  margin: 12px 16px 0;
+  border-radius: 18px;
+  top: 12px;
+}
+[data-design="glas"] .navbar .container { max-width: none; }
+/* Auf dunklem Glas immer das helle Logo */
+[data-design="glas"] .navbar .logo-img-light { display: none; }
+[data-design="glas"] .navbar .logo-img-dark { display: block; }
+[data-design="glas"] #sidebar-toggle,
+[data-design="glas"] .theme-toggle-btn { color: rgba(255, 255, 255, .85) !important; }
+[data-design="glas"] .navbar nav > span[style*="16a34a"] { color: #7ee8d8 !important; }
+[data-design="glas"] .profile-btn {
+  background: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .3);
+}
+[data-design="glas"] .profile-btn:hover { background: rgba(255, 255, 255, .22); border-color: #fff; }
+/* Das Profil-Menü klappt als normale (helle bzw. dunkle) Fläche auf -- Variablen zurücksetzen. */
+[data-design="glas"] .profile-dropdown {
+  --gray-600: #4b5563; --gray-700: #374151; --gray-800: #1f2937;
+  border-radius: 14px;
+  color: var(--gray-800);
+}
+[data-design="glas"][data-theme="dark"] .profile-dropdown {
+  --gray-600: #94a3b8; --gray-700: #cbd5e1; --gray-800: #f1f5f9;
+}
+[data-design="glas"] .navbar select {
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, .3) !important;
+  border-radius: 10px !important;
+}
+[data-design="glas"] .navbar select option { color: #1f2937; }
+
+/* ─── Layout: schwebende Seitenleiste + Inhaltsfläche ───────────────────────────────────── */
+[data-design="glas"] .portal-layout {
+  gap: 16px;
+  padding: 16px;
+  min-height: calc(100vh - 72px);
+}
+[data-design="glas"] .sidebar {
+  border-radius: var(--glas-radius);
+  top: 88px;
+  height: calc(100vh - 104px);
+  padding: 1.25rem .85rem;
+}
+[data-design="glas"] .sidebar.collapsed { padding: 1.25rem .4rem; }
+[data-design="glas"] .sidebar-label {
+  font-size: .68rem;
+  letter-spacing: .08em;
+  color: rgba(255, 255, 255, .55);
+}
+[data-design="glas"] .sidebar a {
+  color: rgba(255, 255, 255, .82);
+  border-radius: 12px;
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+[data-design="glas"] .sidebar a:hover {
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  text-decoration: none;
+}
+[data-design="glas"] .sidebar a.active {
+  background: linear-gradient(90deg, var(--glas-accent-2), var(--glas-accent));
+  color: #fff;
+  box-shadow: 0 6px 20px var(--glas-glow), inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+[data-design="glas"] .sidebar hr { border-color: rgba(255, 255, 255, .15) !important; }
+[data-design="glas"] .sidebar.collapsed a .badge { border-color: #0b2a44; }
+
+[data-design="glas"] .portal-content {
+  background: linear-gradient(160deg, rgba(236, 245, 250, .93) 0%, rgba(214, 233, 242, .9) 100%);
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .6);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  padding: 2rem 2.25rem;
+}
+[data-design="glas"] .portal-content > h2:first-child,
+[data-design="glas"] .portal-content > h2 {
+  font-size: 1.75rem;
+  letter-spacing: -.01em;
+}
+
+/* ─── Glas-Kacheln ──────────────────────────────────────────────────────────────────────── */
+[data-design="glas"] .portal-content .card {
+  background: rgba(255, 255, 255, .6);
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: var(--glas-radius);
+  box-shadow: 0 8px 24px rgba(15, 60, 90, .08), inset 0 1px 0 rgba(255, 255, 255, .7);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+[data-design="glas"] .portal-content .card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px rgba(15, 60, 90, .14), inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+/* Formulare/Tabellen nicht „hüpfen“ lassen -- nur reine Anzeige-Kacheln heben sich an. */
+[data-design="glas"] .portal-content .card:has(form):hover,
+[data-design="glas"] .portal-content .card:has(table):hover,
+[data-design="glas"] .portal-content .card:has(.rich-editor):hover { transform: none; }
+
+[data-design="glas"] .stat-value {
+  color: #0b1f33;
+  letter-spacing: -.02em;
+}
+[data-design="glas"] .portal-content .card h3 { letter-spacing: -.01em; }
+/* Icons in Kachel-Überschriften als kleiner Kreis wie im Vorbild */
+[data-design="glas"] .portal-content .card > h3 > .icon:first-child {
+  box-sizing: content-box;
+  padding: .4rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .85);
+  box-shadow: 0 2px 6px rgba(15, 60, 90, .1);
+  vertical-align: -0.45em;
+  margin-right: .2rem;
+}
+
+/* ─── Knöpfe, Eingaben, Reiter ──────────────────────────────────────────────────────────── */
+[data-design="glas"] .portal-content .btn { border-radius: 999px; }
+[data-design="glas"] .portal-content .btn-primary {
+  background: #0b1220;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(11, 18, 32, .25);
+}
+[data-design="glas"] .portal-content .btn-primary:hover { background: #1e293b; }
+[data-design="glas"] .portal-content .btn-secondary {
+  background: rgba(255, 255, 255, .65);
+  border: 1px solid rgba(255, 255, 255, .9);
+  color: #0f2537;
+}
+[data-design="glas"] .portal-content .btn-secondary:hover { background: #fff; }
+
+[data-design="glas"] .portal-content input:not([type=checkbox]):not([type=radio]),
+[data-design="glas"] .portal-content select,
+[data-design="glas"] .portal-content textarea {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .75);
+  border-color: rgba(15, 60, 90, .15);
+}
+
+[data-design="glas"] .tabs {
+  display: inline-flex;
+  max-width: 100%;
+  border-bottom: none;
+  background: rgba(255, 255, 255, .55);
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 999px;
+  padding: 4px;
+}
+[data-design="glas"] .tab-btn { border-radius: 999px; padding: .55rem 1rem; position: relative; z-index: 1; }
+[data-design="glas"] .tab-btn:hover { background: rgba(255, 255, 255, .6); }
+[data-design="glas"] .tab-btn[aria-selected="true"] { color: #fff; }
+[data-design="glas"] .tab-btn[aria-selected="true"]:hover { background: transparent; }
+/* Animierter Balken wird zur dunklen Pille hinter dem aktiven Reiter */
+[data-design="glas"] .tab-indicator {
+  top: 4px;
+  bottom: 4px;
+  height: auto;
+  border-radius: 999px;
+  background: #0b1220;
+  z-index: 0;
+}
+
+[data-design="glas"] .portal-content table th { background: rgba(255, 255, 255, .5); }
+[data-design="glas"] .portal-content table th:first-child { border-top-left-radius: 12px; }
+[data-design="glas"] .portal-content table th:last-child { border-top-right-radius: 12px; }
+[data-design="glas"] .portal-content th,
+[data-design="glas"] .portal-content td { border-bottom-color: rgba(15, 60, 90, .1); }
+[data-design="glas"] .portal-content .alert { border-radius: 14px; }
+[data-design="glas"] .portal-footer { border-top-color: rgba(15, 60, 90, .12); }
+
+/* ─── Dunkelmodus: Inhaltsfläche als dunkles Glas ───────────────────────────────────────── */
+[data-design="glas"][data-theme="dark"] body {
+  background:
+    radial-gradient(1100px 700px at 88% 105%, rgba(20, 130, 130, .45) 0%, transparent 60%),
+    radial-gradient(900px 650px at 5% -10%, rgba(20, 80, 140, .5) 0%, transparent 55%),
+    linear-gradient(160deg, #030d18 0%, #06202f 55%, #0a3a44 100%);
+  background-attachment: fixed;
+}
+[data-design="glas"][data-theme="dark"] .portal-content {
+  background: linear-gradient(160deg, rgba(12, 28, 44, .9) 0%, rgba(10, 36, 48, .88) 100%);
+  border-color: rgba(255, 255, 255, .1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+[data-design="glas"][data-theme="dark"] .portal-content .card {
+  background: rgba(255, 255, 255, .05);
+  border-color: rgba(255, 255, 255, .1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+[data-design="glas"][data-theme="dark"] .portal-content .card:hover {
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+[data-design="glas"][data-theme="dark"] .stat-value { color: #f1f5f9; }
+[data-design="glas"][data-theme="dark"] .portal-content .card > h3 > .icon:first-child { background: rgba(255, 255, 255, .1); box-shadow: none; }
+[data-design="glas"][data-theme="dark"] .portal-content .btn-primary { background: linear-gradient(90deg, #5eead4, #67e8f9); color: #04121c; box-shadow: 0 6px 16px rgba(94, 234, 212, .2); }
+[data-design="glas"][data-theme="dark"] .portal-content .btn-primary:hover { filter: brightness(1.1); }
+[data-design="glas"][data-theme="dark"] .portal-content .btn-secondary { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .15); color: #e2e8f0; }
+[data-design="glas"][data-theme="dark"] .portal-content input:not([type=checkbox]):not([type=radio]),
+[data-design="glas"][data-theme="dark"] .portal-content select,
+[data-design="glas"][data-theme="dark"] .portal-content textarea { background: rgba(2, 10, 20, .55); border-color: rgba(255, 255, 255, .14); }
+[data-design="glas"][data-theme="dark"] .tabs { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .1); }
+[data-design="glas"][data-theme="dark"] .tab-btn:hover { background: rgba(255, 255, 255, .08); }
+[data-design="glas"][data-theme="dark"] .tab-btn[aria-selected="true"] { color: #04121c; }
+[data-design="glas"][data-theme="dark"] .tab-indicator { background: linear-gradient(90deg, #5eead4, #67e8f9); }
+[data-design="glas"][data-theme="dark"] .portal-content table th { background: rgba(255, 255, 255, .06); }
+[data-design="glas"][data-theme="dark"] .portal-content th,
+[data-design="glas"][data-theme="dark"] .portal-content td { border-bottom-color: rgba(255, 255, 255, .08); }
+
+/* ─── Handy/Tablet: Seitenleiste wird (wie im klassischen Design) zur Leiste oben ──────── */
+@media (max-width: 768px) {
+  [data-design="glas"] .navbar { margin: 8px 8px 0; top: 8px; border-radius: 14px; }
+  [data-design="glas"] .portal-layout { padding: 8px; gap: 8px; }
+  [data-design="glas"] .sidebar,
+  [data-design="glas"] .sidebar.collapsed {
+    top: 72px;
+    height: auto;
+    border-radius: 16px;
+    padding: .4rem .5rem;
+    border: 1px solid var(--glas-dark-border);
+  }
+  [data-design="glas"] .portal-content { border-radius: 18px; padding: 1.25rem 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-design="glas"] .portal-content .card:hover { transform: none; }
+}
+
+/* Ohne backdrop-filter (ältere Browser): Glas deckender, damit Schrift lesbar bleibt */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-design="glas"] .navbar, [data-design="glas"] .sidebar { background: rgba(8, 28, 46, .92); }
+  [data-design="glas"] .portal-content { background: #e8f2f7; }
+  [data-design="glas"][data-theme="dark"] .portal-content { background: #0c1c2c; }
+}

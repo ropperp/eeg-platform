@@ -25,6 +25,7 @@ $tabs = [
   'geraete'   => ['label' => 'Ausleseeinheiten & MQTT', 'icon' => 'broadcast'],
   'email'     => ['label' => 'E-Mail (Microsoft)', 'icon' => 'envelope-simple'],
   'eda'       => ['label' => 'EDA', 'icon' => 'folder-open'],
+  'design'    => ['label' => 'Design', 'icon' => 'image'],
 ];
 require __DIR__ . '/../partials/tabs_nav.php';
 ?>
@@ -504,6 +505,36 @@ function suggestMqttPassword() {
   <form method="post" action="/admin/mail-settings/eda-import-run">
     <button type="submit" class="btn btn-secondary">Jetzt prüfen</button>
     <small style="color:var(--gray-600);margin-left:.5rem">Liest das Postfach sofort aus, statt auf den nächsten Cron-Durchlauf zu warten.</small>
+  </form>
+</div>
+</section>
+
+<section class="tab-panel" id="tab-design" role="tabpanel" aria-labelledby="tabbtn-design" tabindex="0" hidden>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('image') ?> Plattform-Design</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Aussehen des Portals für alle (Plattform-Admin, Obmänner, Mitglieder). Inhalte und Funktionen
+    bleiben gleich -- nur die Optik ändert sich. Jederzeit zurückschaltbar; Hell/Dunkel gilt in beiden.
+  </p>
+  <?php $currentDesign = $platformSettings['portal_design'] ?? 'klassisch'; ?>
+  <form method="post" action="/admin/settings/design">
+    <div class="design-choices">
+      <?php foreach (['glas' => ['Neuer Look', 'Glas-Optik: schwebende, durchscheinende Flächen auf einem Blau-Türkis-Verlauf, runde Kacheln und Knöpfe.'],
+                      'klassisch' => ['Klassisch', 'Das bisherige, schlichte Dashboard in Weiß und Grün.']] as $key => [$label, $desc]): ?>
+        <label class="design-choice">
+          <input type="radio" name="portal_design" value="<?= $key ?>" <?= $currentDesign === $key ? 'checked' : '' ?>>
+          <span class="design-preview design-preview-<?= $key ?>" aria-hidden="true">
+            <span class="dp-side"></span>
+            <span class="dp-main"><span class="dp-card"></span><span class="dp-card"></span><span class="dp-card"></span><span class="dp-wide"></span></span>
+          </span>
+          <span class="design-choice-text">
+            <strong><?= $label ?><?= $currentDesign === $key ? ' <span class="badge badge-green">aktiv</span>' : '' ?></strong>
+            <span><?= $desc ?></span>
+          </span>
+        </label>
+      <?php endforeach; ?>
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top:1rem">Design übernehmen</button>
   </form>
 </div>
 </section>

@@ -8,6 +8,23 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-13 21:40 — Claude Code — Claude Opus 5.5
+**Auftrag:** Ein Dashboard-Design aus einem Instagram-Video (Glas-Optik) für die Plattform
+nachbauen, als Plattform-Admin-Einstellung zum Umschalten zwischen neuem Look und bisherigem
+Dashboard.
+**Verbesserter Prompt:** "Baue anhand des angehängten Videos (Einzelbilder auswerten) ein
+zweites Portal-Design in Glas-Optik als eigene CSS-Datei, die nur geladen wird, wenn es aktiv
+ist. Schalter unter Admin → Einstellungen (Web + App-API), Standard = bisheriges Design,
+Hell/Dunkel und Handy unterstützen, WCAG-AA-Kontrast einhalten."
+**Ergebnis:** Video in Einzelbilder zerlegt und ausgewertet; neues Stylesheet `glass.css`
+(schwebende Glas-Kopfzeile/-Seitenleiste, Milchglas-Inhalt, Pillen-Knöpfe/-Reiter), Reiter
+„Design“ mit Vorschau in den Admin-Einstellungen, `platform_settings.portal_design`
+(`migrate_20261113.sql`), API-Endpunkt. Per Playwright hell/dunkel/mobil geprüft, 270 Tests grün.
+**Fehler/Lehre:** Das Türkis des Vorbilds hatte mit weißer Schrift nur 2,4:1 Kontrast -- für
+Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
+
+---
+
 ## 2026-11-08 00:10 — Claude Code — Claude Opus 5.5
 **Auftrag:** Strukturierter Auftrag (Datei, Stand 07.11.2026) zu Rechtsdokumenten und
 Beitrittserklärung: Zustimmungstexte aus einer einzigen, versionierten Quelle (Langfassung im
