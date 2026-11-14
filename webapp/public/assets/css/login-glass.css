@@ -1,0 +1,178 @@
+/* ─── Login im neuen Look (pages/login_glass.php, Patrick 14.11.2026) ───────────────────────
+   Vorbild: Video "Glassy Login Form" -- dunkle Glas-Karte mit abgeschrägten Ecken (oben links,
+   unten rechts) und leuchtend blauen Eck-Akzenten vor blauen Lichtstreifen; "Registrieren"
+   dreht die Karte um (3D), dazwischen leuchtet kurz ein Orb auf.
+   Immer dunkel (wie im Vorbild). Kontrast: Fließtext #b9cde2 auf ~#0b1a2c ≈ 9:1, Knopf-Schrift
+   #04121c auf #38bdf8 ≈ 9:1, Links #7dd3fc ≈ 10:1. */
+
+.lg-body {
+  --cut: 36px;
+  min-height: 100vh;
+  margin: 0;
+  color: #e8f3ff;
+  background:
+    radial-gradient(900px 600px at 85% 15%, rgba(14, 116, 180, .28), transparent 60%),
+    radial-gradient(800px 600px at 10% 90%, rgba(8, 80, 140, .3), transparent 60%),
+    #030b16;
+  overflow-x: hidden;
+}
+
+/* Lichtstreifen im Hintergrund */
+.lg-streaks { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.lg-streaks span {
+  position: absolute; left: -20%; width: 140%; height: 140px; border-radius: 50%;
+  background: linear-gradient(90deg, transparent 0%, rgba(56, 189, 248, .0) 15%, rgba(56, 189, 248, .55) 45%, rgba(186, 230, 253, .75) 52%, rgba(56, 189, 248, .4) 60%, transparent 85%);
+  filter: blur(28px); opacity: .55;
+  animation: lg-drift 18s ease-in-out infinite alternate;
+}
+.lg-streaks span:nth-child(1) { top: 12%; transform: rotate(-18deg); }
+.lg-streaks span:nth-child(2) { top: 58%; transform: rotate(-8deg); height: 90px; opacity: .4; animation-duration: 23s; animation-delay: -6s; }
+.lg-streaks span:nth-child(3) { top: 78%; transform: rotate(14deg); height: 60px; opacity: .3; animation-duration: 27s; animation-delay: -12s; }
+@keyframes lg-drift { from { translate: -6% 0; } to { translate: 6% -3%; } }
+
+.lg-main {
+  position: relative; z-index: 1; min-height: 100vh; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px 16px;
+}
+.lg-logo { margin-bottom: 1.75rem; display: block; }
+.lg-logo img { height: 36px; width: auto; display: block; }
+
+/* ─── Karte: Bühne, Drehung, Glas, abgeschrägte Ecken ─── */
+.lg-stage { position: relative; width: min(440px, 100%); perspective: 1600px; }
+.lg-flip {
+  display: grid; transform-style: preserve-3d;
+  transition: transform .85s cubic-bezier(.65, 0, .25, 1);
+}
+.lg-stage.is-register .lg-flip { transform: rotateY(180deg); }
+.lg-card {
+  grid-area: 1 / 1; position: relative; isolation: isolate;
+  display: flex; flex-direction: column; justify-content: center;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  padding: 2.5rem 2.1rem 1.9rem;
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  /* Rahmen = Verlauf hinter der um 1 px kleineren Innenfläche (::before) */
+  background: linear-gradient(150deg, rgba(125, 211, 252, .6), rgba(255, 255, 255, .1) 35%, rgba(255, 255, 255, .05) 65%, rgba(56, 189, 248, .5));
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+.lg-card::before {
+  content: ''; position: absolute; inset: 1px; z-index: -1;
+  clip-path: polygon(calc(var(--cut) - .5px) 0, 100% 0, 100% calc(100% - var(--cut) + .5px), calc(100% - var(--cut) + .5px) 100%, 0 100%, 0 calc(var(--cut) - .5px));
+  background:
+    radial-gradient(420px 260px at 85% 0%, rgba(56, 189, 248, .14), transparent 70%),
+    linear-gradient(165deg, rgba(16, 36, 58, .9) 0%, rgba(6, 15, 28, .94) 100%);
+}
+.lg-back { transform: rotateY(180deg); }
+
+/* Eck-Akzente in den abgeschrägten Ecken */
+.lg-accent {
+  position: absolute; z-index: 2; width: 24px; height: 24px; border-radius: 5px;
+  background: linear-gradient(135deg, #bae6fd, #38bdf8 45%, #0369a1);
+  box-shadow: 0 0 18px rgba(56, 189, 248, .7);
+  pointer-events: none; transition: transform .85s cubic-bezier(.65, 0, .25, 1);
+}
+.lg-accent-tl { top: 2px; left: 2px; clip-path: polygon(0 0, 100% 0, 0 100%); }
+.lg-accent-br { bottom: 2px; right: 2px; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.lg-stage.is-flipping .lg-accent-tl { transform: translate(-6px, -6px); }
+.lg-stage.is-flipping .lg-accent-br { transform: translate(6px, 6px); }
+
+/* Orb, der beim Umdrehen kurz aufleuchtet */
+.lg-orb {
+  position: absolute; z-index: 3; left: 50%; top: 50%; width: 170px; height: 170px;
+  margin: -85px 0 0 -85px; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, rgba(56, 189, 248, .35) 0%, rgba(14, 116, 180, .18) 40%, transparent 70%);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, .25), inset 0 0 40px rgba(56, 189, 248, .35);
+}
+.lg-orb i {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  border-radius: 12px; background: linear-gradient(135deg, #7dd3fc, #0284c7);
+  box-shadow: 0 0 24px rgba(56, 189, 248, .8);
+}
+.lg-orb i::after {
+  content: ''; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px;
+  background: rgba(3, 11, 22, .8); transform: rotate(45deg); border-radius: 2px;
+}
+.lg-stage.is-flipping .lg-orb { animation: lg-orb .9s ease both; }
+@keyframes lg-orb {
+  0% { opacity: 0; transform: scale(.4); }
+  40%, 60% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
+/* ─── Inhalt ─── */
+.lg-card h1 { margin: 0 0 .35rem; font-size: 1.9rem; letter-spacing: -.02em; color: #fff; line-height: 1.15; }
+.lg-card h1 span {
+  background: linear-gradient(90deg, #7dd3fc, #38bdf8);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lg-sub { margin: 0 0 1.5rem; font-size: .9rem; line-height: 1.5; color: #b9cde2; }
+.lg-form label { display: block; font-size: .82rem; font-weight: 600; color: #dbeafe; margin: 0 0 .4rem; }
+.lg-field { position: relative; margin-bottom: 1rem; }
+.lg-field .pw-field-wrap { position: static; }
+.lg-field-icon {
+  position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: 1.1rem; height: 1.1rem; color: #7f9bb8; pointer-events: none;
+}
+.lg-field input {
+  box-sizing: border-box; width: 100%; height: 48px; padding: 0 2.75rem 0 2.6rem;
+  border-radius: 12px; border: 1px solid rgba(148, 197, 255, .2);
+  background: rgba(2, 10, 22, .55); color: #e8f3ff; font: inherit; font-size: .95rem;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.lg-field input::placeholder { color: #6f88a3; }
+.lg-field input:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, .25); }
+.lg-field .pw-toggle-btn { color: #9fb6cc; }
+.lg-field .pw-toggle-btn:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+.lg-row { display: flex; justify-content: flex-end; margin: -.25rem 0 1.25rem; font-size: .84rem; }
+
+.lg-card a { color: #7dd3fc; text-decoration: none; }
+.lg-card a:hover { text-decoration: underline; }
+.lg-card a:focus-visible, .lg-btn:focus-visible { outline: 2px solid #bae6fd; outline-offset: 3px; border-radius: 6px; }
+
+.lg-btn {
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+  width: 100%; min-height: 48px; padding: .7rem 1rem; box-sizing: border-box;
+  border: 0; border-radius: 12px; cursor: pointer;
+  font: inherit; font-weight: 700; font-size: .98rem; color: #04121c !important; text-decoration: none !important;
+  background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 55%, #0ea5e9 100%);
+  box-shadow: 0 10px 28px rgba(14, 165, 233, .35), inset 0 1px 0 rgba(255, 255, 255, .5);
+  transition: filter .2s ease, transform .2s ease;
+}
+.lg-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.lg-btn .icon { width: 1.05rem; height: 1.05rem; }
+
+.lg-switch {
+  margin: 1.4rem 0 0; padding-top: 1.1rem; text-align: center; font-size: .88rem; color: #b9cde2;
+  border-top: 1px solid rgba(148, 197, 255, .14);
+}
+.lg-switch a { font-weight: 700; }
+.lg-small { margin: 1rem 0 0; font-size: .8rem; line-height: 1.5; color: #9fb6cc; text-align: center; }
+
+.lg-steps { list-style: none; counter-reset: lg; padding: 0; margin: 0 0 1.5rem; display: grid; gap: .7rem; }
+.lg-steps li { counter-increment: lg; position: relative; padding-left: 2.3rem; font-size: .88rem; line-height: 1.45; color: #b9cde2; }
+.lg-steps li strong { color: #e8f3ff; }
+.lg-steps li::before {
+  content: counter(lg); position: absolute; left: 0; top: -.05rem; width: 1.6rem; height: 1.6rem;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: .8rem; font-weight: 700; color: #04121c; background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+}
+
+.lg-alert { border-radius: 10px; padding: .7rem .9rem; margin-bottom: 1rem; font-size: .88rem; }
+.lg-alert-error { background: rgba(248, 113, 113, .12); border: 1px solid rgba(248, 113, 113, .45); color: #fecaca; }
+.lg-alert-ok { background: rgba(74, 222, 128, .1); border: 1px solid rgba(74, 222, 128, .4); color: #bbf7d0; }
+
+.lg-foot { margin: 1.75rem 0 0; font-size: .78rem; color: #8aa3bd; text-align: center; }
+.lg-foot a { color: #b9cde2; }
+
+@media (max-width: 480px) {
+  .lg-body { --cut: 26px; }
+  .lg-card { padding: 2.1rem 1.25rem 1.5rem; }
+  .lg-card h1 { font-size: 1.6rem; }
+  .lg-accent { width: 18px; height: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-flip, .lg-accent { transition: none; }
+  .lg-streaks span { animation: none; }
+  .lg-stage.is-flipping .lg-orb { animation: none; }
+}

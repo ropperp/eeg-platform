@@ -19,6 +19,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Neuer Look auch für Website und Login (14.11.2026)
+- **Anmeldeseite** im Stil eines Video-Vorbilds („Glassy Login“, in Blau): dunkle Glas-Karte mit
+  abgeschrägten Ecken und leuchtenden Eck-Akzenten vor Lichtstreifen. „Registrieren“ dreht die
+  Karte um (mit kurz aufleuchtendem Orb) -- dort steht, dass die Energiegemeinschaft den Zugang
+  anlegt, ein Knopf „Zur Energiegemeinschaft anmelden“ (→ /beitreten) und klein der Link zum
+  Plattform-Kontakt. Direkt aufrufbar über `/portal/login#registrieren`.
+  (`pages/login_glass.php`, `assets/css/login-glass.css`)
+- **Öffentliche Website** (Startseite und alle Unterseiten) im Glas-Look: dunkler
+  Blau-Türkis-Verlauf, schwebende Glas-Kopf- und Fußzeile, Inhalte auf hellen Milchglas-Flächen,
+  Hero als abgerundete Bildfläche (`assets/css/site-glass.css`). Linkfarbe auf Kontrast geprüft.
+- Beides hängt am bestehenden Schalter Admin → Einstellungen → Design; „Klassisch“ zeigt
+  Website und Login wie bisher.
+
 ### Rollenwahl mit Kurznamen, Abrechnung am Handy (14.11.2026)
 - **Rollenwahl in der Kopfzeile:** Bei mehreren Rollen steht nur noch das Auswahlfeld (der
   ausgeschriebene EEG-Name daneben brach am Handy über vier Zeilen um). Beschriftungen kurz:

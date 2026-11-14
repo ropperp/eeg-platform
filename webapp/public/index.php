@@ -2124,7 +2124,7 @@ $router->get('/api/communities/search', function () {
 // ─── Portal: Login ──────────────────────────────────────
 $router->get('/portal/login', function () {
     if (Auth::check()) { header('Location: /portal/dashboard'); exit; }
-    require ROOT . '/src/views/pages/login.php';
+    require ROOT . '/src/views/pages/' . (platformDesign() === 'glas' ? 'login_glass.php' : 'login.php');
 });
 
 $router->post('/portal/login', function () {
@@ -2135,14 +2135,14 @@ $router->post('/portal/login', function () {
     // keine Rückschlüsse zulässt (z.B. ob die E-Mail überhaupt existiert).
     if (RateLimiter::isLoginBlocked($email)) {
         $error = 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.';
-        require ROOT . '/src/views/pages/login.php';
+        require ROOT . '/src/views/pages/' . (platformDesign() === 'glas' ? 'login_glass.php' : 'login.php');
         exit;
     }
     $user = Auth::checkPassword($email, $password);
     if (!$user) {
         RateLimiter::registerLoginFailure($email);
         $error = 'E-Mail oder Passwort falsch.';
-        require ROOT . '/src/views/pages/login.php';
+        require ROOT . '/src/views/pages/' . (platformDesign() === 'glas' ? 'login_glass.php' : 'login.php');
         exit;
     }
     RateLimiter::resetLoginAttempts($email);

@@ -513,8 +513,9 @@ function suggestMqttPassword() {
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('image') ?> Plattform-Design</h3>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
-    Aussehen des Portals für alle (Plattform-Admin, Obmänner, Mitglieder). Inhalte und Funktionen
-    bleiben gleich -- nur die Optik ändert sich. Jederzeit zurückschaltbar; Hell/Dunkel gilt in beiden.
+    Aussehen für alle: öffentliche Website (stromfueralle.at), Anmeldeseite und Portal
+    (Plattform-Admin, Obmänner, Mitglieder). Inhalte und Funktionen bleiben gleich -- nur die
+    Optik ändert sich. Jederzeit zurückschaltbar; Hell/Dunkel gilt in beiden.
   </p>
   <?php $currentDesign = $platformSettings['portal_design'] ?? 'klassisch'; ?>
   <form method="post" action="/admin/settings/design">

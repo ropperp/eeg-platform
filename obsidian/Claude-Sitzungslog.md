@@ -25,7 +25,9 @@ Zählpunkte-Kreis) für Obmann- und Mitglieder-Dashboard aus EDA-Daten (`src/cha
 7 neue Tests, SQL gegen Postgres geprüft). Danach: Mitgliederverwaltung am Handy -- Liste als
 Karten, Suche nach KdNr/Zählpunkt, Schnellinfo mit Kopieren-Knöpfen im Mitgliedsdetail, auf
 iPhone-13-Größe per Playwright ohne Überbreite geprüft. 14.11.: Rollenwahl nur noch als Auswahlfeld mit
-Kurznamen (Admin / EEG-Kurzname / Vor- und Nachname), Abrechnung und Rechnungen am Handy als Karten.
+Kurznamen (Admin / EEG-Kurzname / Vor- und Nachname), Abrechnung und Rechnungen am Handy als Karten. Danach: Login im Glas-Stil eines zweiten
+Video-Vorbilds (Dreh-Karte Anmelden/Registrieren, Registrieren führt zur Beitrittserklärung) und
+die öffentliche Website im Glas-Look -- beides am Design-Schalter.
 **Fehler/Lehre:** Das Türkis des Vorbilds hatte mit weißer Schrift nur 2,4:1 Kontrast -- für
 Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
 
