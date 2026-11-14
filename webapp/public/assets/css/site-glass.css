@@ -162,3 +162,7 @@
    (#166534 ≈ 5,6:1). Im Dunkelmodus bleibt das helle Grün aus app.css. */
 [data-design="glas"]:not([data-theme="dark"]) main a:not(.btn),
 [data-design="glas"]:not([data-theme="dark"]) main .legal h2 { color: #166534; }
+
+/* Logo im neuen Look: immer weiß (Patrick, 14.11.2026) */
+[data-design="glas"] .navbar .logo-img-glass { display: block; height: 32px; width: auto; }
+@media (min-width: 641px) and (max-width: 1000px) { [data-design="glas"] .navbar .logo-img-glass { height: 26px; } }

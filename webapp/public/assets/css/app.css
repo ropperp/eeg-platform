@@ -1016,3 +1016,16 @@ footer {
 [data-theme="dark"] .copy-btn.copied { color: #86efac; border-color: #166534; }
 .quickinfo-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
 .quickinfo-actions .btn { flex: 1; justify-content: center; min-height: 44px; display: inline-flex; align-items: center; gap: .35rem; }
+
+/* Portal-Kopfzeile am Handy (Patrick, 14.11.2026): nur das Logo-Zeichen statt des Schriftzugs,
+   damit Rollenwahl, Hell/Dunkel und Profilbild in eine Zeile passen. .logo-img-mark gibt es
+   nur im Portal (layouts/portal.php). */
+.navbar .logo-img.logo-img-mark { display: none; }
+@media (max-width: 640px) {
+  .navbar .logo:has(.logo-img-mark) .logo-img-light,
+  .navbar .logo:has(.logo-img-mark) .logo-img-dark,
+  .navbar .logo:has(.logo-img-mark) .logo-img-glass { display: none !important; }
+  .navbar .logo-img.logo-img-mark { display: block; height: 32px; width: auto; }
+  .navbar nav select { max-width: 54vw !important; font-size: .8rem !important; padding: .3rem .4rem !important; }
+  .navbar nav { gap: .5rem !important; }
+}

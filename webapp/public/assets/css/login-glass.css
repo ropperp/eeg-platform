@@ -65,39 +65,42 @@
 }
 .lg-back { transform: rotateY(180deg); }
 
-/* Eck-Akzente in den abgeschrägten Ecken */
+/* Eck-Akzente in den abgeschrägten Ecken.
+   Umdrehen wie im Video-Vorbild (Patrick, 14.11.2026): (1) beide Dreiecke fahren in die Mitte
+   und setzen sich zu einem Quadrat mit Schrägstrich zusammen, der Karteninhalt blendet aus,
+   (2) die Karte dreht sich dahinter, ein Lichtring pulsiert, (3) die Dreiecke fahren zurück.
+   Ablauf per Klassen aus login_glass.php: .is-gathering (1+2) und .is-register (Drehung).
+   --gx/--gy = Weg von der Ecke zur Kartenmitte, setzt das Skript. */
 .lg-accent {
-  position: absolute; z-index: 2; width: 24px; height: 24px; border-radius: 5px;
+  position: absolute; z-index: 4; width: 24px; height: 24px; border-radius: 5px;
   background: linear-gradient(135deg, #bae6fd, #38bdf8 45%, #0369a1);
   box-shadow: 0 0 18px rgba(56, 189, 248, .7);
-  pointer-events: none; transition: transform .85s cubic-bezier(.65, 0, .25, 1);
+  pointer-events: none;
+  transition: transform .45s cubic-bezier(.65, 0, .25, 1), filter .45s ease;
 }
 .lg-accent-tl { top: 2px; left: 2px; clip-path: polygon(0 0, 100% 0, 0 100%); }
 .lg-accent-br { bottom: 2px; right: 2px; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
-.lg-stage.is-flipping .lg-accent-tl { transform: translate(-6px, -6px); }
-.lg-stage.is-flipping .lg-accent-br { transform: translate(6px, 6px); }
+.lg-stage.is-gathering .lg-accent-tl { transform: translate(var(--gx, 0), var(--gy, 0)) scale(2); filter: brightness(1.15); }
+.lg-stage.is-gathering .lg-accent-br { transform: translate(calc(-1 * var(--gx, 0)), calc(-1 * var(--gy, 0))) scale(2); filter: brightness(1.15); }
 
-/* Orb, der beim Umdrehen kurz aufleuchtet */
+/* Karteninhalt blendet während des Umdrehens kurz aus */
+.lg-card > * { transition: opacity .3s ease; }
+.lg-stage.is-gathering .lg-card > * { opacity: .08; }
+
+/* Lichtring hinter dem zusammengesetzten Symbol */
 .lg-orb {
-  position: absolute; z-index: 3; left: 50%; top: 50%; width: 170px; height: 170px;
-  margin: -85px 0 0 -85px; border-radius: 50%; pointer-events: none; opacity: 0;
+  position: absolute; z-index: 3; left: 50%; top: 50%; width: 180px; height: 180px;
+  margin: -90px 0 0 -90px; border-radius: 50%; pointer-events: none;
+  opacity: 0; transform: scale(.4);
   background: radial-gradient(circle, rgba(56, 189, 248, .35) 0%, rgba(14, 116, 180, .18) 40%, transparent 70%);
   box-shadow: 0 0 0 1px rgba(125, 211, 252, .25), inset 0 0 40px rgba(56, 189, 248, .35);
+  transition: opacity .4s ease, transform .5s cubic-bezier(.2, .8, .2, 1);
 }
-.lg-orb i {
-  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
-  border-radius: 12px; background: linear-gradient(135deg, #7dd3fc, #0284c7);
-  box-shadow: 0 0 24px rgba(56, 189, 248, .8);
-}
-.lg-orb i::after {
-  content: ''; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px;
-  background: rgba(3, 11, 22, .8); transform: rotate(45deg); border-radius: 2px;
-}
-.lg-stage.is-flipping .lg-orb { animation: lg-orb .9s ease both; }
-@keyframes lg-orb {
-  0% { opacity: 0; transform: scale(.4); }
-  40%, 60% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.3); }
+.lg-orb i { display: none; }
+.lg-stage.is-gathering .lg-orb { opacity: 1; transform: scale(1); animation: lg-orb-pulse 1.1s ease-in-out .35s infinite; }
+@keyframes lg-orb-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(125, 211, 252, .25), inset 0 0 40px rgba(56, 189, 248, .35); }
+  50% { box-shadow: 0 0 0 14px rgba(125, 211, 252, .06), 0 0 0 1px rgba(125, 211, 252, .45), inset 0 0 60px rgba(56, 189, 248, .55); }
 }
 
 /* ─── Inhalt ─── */
@@ -172,9 +175,9 @@
   .lg-accent { width: 18px; height: 18px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lg-flip, .lg-accent { transition: none; }
+  .lg-flip, .lg-accent, .lg-orb, .lg-card > * { transition: none; }
   .lg-streaks span { animation: none; }
-  .lg-stage.is-flipping .lg-orb { animation: none; }
+  .lg-stage.is-gathering .lg-orb { animation: none; }
 }
 
 /* Einzelkarte (Passwort vergessen, neues Passwort, 2FA) und 2FA-Code-Feld */

@@ -19,6 +19,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Login-Animation wie im Video, weißes Logo im neuen Look, Handy-Kopfzeile (14.11.2026)
+- **Dreh-Animation** Anmelden ↔ Registrieren jetzt wie im Video-Vorbild: die beiden leuchtenden
+  Eckdreiecke fahren in die Kartenmitte und setzen sich zu einem Quadrat mit Schrägstrich
+  zusammen (Inhalt blendet aus, Lichtring pulsiert), die Karte dreht sich dahinter, danach
+  fahren die Dreiecke zurück in ihre Ecken. „Bewegung reduzieren“ wird respektiert.
+- **Logo im neuen Look immer weiß** (Website, Portal, alle Anmelde-Seiten, hell und dunkel):
+  neue Dateien `assets/images/logo-white.png` und `logo-mark-white.png` (aus dem bisherigen
+  Logo erzeugt, transparenter Hintergrund). Im klassischen Design bleibt das farbige Logo.
+- **Portal-Kopfzeile am Handy:** statt des Schriftzugs nur das Logo-Zeichen (offener Kreis mit
+  Blitz) -- weiß im neuen Look, farbig im klassischen; Rollenwahl, Hell/Dunkel und Profilbild
+  passen dadurch in eine Zeile (vorher ragte das Profilbild über den Rand).
+
 ### Bugfix: Anmeldung im neuen Look schlug mit „Sitzung abgelaufen“ fehl (14.11.2026)
 Patrick: nach dem Umschalten auf den neuen Look kam beim Anmelden immer die Seite „Sitzung
 abgelaufen“, auch nach Neuladen. Ursache: die neue Glas-Anmeldeseite nutzt nicht `base.php`,
