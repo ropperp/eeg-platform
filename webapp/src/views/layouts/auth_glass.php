@@ -24,7 +24,7 @@ $v = fn(string $f) => @filemtime(ROOT . '/public/assets/' . $f) ?: time();
   <div class="lg-streaks" aria-hidden="true"><span></span><span></span><span></span></div>
   <main class="lg-main">
     <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="lg-logo">
-      <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle">
+      <img src="/assets/images/logo-white.png?v=<?= $v('images/logo-white.png') ?>" alt="Strom für alle">
     </a>
     <?= $authStage ?>
     <p class="lg-foot"><?= htmlspecialchars(copyrightLine()) ?> · <a href="<?= htmlspecialchars(marketingUrl('/impressum')) ?>">Impressum</a> · <a href="<?= htmlspecialchars(marketingUrl('/datenschutz')) ?>">Datenschutz</a></p>

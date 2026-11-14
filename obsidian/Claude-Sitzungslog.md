@@ -34,6 +34,8 @@ das jedes POST-Formular automatisch mit dem CSRF-Token versieht. Ergebnis auf de
 „Sitzung abgelaufen“ bei jedem Anmeldeversuch. Behoben mit `csrfField()` in jedem Formular;
 Lehre: wer ein Formular außerhalb der beiden Standard-Layouts rendert, muss den POST-Weg
 (Token!) im Test wirklich bis zum Server durchspielen, nicht nur die Optik prüfen.
+Nachtrag: Login-Animation wie im Video (Eckdreiecke fahren zur Mitte, Karte dreht, zurück),
+weißes Logo im neuen Look, Portal-Kopfzeile am Handy nur mit Logo-Zeichen.
 **Fehler/Lehre:** Das Türkis des Vorbilds hatte mit weißer Schrift nur 2,4:1 Kontrast -- für
 Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
 

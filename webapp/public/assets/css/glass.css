@@ -398,3 +398,15 @@
   }
   [data-design="glas"][data-theme="dark"] table.rtable tr { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .1); }
 }
+
+/* ─── Logo im neuen Look: immer weiß; am Handy nur das Zeichen (offener Kreis mit Blitz),
+   damit Rollenwahl, Hell/Dunkel und Profilbild in eine Zeile passen (Patrick, 14.11.2026) ─── */
+[data-design="glas"] .navbar .logo-img-glass { display: block; height: 30px; width: auto; }
+[data-design="glas"] .navbar .logo-img-mark { display: none; height: 32px; width: auto; }
+@media (max-width: 640px) {
+  [data-design="glas"] .navbar .logo-img-glass { display: none; }
+  [data-design="glas"] .navbar .logo-img-mark { display: block; }
+  [data-design="glas"] .navbar .inner { gap: .5rem; }
+  [data-design="glas"] .navbar nav { gap: .5rem !important; min-width: 0; }
+  [data-design="glas"] #sidebar-toggle { display: none; }
+}

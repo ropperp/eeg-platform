@@ -24,8 +24,15 @@
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
               style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;color:var(--gray-600);line-height:1"><?= icon('list') ?></button>
       <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">
+        <?php if ($portalDesign === 'glas'): // Neuer Look: immer das weiße Logo, am Handy nur das Zeichen (Patrick, 14.11.2026) ?>
+        <img src="/assets/images/logo-white.png?v=<?= @filemtime(ROOT . '/public/assets/images/logo-white.png') ?: 1 ?>" alt="Strom für alle" class="logo-img logo-img-glass">
+        <img src="/assets/images/logo-mark-white.png?v=<?= @filemtime(ROOT . '/public/assets/images/logo-mark-white.png') ?: 1 ?>" alt="Strom für alle" class="logo-img logo-img-mark">
+        <?php else: ?>
         <img src="<?= htmlspecialchars(logoAssetUrl('light')) ?>" alt="Strom für alle" class="logo-img logo-img-light">
         <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle" class="logo-img logo-img-dark">
+        <?php // Handy: nur das Zeichen, sonst passt das Profilbild nicht mehr in die Zeile ?>
+        <img src="/assets/images/logo-mark-color.png?v=<?= @filemtime(ROOT . '/public/assets/images/logo-mark-color.png') ?: 1 ?>" alt="Strom für alle" class="logo-img logo-img-mark">
+        <?php endif; ?>
       </a>
     </div>
 

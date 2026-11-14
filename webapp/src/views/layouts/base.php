@@ -61,8 +61,12 @@
 <header class="navbar">
   <div class="container inner">
     <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">
+      <?php if ($siteDesign === 'glas'): // Neuer Look: immer das weiße Logo (Patrick, 14.11.2026) ?>
+      <img src="/assets/images/logo-white.png?v=<?= @filemtime(ROOT . '/public/assets/images/logo-white.png') ?: 1 ?>" alt="Strom für alle" class="logo-img logo-img-glass">
+      <?php else: ?>
       <img src="<?= htmlspecialchars(logoAssetUrl('light')) ?>" alt="Strom für alle" class="logo-img logo-img-light">
       <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle" class="logo-img logo-img-dark">
+      <?php endif; ?>
     </a>
     <!-- Patrick, 01.11.2026 (Handy-Screenshot + Nachbesserung): Hamburger-Menü statt dreizeiligem
          Umbruch. Theme-Umschalter bewusst AUSSERHALB von #main-nav (eigener Nachbesserungs-

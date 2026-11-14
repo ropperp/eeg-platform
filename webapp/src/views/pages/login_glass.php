@@ -81,15 +81,25 @@ $authScripts = <<<'JS'
   function show(side, animate) {
     var reg = side === 'register';
     if (stage.classList.contains('is-register') === reg) return;
-    if (animate && !reduce) {
-      stage.classList.add('is-flipping');
-      setTimeout(function () { stage.classList.remove('is-flipping'); }, 900);
-    }
-    stage.classList.toggle('is-register', reg);
     document.getElementById('lg-login').inert = reg;
     document.getElementById('lg-register').inert = !reg;
     var target = document.querySelector(reg ? '#lg-register .lg-btn' : '#email');
-    if (target) setTimeout(function () { target.focus({ preventScroll: true }); }, animate && !reduce ? 700 : 0);
+    if (!animate || reduce) {
+      stage.classList.toggle('is-register', reg);
+      if (target) target.focus({ preventScroll: true });
+      return;
+    }
+    // Wie im Video: Ecken fahren zusammen -> Karte dreht sich -> Ecken fahren auseinander.
+    var r = stage.getBoundingClientRect();
+    var acc = stage.querySelector('.lg-accent-tl').getBoundingClientRect();
+    stage.style.setProperty('--gx', (r.width / 2 - acc.width / 2 - 2) + 'px');
+    stage.style.setProperty('--gy', (r.height / 2 - acc.height / 2 - 2) + 'px');
+    stage.classList.add('is-gathering');
+    setTimeout(function () { stage.classList.toggle('is-register', reg); }, 450);
+    setTimeout(function () {
+      stage.classList.remove('is-gathering');
+      if (target) target.focus({ preventScroll: true });
+    }, 450 + 850);
   }
   document.querySelectorAll('[data-flip]').forEach(function (a) {
     a.addEventListener('click', function (e) {
