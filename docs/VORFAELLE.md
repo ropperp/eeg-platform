@@ -2066,6 +2066,17 @@ crontab eines normalen Benutzers (nicht root), darf der nicht nach `/var/log` sc
 Umleitung `>> /var/log/...` schlägt dann fehl und die Shell führt den GANZEN Befehl nicht aus. Der
 Postfach-Check lief damit nie, ohne sichtbaren Fehler (wahrscheinliche Hauptursache für „er prüft
 das Postfach nicht“). Abhilfe: Log-Datei einmalig mit sudo anlegen und dem Benutzer übergeben.
+Bestätigt: nach dem Anlegen der Log-Datei lief der Check sofort und importierte den liegen
+gebliebenen „Monatsreport 01.07.–31.10.“.
+
+Dieser Import zeigte die nächste Lücke: er überschrieb auch Juli–September, obwohl Q3 bereits
+abgerechnet sein kann -- die Sperre prüfte nur, ob EIN Abrechnungslauf die GANZE Datei umfasst
+(Q3 umfasst Juli–Oktober nicht). Seitdem werden bei einer mehrmonatigen Datei die Monate, die in
+einen abgeschlossenen Abrechnungslauf fallen, übersprungen (Warnung „Bereits abgerechnet und
+deshalb unverändert gelassen: …“), nur die übrigen Monate importiert. Prüfen, ob Q3 durch den
+Juli–Oktober-Import verändert wurde: `parser.py --resplit` (Vorschau) -- „aufgeteilt“ beim
+Q3-Import heißt, die Datenbank entspricht weiterhin der abgerechneten Q3-Datei; „weicht ab“ heißt,
+EDA hat die Q3-Werte inzwischen geändert.
 
 Beim Testen zusätzlich gefunden: **die Sperre gegen das Überschreiben abgerechneter Zeiträume griff
 nie** (`_billing_period_finalized()`): verglichen wurden die tz-behafteten Dateigrenzen (00:00 Wien

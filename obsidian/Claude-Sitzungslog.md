@@ -50,6 +50,8 @@ Nachtrag nach dem ersten Server-Lauf: Einspeiser exakt über die Differenz zweie
 (Erzeugung minus Restüberschuss), `--resplit` wiederholbar; fehlende Cron-Log-Datei als
 wahrscheinliche Ursache des nie laufenden Postfach-Checks erkannt (Benutzer-crontab darf nicht
 nach /var/log schreiben -> Befehl wird gar nicht ausgeführt).
+Bestätigt: Log-Datei angelegt, Postfach-Check läuft alle 5 Minuten. Danach: mehrmonatige Dateien
+überspringen Monate, die bereits abgerechnet sind (ein Juli–Oktober-Report hatte Q3 überschrieben).
 **Fehler/Lehre:** Beim Testen fiel auf, dass die Sperre für abgerechnete Zeiträume wegen eines
 Vergleichs DATE gegen Zeitstempel mit Zeitzone nie gegriffen hatte -- Zeiträume immer als
 Kalendertag in derselben Zeitzone vergleichen.

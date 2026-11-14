@@ -1286,3 +1286,14 @@ docker compose up -d --build
 > Dasselbe gilt für die übrigen Cron-Logs unter /var/log (eeg-health.log, eeg-push.log, ...),
 > falls diese Einträge ebenfalls in der Benutzer-crontab stehen.
 
+> **Nachtrag 14.11.2026 (d) -- abgerechnete Monate bei mehrmonatigen Dateien geschützt**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main && docker compose up -d --build webapp
+> # Wurde Q3 durch den Juli-Oktober-Report verändert? Status der Abrechnungsläufe + Vergleich:
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c "SELECT quartal, period_from, period_to, status FROM billing_runs ORDER BY period_from"
+> docker compose exec webapp python3 /var/www/html/eda-parser/parser.py --resplit
+> ```
+> In der Vorschau beim Q3-Import: „aufgeteilt“ = Datenbank entspricht der Q3-Datei (alles in
+> Ordnung, nichts weiter tun); „weicht ab“ = EDA hat Q3-Werte inzwischen geändert -- dann vor
+> weiteren Schritten Rücksprache.
+
