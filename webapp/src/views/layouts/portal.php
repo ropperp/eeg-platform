@@ -68,7 +68,10 @@
         $showGutschriftenReminder = $offeneGutschriftenCount > 0;
       ?>
 
-      <?php if ($ar && $activeRoleName !== 'platform_admin'): ?>
+      <?php // Bei mehreren Rollen steht nur noch die Rollenwahl da (Patrick, 14.11.2026) -- der
+            // ausgeschriebene EEG-Name daneben brach am Handy über vier Zeilen um. ?>
+      <?php if (count($roles) > 1): ?>
+      <?php elseif ($ar && $activeRoleName !== 'platform_admin'): ?>
         <span style="font-size:.85rem;color:var(--gray-600)"><?= htmlspecialchars($ar['community_name'] ?? '') ?></span>
       <?php elseif ($isPlatformAdmin): ?>
         <span style="font-size:.85rem;color:#16a34a;font-weight:600">Plattform-Admin</span>
@@ -105,7 +108,7 @@
           if ($ar['community_id'] ?? null) { DB::setCommunity($ar['community_id']); }
         ?>
         <div style="position:relative;display:inline-block">
-        <select onchange="switchRole(this)" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem">
+        <select onchange="switchRole(this)" aria-label="Rolle wechseln" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem;max-width:12rem">
           <?php foreach ($roles as $r): ?>
             <?php
               // member_id nur bei Demo-Logins mit mehreren Mitglied-Identitäten in derselben
@@ -115,19 +118,17 @@
                        && $r['role'] === (Auth::activeRole()['role'] ?? null)
                        && ($r['member_id'] ?? null) === (Auth::activeRole()['member_id'] ?? null);
             ?>
+            <?php
+              $roleTitle = $r['role'] === 'platform_admin' ? 'Plattform-Admin'
+                  : (($r['role'] === 'member' ? 'Mitgliedskonto' : 'Obmann/Verwaltung') . ' · ' . ($r['community_name'] ?? ''));
+            ?>
             <option value="<?= $r['community_id'] ?? '' ?>|<?= $r['role'] ?>|<?= $r['member_id'] ?? '' ?>"
-              <?= $isActive ? 'selected' : '' ?>>
+              title="<?= htmlspecialchars($roleTitle) ?>" <?= $isActive ? 'selected' : '' ?>>
               <?php // Kein Emoji-Präfix hier -- dessen Farbe lässt sich innerhalb einer <option>
                     // nicht per CSS auf ein sattes Rot setzen (Patrick, 05.08.2026: "richtiges
                     // Kirschrot" gewünscht, das 🔴-Emoji wirkte blass/falsch). Der verlässliche,
                     // farblich steuerbare Hinweis ist der kleine Punkt direkt am Dropdown unten. ?>
-              <?php if ($r['role'] === 'platform_admin'): ?>
-                Plattform-Admin
-              <?php elseif ($r['role'] === 'member' && !empty($r['member_first_name'])): ?>
-                <?= htmlspecialchars($r['community_name'] ?? '') ?> – <?= htmlspecialchars(trim($r['member_first_name'] . ' ' . $r['member_last_name'])) ?>
-              <?php else: ?>
-                <?= htmlspecialchars($r['community_name'] ?? '') ?> (<?= $r['role'] ?>)
-              <?php endif; ?>
+              <?= htmlspecialchars(roleSwitcherLabel($r, $roles)) ?>
             </option>
           <?php endforeach; ?>
         </select>

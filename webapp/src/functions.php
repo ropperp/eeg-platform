@@ -1877,3 +1877,69 @@ function activeCommunityUsesAusleseeinheit(?string $communityId = null): bool
 
 // Diagramm-Bausteine (Glas-Design der Dashboards)
 require_once __DIR__ . '/charts.php';
+
+/**
+ * Kurzname einer Energiegemeinschaft für enge Stellen (Rollenwahl in der Kopfzeile, Patrick
+ * 14.11.2026: "EEG Strompool FE SW" statt "EEG Strompool Feldkirchen Süd-West").
+ * Regeln: "Erneuerbare(-)Energie(-)gemeinschaft" -> "EEG" (bzw. Bürger… -> "BEG"), Klammerzusätze
+ * wie "(Verein)" fallen weg; das erste Wort danach bleibt ganz, weitere Wörter werden zu zwei
+ * Großbuchstaben ("Feldkirchen" -> "FE", wie das Kfz-Kennzeichen), Bindestrich-Wörter zu ihren
+ * Anfangsbuchstaben ("Süd-West" -> "SW"). Kurze Namen (≤ 18 Zeichen) bleiben unverändert.
+ */
+function communityShortName(string $name): string
+{
+    $name = trim(preg_replace('/\s*\([^)]*\)\s*/u', ' ', $name));
+    $name = preg_replace('/^B(ü|ue)rger[\s-]*energie[\s-]*gemeinschaft\b/iu', 'BEG', $name);
+    $name = preg_replace('/^Erneuerbaren?[\s-]*Energie[\s-]*Gemeinschaft\b/iu', 'EEG', $name);
+    $name = preg_replace('/^Energiegemeinschaft\b/iu', 'EG', $name);
+    $name = trim(preg_replace('/\s+/u', ' ', $name));
+    if (mb_strlen($name) <= 18) {
+        return $name;
+    }
+    $words = explode(' ', $name);
+    $out = [];
+    $first = true;
+    foreach ($words as $w) {
+        if (in_array($w, ['EEG', 'BEG', 'EG'], true)) {
+            $out[] = $w;
+            continue;
+        }
+        if ($first) {            // eigentlicher Name ("Strompool") bleibt ganz
+            $out[] = $w;
+            $first = false;
+            continue;
+        }
+        if (in_array(mb_strtolower($w), ['der', 'die', 'das', 'und', 'am', 'im', 'an', 'in', 'bei', 'von'], true)) {
+            continue;
+        }
+        if (str_contains($w, '-')) {
+            $out[] = implode('', array_map(fn($p) => mb_strtoupper(mb_substr($p, 0, 1)), array_filter(explode('-', $w), 'strlen')));
+        } elseif (mb_strlen($w) <= 3) {
+            $out[] = $w;
+        } else {
+            $out[] = mb_strtoupper(mb_substr($w, 0, 2));
+        }
+    }
+    return implode(' ', $out);
+}
+
+/**
+ * Beschriftung einer Rolle in der Rollenwahl (Kopfzeile): "Admin", Kurzname der EEG für den
+ * Obmann, "Vorname Nachname" für Mitgliedskonten -- nur wenn derselbe Name in mehreren EEGs
+ * vorkommt, mit EEG-Kurzname dahinter (Patrick, 14.11.2026).
+ */
+function roleSwitcherLabel(array $role, array $allRoles): string
+{
+    if (($role['role'] ?? '') === 'platform_admin') {
+        return 'Admin';
+    }
+    $eeg = communityShortName((string)($role['community_name'] ?? ''));
+    if (($role['role'] ?? '') === 'member' && !empty($role['member_first_name'])) {
+        $person = trim($role['member_first_name'] . ' ' . ($role['member_last_name'] ?? ''));
+        $same = array_filter($allRoles, fn($r) => ($r['role'] ?? '') === 'member'
+            && trim(($r['member_first_name'] ?? '') . ' ' . ($r['member_last_name'] ?? '')) === $person);
+        return count($same) > 1 && count(array_unique(array_column($same, 'community_id'))) > 1
+            ? $person . ' (' . $eeg . ')' : $person;
+    }
+    return $eeg !== '' ? $eeg : 'Energiegemeinschaft';
+}

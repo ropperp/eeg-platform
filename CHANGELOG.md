@@ -19,6 +19,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Rollenwahl mit Kurznamen, Abrechnung am Handy (14.11.2026)
+- **Rollenwahl in der Kopfzeile:** Bei mehreren Rollen steht nur noch das Auswahlfeld (der
+  ausgeschriebene EEG-Name daneben brach am Handy über vier Zeilen um). Beschriftungen kurz:
+  „Admin“, EEG-Kurzname für den Obmann (z.B. „EEG Strompool FE SW“, `communityShortName()`),
+  „Vorname Nachname“ für Mitgliedskonten -- der volle Name steht im Tooltip. 5 neue Tests.
+- **Abrechnung am Handy:** Abrechnungsläufe und Rechnungsliste als Karten (Status oben rechts,
+  große Knöpfe), Zusatzpositionen hängen an ihrem Lauf; Gutschriften-Daten umbrechend.
+  Karten-Regeln greifen nicht mehr in verschachtelte Tabellen durch.
+
 ### Mitgliederverwaltung am Handy (13.11.2026)
 Patrick: am Handy waren Mitgliederliste und Mitgliedsdaten kaum bedienbar -- für schnelle
 Anfragen (z.B. beim Netzbetreiber) musste der Laptop her.
