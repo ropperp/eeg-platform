@@ -483,8 +483,8 @@ function suggestMqttPassword() {
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Postfach, das die monatlichen Exportlinks aus dem EDA-Anwenderportal empfängt (eigene
     Shared Mailbox, zusätzlich zur Absenderadresse oben -- benötigt Anwendungsberechtigung
-    <code>Mail.Read</code> für dieselbe Azure-App-Registrierung). Ungelesene Mails darin werden
-    regelmäßig per Cron automatisch heruntergeladen und importiert (<code>scripts/eda_auto_import.php</code>,
+    <code>Mail.Read</code> für dieselbe Azure-App-Registrierung). Neue EDA-Mails darin (auch schon
+    gelesene) werden alle 5 Minuten per Cron automatisch heruntergeladen und importiert (<code>scripts/eda_auto_import.php</code>,
     siehe <code>EdaAutoImporter.php</code>) -- die EDA-Login-Zugangsdaten je EEG werden bei der
     jeweiligen <a href="/admin">EEG selbst</a> hinterlegt.
   </p>
@@ -506,6 +506,46 @@ function suggestMqttPassword() {
     <button type="submit" class="btn btn-secondary">Jetzt prüfen</button>
     <small style="color:var(--gray-600);margin-left:.5rem">Liest das Postfach sofort aus, statt auf den nächsten Cron-Durchlauf zu warten.</small>
   </form>
+  <?php
+    $edaLastRun = $mailConfig['eda_import_last_run_at'] ?? null;
+    $edaRecent = [];
+    try {
+        $edaRecent = DB::fetchAll('SELECT subject, received_at, status, attempts, detail, processed_at FROM eda_mail_processed ORDER BY received_at DESC NULLS LAST LIMIT 10');
+    } catch (\Throwable $e) { /* migrate_20261114b.sql noch nicht eingespielt */ }
+    $edaStatusLabel = ['importiert' => 'Importiert', 'bereits_importiert' => 'War schon importiert',
+        'ignoriert' => 'Ignoriert (kein EDA-Absender)', 'fehler' => 'Fehler', 'download_fehler' => 'Download fehlgeschlagen'];
+  ?>
+  <div style="margin-top:1.25rem;font-size:.85rem">
+    <?php if ($edaLastRun): ?>
+      <?php $edaAgeMin = (int)floor((time() - strtotime((string)$edaLastRun)) / 60); ?>
+      <p style="margin-bottom:.5rem">
+        <strong>Letzter Postfach-Check:</strong> <?= htmlspecialchars(date('d.m.Y H:i', strtotime((string)$edaLastRun))) ?>
+        (vor <?= $edaAgeMin ?> Min.)
+        <?php if ($edaAgeMin > 20): ?>
+          <span class="badge badge-red" style="margin-left:.35rem">Cron läuft offenbar nicht</span>
+        <?php endif; ?>
+      </p>
+    <?php elseif (array_key_exists('eda_import_last_run_at', $mailConfig ?? [])): ?>
+      <p style="margin-bottom:.5rem"><strong>Letzter Postfach-Check:</strong> noch keiner -- Cron auf dem Server eingerichtet?</p>
+    <?php endif; ?>
+    <?php if ($edaRecent): ?>
+      <table class="rtable" style="font-size:.82rem">
+        <thead><tr><th>Eingang</th><th>Betreff</th><th>Ergebnis</th></tr></thead>
+        <tbody>
+        <?php foreach ($edaRecent as $r): ?>
+          <tr>
+            <td data-label="Eingang"><?= $r['received_at'] ? htmlspecialchars(date('d.m. H:i', strtotime((string)$r['received_at']))) : '–' ?></td>
+            <td data-label="Betreff"><?= htmlspecialchars((string)$r['subject']) ?></td>
+            <td data-label="Ergebnis" title="<?= htmlspecialchars((string)$r['detail']) ?>">
+              <?= htmlspecialchars($edaStatusLabel[$r['status']] ?? $r['status']) ?>
+              <?php if ($r['status'] === 'download_fehler'): ?>(<?= (int)$r['attempts'] ?>×)<?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
 </div>
 </section>
 

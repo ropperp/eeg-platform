@@ -18,6 +18,17 @@
 </head>
 <body>
 
+<?php if (Auth::isImpersonating()): $imp = Auth::impersonation(); ?>
+<div class="impersonation-bar" role="status">
+  <span><?= icon('eye') ?> <strong>Kundenansicht:</strong> Sie sehen das Portal wie
+    <strong><?= htmlspecialchars((string)$imp['member_name']) ?></strong><?= !empty($imp['kundennummer']) ? ' (KdNr ' . htmlspecialchars((string)$imp['kundennummer']) . ')' : '' ?>.
+    Unterschriften, Passwort und Nachrichten im Namen des Mitglieds sind gesperrt.</span>
+  <form method="post" action="/portal/impersonation/stop"><?= csrfField() ?>
+    <button type="submit">Zurück zur Verwaltung</button>
+  </form>
+</div>
+<?php endif; ?>
+
 <header class="navbar">
   <div class="container inner">
     <div style="display:flex;align-items:center;gap:1rem">
@@ -52,7 +63,7 @@
         // irrelevant -- schlimmer noch, der "Gelesen"-Button dahinter ist ein POST und wäre für
         // einen read-only Demo-Login gar nicht klickbar (siehe Router.php), der Zugang saß also
         // bisher hinter diesem Banner fest.
-        $showPrelaunchNotice = !$isPlatformAdmin && !$isManager && !Auth::isDemo() && empty($_SESSION['prelaunch_ack']);
+        $showPrelaunchNotice = !$isPlatformAdmin && !$isManager && !Auth::isDemo() && !Auth::isImpersonating() && empty($_SESSION['prelaunch_ack']);
 
         // Gutschriften-Erinnerung: einmal pro Login für Obmann/Platform-Admin, solange es offene
         // (noch nicht als überwiesen markierte) Gutschriften in der gerade aktiven Community gibt
@@ -77,14 +88,14 @@
 
       <?php // Bei mehreren Rollen steht nur noch die Rollenwahl da (Patrick, 14.11.2026) -- der
             // ausgeschriebene EEG-Name daneben brach am Handy über vier Zeilen um. ?>
-      <?php if (count($roles) > 1): ?>
+      <?php if (count($roles) > 1 && !Auth::isImpersonating()): ?>
       <?php elseif ($ar && $activeRoleName !== 'platform_admin'): ?>
         <span style="font-size:.85rem;color:var(--gray-600)"><?= htmlspecialchars($ar['community_name'] ?? '') ?></span>
       <?php elseif ($isPlatformAdmin): ?>
         <span style="font-size:.85rem;color:#16a34a;font-weight:600">Plattform-Admin</span>
       <?php endif; ?>
 
-      <?php if (count($roles) > 1): ?>
+      <?php if (count($roles) > 1 && !Auth::isImpersonating()): ?>
         <?php
           // Wer wie Patrick gleichzeitig Platform-Admin UND Obmann ist, sieht sonst nicht, dass in
           // der gerade NICHT aktiven Rolle etwas Neues wartet (z.B. ein Support-Ticket beim
@@ -207,6 +218,9 @@
       <p class="sidebar-label">Plattform</p>
       <a href="/admin" class="<?= $_SERVER['REQUEST_URI'] === '/admin' || str_contains($_SERVER['REQUEST_URI'], '/admin/communities') || str_contains($_SERVER['REQUEST_URI'], '/admin/users') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('wrench') ?></span><span class="sidebar-text">Administration</span>
+      </a>
+      <a href="/admin/members" class="<?= str_starts_with($_SERVER['REQUEST_URI'], '/admin/members') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('users-three') ?></span><span class="sidebar-text">Mitglieder</span>
       </a>
       <a href="/admin/log" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/log') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('clipboard-text') ?></span><span class="sidebar-text">Aktivitätslog</span>

@@ -19,6 +19,38 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Monatswerte bei Quartalsdateien, EDA-Postfach, Kundenansicht, Admin-Übersicht (14.11.2026)
+- **Quartals-Export richtig auf Monate verteilt:** eine EDA-Datei über mehrere Monate (z. B. Q3
+  in einer Datei) wird beim Import anhand der Detailübersicht auf die einzelnen Monate
+  aufgeteilt -- vorher stand die ganze Menge im letzten Monat (September). Summe/Abrechnung
+  unverändert. Schon importierte Dateien: einmalig `parser.py --resplit --apply`.
+- **Fix:** Die Sperre gegen das Überschreiben bereits abgerechneter Zeiträume griff wegen eines
+  Zeitzonen-Vergleichs nie -- jetzt wirksam.
+- **EDA-Postfach** prüft auch schon gelesene Mails (vorher wurden gelesene nie importiert), merkt
+  sich Erledigtes selbst (`eda_mail_processed`), überspringt schon importierte Dateien, alle
+  5 Minuten; Anzeige „letzter Check“ + zuletzt verarbeitete Mails unter Einstellungen →
+  EDA-Automatik, Zeitstempel im Log.
+- **Detailexport ohne Duplikate:** überlappende Viertelstundenwerte werden überschrieben statt
+  doppelt gespeichert (eindeutiger Index, vorhandene Duplikate werden einmalig entfernt; doppelte
+  Stunde der Zeitumstellung zusammengefasst).
+- **„Ins Portal des Kunden“** (Mitglied-Details, Obmann und Admin): das Portal so sehen und
+  bedienen wie das Mitglied, mit Balken „Zurück zur Verwaltung“. Gesperrt bleiben
+  Vertragsunterschrift, Passwort/2FA/Profil, API-Schlüssel und Support-Nachrichten im Namen des
+  Mitglieds. Start und Ende stehen im Aktivitätslog.
+- **Mitgliedersuche** nach Name, Geburtsdatum (07.03.1980 / 7.3.1980 / 1980-03-07), Adresse,
+  KdNr, E-Mail oder Zählpunkt -- beim Obmann in der Mitgliederliste, beim Admin neu unter
+  „Mitglieder“ (alle EEGs, `/admin/members`).
+- **Rolle „Admin“ zeigt immer die Plattform-Übersicht** (vorher das Obmann-Dashboard der EEG, an
+  der die Admin-Rolle hing). Neu darin: Mitglied suchen, Kennzahlen (aktive Mitglieder,
+  Zählpunkte mit Live-Daten), offene Aufgaben je EEG (Beitrittsanträge, Postfach, Support,
+  Zählpunkte ohne Mitglied, letzter EDA-Import), Systemstatus (EDA-Postfach, Sicherung,
+  Betriebsart), Schnellzugriff.
+- **Energiefluss (Live):** Hinweis auf simulierte Werte und die „Netz“-Erklärung als ausklappbare
+  i-Punkte statt langer Textblöcke.
+- **Startseiten-Kästen:** am Laptop am rechten Rand breiter/schmäler ziehen (1/3, 1/2, 2/3, voll;
+  auch per Pfeiltasten), Kästen stehen dann nebeneinander; Laptop und Handy haben je eine eigene
+  Anordnung.
+
 ### Startseiten-Kästen selbst anordnen (14.11.2026)
 - **Admin-, Obmann- und Mitglieder-Startseite** bestehen jetzt aus einzelnen Kästen (Widgets),
   die jeder für sich anordnen kann: Knopf „Anordnen“ → Kästen mit der Maus ziehen oder mit ↑/↓

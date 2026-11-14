@@ -27,13 +27,16 @@
 <div class="card">
   <h3 style="margin-bottom:1rem"><?= icon('lightning') ?> Energiefluss (Live)</h3>
   <?php if (isset($communityId) && communityMesseDemoEnabled($communityId)): ?>
-    <p style="margin:-.25rem 0 1rem;font-size:.8rem;color:#b45309">
-      <?= icon('warning-circle') ?> Hinweis: Ein Teil dieser Werte ist aktuell <strong>simuliert</strong>
-      (Platzhalterdaten zur Veranschaulichung, solange noch nicht alle Mitglieder eine eigene
-      Ausleseeinheit haben) -- entspricht noch nicht dem tatsächlichen Verbrauch/der tatsächlichen
-      Einspeisung. Die simulierte PV-Erzeugung folgt dem aktuellen Wetter und Sonnenstand
-      (Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>).
-    </p>
+    <?php // Ausklappbar statt Textblock (Patrick, 14.11.2026: "mit einem ausfahrbaren i-Punkt") ?>
+    <details class="info-tip info-tip-warn" style="margin:-.25rem 0 1rem">
+      <summary><span class="info-tip-i" aria-hidden="true">i</span><span>Teilweise <strong>simulierte</strong> Werte</span></summary>
+      <p>
+        Ein Teil dieser Werte sind Platzhalterdaten zur Veranschaulichung, solange noch nicht alle
+        Mitglieder eine eigene Ausleseeinheit haben -- sie entsprechen noch nicht dem tatsächlichen
+        Verbrauch bzw. der tatsächlichen Einspeisung. Die simulierte PV-Erzeugung folgt dem aktuellen
+        Wetter und Sonnenstand (Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>).
+      </p>
+    </details>
   <?php endif; ?>
   <?php require __DIR__ . '/energy_flow_diagram.php'; ?>
   <p style="margin-top:1rem;font-size:.8rem;color:var(--gray-600)"><span id="live-active-meters"><?= $live['active_meters'] ?></span> Zählpunkte aktiv in den letzten 2 Min.</p>
@@ -41,12 +44,15 @@
     <?= icon('warning-circle') ?> Hinweis: Nicht alle Zählpunkte sind gerade online. Die angezeigten
     Gesamtwerte können daher geringfügig von der tatsächlichen Situation abweichen.
   </p>
-  <p style="margin-top:.5rem;font-size:.72rem;color:var(--gray-600)">
-    "Netz" zeigt die Differenz zwischen Erzeugung und Verbrauch der ganzen Community -- kein
-    physischer Austausch zwischen Mitgliedern, sondern was gerade in Summe zusätzlich aus dem
-    öffentlichen Netz kommt bzw. dorthin überschüssig eingespeist wird. Für die Abrechnung
-    zählt weiterhin ausschließlich der offizielle EDA-Import.
-  </p>
+  <details class="info-tip" style="margin-top:.5rem">
+    <summary><span class="info-tip-i" aria-hidden="true">i</span><span>Was bedeutet „Netz“?</span></summary>
+    <p>
+      „Netz“ zeigt die Differenz zwischen Erzeugung und Verbrauch der ganzen Community -- kein
+      physischer Austausch zwischen Mitgliedern, sondern was gerade in Summe zusätzlich aus dem
+      öffentlichen Netz kommt bzw. dorthin überschüssig eingespeist wird. Für die Abrechnung
+      zählt weiterhin ausschließlich der offizielle EDA-Import.
+    </p>
+  </details>
 </div>
 <script>
 (function () {

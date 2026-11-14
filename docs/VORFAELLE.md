@@ -2041,3 +2041,42 @@ einem völlig anderen, meist sehr spezifischen Selektor "gefangen" ist und dadur
 ausgerechnet die Elemente innerhalb des "gefangenen" Selektors (hier: der Navbar) noch richtig
 aussehen. Bei einem derart großflächigen, unerklärlichen Styling-Ausfall nach einer CSS-Änderung
 lohnt sich zuerst ein Brace-Balance-Check der ganzen Datei, bevor man einzelne Regeln verdächtigt.
+
+### Quartals-Energiedatenreport in EINER Datei: ganzes Quartal im September-Balken (14.11.2026)
+Mitglieder beschwerten sich: im „Verlauf der letzten Monate“ (Mitglied und Obmann) stand die
+gesamte Q3-Menge im September, Juli und August waren leer. **Ursache:** Bei einer mehrmonatigen
+Datei hat die „Gesamtübersicht“ je Zählpunkt nur EINE Zeile für den ganzen Zeitraum; der Parser
+speicherte sie mit dem Enddatum (30.09.) als einen Datensatz. Die Abrechnung war korrekt (sie
+summiert über den Zeitraum), nur die Monatsanzeige nicht. **Fix:** `split_into_months()` in
+`eda-parser/parser.py` teilt den Wert anhand der Monatszeilen der „Detailübersicht“ auf (die Spalte
+wird über die Summe ermittelt, nicht geraten; Summe bleibt exakt gleich). Für schon importierte
+Dateien: `parser.py --resplit` (Vorschau) bzw. `--resplit --apply` -- liest die gespeicherte
+Originaldatei aus `storage/uploads/` und ersetzt den Quartalsdatensatz nur, wenn die Summe
+übereinstimmt, deshalb auch für schon abgerechnete Quartale zulässig.
+
+Beim Testen zusätzlich gefunden: **die Sperre gegen das Überschreiben abgerechneter Zeiträume griff
+nie** (`_billing_period_finalized()`): verglichen wurden die tz-behafteten Dateigrenzen (00:00 Wien
+= Vortag 22:00 UTC) direkt mit den DATE-Spalten des Abrechnungslaufs -- in einer UTC-Sitzung um
+diesen Versatz daneben. Jetzt als Kalendertag in Wiener Zeit verglichen. Folge: ein erneuter Import
+eines bereits abgerechneten Zeitraums bricht jetzt wie ursprünglich vorgesehen mit „Duplikat“ ab.
+
+### EDA-Postfach: Exporte wurden nicht abgeholt, wenn die Mail schon gelesen war (14.11.2026)
+Symptom: „er holt sich die Daten nicht, er überprüft das Postfach nicht“. **Ursache:**
+`EdaAutoImporter` holte nur UNGELESENE Mails ab. Wer die EDA-Mail selbst öffnete oder den
+Download-Link darin anklickte, hat sie dadurch unbemerkt vom Import ausgeschlossen. **Fix:**
+alle Mails der letzten 7 Tage (Link-Gültigkeit) prüfen, Verarbeitungsstand in
+`eda_mail_processed` (`migrate_20261114b.sql`), schon importierte Dateien (gleicher Dateiname,
+auch von Hand hochgeladen) überspringen, Download-Fehler eine Stunde lang still wiederholen (nur
+eine Alarm-Mail), Sperrdatei gegen gleichzeitige Läufe, Cron auf 5 Minuten. Admin →
+Einstellungen → EDA-Automatik zeigt jetzt den letzten Check („Cron läuft offenbar nicht“, wenn
+älter als 20 Minuten) und die zuletzt verarbeiteten Mails; das Log hat Zeitstempel.
+
+### Doppelte Viertelstundenwerte nach überlappenden Detailexporten (14.11.2026)
+Der Viertelstunden-Import löschte zwar vor dem Einfügen den eigenen Zeitraum, aber zwei
+GLEICHZEITIGE Importe desselben Zeitraums (Upload von Hand + Postfach-Abruf) sahen die Zeilen des
+jeweils anderen nicht und fügten beide ein; außerdem steht bei der Zeitumstellung im Oktober
+02:00-02:45 zweimal in der Datei. **Fix:** `migrate_20261114b.sql` entfernt vorhandene Duplikate
+und legt einen eindeutigen Index (Zählpunkt, Richtung, Zeitpunkt) an; `parser_interval.py`
+schreibt mit `ON CONFLICT ... DO UPDATE` und fasst doppelte Zeitpunkte einer Datei zusammen
+(Mengen addiert, Warnung im Import).
+

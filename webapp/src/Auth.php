@@ -278,6 +278,57 @@ class Auth
     }
 
     /**
+     * "Ins Portal des Kunden" (Patrick, 14.11.2026: "dann sieht man den Bildschirm so, wie der
+     * Kunde ihn sieht [...] und auch die Funktionen hat, die der Kunde hätte, um dem Kunden
+     * weiterzuhelfen"): Obmann bzw. Platform-Admin wechselt vorübergehend in die Mitglied-Rolle
+     * eines bestimmten Mitglieds. Technisch eine zusätzliche, nur in der Sitzung bestehende
+     * Mitglied-Rolle (member_id gesetzt -> activeMemberId() liefert genau dieses Mitglied); der
+     * eigene Login bleibt unverändert, die vorherige Rolle wird gemerkt und mit
+     * stopImpersonation() wiederhergestellt. Identitäts-/rechtlich heikle Aktionen (Unterschrift,
+     * Passwort/2FA, API-Schlüssel, Nachrichten im Namen des Kunden) sperrt Router::dispatch().
+     */
+    public static function startImpersonation(array $member, array $community): void
+    {
+        $returnRole = isset($_SESSION['impersonation'])
+            ? $_SESSION['impersonation']['return_role']
+            : ($_SESSION['active_role'] ?? null);
+        $_SESSION['impersonation'] = [
+            'return_role'  => $returnRole,
+            'member_id'    => $member['id'],
+            'member_name'  => trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')),
+            'kundennummer' => $member['kundennummer'] ?? null,
+            'community_id' => $community['id'],
+            'started_at'   => time(),
+        ];
+        $_SESSION['active_role'] = [
+            'community_id'      => $community['id'],
+            'role'              => 'member',
+            'member_id'         => $member['id'],
+            'community_name'    => $community['name'] ?? '',
+            'community_slug'    => $community['slug'] ?? '',
+            'community_mqtt_id' => $community['mqtt_id'] ?? ($community['slug'] ?? ''),
+            'impersonated'      => true,
+        ];
+        DB::setCommunity($community['id']);
+    }
+
+    /** Beendet die Kundenansicht und stellt die vorherige Rolle wieder her. */
+    public static function stopImpersonation(): ?array
+    {
+        $imp = $_SESSION['impersonation'] ?? null;
+        if ($imp === null) return null;
+        unset($_SESSION['impersonation']);
+        $_SESSION['active_role'] = $imp['return_role'] ?: self::pickDefaultRole($_SESSION['roles'] ?? []);
+        if ($_SESSION['active_role']['community_id'] ?? null) {
+            DB::setCommunity($_SESSION['active_role']['community_id']);
+        }
+        return $imp;
+    }
+
+    public static function isImpersonating(): bool { return !empty($_SESSION['impersonation']); }
+    public static function impersonation(): ?array { return $_SESSION['impersonation'] ?? null; }
+
+    /**
      * Wechselt aktive Community/Rolle. $memberId disambiguiert bei role='member', falls ein
      * Login mehrere Mitglied-Identitäten in derselben Community hat (Demo-Logins, siehe
      * migrate_20260905.sql) -- für alle anderen Accounts bleibt es null und spielt keine Rolle,
@@ -287,6 +338,7 @@ class Auth
     {
         $match = self::findRole($_SESSION['roles'] ?? [], $communityId, $role, $memberId);
         if (!$match) return false;
+        unset($_SESSION['impersonation']); // ein Rollenwechsel beendet eine laufende Kundenansicht
         $_SESSION['active_role'] = $match;
         // Persistiert, damit diese Rolle auch nach einem Logout/Login erhalten bleibt (siehe
         // establishSession()/migrate_20261016.sql, Patrick 16.10.2026: "wenn ich mich wieder

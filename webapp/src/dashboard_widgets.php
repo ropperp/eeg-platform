@@ -28,13 +28,65 @@ function dashboardMergeLayout(array $defaultIds, ?array $saved): array
     return ['order' => $order, 'hidden' => $hidden];
 }
 
-/** Prüft/bereinigt eine vom Browser geschickte Anordnung (nur bekannte Kennungen, keine Duplikate). */
+/** Erlaubte Breiten eines Kastens am Laptop, in Spalten eines 12er-Rasters (12 = volle Breite). */
+function dashboardSpans(): array
+{
+    return [4, 6, 8, 12];
+}
+
+/** Prüft/bereinigt eine vom Browser geschickte Anordnung (nur bekannte Kennungen, keine
+ *  Duplikate, Breiten nur aus dashboardSpans()). */
 function dashboardSanitizeLayout(array $input): array
 {
-    $clean = fn($list) => array_values(array_unique(array_filter((array)$list,
-        fn($id) => is_string($id) && preg_match('/^[a-z0-9-]{1,40}$/', $id))));
+    $validId = fn($id) => is_string($id) && preg_match('/^[a-z0-9-]{1,40}$/', $id);
+    $clean = fn($list) => array_values(array_unique(array_filter((array)$list, $validId)));
+    $sizes = [];
+    foreach ((array)($input['sizes'] ?? []) as $id => $span) {
+        if ($validId($id) && in_array((int)$span, dashboardSpans(), true) && (int)$span !== 12 && count($sizes) < 50) {
+            $sizes[$id] = (int)$span;
+        }
+    }
     return ['order' => array_slice($clean($input['order'] ?? []), 0, 50),
-            'hidden' => array_slice($clean($input['hidden'] ?? []), 0, 50)];
+            'hidden' => array_slice($clean($input['hidden'] ?? []), 0, 50),
+            'sizes' => $sizes];
+}
+
+/**
+ * Laptop und Handy getrennt (Patrick, 14.11.2026: "speichere die Reihenfolge der Kacheln für
+ * Laptop und Handy getrennt"). Gespeichert als {"desktop": {...}, "mobile": {...}}; eine ältere,
+ * gerätelose Anordnung ({"order", "hidden"}) gilt für beide, bis eines davon neu gespeichert wird.
+ * Liefert ['desktop' => [...], 'mobile' => [...]] jeweils mit order/hidden (+ sizes am Laptop).
+ */
+function dashboardDeviceLayouts(array $ids, ?array $saved): array
+{
+    $legacy = $saved && !isset($saved['desktop']) && !isset($saved['mobile']) ? $saved : null;
+    $desktopSaved = $saved['desktop'] ?? $legacy;
+    $mobileSaved = $saved['mobile'] ?? $legacy;
+    $desktop = dashboardMergeLayout($ids, $desktopSaved);
+    $desktop['sizes'] = [];
+    foreach ((array)($desktopSaved['sizes'] ?? []) as $id => $span) {
+        if (in_array($id, $ids, true) && in_array((int)$span, dashboardSpans(), true)) {
+            $desktop['sizes'][$id] = (int)$span;
+        }
+    }
+    return ['desktop' => $desktop, 'mobile' => dashboardMergeLayout($ids, $mobileSaved)];
+}
+
+/** Speichert die Anordnung EINES Geräts in die bestehende (ggf. noch gerätelose) Anordnung. */
+function dashboardStoreDevice(?array $saved, string $device, ?array $layout): ?array
+{
+    $saved = $saved ?: [];
+    if (!isset($saved['desktop']) && !isset($saved['mobile']) && $saved) {
+        $saved = ['desktop' => $saved, 'mobile' => $saved];   // alte, gerätelose Anordnung aufteilen
+    }
+    if ($layout === null) {
+        unset($saved[$device]);
+    } else {
+        if ($device === 'mobile') { unset($layout['sizes']); }
+        $saved[$device] = $layout;
+    }
+    $saved = array_intersect_key($saved, ['desktop' => 1, 'mobile' => 1]);
+    return $saved ?: null;
 }
 
 /** Erlaubte Startseiten-Kennungen. */
@@ -73,10 +125,15 @@ final class DashboardWidgets
     public function render(): string
     {
         $ids = array_keys($this->widgets);
-        $layout = dashboardMergeLayout($ids, $this->layout);
+        $layouts = dashboardDeviceLayouts($ids, $this->layout);
+        // Im HTML steht die Laptop-Anordnung; am Handy ordnet dashboard-widgets.js beim Laden
+        // sofort nach der Handy-Anordnung um (data-layouts), bevor die Seite gezeichnet wird.
+        $layout = $layouts['desktop'];
         $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES);
-        $out = '<div class="dash-toolbar" data-dash-toolbar="' . $h($this->key) . '">'
-            . '<p class="dash-edit-hint" hidden>Kästen per Ziehen oder mit den Pfeilen verschieben, mit dem Auge aus- und einblenden. Wird in Ihrem Konto gespeichert.</p>'
+        // Kundenansicht ("Ins Portal des Kunden"): Anordnung des Mitglieds nur zeigen, nicht ändern
+        $readOnly = class_exists('Auth', false) && method_exists('Auth', 'isImpersonating') && Auth::isImpersonating();
+        $out = $readOnly ? '' : '<div class="dash-toolbar" data-dash-toolbar="' . $h($this->key) . '">'
+            . '<p class="dash-edit-hint" hidden>Kästen per Ziehen oder mit den Pfeilen verschieben, mit dem Auge aus- und einblenden<span class="dash-hint-desktop">, am rechten Rand breiter oder schmäler ziehen</span>. Gilt nur für dieses Gerät (Laptop bzw. Handy) und wird in Ihrem Konto gespeichert.</p>'
             . '<div class="dash-toolbar-buttons">'
             . '<button type="button" class="btn btn-secondary dash-btn-reset" hidden>Standard</button>'
             . '<button type="button" class="btn btn-primary dash-btn-edit" aria-pressed="false">'
@@ -84,13 +141,16 @@ final class DashboardWidgets
             . '</div>'
             . '<form method="post" action="/portal/dashboard-layout" class="dash-layout-form" hidden>'
             . '<input type="hidden" name="dashboard" value="' . $h($this->key) . '">'
-            . '<input type="hidden" name="layout" value=""></form>'
+            . '<input type="hidden" name="layout" value=""><input type="hidden" name="device" value="desktop"></form>'
             . '</div>';
-        $out .= '<div class="dash-widgets" data-dashboard="' . $h($this->key) . '">';
+        $out .= '<div class="dash-widgets" data-dashboard="' . $h($this->key) . '" data-layouts="'
+            . $h((string)json_encode($layouts)) . '">';
         foreach ($layout['order'] as $id) {
             $w = $this->widgets[$id];
             $isHidden = in_array($id, $layout['hidden'], true);
+            $span = (int)($layout['sizes'][$id] ?? 12);
             $out .= '<section class="dash-widget' . ($isHidden ? ' is-hidden-widget' : '') . '" data-widget="' . $h($id) . '"'
+                . ' data-span="' . $span . '" style="--span:' . $span . '"'
                 . ' aria-label="' . $h($w['title']) . '">'
                 . '<div class="dash-widget-bar" hidden>'
                 . '<span class="dash-handle" aria-hidden="true">⋮⋮</span>'
@@ -102,9 +162,12 @@ final class DashboardWidgets
                 . icon($isHidden ? 'eye-slash' : 'eye') . '</button>'
                 . '</span></div>'
                 . '<div class="dash-widget-body">' . $w['html'] . '</div>'
+                . '<button type="button" class="dash-resize" hidden aria-label="Breite von ' . $h($w['title'])
+                . ' ändern (ziehen oder Pfeiltasten links/rechts)" title="Breite ändern: ziehen"></button>'
                 . '</section>';
         }
         $out .= '</div>';
+        // Auch in der Kundenansicht laden: ordnet am Handy nach der Handy-Anordnung um.
         $out .= '<script src="/assets/js/dashboard-widgets.js?v=' . (@filemtime(__DIR__ . '/../public/assets/js/dashboard-widgets.js') ?: 1) . '"></script>';
         return $out;
     }

@@ -1247,3 +1247,26 @@ docker compose up -d --build
 > ```
 > Ohne Migration erscheinen die Startseiten wie bisher in der Standard-Reihenfolge, nur das
 > Speichern einer eigenen Anordnung meldet „Konnte nicht gespeichert werden“.
+
+> **Einmalig nach dem Update vom 14.11.2026 (b) -- EDA-Postfach, Viertelstunden-Duplikate,
+> Quartalsdatei auf Monate aufteilen**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> # Tabelle eda_mail_processed, letzter Postfach-Check, Duplikate in eda_interval_data entfernen
+> # + eindeutiger Index. Idempotent.
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261114b.sql
+> docker compose up -d --build webapp
+>
+> # Postfach-Check alle 5 Minuten (ersetzt den bisherigen eda_auto_import-Eintrag)
+> ( crontab -l 2>/dev/null | grep -v eda_auto_import.php; echo "*/5 * * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/eda_auto_import.php >> /var/log/eeg-eda-import.log 2>&1" ) | crontab -
+> crontab -l | grep eda_auto_import      # genau EINE Zeile mit */5
+> tail -20 /var/log/eeg-eda-import.log    # nach 5 Minuten: Zeile mit aktuellem Zeitstempel
+>
+> # Schon importierte Quartalsdateien auf Monate aufteilen: erst Vorschau, dann anwenden
+> docker compose exec webapp python3 /var/www/html/eda-parser/parser.py --resplit
+> docker compose exec webapp python3 /var/www/html/eda-parser/parser.py --resplit --apply
+> ```
+> Die Vorschau listet je mehrmonatigem Import, wie viele Zählpunkte aufgeteilt würden; nur wenn die
+> Summe in der Datenbank exakt der Datei entspricht, wird ersetzt (sonst „übersprungen“ mit Grund).
+> Danach unter Admin → Einstellungen → EDA-Automatik prüfen: „Letzter Postfach-Check: vor x Min.“.
+

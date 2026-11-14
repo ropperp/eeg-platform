@@ -39,6 +39,16 @@ weißes Logo im neuen Look, Portal-Kopfzeile am Handy nur mit Logo-Zeichen.
 Nachtrag: Startseiten-Kästen (Admin, Obmann, Mitglied) je Benutzer selbst anordnen und
 ausblenden -- ziehen oder ↑/↓, im Konto gespeichert (`user_dashboard_layouts`,
 `migrate_20261114.sql`), per Playwright am Desktop und iPhone 13 in beiden Designs geprüft.
+Nachtrag: Quartalsdatei wird auf Monate aufgeteilt (+ `--resplit` für Altdaten), EDA-Postfach
+prüft auch gelesene Mails (Ursache für „holt sich die Daten nicht“), alle 5 Minuten, mit Anzeige
+des letzten Checks; Detailexport ohne doppelte Viertelstundenwerte; „Ins Portal des Kunden“
+(Kundenansicht mit Sperrliste und Protokoll); Mitgliedersuche nach Geburtsdatum/Adresse, Admin-
+Mitgliederliste; Admin-Rolle zeigt eigene Plattform-Übersicht; i-Punkte im Energiefluss; Kästen am
+Laptop in der Breite ziehbar, Anordnung je Gerät. Gegen eine vollständig aus `init.sql` + allen
+Migrationen aufgebaute Test-Datenbank mit der echten App per Playwright durchgespielt.
+**Fehler/Lehre:** Beim Testen fiel auf, dass die Sperre für abgerechnete Zeiträume wegen eines
+Vergleichs DATE gegen Zeitstempel mit Zeitzone nie gegriffen hatte -- Zeiträume immer als
+Kalendertag in derselben Zeitzone vergleichen.
 **Fehler/Lehre:** Das Türkis des Vorbilds hatte mit weißer Schrift nur 2,4:1 Kontrast -- für
 Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
 

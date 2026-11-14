@@ -10,15 +10,120 @@
 <?php endif; ?>
 
 <?php // Kästen selbst anordnen (Patrick, 14.11.2026), siehe src/dashboard_widgets.php ?>
-<?php $dw = new DashboardWidgets('admin', dashboardLayout('admin')); $dw->start('kennzahlen', 'Kennzahlen'); ?>
-<div class="grid-2" style="margin-bottom:2rem">
+<?php
+  $sum = fn(string $k) => array_sum(array_map(fn($e) => (int)($e[$k] ?? 0), $eegStats ?? []));
+  $fmtAgo = function ($ts): string {
+      if (!$ts) return 'noch nie';
+      $min = (int)floor((time() - strtotime((string)$ts)) / 60);
+      if ($min < 60) return 'vor ' . max(0, $min) . ' Min.';
+      if ($min < 48 * 60) return 'vor ' . intdiv($min, 60) . ' Std.';
+      return 'vor ' . intdiv($min, 1440) . ' Tagen';
+  };
+?>
+<?php $dw = new DashboardWidgets('admin', dashboardLayout('admin')); $dw->start('mitglied-suchen', 'Mitglied suchen'); ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.75rem"><?= icon('magnifying-glass') ?> Mitglied suchen</h3>
+  <form method="get" action="/admin/members" class="admin-member-search" role="search">
+    <input type="search" name="q" placeholder="Name, Geburtsdatum, Adresse, KdNr, E-Mail oder Zählpunkt…"
+           aria-label="Mitglied suchen" autocomplete="off">
+    <button type="submit" class="btn btn-primary"><?= icon('magnifying-glass') ?> Suchen</button>
+    <a href="/admin/members" class="btn btn-secondary"><?= icon('users-three') ?> Alle Mitglieder</a>
+  </form>
+</div>
+
+<?php $dw->end(); $dw->start('kennzahlen', 'Kennzahlen'); ?>
+<div class="grid-4 admin-stats" style="margin-bottom:2rem">
   <div class="card stat-card">
     <div class="stat-value"><?= count($communities) ?></div>
     <div class="stat-label">Energiegemeinschaften</div>
   </div>
+  <a class="card stat-card" href="/admin/members" style="text-decoration:none;color:inherit">
+    <div class="stat-value"><?= $sum('members') ?></div>
+    <div class="stat-label">Aktive Mitglieder</div>
+  </a>
+  <div class="card stat-card">
+    <div class="stat-value"><?= $sum('live') ?> / <?= $sum('meters') ?></div>
+    <div class="stat-label">Zählpunkte mit Live-Daten</div>
+  </div>
   <div class="card stat-card">
     <div class="stat-value"><?= $userCount ?></div>
     <div class="stat-label">Benutzerkonten</div>
+  </div>
+</div>
+
+<?php $dw->end(); $dw->start('aufgaben', 'Offene Aufgaben je EEG'); ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.25rem"><?= icon('list-checks') ?> Offene Aufgaben je EEG</h3>
+  <p style="font-size:.82rem;color:var(--gray-600);margin-bottom:.75rem">
+    Bearbeiten in der Obmann-Rolle der jeweiligen EEG (Rollenwahl oben).
+  </p>
+  <table class="rtable">
+    <thead><tr>
+      <th>EEG</th><th>Beitritts&shy;anträge</th><th>Postfach</th><th>Support</th><th>Zählpunkte ohne Mitglied</th><th>Letzter EDA-Import</th>
+    </tr></thead>
+    <tbody>
+    <?php foreach ($eegStats ?? [] as $e): ?>
+      <?php $badge = fn(int $n, string $cls = 'badge-red') => $n > 0 ? '<span class="badge ' . $cls . '">' . $n . '</span>' : '<span style="color:var(--gray-500)">–</span>'; ?>
+      <tr>
+        <td data-label="EEG"><a href="/admin/communities/<?= htmlspecialchars($e['id']) ?>"><?= htmlspecialchars($e['name']) ?></a></td>
+        <td data-label="Beitrittsanträge"><?= $badge((int)$e['applications'], 'badge-yellow') ?></td>
+        <td data-label="Postfach"><?= $badge((int)$e['notifications']) ?></td>
+        <td data-label="Support"><?= $badge((int)$e['support']) ?></td>
+        <td data-label="Ohne Mitglied"><?= $badge((int)$e['unassigned'], 'badge-yellow') ?></td>
+        <td data-label="Letzter EDA-Import">
+          <?= htmlspecialchars($fmtAgo($e['last_import'])) ?>
+          <?php if ($e['last_interval_import']): ?><br><small style="color:var(--gray-600)">Viertelstunden: <?= htmlspecialchars($fmtAgo($e['last_interval_import'])) ?></small><?php endif; ?>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+
+<?php $dw->end(); $dw->start('systemstatus', 'Systemstatus'); ?>
+<?php
+  $edaLast = $mailConfig['eda_import_last_run_at'] ?? null;
+  $edaConfigured = trim((string)($mailConfig['eda_import_mailbox_address'] ?? '')) !== '';
+  $edaStale = $edaConfigured && (!$edaLast || (time() - strtotime((string)$edaLast)) > 20 * 60);
+  $backupUnix = (int)($backupStatus['unix'] ?? 0);
+  $backupStale = !$backupUnix || (time() - $backupUnix) > 26 * 3600;
+  $testMode = !empty($platformSettings['test_mode']);
+?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.75rem"><?= icon('pylon') ?> Systemstatus</h3>
+  <ul class="admin-status-list">
+    <li>
+      <span class="admin-status-dot <?= !$edaConfigured ? 'is-off' : ($edaStale ? 'is-bad' : 'is-ok') ?>" aria-hidden="true"></span>
+      <span><strong>EDA-Postfach:</strong>
+        <?php if (!$edaConfigured): ?>nicht eingerichtet
+        <?php else: ?>letzter Check <?= htmlspecialchars($fmtAgo($edaLast)) ?><?= $edaStale ? ' – Cron läuft offenbar nicht' : '' ?><?php endif; ?>
+      </span>
+      <a href="/admin/mail-settings#tab-eda">Details</a>
+    </li>
+    <li>
+      <span class="admin-status-dot <?= $backupStale ? 'is-bad' : 'is-ok' ?>" aria-hidden="true"></span>
+      <span><strong>Sicherung:</strong> <?= $backupUnix ? 'zuletzt ' . htmlspecialchars($fmtAgo(date('c', $backupUnix))) : 'keine Angabe gefunden' ?></span>
+      <a href="/admin/backups">Details</a>
+    </li>
+    <li>
+      <span class="admin-status-dot <?= $testMode ? 'is-warn' : 'is-ok' ?>" aria-hidden="true"></span>
+      <span><strong>Betriebsart:</strong> <?= $testMode ? 'Testmodus' : 'Echtbetrieb' ?></span>
+      <a href="/admin/mail-settings">Einstellungen</a>
+    </li>
+  </ul>
+</div>
+
+<?php $dw->end(); $dw->start('schnellzugriff', 'Schnellzugriff'); ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.75rem"><?= icon('lightning') ?> Schnellzugriff</h3>
+  <div class="admin-quick">
+    <a href="/admin/members"><?= icon('users-three') ?> Mitglieder</a>
+    <a href="/admin/log"><?= icon('clipboard-text') ?> Aktivitätslog</a>
+    <a href="/admin/mail-settings"><?= icon('gear') ?> Einstellungen</a>
+    <a href="/admin/mail-settings#tab-eda"><?= icon('folder-open') ?> EDA-Automatik</a>
+    <a href="/admin/templates"><?= icon('folder-simple') ?> Vorlagen &amp; Dateien</a>
+    <a href="/portal/dokumente"><?= icon('file-text') ?> Rechtstexte</a>
+    <a href="/admin/backups"><?= icon('floppy-disk') ?> Backups</a>
   </div>
 </div>
 

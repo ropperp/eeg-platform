@@ -34,7 +34,7 @@ declare(strict_types=1);
  *   Mitglieder-Diagramme (Sheet "Energiedaten", beliebiger Datumsbereich statt Kalendermonat)
  *   -- siehe eda-parser/parser_interval.py, bisher nur über /portal/eda/upload-interval von
  *   Hand hochgeladen. Am Betreff unterscheidbar (stripos($subject, 'Detailreport'), siehe
- *   processMessage()) -- braucht KEINEN eigenen Cron-Job, derselbe Postfach-Check (alle 15
+ *   processMessage()) -- braucht KEINEN eigenen Cron-Job, derselbe Postfach-Check (alle 5
  *   Minuten, siehe scripts/eda_auto_import.php) deckt jetzt beide Typen ab.
  *
  * LESESTATUS als Sichtbarkeits-Signal (Patrick, 10.10.2026): die Mail wird bereits direkt nach
@@ -54,8 +54,34 @@ class EdaAutoImporter
      * Durchsicht). */
     private const EDA_SENDER_ADDRESS = 'no-reply@eda.at';
 
-    /** Verarbeitet alle ungelesenen Mails im konfigurierten Postfach. Gibt eine Liste von Log-Zeilen zurück. */
+    /** Wie oft ein fehlgeschlagener DOWNLOAD automatisch wiederholt wird (ein Versuch je Lauf,
+     *  Lauf alle 5 Minuten -> rund eine Stunde), bevor die Mail aufgegeben wird. */
+    private const MAX_DOWNLOAD_ATTEMPTS = 12;
+
+    /**
+     * Verarbeitet neue EDA-Mails im konfigurierten Postfach. Gibt eine Liste von Log-Zeilen zurück.
+     *
+     * Seit 14.11.2026 NICHT mehr nur ungelesene Mails (Patrick: "er holt sich die Daten nicht.
+     * Er überprüft das Postfach nicht"): wer die EDA-Mail selbst öffnete oder den Download-Link
+     * darin anklickte, hat sie dadurch als gelesen markiert und damit unbemerkt vom Import
+     * ausgeschlossen. Jetzt werden alle Mails der letzten 7 Tage (Gültigkeit des Download-Links)
+     * angesehen; welche schon erledigt sind, steht in eda_mail_processed (migrate_20261114b.sql).
+     * Eine Datei, die schon importiert wurde (automatisch oder von Hand hochgeladen, gleicher
+     * Dateiname), wird nicht noch einmal importiert. Ohne die Migration: altes Verhalten.
+     */
     public static function run(): array
+    {
+        $lines = self::runChecks();
+        try {
+            DB::execute(
+                'UPDATE platform_mail_config SET eda_import_last_run_at = now(), eda_import_last_run_result = ? WHERE id = 1',
+                [mb_substr(implode("\n", $lines), 0, 4000)]
+            );
+        } catch (\Throwable $e) { /* Spalte fehlt (Migration noch nicht eingespielt) -- egal */ }
+        return $lines;
+    }
+
+    private static function runChecks(): array
     {
         $cfg = DB::fetchOne('SELECT eda_import_mailbox_address FROM platform_mail_config WHERE id = 1');
         $mailbox = trim((string)($cfg['eda_import_mailbox_address'] ?? ''));
@@ -63,30 +89,113 @@ class EdaAutoImporter
             return ['EDA-Auto-Import nicht konfiguriert (Platform-Admin → Einstellungen → Postfachadresse eintragen).'];
         }
 
-        $messages = GraphMailReader::listUnread($mailbox);
-        if (!$messages) {
-            return ["Keine ungelesenen Mails in {$mailbox}."];
+        // Nie zwei Läufe gleichzeitig (Cron alle 5 Minuten + "Jetzt prüfen"-Knopf) -- ein
+        // Download + Parser-Lauf kann länger dauern als der Abstand zwischen zwei Läufen.
+        $lock = @fopen(sys_get_temp_dir() . '/eeg_eda_auto_import.lock', 'c');
+        if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) {
+            return ['Ein anderer Postfach-Check läuft gerade noch -- übersprungen.'];
         }
 
+        $tracking = self::trackingAvailable();
+        $messages = $tracking ? GraphMailReader::listRecent($mailbox, 7) : GraphMailReader::listUnread($mailbox);
+        if (!$messages) {
+            return [$tracking ? "Keine Mails der letzten 7 Tage in {$mailbox}." : "Keine ungelesenen Mails in {$mailbox}."];
+        }
+
+        $state = $tracking ? self::processedState(array_column($messages, 'id')) : [];
         $log = [];
+        $alreadyDone = 0;
         foreach ($messages as $msg) {
+            $id = (string)($msg['id'] ?? '');
+            $prev = $state[$id] ?? null;
+            if ($prev !== null && ($prev['status'] !== 'download_fehler' || (int)$prev['attempts'] >= self::MAX_DOWNLOAD_ATTEMPTS)) {
+                $alreadyDone++;
+                continue;
+            }
             // Eine einzelne Mail darf den ganzen Lauf nicht abschießen -- sonst verhindert EIN
             // unerwarteter Fehler (z.B. der RLS-Vorfall vom 10.10.2026, siehe VORFAELLE.md), dass
             // überhaupt irgendeine andere, an sich unproblematische Mail im selben Lauf verarbeitet
-            // wird, und zwar bei JEDEM folgenden Cron-Durchlauf erneut, solange die fehlerhafte
-            // Mail (vorne in der ungelesen-Liste) ungelesen bleibt.
+            // wird.
             try {
-                $log[] = self::processMessage($mailbox, $msg);
+                [$status, $line] = self::processMessage($mailbox, $msg, $prev);
             } catch (\Throwable $e) {
                 $subject = $msg['subject'] ?? '(ohne Betreff)';
-                self::fail($mailbox, $msg['id'] ?? '', $subject, 'Unerwarteter Fehler: ' . $e->getMessage());
-                $log[] = "FEHLER [{$subject}]: Unerwarteter Fehler: " . $e->getMessage();
+                self::fail($mailbox, $id, $subject, 'Unerwarteter Fehler: ' . $e->getMessage());
+                [$status, $line] = ['fehler', "FEHLER [{$subject}]: Unerwarteter Fehler: " . $e->getMessage()];
             }
+            $log[] = $line;
+            if ($tracking && $id !== '') {
+                self::recordProcessed($mailbox, $msg, $status, $line);
+            }
+        }
+        if ($alreadyDone > 0) {
+            $log[] = "{$alreadyDone} Mail(s) der letzten 7 Tage bereits verarbeitet.";
         }
         return $log;
     }
 
-    private static function processMessage(string $mailbox, array $msg): string
+    /** Gibt es die Merk-Tabelle schon (migrate_20261114b.sql)? */
+    private static function trackingAvailable(): bool
+    {
+        try {
+            DB::fetchOne('SELECT 1 FROM eda_mail_processed LIMIT 1');
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** @return array<string, array{status:string, attempts:int}> */
+    private static function processedState(array $ids): array
+    {
+        $ids = array_values(array_filter(array_map('strval', $ids)));
+        if (!$ids) return [];
+        $rows = DB::fetchAll(
+            'SELECT message_id, status, attempts FROM eda_mail_processed WHERE message_id IN ('
+            . implode(',', array_fill(0, count($ids), '?')) . ')',
+            $ids
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[$r['message_id']] = ['status' => $r['status'], 'attempts' => (int)$r['attempts']];
+        }
+        return $out;
+    }
+
+    private static function recordProcessed(string $mailbox, array $msg, string $status, string $detail): void
+    {
+        try {
+            DB::execute(
+                'INSERT INTO eda_mail_processed (message_id, mailbox, subject, received_at, status, detail)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (message_id) DO UPDATE SET status = EXCLUDED.status, detail = EXCLUDED.detail,
+                     attempts = eda_mail_processed.attempts + 1, processed_at = now()',
+                [(string)$msg['id'], $mailbox, mb_substr((string)($msg['subject'] ?? ''), 0, 500),
+                 $msg['receivedDateTime'] ?? null, $status, mb_substr($detail, 0, 2000)]
+            );
+        } catch (\Throwable $e) {
+            error_log('[eda_auto_import] Konnte Verarbeitungsstand nicht speichern: ' . $e->getMessage());
+        }
+    }
+
+    /** Wurde genau diese Exportdatei (gleicher Dateiname) schon importiert -- automatisch oder
+     *  von Hand? Gespeichert wird sie jeweils als "<Präfix>_<Originalname>". */
+    private static function alreadyImported(string $filename, bool $interval): bool
+    {
+        $table = $interval ? 'eda_interval_imports' : 'eda_imports';
+        try {
+            $row = DB::fetchOne(
+                "SELECT 1 FROM {$table} WHERE filename = ? OR right(filename, char_length(?) + 1) = '_' || ? LIMIT 1",
+                [$filename, $filename, $filename]
+            );
+            return $row !== null && $row !== false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** @return array{0:string, 1:string} [Status für eda_mail_processed, Log-Zeile] */
+    private static function processMessage(string $mailbox, array $msg, ?array $prev = null): array
     {
         $subject = $msg['subject'] ?? '(ohne Betreff)';
         $id      = $msg['id'] ?? '';
@@ -97,14 +206,19 @@ class EdaAutoImporter
             // EDA-Postfach ist kein fehlgeschlagener Import, sondern schlicht nicht unsere
             // Zuständigkeit (Zustellfehler, Antwort, Spam). Bleibt ungelesen zur manuellen
             // Durchsicht, aber ohne jeden Lauf erneut eine Alarm-Mail zu verschicken.
-            return "IGNORIERT [{$subject}]: Absender '{$senderAddress}' ist nicht " . self::EDA_SENDER_ADDRESS;
+            return ['ignoriert', "IGNORIERT [{$subject}]: Absender '{$senderAddress}' ist nicht " . self::EDA_SENDER_ADDRESS];
         }
 
         try {
             [$filename, $content] = self::extractFile($mailbox, $msg);
         } catch (\Throwable $e) {
-            self::fail($mailbox, $id, $subject, 'Datei konnte nicht ermittelt/heruntergeladen werden: ' . $e->getMessage());
-            return "FEHLER [{$subject}]: " . $e->getMessage();
+            // Alarm nur beim ERSTEN Fehlversuch -- danach wird bei jedem Lauf still erneut
+            // versucht (bis MAX_DOWNLOAD_ATTEMPTS), statt alle 5 Minuten eine Mail zu schicken.
+            if ($prev === null) {
+                self::fail($mailbox, $id, $subject, 'Datei konnte nicht ermittelt/heruntergeladen werden: ' . $e->getMessage()
+                    . ' -- wird noch rund eine Stunde lang automatisch erneut versucht.');
+            }
+            return ['download_fehler', "FEHLER [{$subject}]: " . $e->getMessage()];
         }
 
         // Sobald die Datei heruntergeladen ist, gilt die Mail als "gesehen" -- unabhängig davon,
@@ -128,17 +242,17 @@ class EdaAutoImporter
             $marktpartnerId = $subjectMarktpartnerId;
         } elseif ($subjectMarktpartnerId !== null && strcasecmp($marktpartnerId, $subjectMarktpartnerId) !== 0) {
             self::fail($mailbox, $id, $subject, "Marktpartner-ID aus Dateiname ('{$marktpartnerId}') und Betreff ('{$subjectMarktpartnerId}') stimmen nicht überein -- Datei: {$filename}.");
-            return "FEHLER [{$subject}]: Marktpartner-ID-Widerspruch (Datei: {$marktpartnerId}, Betreff: {$subjectMarktpartnerId})";
+            return ['fehler', "FEHLER [{$subject}]: Marktpartner-ID-Widerspruch (Datei: {$marktpartnerId}, Betreff: {$subjectMarktpartnerId})"];
         }
         if ($marktpartnerId === null) {
             self::fail($mailbox, $id, $subject, "Marktpartner-ID weder aus Dateiname '{$filename}' noch aus dem Betreff ablesbar.");
-            return "FEHLER [{$subject}]: Marktpartner-ID nicht ablesbar (Datei: {$filename})";
+            return ['fehler', "FEHLER [{$subject}]: Marktpartner-ID nicht ablesbar (Datei: {$filename})"];
         }
 
         $community = DB::fetchOne('SELECT id, slug, name FROM communities WHERE LOWER(marktpartner_id) = ?', [strtolower($marktpartnerId)]);
         if (!$community) {
             self::fail($mailbox, $id, $subject, "Keine EEG mit Marktpartner-ID '{$marktpartnerId}' gefunden (Datei: {$filename}).");
-            return "FEHLER [{$subject}]: keine EEG für Marktpartner-ID {$marktpartnerId}";
+            return ['fehler', "FEHLER [{$subject}]: keine EEG für Marktpartner-ID {$marktpartnerId}"];
         }
         // Dieses Skript läuft als eigenständiger CLI-Prozess (scripts/eda_auto_import.php), nicht
         // über eine normale HTTP-Request-Lifecycle, in der app.community_id längst irgendwo gesetzt
@@ -149,14 +263,21 @@ class EdaAutoImporter
         // dass seit Einrichtung des Crons KEIN einziger Auto-Import je als gelesen markiert wurde.
         DB::setCommunity($community['id']);
 
-        $savePath = '/var/www/html/storage/uploads/' . uniqid('eda_auto_') . '_' . basename($filename);
-        file_put_contents($savePath, $content);
-
         // Report-Typ am Betreff unterscheiden (siehe Klassen-Kommentar oben) -- "Detailreport"
         // braucht den Viertelstundenwerte-Parser (parser_interval.py), alles andere (der
         // reguläre monatliche "Energiedatenreport") wie bisher den Abrechnungs-Parser.
         $isIntervalReport = stripos($subject, 'Detailreport') !== false;
         $importLabel = $isIntervalReport ? 'Viertelstundenwerte-Import' : 'EDA-Import';
+
+        // Schon importiert (z.B. von Hand hochgeladen, oder vom alten, nur-ungelesen-Abruf vor
+        // dem 14.11.2026)? Dann nicht noch einmal -- erst NACH setCommunity(), damit die
+        // mandantengebundene Abfrage (RLS) überhaupt etwas sieht.
+        if (self::alreadyImported(basename($filename), $isIntervalReport)) {
+            return ['bereits_importiert', "ÜBERSPRUNGEN [{$subject}]: {$filename} wurde bereits importiert"];
+        }
+
+        $savePath = '/var/www/html/storage/uploads/' . uniqid('eda_auto_') . '_' . basename($filename);
+        file_put_contents($savePath, $content);
 
         // stdout (JSON) und stderr (Logzeilen) sauber getrennt -- siehe EdaParserRunner.php:
         // ein simples "2>&1" hätte json_decode() auf jedem Lauf fehlschlagen lassen, sobald der
@@ -173,7 +294,7 @@ class EdaAutoImporter
                 'INSERT INTO audit_log (community_id, aktion, beschreibung, ist_fehler) VALUES (?, ?, ?, true)',
                 [$community['id'], $isIntervalReport ? 'eda.interval_import_error' : 'eda.auto_import_error', "Automatischer {$importLabel} fehlgeschlagen: " . substr($diag, 0, 4000)]
             );
-            return "FEHLER [{$subject}]: Parser-Fehler ({$importLabel}) für {$community['name']}";
+            return ['fehler', "FEHLER [{$subject}]: Parser-Fehler ({$importLabel}) für {$community['name']}"];
         }
 
         DB::execute(
@@ -186,7 +307,7 @@ class EdaAutoImporter
             ]
         );
         self::notifySuccess($mailbox, $subject, $community['name'], $importLabel, $result);
-        return "OK [{$subject}]: {$community['name']} ({$importLabel}), " . ($result['records'] ?? '?') . ' Datensätze';
+        return ['importiert', "OK [{$subject}]: {$community['name']} ({$importLabel}), " . ($result['records'] ?? '?') . ' Datensätze'];
     }
 
     /**

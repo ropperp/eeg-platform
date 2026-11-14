@@ -1951,4 +1951,28 @@ function roleSwitcherLabel(array $role, array $allRoles): string
 }
 
 // Selbst anordnenbare Startseiten-Kästen (Widgets)
+/**
+ * Suchtext eines Mitglieds für die Mitgliedersuche (Obmann: /portal/members, Admin:
+ * /admin/members) -- Patrick, 14.11.2026: suchen nach "Namen, Geburtsdatum, Adresse oder
+ * Kundennummer". Alles klein, Geburtsdatum in mehreren Schreibweisen (12.03.1980, 12.3.1980,
+ * 1980-03-12), damit jede übliche Eingabe trifft. Gegenstück im Browser: memberSearchMatch()
+ * in den beiden Listen (alle Suchwörter müssen vorkommen).
+ */
+function memberSearchText(array $m): string
+{
+    $parts = [
+        $m['first_name'] ?? '', $m['last_name'] ?? '', $m['company_name'] ?? '', $m['email'] ?? '',
+        $m['kundennummer'] ?? '', $m['phone'] ?? '', $m['address'] ?? '', $m['zip'] ?? '', $m['city'] ?? '',
+        $m['znr_bezug'] ?? '', $m['znr_einspeisung'] ?? '', $m['zaehlpunkte'] ?? '',
+    ];
+    $gd = (string)($m['geburtsdatum'] ?? '');
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $gd, $d)) {
+        $parts[] = "{$d[3]}.{$d[2]}.{$d[1]}";
+        $parts[] = ((int)$d[3]) . '.' . ((int)$d[2]) . '.' . $d[1];
+        $parts[] = "{$d[1]}-{$d[2]}-{$d[3]}";
+    }
+    $text = implode(' ', array_filter(array_map(fn($p) => trim((string)$p), $parts), fn($p) => $p !== ''));
+    return mb_strtolower(preg_replace('/\s+/', ' ', $text));
+}
+
 require_once __DIR__ . '/dashboard_widgets.php';
