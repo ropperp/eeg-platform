@@ -1270,3 +1270,19 @@ docker compose up -d --build
 > Summe in der Datenbank exakt der Datei entspricht, wird ersetzt (sonst „übersprungen“ mit Grund).
 > Danach unter Admin → Einstellungen → EDA-Automatik prüfen: „Letzter Postfach-Check: vor x Min.“.
 
+> **Nachtrag 14.11.2026 (c) -- genauere Monatsaufteilung für Einspeiser, Log-Datei des Crons**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main && docker compose up -d --build webapp
+> # Quartal noch einmal aufteilen -- Einspeiser jetzt exakt statt im Verhältnis
+> docker compose exec webapp python3 /var/www/html/eda-parser/parser.py --resplit
+> docker compose exec webapp python3 /var/www/html/eda-parser/parser.py --resplit --apply
+>
+> # Läuft die crontab unter einem normalen Benutzer (nicht root): Log-Datei einmalig anlegen,
+> # sonst scheitert ">> /var/log/..." und der Cron-Befehl wird gar nicht ausgeführt.
+> sudo touch /var/log/eeg-eda-import.log && sudo chown "$USER": /var/log/eeg-eda-import.log
+> # nach spätestens 5 Minuten:
+> tail -5 /var/log/eeg-eda-import.log
+> ```
+> Dasselbe gilt für die übrigen Cron-Logs unter /var/log (eeg-health.log, eeg-push.log, ...),
+> falls diese Einträge ebenfalls in der Benutzer-crontab stehen.
+

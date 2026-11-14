@@ -473,6 +473,23 @@ def split_into_months(total, month_values: dict, type_hint: str, period_from, pe
                 chosen, exact, weights = c, True, vals
                 break
         if chosen is None:
+            # Keine einzelne Spalte passt (z.B. Einspeiser: verrechnet wird die Erzeugung OHNE
+            # den Restüberschuss, der ins öffentliche Netz ging) -- Differenz zweier Spalten
+            # versuchen, wieder nur bei exakt passender Summe (strengere Toleranz, damit keine
+            # zufällige Kombination gewählt wird). Gefunden an der echten Q3-Datei, 14.11.2026.
+            pair_tol = max(0.05, abs(total) * 0.0005)
+            for a in ordered:
+                va = col_values(a)
+                for b in all_cols:
+                    if a == b:
+                        continue
+                    vals = [x - y for x, y in zip(va, col_values(b))]
+                    if abs(sum(vals) - total) <= pair_tol and all(v >= -1e-9 for v in vals):
+                        chosen, exact, weights = f"{a} − {b}", True, [max(0.0, v) for v in vals]
+                        break
+                if chosen is not None:
+                    break
+        if chosen is None:
             for c in preferred:
                 vals = col_values(c)
                 if sum(vals) > 0 and all(v >= 0 for v in vals):
@@ -484,6 +501,8 @@ def split_into_months(total, month_values: dict, type_hint: str, period_from, pe
     note = None
     if exact:
         amounts = [round(v, 4) for v in weights]
+        if chosen and " − " in chosen:
+            note = f"Monatswerte exakt aus „{chosen}“"
     else:
         s = sum(weights)
         amounts = [round(total * v / s, 4) for v in weights]
@@ -581,8 +600,9 @@ def _insert_measurements(cur, community_id, mp_id, mp_data: MeteringPointData) -
 def resplit_existing(conn, uploads_dir: str, apply: bool) -> list[dict]:
     """Einmalige Reparatur für schon importierte MEHRMONATIGE Dateien (z.B. Q3 2026 in einer
     Datei), deren Gesamtwert noch als EIN Datensatz am Periodenende liegt: liest die beim Import
-    gespeicherte Originaldatei (storage/uploads/<eda_imports.filename>) erneut und ersetzt den
-    einen Datensatz durch Monatswerte -- aber NUR, wenn die Summe exakt gleich bleibt. Damit
+    gespeicherte Originaldatei (storage/uploads/<eda_imports.filename>) erneut und ersetzt die
+    Datensätze des Zeitraums durch Monatswerte -- aber NUR, wenn die Summe exakt gleich bleibt
+    (auch erneut aufrufbar, z.B. nach einer genaueren Aufteilung). Damit
     ändern sich bereits verschickte Rechnungen über den ganzen Zeitraum nicht; deshalb ist das
     (anders als ein normaler erneuter Import) auch für schon abgerechnete Zeiträume erlaubt.
     Ohne apply=True wird nur angezeigt, was passieren würde."""
@@ -634,9 +654,10 @@ def resplit_existing(conn, uploads_dir: str, apply: bool) -> list[dict]:
                 )
                 count, old_sum = cur.fetchone()
                 new_sum = float(mp.timeseries[col].fillna(0).sum())
-                if count != 1:
-                    entry["uebersprungen"].append(
-                        f"{mp.zaehlpunkt_nr}: {'schon monatsweise vorhanden' if count > 1 else 'keine Daten in der Datenbank'}")
+                # Auch schon aufgeteilte Zeiträume dürfen erneut aufgeteilt werden (z.B. nachdem
+                # die Aufteilung genauer wurde) -- entscheidend ist allein die gleiche Summe.
+                if count == 0:
+                    entry["uebersprungen"].append(f"{mp.zaehlpunkt_nr}: keine Daten in der Datenbank")
                     continue
                 if abs(float(old_sum) - new_sum) > 0.01:
                     entry["uebersprungen"].append(

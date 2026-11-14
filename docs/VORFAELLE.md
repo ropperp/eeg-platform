@@ -2054,6 +2054,19 @@ Dateien: `parser.py --resplit` (Vorschau) bzw. `--resplit --apply` -- liest die 
 Originaldatei aus `storage/uploads/` und ersetzt den Quartalsdatensatz nur, wenn die Summe
 übereinstimmt, deshalb auch für schon abgerechnete Quartale zulässig.
 
+Nachtrag (erster Lauf auf dem Server): 10 Verbraucher exakt, 6 Einspeiser nur im Verhältnis der
+gemessenen Erzeugung aufgeteilt -- für Einspeiser passt keine einzelne Spalte der Detailübersicht,
+verrechnet wird offenbar Erzeugung minus Restüberschuss. `split_into_months()` probiert deshalb
+zusätzlich Differenzen zweier Spalten (nur bei exakt passender Summe, strengere Toleranz).
+`--resplit` darf seitdem auch schon aufgeteilte Zeiträume erneut aufteilen (Bedingung bleibt
+allein die gleiche Summe).
+
+Ebenfalls beim ersten Lauf: `/var/log/eeg-eda-import.log` existierte nicht. Läuft der Cron in der
+crontab eines normalen Benutzers (nicht root), darf der nicht nach `/var/log` schreiben -- die
+Umleitung `>> /var/log/...` schlägt dann fehl und die Shell führt den GANZEN Befehl nicht aus. Der
+Postfach-Check lief damit nie, ohne sichtbaren Fehler (wahrscheinliche Hauptursache für „er prüft
+das Postfach nicht“). Abhilfe: Log-Datei einmalig mit sudo anlegen und dem Benutzer übergeben.
+
 Beim Testen zusätzlich gefunden: **die Sperre gegen das Überschreiben abgerechneter Zeiträume griff
 nie** (`_billing_period_finalized()`): verglichen wurden die tz-behafteten Dateigrenzen (00:00 Wien
 = Vortag 22:00 UTC) direkt mit den DATE-Spalten des Abrechnungslaufs -- in einer UTC-Sitzung um
