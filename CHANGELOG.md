@@ -19,6 +19,16 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Kästen anordnen wie das Ergebnis, Höhe ziehen (15.11.2026)
+- **„Anordnen“ zeigt die Kästen in echter Größe** -- die Bedienleiste (Griff, ↑, ↓, Auge) schwebt
+  über dem Kasten und verändert kein Maß; ausgeblendete Kästen verschwinden auch im
+  Bearbeiten-Modus und stehen oben unter „Ausgeblendet“ zum Wieder-Einblenden.
+- **Höhe ziehen** am unteren Rand, Breite am rechten Rand, beides an der Ecke (auch per
+  Pfeiltasten). Kleiner als der Inhalt geht nicht -- dort ist Schluss.
+- **Kästen einer Reihe werden gleich hoch**, damit es kompakt zusammenpasst.
+- Gilt für alle Startseiten (Admin, Obmann, Mitglied) -- jedes Mitglied stellt sich seine
+  Startseite selbst ein; in der Kundenansicht wird sie nur angezeigt.
+
 ### Monatswerte bei Quartalsdateien, EDA-Postfach, Kundenansicht, Admin-Übersicht (14.11.2026)
 - **Quartals-Export richtig auf Monate verteilt:** eine EDA-Datei über mehrere Monate (z. B. Q3
   in einer Datei) wird beim Import anhand der Detailübersicht auf die einzelnen Monate

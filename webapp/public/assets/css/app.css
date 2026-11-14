@@ -1044,35 +1044,42 @@ footer {
 .dash-widgets { display: flex; flex-direction: column; }
 .dash-widget { min-width: 0; }
 .dash-widget.is-hidden-widget { display: none; }
+/* Bedienleiste schwebt ÜBER dem Kasten (position:absolute) -- der Bearbeiten-Modus verändert so
+   kein Maß, die Ansicht entspricht genau dem Ergebnis (Patrick, 14.11.2026: "wirklich so
+   anzeigen im Verschiebe-Modus, wie es auch danach aussieht"). */
 .dash-widget-bar {
-  display: flex; align-items: center; gap: .6rem; padding: .4rem .5rem .4rem .75rem; margin-bottom: .6rem;
-  background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 12px; font-size: .88rem;
+  position: absolute; top: .5rem; right: .5rem; z-index: 3; max-width: calc(100% - 1rem);
+  display: flex; align-items: center; gap: .35rem; padding: .25rem .3rem .25rem .55rem;
+  background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; font-size: .82rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .12);
 }
+/* Titel nur für Screenreader -- die Karte zeigt ihren Titel selbst, die Leiste soll möglichst
+   wenig verdecken. */
+.dash-widget-bar strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .dash-widget-bar[hidden] { display: none; }
 .dash-handle { cursor: grab; color: var(--gray-600); letter-spacing: -2px; font-weight: 700; }
-.dash-widget-actions { margin-left: auto; display: flex; gap: .3rem; }
+.dash-widget-actions { margin-left: auto; display: flex; gap: .25rem; flex: 0 0 auto; }
 .dash-widget-actions button {
-  min-width: 38px; min-height: 38px; border-radius: 10px; border: 1px solid var(--gray-200);
-  background: var(--white); color: var(--gray-800); cursor: pointer; font-size: 1rem;
+  min-width: 34px; min-height: 34px; border-radius: 9px; border: 1px solid var(--gray-200);
+  background: var(--white); color: var(--gray-800); cursor: pointer; font-size: .95rem;
   display: inline-flex; align-items: center; justify-content: center;
 }
 .dash-widget-actions button:hover { border-color: var(--gray-600); }
 .dash-widget-actions button:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 1px; }
-/* Bearbeiten-Modus: alle Kästen (auch ausgeblendete, halb durchsichtig) als kompakte Liste */
-.dash-widgets.is-editing .dash-widget {
-  display: block; margin-bottom: 1rem; padding: .5rem; border-radius: 16px;
-  outline: 2px dashed var(--gray-200); outline-offset: 0; background: var(--gray-50);
-}
+/* Bearbeiten-Modus: nur eine gestrichelte Umrandung (outline nimmt keinen Platz ein) */
+.dash-widgets.is-editing .dash-widget { outline: 2px dashed var(--gray-400, #9ca3af); outline-offset: 4px; border-radius: 16px; }
 .dash-widgets.is-editing .dash-widget[draggable="true"] { cursor: grab; }
-.dash-widgets.is-editing .dash-widget.is-hidden-widget .dash-widget-body { opacity: .35; }
 .dash-widgets.is-editing .dash-widget.is-dragging { opacity: .45; outline-color: var(--green-dark); }
-.dash-widgets.is-editing .dash-widget-body {
-  max-height: 130px; overflow: hidden; pointer-events: none;
-  -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent);
-}
+.dash-widgets.is-editing .dash-widget-body { pointer-events: none; user-select: none; }
 @media (prefers-reduced-motion: no-preference) {
   .dash-widgets.is-editing .dash-widget { transition: outline-color .2s ease; }
 }
+/* Ausgeblendete Kästen im Bearbeiten-Modus: Leiste zum Wieder-Einblenden */
+.dash-hidden-tray { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; flex: 1 1 100%; font-size: .8rem; }
+.dash-hidden-tray[hidden] { display: none !important; }
+.dash-hidden-label { color: var(--gray-600); font-weight: 600; }
+.dash-unhide { border: 1px dashed var(--gray-400, #9ca3af); background: transparent; color: var(--gray-800); border-radius: 999px; padding: .3rem .75rem; font-size: .8rem; cursor: pointer; }
+.dash-unhide:hover, .dash-unhide:focus-visible { border-style: solid; border-color: var(--green-dark); }
 /* Einheitlicher Abstand zwischen den Kästen, egal in welcher Reihenfolge (die Blöcke hatten
    vorher unterschiedliche eigene Abstände, der letzte gar keinen). */
 .dash-widget { margin-bottom: 1.5rem; }
@@ -1116,14 +1123,25 @@ footer {
 [data-theme="dark"] .info-tip-warn, [data-theme="dark"] .info-tip-warn > p { color: #fbbf24; }
 @media (prefers-reduced-motion: reduce) { .info-tip-i { transition: none; } }
 
-/* ── Kästen nebeneinander + Breite ziehen (Laptop, 14.11.2026) ── */
+/* ── Kästen nebeneinander, Breite/Höhe ziehen (Laptop, 14.11.2026) ──
+   Kästen einer Reihe werden gleich hoch (Raster streckt sie, die Karte im Kasten füllt die Höhe);
+   --min-h ist die selbst gezogene Höhe -- nie kleiner als der Inhalt, das sorgt min-height. */
 @media (min-width: 901px) {
-  .dash-widgets { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 1.5rem; align-items: start; }
-  .dash-widget { grid-column: span var(--span, 12); min-width: 0; }
+  .dash-widgets { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 1.5rem; row-gap: 1.5rem; align-items: stretch; margin-bottom: 1.5rem; }
+  .dash-widget { grid-column: span var(--span, 12); min-width: 0; margin-bottom: 0; min-height: var(--min-h, 0px); display: flex; flex-direction: column; }
+  .dash-widget-body { flex: 1 1 auto; display: flex; flex-direction: column; }
+  .dash-widget-body > :first-child { flex: 1 1 auto; }
 }
 .dash-widget { position: relative; }
-.dash-resize { position: absolute; top: 0; right: -.75rem; width: 1.5rem; height: 100%; padding: 0; border: 0; background: transparent; cursor: ew-resize; touch-action: none; z-index: 2; }
-.dash-resize::after { content: ""; position: absolute; top: 50%; left: 50%; width: .4rem; height: 3rem; transform: translate(-50%, -50%); border-radius: 999px; background: var(--primary, #16a34a); opacity: .55; box-shadow: 0 0 0 3px rgba(255,255,255,.7); }
+.dash-resize { position: absolute; padding: 0; border: 0; background: transparent; touch-action: none; z-index: 4; }
+.dash-resize[hidden] { display: none !important; }
+.dash-resize-x { top: 0; right: -.75rem; width: 1.5rem; height: 100%; cursor: ew-resize; }
+.dash-resize-y { left: 0; bottom: -.75rem; width: 100%; height: 1.5rem; cursor: ns-resize; }
+.dash-resize-xy { right: -.85rem; bottom: -.85rem; width: 1.7rem; height: 1.7rem; cursor: nwse-resize; z-index: 5; }
+.dash-resize::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 999px; background: var(--primary, #16a34a); opacity: .6; box-shadow: 0 0 0 3px rgba(255,255,255,.75); }
+.dash-resize-x::after { width: .4rem; height: 3rem; }
+.dash-resize-y::after { width: 3rem; height: .4rem; }
+.dash-resize-xy::after { width: .8rem; height: .8rem; border-radius: 3px; }
 .dash-resize:hover::after, .dash-resize:focus-visible::after, .dash-widget.is-resizing .dash-resize::after { opacity: 1; }
 .dash-resize:focus-visible { outline: none; }
 .dash-resize:focus-visible::after { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--primary, #16a34a); }

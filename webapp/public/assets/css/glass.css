@@ -412,8 +412,8 @@
 }
 
 /* Kästen anordnen im neuen Look */
-[data-design="glas"] .dash-widget-bar { background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .85); }
-[data-design="glas"] .dash-widgets.is-editing .dash-widget { background: rgba(255, 255, 255, .25); outline-color: rgba(15, 60, 90, .2); }
-[data-design="glas"][data-theme="dark"] .dash-widget-bar { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .12); }
-[data-design="glas"][data-theme="dark"] .dash-widgets.is-editing .dash-widget { background: rgba(255, 255, 255, .03); outline-color: rgba(255, 255, 255, .15); }
+[data-design="glas"] .dash-widget-bar { background: rgba(255, 255, 255, .85); border-color: rgba(255, 255, 255, .95); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+[data-design="glas"] .dash-widgets.is-editing .dash-widget { outline-color: rgba(15, 60, 90, .35); }
+[data-design="glas"][data-theme="dark"] .dash-widget-bar { background: rgba(20, 30, 45, .85); border-color: rgba(255, 255, 255, .15); }
+[data-design="glas"][data-theme="dark"] .dash-widgets.is-editing .dash-widget { outline-color: rgba(255, 255, 255, .3); }
 [data-design="glas"] .dash-widgets.is-editing .dash-widget .card:hover { transform: none; }

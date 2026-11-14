@@ -76,7 +76,27 @@ test('DashboardWidgets: Breite und Handy-Anordnung landen im HTML', function () 
     $dw->start('a', 'A'); echo 'x'; $dw->end();
     $dw->start('b', 'B'); echo 'y'; $dw->end();
     $html = $dw->render();
-    assertTrue(str_contains($html, 'data-widget="b" data-span="6" style="--span:6"'));
+    assertTrue((bool)preg_match('/data-widget="b"[^>]*data-span="6"[^>]*style="--span:6"/', $html));
     assertTrue(str_contains($html, 'data-layouts="'));
-    assertTrue(str_contains($html, 'class="dash-resize"'));
+    assertTrue(str_contains($html, 'dash-resize-x'));
+});
+
+test('dashboardSanitizeLayout/DeviceLayouts: Höhen nur am Laptop, 60-2000 px', function () {
+    $r = dashboardSanitizeLayout(['heights' => ['a' => 320, 'b' => 20, 'c' => 99999, '<x>' => 300, 'd' => '450']]);
+    assertSame(['a' => 320, 'd' => 450], $r['heights']);
+    $l = dashboardDeviceLayouts(['a', 'd'], ['desktop' => ['order' => ['a', 'd'], 'heights' => ['a' => 320, 'weg' => 400]], 'mobile' => ['order' => ['d', 'a']]]);
+    assertSame(['a' => 320], $l['desktop']['heights']);
+    assertFalse(isset($l['mobile']['heights']));
+    $st = dashboardStoreDevice(null, 'mobile', ['order' => ['a'], 'hidden' => [], 'sizes' => [], 'heights' => ['a' => 300]]);
+    assertFalse(isset($st['mobile']['heights']));
+});
+
+test('DashboardWidgets: Höhe, Titel und alle drei Griffe im HTML', function () {
+    $dw = new DashboardWidgets('member', ['desktop' => ['order' => ['a'], 'heights' => ['a' => 300]]]);
+    $dw->start('a', 'Kasten A'); echo 'x'; $dw->end();
+    $html = $dw->render();
+    assertTrue(str_contains($html, '--min-h:300px'));
+    assertTrue(str_contains($html, 'data-title="Kasten A"'));
+    assertTrue(str_contains($html, 'data-axis="x"') && str_contains($html, 'data-axis="y"') && str_contains($html, 'data-axis="xy"'));
+    assertTrue(str_contains($html, 'dash-hidden-tray'));
 });
