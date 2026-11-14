@@ -1,4 +1,36 @@
 <?php
+// Neuer Look (Glas): gleiche dunkle Karte wie der Login, siehe layouts/auth_glass.php (14.11.2026).
+if (function_exists('platformDesign') && platformDesign() === 'glas') {
+    $pageTitle = 'Bestätigung (2FA)';
+    ob_start(); ?>
+    <div class="lg-stage">
+      <span class="lg-accent lg-accent-tl" aria-hidden="true"></span>
+      <span class="lg-accent lg-accent-br" aria-hidden="true"></span>
+      <section class="lg-card">
+        <h1><?= icon('lock-key') ?> <span>Bestätigung</span></h1>
+        <p class="lg-sub">Geben Sie den aktuellen 6-stelligen Code aus Ihrer Authenticator- bzw. Passwörter-App ein.</p>
+        <?php if (!empty($error)): ?>
+          <div class="lg-alert lg-alert-error" role="alert"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
+        <form method="post" action="/portal/login/2fa" class="lg-form">
+          <?= csrfField() ?>
+          <label for="code">6-stelliger Code</label>
+          <div class="lg-field">
+            <input type="text" id="code" name="code" required autofocus inputmode="numeric"
+                   autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="000000" class="lg-code">
+          </div>
+          <button type="submit" class="lg-btn">Bestätigen <?= icon('arrow-right') ?></button>
+        </form>
+        <p class="lg-switch"><a href="/portal/login">Abbrechen</a></p>
+      </section>
+    </div>
+<?php
+    $authStage = ob_get_clean();
+    require __DIR__ . '/../layouts/auth_glass.php';
+    return;
+}
+?>
+<?php
 $pageTitle = 'Bestätigung (2FA)';
 $pageNoindex = true;
 ob_start();

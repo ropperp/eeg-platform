@@ -1439,6 +1439,12 @@ function csrfToken(): string
     return $_SESSION['csrf_token'];
 }
 
+/** Verstecktes CSRF-Feld für Formulare außerhalb von base.php/portal.php (dort fügt ein Skript es ein). */
+function csrfField(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken()) . '">';
+}
+
 /** Prüft ein eingesandtes Token zeitkonstant gegen das Session-Token. */
 function csrfValid(?string $submitted): bool
 {

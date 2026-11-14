@@ -19,6 +19,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Bugfix: Anmeldung im neuen Look schlug mit „Sitzung abgelaufen“ fehl (14.11.2026)
+Patrick: nach dem Umschalten auf den neuen Look kam beim Anmelden immer die Seite „Sitzung
+abgelaufen“, auch nach Neuladen. Ursache: die neue Glas-Anmeldeseite nutzt nicht `base.php`,
+dessen Skript jedes POST-Formular automatisch mit dem CSRF-Token versieht -- das Formular ging
+ohne Token ab und der zentrale CSRF-Schutz (`Router::dispatch()`) lehnte es ab.
+- Neue Hilfsfunktion `csrfField()` (verstecktes Token-Feld); alle Formulare der Anmelde-Seiten
+  im neuen Look tragen es jetzt. Gemeinsame Hülle `layouts/auth_glass.php` für Login, Passwort
+  vergessen, neues Passwort und 2FA.
+- **Passwort vergessen, neues Passwort und 2FA-Bestätigung** jetzt ebenfalls als dunkle
+  Glas-Karte wie der Login (nur im neuen Look; klassisch unverändert).
+- Kopfzeile der Website: bei mittleren Breiten (Tablet, schmales Fenster, 641-1000 px) brachen
+  „Live-Anzeige“ und „Informieren und Beitreten“ mehrzeilig um -- jetzt kleinere Abstände statt Umbruch.
+
 ### Neuer Look auch für Website und Login (14.11.2026)
 - **Anmeldeseite** im Stil eines Video-Vorbilds („Glassy Login“, in Blau): dunkle Glas-Karte mit
   abgeschrägten Ecken und leuchtenden Eck-Akzenten vor Lichtstreifen. „Registrieren“ dreht die

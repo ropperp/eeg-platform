@@ -27,7 +27,13 @@ Karten, Suche nach KdNr/Zählpunkt, Schnellinfo mit Kopieren-Knöpfen im Mitglie
 iPhone-13-Größe per Playwright ohne Überbreite geprüft. 14.11.: Rollenwahl nur noch als Auswahlfeld mit
 Kurznamen (Admin / EEG-Kurzname / Vor- und Nachname), Abrechnung und Rechnungen am Handy als Karten. Danach: Login im Glas-Stil eines zweiten
 Video-Vorbilds (Dreh-Karte Anmelden/Registrieren, Registrieren führt zur Beitrittserklärung) und
-die öffentliche Website im Glas-Look -- beides am Design-Schalter.
+die öffentliche Website im Glas-Look -- beides am Design-Schalter. Nachtrag: Passwort vergessen, neues
+Passwort und 2FA im selben Glas-Stil; Navbar-Umbruch bei mittleren Breiten behoben.
+**Fehler/Lehre:** Der neue Glas-Login lief ohne `base.php` -- und damit ohne dessen Skript,
+das jedes POST-Formular automatisch mit dem CSRF-Token versieht. Ergebnis auf dem Server:
+„Sitzung abgelaufen“ bei jedem Anmeldeversuch. Behoben mit `csrfField()` in jedem Formular;
+Lehre: wer ein Formular außerhalb der beiden Standard-Layouts rendert, muss den POST-Weg
+(Token!) im Test wirklich bis zum Server durchspielen, nicht nur die Optik prüfen.
 **Fehler/Lehre:** Das Türkis des Vorbilds hatte mit weißer Schrift nur 2,4:1 Kontrast -- für
 Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
 

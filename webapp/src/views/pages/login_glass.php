@@ -7,29 +7,9 @@
 // bleibt login.php. Erwartet optional: $error.
 $beitretenUrl = marketingUrl('/beitreten');
 $kontaktUrl = marketingUrl('/kontakt');
-$v = fn(string $f) => @filemtime(ROOT . '/public/assets/' . $f) ?: time();
-?><!DOCTYPE html>
-<html lang="de" data-design="glas">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Anmelden – Strom für alle</title>
-  <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#030b16">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
-  <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
-  <link rel="stylesheet" href="/assets/css/app.css?v=<?= $v('css/app.css') ?>">
-  <link rel="stylesheet" href="/assets/css/login-glass.css?v=<?= $v('css/login-glass.css') ?>">
-</head>
-<body class="lg-body">
-  <div class="lg-streaks" aria-hidden="true"><span></span><span></span><span></span></div>
-
-  <main class="lg-main">
-    <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="lg-logo">
-      <img src="<?= htmlspecialchars(logoAssetUrl('dark')) ?>" alt="Strom für alle">
-    </a>
-
+$pageTitle = 'Anmelden';
+ob_start();
+?>
     <div class="lg-stage<?= empty($error) ? '' : ' has-error' ?>" id="lg-stage">
       <span class="lg-accent lg-accent-tl" aria-hidden="true"></span>
       <span class="lg-accent lg-accent-br" aria-hidden="true"></span>
@@ -49,6 +29,7 @@ $v = fn(string $f) => @filemtime(ROOT . '/public/assets/' . $f) ?: time();
           <?php endif; ?>
 
           <form method="post" action="/portal/login" class="lg-form">
+            <?= csrfField() ?>
             <label for="email">E-Mail-Adresse</label>
             <div class="lg-field">
               <?= icon('envelope-simple', 'lg-field-icon') ?>
@@ -89,9 +70,9 @@ $v = fn(string $f) => @filemtime(ROOT . '/public/assets/' . $f) ?: time();
       </div>
     </div>
 
-    <p class="lg-foot"><?= htmlspecialchars(copyrightLine()) ?> · <a href="<?= htmlspecialchars(marketingUrl('/impressum')) ?>">Impressum</a> · <a href="<?= htmlspecialchars(marketingUrl('/datenschutz')) ?>">Datenschutz</a></p>
-  </main>
-
+<?php
+$authStage = ob_get_clean();
+$authScripts = <<<'JS'
 <script>
 // Karte umdrehen (Anmelden <-> Registrieren), auch per #registrieren in der Adresse aufrufbar.
 (function () {
@@ -121,6 +102,5 @@ $v = fn(string $f) => @filemtime(ROOT . '/public/assets/' . $f) ?: time();
   if (location.hash === '#registrieren') show('register', false);
 })();
 </script>
-<script src="/assets/js/password-toggle.js?v=<?= $v('js/password-toggle.js') ?>"></script>
-</body>
-</html>
+JS;
+require __DIR__ . '/../layouts/auth_glass.php';
