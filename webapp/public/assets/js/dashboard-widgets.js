@@ -1,7 +1,9 @@
 // Startseiten-Kästen selbst anordnen (DashboardWidgets in src/dashboard_widgets.php).
 // "Anordnen" schaltet den Bearbeiten-Modus ein: Kästen per Ziehen (Maus) oder mit ↑/↓
-// (Handy, Tastatur) verschieben, mit dem Auge aus-/einblenden, am Laptop am rechten Rand
-// breiter/schmäler ziehen. Laptop und Handy haben je eine eigene Anordnung (14.11.2026);
+// (Handy, Tastatur) verschieben, mit dem Auge ausblenden (Leiste "Ausgeblendet" zum Zurückholen),
+// am Laptop rechts die Breite, unten die Höhe, an der Ecke beides ziehen -- nie kleiner als der
+// Inhalt. Der Bearbeiten-Modus zeigt die Kästen in echter Größe, also genau wie danach.
+// Laptop und Handy haben je eine eigene Anordnung (14.11.2026);
 // jede Änderung wird nach kurzer Pause automatisch im Konto gespeichert
 // (POST /portal/dashboard-layout, mit device=desktop|mobile).
 (function () {
@@ -26,6 +28,23 @@
       w.style.setProperty('--span', String(span));
     }
 
+    function setHeight(w, px) {
+      w.dataset.height = String(px || 0);
+      if (px) w.style.setProperty('--min-h', px + 'px'); else w.style.removeProperty('--min-h');
+    }
+
+    // Natürliche Höhe = was der Inhalt mindestens braucht (ohne eigene Höhe, ohne Strecken in
+    // der Reihe) -- darunter lässt sich ein Kasten nicht ziehen.
+    function naturalHeight(w) {
+      var oldMin = w.style.getPropertyValue('--min-h');
+      w.style.removeProperty('--min-h');
+      w.style.alignSelf = 'start';
+      var hgt = w.getBoundingClientRect().height;
+      w.style.alignSelf = '';
+      if (oldMin) w.style.setProperty('--min-h', oldMin);
+      return Math.ceil(hgt);
+    }
+
     function setHidden(w, hidden) {
       w.classList.toggle('is-hidden-widget', hidden);
       var t = w.querySelector('.dash-toggle');
@@ -42,10 +61,13 @@
       (l.order || []).forEach(function (id) { var w = byId(id); if (w) box.appendChild(w); });
       var hidden = l.hidden || [];
       var sizes = l.sizes || {};
+      var heights = l.heights || {};
       widgets().forEach(function (w) {
         setHidden(w, hidden.indexOf(w.dataset.widget) !== -1);
         setSpan(w, device() === 'desktop' && sizes[w.dataset.widget] ? sizes[w.dataset.widget] : 12);
+        setHeight(w, device() === 'desktop' && heights[w.dataset.widget] ? heights[w.dataset.widget] : 0);
       });
+      if (typeof renderTray === 'function') renderTray();
     }
     applyLayout();
     var currentDevice = device();
@@ -72,11 +94,42 @@
       resetBtn.hidden = !on;
       widgets().forEach(function (w) {
         w.querySelector('.dash-widget-bar').hidden = !on;
-        var r = w.querySelector('.dash-resize');
-        if (r) r.hidden = !on;
+        w.querySelectorAll('.dash-resize').forEach(function (r) { r.hidden = !on; });
         w.draggable = on;
       });
+      renderTray();
       if (!on) flush();
+    }
+
+    // Ausgeblendete Kästen: im Bearbeiten-Modus NICHT im Raster (sonst sähe es anders aus als
+    // danach), sondern als kleine Knöpfe in der Leiste oben zum Wieder-Einblenden.
+    var tray = toolbar.querySelector('.dash-hidden-tray');
+    function renderTray() {
+      if (!tray) return;
+      tray.querySelectorAll('button').forEach(function (b) { b.remove(); });
+      var hiddenWs = widgets().filter(function (w) { return w.classList.contains('is-hidden-widget'); });
+      hiddenWs.forEach(function (w) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'dash-unhide';
+        b.dataset.widget = w.dataset.widget;
+        b.textContent = '+ ' + (w.dataset.title || w.dataset.widget);
+        b.setAttribute('aria-label', (w.dataset.title || w.dataset.widget) + ' wieder einblenden');
+        tray.appendChild(b);
+      });
+      tray.hidden = !box.classList.contains('is-editing') || hiddenWs.length === 0;
+    }
+    if (tray) {
+      tray.addEventListener('click', function (e) {
+        var b = e.target.closest('.dash-unhide');
+        if (!b) return;
+        var w = byId(b.dataset.widget);
+        if (!w) return;
+        setHidden(w, false);
+        renderTray();
+        w.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        changed();
+      });
     }
 
     function currentLayout() {
@@ -88,7 +141,11 @@
       };
       if (currentDevice === 'desktop') {
         l.sizes = {};
-        ws.forEach(function (w) { var s = parseInt(w.dataset.span, 10); if (s && s !== 12) l.sizes[w.dataset.widget] = s; });
+        l.heights = {};
+        ws.forEach(function (w) {
+          var s = parseInt(w.dataset.span, 10); if (s && s !== 12) l.sizes[w.dataset.widget] = s;
+          var hgt = parseInt(w.dataset.height, 10); if (hgt) l.heights[w.dataset.widget] = hgt;
+        });
       }
       return l;
     }
@@ -156,6 +213,7 @@
       } else if (toggle) {
         var tw = toggle.closest('.dash-widget');
         setHidden(tw, !tw.classList.contains('is-hidden-widget'));
+        renderTray();
         changed();
       }
     });
@@ -187,28 +245,55 @@
       changed();
     });
 
-    // Breite am Laptop: rechten Rand ziehen (rastet auf 1/3, 1/2, 2/3, volle Breite ein)
-    // oder mit den Pfeiltasten links/rechts am Griff.
+    // Größe am Laptop: rechter Rand = Breite (rastet auf 1/3, 1/2, 2/3, volle Breite ein),
+    // unterer Rand = Höhe (in 10-px-Schritten, nie kleiner als der Inhalt), Ecke = beides.
+    // Per Tastatur: Pfeile links/rechts am Breiten-, auf/ab am Höhen-Griff.
     function nearestSpan(raw) {
       return SPANS.reduce(function (best, s) { return Math.abs(s - raw) < Math.abs(best - raw) ? s : best; }, 12);
+    }
+    function clampHeight(w, px, minPx) {
+      px = Math.round(px / 10) * 10;
+      if (px <= minPx + 10) return 0; // so klein wie nötig = automatisch
+      return Math.min(px, 2000);
     }
     box.addEventListener('pointerdown', function (e) {
       var handle = e.target.closest('.dash-resize');
       if (!handle || !WIDE.matches) return;
       e.preventDefault();
+      var axis = handle.dataset.axis || 'x';
       var w = handle.closest('.dash-widget');
-      var startSpan = parseInt(w.dataset.span, 10) || 12;
-      var left = w.getBoundingClientRect().left;
+      var start = { span: parseInt(w.dataset.span, 10) || 12, height: parseInt(w.dataset.height, 10) || 0 };
+      var rect = w.getBoundingClientRect();
       var col = box.getBoundingClientRect().width / 12;
+      var minPx = 0;
+      var startY = e.clientY;
+      // Während des Ziehens keine Scroll-Verankerung, sonst scrollt der Browser beim Wachsen mit
+      // und der Kasten wächst schneller als die Maus.
+      var anchored = [document.documentElement, document.body];
+      var oldAnchor = anchored.map(function (el) { return el.style.overflowAnchor; });
+      anchored.forEach(function (el) { el.style.overflowAnchor = 'none'; });
       w.classList.add('is-resizing');
       handle.setPointerCapture(e.pointerId);
-      function onMove(ev) { setSpan(w, nearestSpan((ev.clientX - left) / col)); }
+      function onMove(ev) {
+        if (axis.indexOf('x') !== -1) {
+          setSpan(w, nearestSpan((ev.clientX - rect.left) / col));
+        }
+        if (axis.indexOf('y') !== -1) {
+          minPx = naturalHeight(w); // nach einer Breitenänderung braucht der Inhalt evtl. mehr
+          var wanted = rect.height + (ev.clientY - startY);
+          setHeight(w, clampHeight(w, wanted, minPx));
+        }
+      }
       function onUp() {
+        anchored.forEach(function (el, i) { el.style.overflowAnchor = oldAnchor[i]; });
         handle.removeEventListener('pointermove', onMove);
         handle.removeEventListener('pointerup', onUp);
         handle.removeEventListener('pointercancel', onUp);
         w.classList.remove('is-resizing');
-        if ((parseInt(w.dataset.span, 10) || 12) !== startSpan) changed();
+        // Eine gespeicherte Höhe, die nach schmälerem Kasten unter dem Inhalt läge, verwerfen
+        var h = parseInt(w.dataset.height, 10) || 0;
+        if (h && h <= naturalHeight(w) + 10) setHeight(w, 0);
+        if ((parseInt(w.dataset.span, 10) || 12) !== start.span || (parseInt(w.dataset.height, 10) || 0) !== start.height) changed();
       }
       handle.addEventListener('pointermove', onMove);
       handle.addEventListener('pointerup', onUp);
@@ -216,12 +301,20 @@
     });
     box.addEventListener('keydown', function (e) {
       var handle = e.target.closest('.dash-resize');
-      if (!handle || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
-      e.preventDefault();
+      if (!handle) return;
       var w = handle.closest('.dash-widget');
-      var i = SPANS.indexOf(parseInt(w.dataset.span, 10) || 12);
-      var next = SPANS[Math.max(0, Math.min(SPANS.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))];
-      if (next !== parseInt(w.dataset.span, 10)) { setSpan(w, next); changed(); }
+      if (handle.dataset.axis === 'x' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        var i = SPANS.indexOf(parseInt(w.dataset.span, 10) || 12);
+        var next = SPANS[Math.max(0, Math.min(SPANS.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))];
+        if (next !== parseInt(w.dataset.span, 10)) { setSpan(w, next); changed(); }
+      } else if (handle.dataset.axis === 'y' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        var minPx = naturalHeight(w);
+        var cur = parseInt(w.dataset.height, 10) || w.getBoundingClientRect().height;
+        var nextH = clampHeight(w, cur + (e.key === 'ArrowDown' ? 40 : -40), minPx);
+        if (nextH !== (parseInt(w.dataset.height, 10) || 0)) { setHeight(w, nextH); changed(); }
+      }
     });
   });
 })();

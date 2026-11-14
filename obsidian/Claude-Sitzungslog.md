@@ -52,6 +52,12 @@ wahrscheinliche Ursache des nie laufenden Postfach-Checks erkannt (Benutzer-cron
 nach /var/log schreiben -> Befehl wird gar nicht ausgeführt).
 Bestätigt: Log-Datei angelegt, Postfach-Check läuft alle 5 Minuten. Danach: mehrmonatige Dateien
 überspringen Monate, die bereits abgerechnet sind (ein Juli–Oktober-Report hatte Q3 überschrieben).
+Q3-Prüfung auf dem Server: Datenbank entspricht der abgerechneten Datei. 15.11.: Anordnen-Modus
+zeigt die Kästen in echter Größe (Leiste schwebt darüber), Höhe am unteren Rand ziehbar (nie
+kleiner als der Inhalt), Kästen einer Reihe gleich hoch, ausgeblendete Kästen in einer Leiste.
+**Fehler/Lehre:** Beim Höhe-Ziehen wuchs der Kasten schneller als die Maus, weil der Browser per
+Scroll-Verankerung mitscrollte -- während des Ziehens `overflow-anchor: none` und nur vom
+Startpunkt aus rechnen.
 **Fehler/Lehre:** Beim Testen fiel auf, dass die Sperre für abgerechnete Zeiträume wegen eines
 Vergleichs DATE gegen Zeitstempel mit Zeitzone nie gegriffen hatte -- Zeiträume immer als
 Kalendertag in derselben Zeitzone vergleichen.

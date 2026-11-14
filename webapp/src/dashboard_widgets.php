@@ -46,9 +46,18 @@ function dashboardSanitizeLayout(array $input): array
             $sizes[$id] = (int)$span;
         }
     }
+    // Höhe am Laptop in Pixeln (Mindesthöhe des Kastens; kleiner als sein Inhalt wird er nie,
+    // das begrenzt schon der Browser beim Ziehen). 0/fehlend = automatisch.
+    $heights = [];
+    foreach ((array)($input['heights'] ?? []) as $id => $px) {
+        $px = (int)$px;
+        if ($validId($id) && $px >= 60 && $px <= 2000 && count($heights) < 50) {
+            $heights[$id] = $px;
+        }
+    }
     return ['order' => array_slice($clean($input['order'] ?? []), 0, 50),
             'hidden' => array_slice($clean($input['hidden'] ?? []), 0, 50),
-            'sizes' => $sizes];
+            'sizes' => $sizes, 'heights' => $heights];
 }
 
 /**
@@ -69,6 +78,12 @@ function dashboardDeviceLayouts(array $ids, ?array $saved): array
             $desktop['sizes'][$id] = (int)$span;
         }
     }
+    $desktop['heights'] = [];
+    foreach ((array)($desktopSaved['heights'] ?? []) as $id => $px) {
+        if (in_array($id, $ids, true) && (int)$px >= 60 && (int)$px <= 2000) {
+            $desktop['heights'][$id] = (int)$px;
+        }
+    }
     return ['desktop' => $desktop, 'mobile' => dashboardMergeLayout($ids, $mobileSaved)];
 }
 
@@ -82,7 +97,7 @@ function dashboardStoreDevice(?array $saved, string $device, ?array $layout): ?a
     if ($layout === null) {
         unset($saved[$device]);
     } else {
-        if ($device === 'mobile') { unset($layout['sizes']); }
+        if ($device === 'mobile') { unset($layout['sizes'], $layout['heights']); }
         $saved[$device] = $layout;
     }
     $saved = array_intersect_key($saved, ['desktop' => 1, 'mobile' => 1]);
@@ -133,7 +148,8 @@ final class DashboardWidgets
         // Kundenansicht ("Ins Portal des Kunden"): Anordnung des Mitglieds nur zeigen, nicht ändern
         $readOnly = class_exists('Auth', false) && method_exists('Auth', 'isImpersonating') && Auth::isImpersonating();
         $out = $readOnly ? '' : '<div class="dash-toolbar" data-dash-toolbar="' . $h($this->key) . '">'
-            . '<p class="dash-edit-hint" hidden>Kästen per Ziehen oder mit den Pfeilen verschieben, mit dem Auge aus- und einblenden<span class="dash-hint-desktop">, am rechten Rand breiter oder schmäler ziehen</span>. Gilt nur für dieses Gerät (Laptop bzw. Handy) und wird in Ihrem Konto gespeichert.</p>'
+            . '<p class="dash-edit-hint" hidden>Kästen per Ziehen oder mit den Pfeilen verschieben, mit dem Auge ausblenden<span class="dash-hint-desktop">, am rechten Rand die Breite, am unteren Rand die Höhe, an der Ecke beides ziehen (kleiner als der Inhalt geht nicht)</span>. Die Ansicht entspricht schon dem Ergebnis. Gilt nur für dieses Gerät (Laptop bzw. Handy) und wird in Ihrem Konto gespeichert.</p>'
+            . '<div class="dash-hidden-tray" hidden><span class="dash-hidden-label">Ausgeblendet:</span></div>'
             . '<div class="dash-toolbar-buttons">'
             . '<button type="button" class="btn btn-secondary dash-btn-reset" hidden>Standard</button>'
             . '<button type="button" class="btn btn-primary dash-btn-edit" aria-pressed="false">'
@@ -149,8 +165,11 @@ final class DashboardWidgets
             $w = $this->widgets[$id];
             $isHidden = in_array($id, $layout['hidden'], true);
             $span = (int)($layout['sizes'][$id] ?? 12);
+            $height = (int)($layout['heights'][$id] ?? 0);
             $out .= '<section class="dash-widget' . ($isHidden ? ' is-hidden-widget' : '') . '" data-widget="' . $h($id) . '"'
-                . ' data-span="' . $span . '" style="--span:' . $span . '"'
+                . ' data-title="' . $h($w['title']) . '"'
+                . ' data-span="' . $span . '" data-height="' . $height . '"'
+                . ' style="--span:' . $span . ($height ? ';--min-h:' . $height . 'px' : '') . '"'
                 . ' aria-label="' . $h($w['title']) . '">'
                 . '<div class="dash-widget-bar" hidden>'
                 . '<span class="dash-handle" aria-hidden="true">⋮⋮</span>'
@@ -162,8 +181,12 @@ final class DashboardWidgets
                 . icon($isHidden ? 'eye-slash' : 'eye') . '</button>'
                 . '</span></div>'
                 . '<div class="dash-widget-body">' . $w['html'] . '</div>'
-                . '<button type="button" class="dash-resize" hidden aria-label="Breite von ' . $h($w['title'])
+                . '<button type="button" class="dash-resize dash-resize-x" data-axis="x" hidden aria-label="Breite von ' . $h($w['title'])
                 . ' ändern (ziehen oder Pfeiltasten links/rechts)" title="Breite ändern: ziehen"></button>'
+                . '<button type="button" class="dash-resize dash-resize-y" data-axis="y" hidden aria-label="Höhe von ' . $h($w['title'])
+                . ' ändern (ziehen oder Pfeiltasten auf/ab)" title="Höhe ändern: ziehen"></button>'
+                . '<button type="button" class="dash-resize dash-resize-xy" data-axis="xy" hidden tabindex="-1" aria-hidden="true"'
+                . ' title="Breite und Höhe ändern: ziehen"></button>'
                 . '</section>';
         }
         $out .= '</div>';
