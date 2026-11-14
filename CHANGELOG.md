@@ -24,6 +24,8 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   in einer Datei) wird beim Import anhand der Detailübersicht auf die einzelnen Monate
   aufgeteilt -- vorher stand die ganze Menge im letzten Monat (September). Summe/Abrechnung
   unverändert. Schon importierte Dateien: einmalig `parser.py --resplit --apply`.
+  Einspeiser werden exakt über „Erzeugung minus Restüberschuss“ aufgeteilt (Differenz zweier
+  Spalten, nur bei passender Summe); `--resplit` darf bereits aufgeteilte Zeiträume neu aufteilen.
 - **Fix:** Die Sperre gegen das Überschreiben bereits abgerechneter Zeiträume griff wegen eines
   Zeitzonen-Vergleichs nie -- jetzt wirksam.
 - **EDA-Postfach** prüft auch schon gelesene Mails (vorher wurden gelesene nie importiert), merkt

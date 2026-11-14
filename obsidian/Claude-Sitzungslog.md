@@ -46,6 +46,10 @@ des letzten Checks; Detailexport ohne doppelte Viertelstundenwerte; „Ins Porta
 Mitgliederliste; Admin-Rolle zeigt eigene Plattform-Übersicht; i-Punkte im Energiefluss; Kästen am
 Laptop in der Breite ziehbar, Anordnung je Gerät. Gegen eine vollständig aus `init.sql` + allen
 Migrationen aufgebaute Test-Datenbank mit der echten App per Playwright durchgespielt.
+Nachtrag nach dem ersten Server-Lauf: Einspeiser exakt über die Differenz zweier Spalten
+(Erzeugung minus Restüberschuss), `--resplit` wiederholbar; fehlende Cron-Log-Datei als
+wahrscheinliche Ursache des nie laufenden Postfach-Checks erkannt (Benutzer-crontab darf nicht
+nach /var/log schreiben -> Befehl wird gar nicht ausgeführt).
 **Fehler/Lehre:** Beim Testen fiel auf, dass die Sperre für abgerechnete Zeiträume wegen eines
 Vergleichs DATE gegen Zeitstempel mit Zeitzone nie gegriffen hatte -- Zeiträume immer als
 Kalendertag in derselben Zeitzone vergleichen.
