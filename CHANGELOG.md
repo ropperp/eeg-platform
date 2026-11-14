@@ -26,6 +26,9 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
   unverändert. Schon importierte Dateien: einmalig `parser.py --resplit --apply`.
   Einspeiser werden exakt über „Erzeugung minus Restüberschuss“ aufgeteilt (Differenz zweier
   Spalten, nur bei passender Summe); `--resplit` darf bereits aufgeteilte Zeiträume neu aufteilen.
+- **Bereits abgerechnete Monate bleiben unverändert:** eine EDA-Datei über mehrere Monate (z. B.
+  Juli–Oktober) importiert nur die Monate, die noch in keinem abgeschlossenen Abrechnungslauf
+  liegen; die übrigen werden mit Warnung übersprungen.
 - **Fix:** Die Sperre gegen das Überschreiben bereits abgerechneter Zeiträume griff wegen eines
   Zeitzonen-Vergleichs nie -- jetzt wirksam.
 - **EDA-Postfach** prüft auch schon gelesene Mails (vorher wurden gelesene nie importiert), merkt

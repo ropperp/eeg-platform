@@ -525,6 +525,28 @@ def split_into_months(total, month_values: dict, type_hint: str, period_from, pe
     return out, note
 
 
+def _finalized_periods(conn, community_id) -> list:
+    """Alle abgeschlossenen Abrechnungszeiträume (released/done) einer EEG als (von, bis)-Daten."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT period_from, period_to FROM billing_runs WHERE community_id = %s AND status IN ('released', 'done')",
+            (community_id,)
+        )
+        return [(r[0], r[1]) for r in cur.fetchall()]
+
+
+def _vienna_date(ts):
+    """Kalendertag eines (ggf. tz-behafteten) Zeitstempels in Wiener Zeit."""
+    if ts is None or (isinstance(ts, float) and pd.isna(ts)):
+        return None
+    t = pd.Timestamp(ts)
+    if pd.isna(t):
+        return None
+    if t.tzinfo is not None:
+        t = t.tz_convert("Europe/Vienna")
+    return t.date()
+
+
 def _billing_period_finalized(conn, community_id, period_from, period_to) -> bool:
     """Prüft, ob für den übergebenen Zeitraum (ein Kalendermonat, siehe file_period_from/
     file_period_to) bereits ein ABGESCHLOSSENER Abrechnungslauf existiert (status 'released'
@@ -819,6 +841,34 @@ def import_to_db(
     # Werte liefert. Einmal pro Aufruf geprüft (gilt für die ganze Datei/den ganzen Zeitraum,
     # nicht pro Zählpunkt einzeln).
     overwrite_allowed = not _billing_period_finalized(conn, community_id, file_period_from, file_period_to)
+
+    # Mehrmonatige Datei, die nur TEILWEISE in bereits abgerechnete Zeiträume fällt (z.B.
+    # Monatsreport Juli-Oktober, Q3 schon abgerechnet): die abgerechneten Monate bleiben
+    # unverändert, nur die übrigen (hier Oktober) werden importiert. Vorher griff die Sperre nur,
+    # wenn EIN Abrechnungslauf die ganze Datei umfasste -- so wurde am 14.11.2026 ein schon
+    # abgerechnetes Q3 vom Juli-Oktober-Report überschrieben.
+    if overwrite_allowed:
+        finalized = _finalized_periods(conn, community_id)
+        skipped_months: set[str] = set()
+        if finalized:
+            for mp_data in data:
+                if mp_data.timeseries.empty:
+                    continue
+                keep = []
+                for _, row in mp_data.timeseries.iterrows():
+                    day = _vienna_date(row["time"])
+                    if day is not None and any(f <= day <= t for f, t in finalized):
+                        skipped_months.add(f"{day.month:02d}/{day.year}")
+                    else:
+                        keep.append(row)
+                mp_data.timeseries = pd.DataFrame(keep) if keep else mp_data.timeseries.iloc[0:0]
+        if skipped_months:
+            ordered_months = sorted(skipped_months, key=lambda m: (m[3:], m[:2]))
+            warnings.append(
+                "Bereits abgerechnet und deshalb unverändert gelassen: " + ", ".join(ordered_months)
+                + " -- importiert wurden nur die übrigen Monate dieser Datei."
+            )
+            log.warning("Abgerechnete Monate übersprungen: %s", ", ".join(ordered_months))
     overwritten: list[str] = []
     old_imports_cleaned = False
 
