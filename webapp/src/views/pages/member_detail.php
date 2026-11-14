@@ -4,7 +4,7 @@ $usesAE = activeCommunityUsesAusleseeinheit($member['community_id'] ?? null);
 ob_start(); ?>
 
 <div style="display:flex;align-items:center;gap:.75rem 1rem;margin-bottom:1.5rem;flex-wrap:wrap">
-  <a href="/portal/members" style="color:var(--gray-600);text-decoration:none">← Mitgliederliste</a>
+  <a href="<?= Auth::isPlatformAdmin() ? '/admin/members' : '/portal/members' ?>" style="color:var(--gray-600);text-decoration:none">← Mitgliederliste</a>
   <div style="position:relative">
     <img src="<?= htmlspecialchars(memberAvatarUrl($member['id'], $member['photo_path'], $member['salutation'])) ?>"
          alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">
@@ -30,6 +30,13 @@ ob_start(); ?>
   <span class="badge badge-gray" title="Letzter Login">Zuletzt angemeldet: <?= date('d.m.Y H:i', strtotime($member['last_login_at'])) ?></span>
   <?php endif; ?>
   <div style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap">
+    <?php if (!Auth::isDemo()): // "Ins Portal des Kunden" (14.11.2026), siehe Auth::startImpersonation() ?>
+    <form method="post" action="/portal/members/<?= $member['id'] ?>/impersonate" style="display:inline">
+      <button type="submit" class="btn btn-primary" style="font-size:.8rem"
+              title="Portal so sehen und bedienen, wie es das Mitglied sieht (für den Support). Wird im Aktivitätslog vermerkt.">
+        <?= icon('eye') ?> Ins Portal des Kunden</button>
+    </form>
+    <?php endif; ?>
     <?php $hasConsumer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer' && in_array($mp['active'], [true, 't', '1', 1], true) && !empty($mp['zaehlpunkt_nr']))); ?>
     <?php if ($hasConsumer && contractsEnabled($member['community_id'])): ?>

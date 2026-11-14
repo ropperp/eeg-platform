@@ -51,7 +51,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
 <!-- Suche & Filter -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-    <input type="search" id="search-input" placeholder="Name, E-Mail, KdNr oder Zählpunkt suchen…"
+    <input type="search" id="search-input" placeholder="Name, Geburtsdatum, Adresse, KdNr, E-Mail oder Zählpunkt…" value="<?= htmlspecialchars((string)($_GET['q'] ?? '')) ?>"
            style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
            oninput="filterMembers()" autocomplete="off">
     <?php // Handy: Filter hinter einem Knopf, damit die Suche + Liste sofort sichtbar sind (13.11.2026). ?>
@@ -139,6 +139,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
     ?>
       <tr data-name="<?= htmlspecialchars(strtolower($m['first_name'] . ' ' . $m['last_name'] . ' ' . ($m['company_name'] ?? ''))) ?>"
           data-extra="<?= htmlspecialchars(strtolower(($m['kundennummer'] ?? '') . ' ' . ($m['znr_bezug'] ?? '') . ' ' . ($m['znr_einspeisung'] ?? ''))) ?>"
+          data-search="<?= htmlspecialchars(memberSearchText($m)) ?>"
           data-href="/portal/members/<?= $m['id'] ?>"
           data-email="<?= htmlspecialchars(strtolower($m['email'])) ?>"
           data-status="<?= htmlspecialchars($m['status']) ?>"
@@ -242,6 +243,14 @@ $usesAE = activeCommunityUsesAusleseeinheit();
 </div>
 
 <script>
+// Alle Suchwörter müssen vorkommen ("Huber 1980", "Hauptstraße 9560"); KdNr/Zählpunkt auch
+// ohne Leerzeichen eingegeben (siehe memberSearchText() in functions.php).
+function memberSearchMatch(text, q) {
+  q = q.trim().toLowerCase();
+  if (!q) return true;
+  if (q.split(/\s+/).every(w => text.includes(w))) return true;
+  return text.replace(/\s+/g, '').includes(q.replace(/\s+/g, ''));
+}
 function filterMembers() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const s = document.getElementById('filter-status').value;
@@ -252,7 +261,7 @@ function filterMembers() {
   const rows = document.querySelectorAll('#member-table tbody tr[data-name]');
   let visible = 0;
   rows.forEach(row => {
-    const nm = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q) || (row.dataset.extra || '').includes(q.replace(/\s+/g, ''));
+    const nm = memberSearchMatch(row.dataset.search || '', q);
     const sm = !s || row.dataset.status === s;
     const cm = !c || row.dataset.contract === c;
     const am = !a || row.dataset.art === a;

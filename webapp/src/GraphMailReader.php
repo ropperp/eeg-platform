@@ -39,6 +39,32 @@ class GraphMailReader
         return $json['value'] ?? [];
     }
 
+    /**
+     * Alle Nachrichten im Posteingang der letzten $days Tage, GELESEN UND UNGELESEN, älteste
+     * zuerst -- für EdaAutoImporter, der sich seit 14.11.2026 selbst merkt, was schon verarbeitet
+     * ist (eda_mail_processed), statt sich auf den Lesestatus zu verlassen. 7 Tage = Gültigkeit
+     * des EDA-Download-Links.
+     */
+    public static function listRecent(string $mailbox, int $days = 7): array
+    {
+        $cfg = Mailer::config();
+        if (!$cfg) {
+            throw new \RuntimeException('Microsoft-Graph ist nicht konfiguriert (Platform-Admin → Einstellungen).');
+        }
+        $token = Mailer::getAccessToken($cfg);
+        $since = gmdate('Y-m-d\\TH:i:s\\Z', time() - $days * 86400);
+
+        $url = 'https://graph.microsoft.com/v1.0/users/' . rawurlencode($mailbox)
+            . '/mailFolders/inbox/messages'
+            . '?$filter=' . rawurlencode('receivedDateTime ge ' . $since)
+            . '&$select=' . rawurlencode('id,subject,receivedDateTime,hasAttachments,body,from,isRead')
+            . '&$orderby=' . rawurlencode('receivedDateTime asc')
+            . '&$top=50';
+
+        $json = self::get($url, $token);
+        return $json['value'] ?? [];
+    }
+
     /** Datei-Anhänge einer Nachricht (contentBytes bereits base64-dekodiert). */
     public static function attachments(string $mailbox, string $messageId): array
     {

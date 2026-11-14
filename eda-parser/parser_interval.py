@@ -334,6 +334,31 @@ class IntervalXlsxDataSource:
         return None
 
 
+def _merge_duplicate_times(rows):
+    """Fasst Zeilen mit demselben Zeitstempel innerhalb EINER Datei zusammen (kommt bei der
+    Zeitumstellung Ende Oktober vor: 02:00-02:45 steht zweimal, als lokale Uhrzeit ohne
+    Zeitzone gleich) -- Mengen werden addiert (Tagessummen bleiben richtig), Qualität = die
+    schlechtere. Liefert (zeilen, anzahl_doppelter_zeitpunkte)."""
+    by_time = {}
+    order = []
+    doppelt = 0
+    rank = {"L1": 1, "L2": 2, "L3": 3}
+    for r in rows:
+        prev = by_time.get(r.time)
+        if prev is None:
+            by_time[r.time] = r
+            order.append(r.time)
+            continue
+        doppelt += 1
+        add = lambda a, b: (a or 0) + (b or 0) if (a is not None or b is not None) else None
+        prev.kwh_messung = add(prev.kwh_messung, r.kwh_messung)
+        prev.kwh_gemeinschaft = add(prev.kwh_gemeinschaft, r.kwh_gemeinschaft)
+        prev.kwh_erzeugung_gesamt = add(prev.kwh_erzeugung_gesamt, r.kwh_erzeugung_gesamt)
+        if rank.get(r.quality or "", 0) > rank.get(prev.quality or "", 0):
+            prev.quality = r.quality
+    return [by_time[t] for t in order], doppelt
+
+
 def import_to_db(
     conn,
     community_id: str,
@@ -384,11 +409,32 @@ def import_to_db(
     if neu_angelegt:
         warnings.append(f"{len(neu_angelegt)} neu angelegte, noch nicht zugeordnete Zählpunkte.")
 
+    # Eindeutiger Index vorhanden (migrate_20261114b.sql)? Dann überschreibt das INSERT vorhandene
+    # Werte (ON CONFLICT) -- damit entstehen auch bei zwei gleichzeitigen Importen desselben
+    # Zeitraums (Upload von Hand + Postfach-Abruf) keine doppelten Viertelstundenwerte mehr.
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM pg_indexes WHERE indexname = 'eda_interval_data_unique_idx'")
+        has_unique = cur.fetchone() is not None
+    on_conflict = (
+        """ON CONFLICT (metering_point_id, energy_direction, time) DO UPDATE SET
+               kwh_messung = EXCLUDED.kwh_messung, kwh_gemeinschaft = EXCLUDED.kwh_gemeinschaft,
+               kwh_erzeugung_gesamt = EXCLUDED.kwh_erzeugung_gesamt, quality = EXCLUDED.quality,
+               community_id = EXCLUDED.community_id"""
+        if has_unique else ""
+    )
+
     with conn.cursor() as cur:
         for mp in data:
             mp_id = registered.get(mp.zaehlpunkt_nr)
             if not mp_id or not mp.rows:
                 continue
+            merged_rows, doppelt = _merge_duplicate_times(mp.rows)
+            if doppelt:
+                warnings.append(
+                    f"Zählpunkt {mp.zaehlpunkt_nr}: {doppelt} Zeitpunkt(e) kamen in der Datei doppelt vor "
+                    "(z.B. Zeitumstellung) -- zusammengefasst statt doppelt gespeichert."
+                )
+            mp.rows = merged_rows
             ts_min = min(row.time for row in mp.rows)
             ts_max = max(row.time for row in mp.rows)
 
@@ -409,7 +455,7 @@ def import_to_db(
                     (time, community_id, metering_point_id, energy_direction, kwh_messung, kwh_gemeinschaft,
                      kwh_erzeugung_gesamt, quality)
                 VALUES %s
-                """,
+                """ + on_conflict,
                 rows,
             )
             total_records += len(rows)

@@ -2309,8 +2309,16 @@ function dashboardLayout(string $key): ?array
     if (Auth::isDemo()) {
         return $_SESSION['dashboard_layouts'][$key] ?? null;
     }
+    $userId = Auth::userId();
+    if (Auth::isImpersonating()) {
+        // Kundenansicht: die Startseite so zeigen, wie das Mitglied sie sich angeordnet hat
+        $imp = Auth::impersonation();
+        $m = DB::fetchOne('SELECT user_id FROM members WHERE id = ?', [$imp['member_id']]);
+        $userId = $m['user_id'] ?? null;
+        if (!$userId) return null;
+    }
     try {
-        $row = DB::fetchOne('SELECT layout FROM user_dashboard_layouts WHERE user_id = ? AND dashboard_key = ?', [Auth::userId(), $key]);
+        $row = DB::fetchOne('SELECT layout FROM user_dashboard_layouts WHERE user_id = ? AND dashboard_key = ?', [$userId, $key]);
     } catch (\Throwable $e) {
         return null;
     }
@@ -2328,20 +2336,25 @@ $router->post('/portal/dashboard-layout', function () {
         return;
     }
     $reset = ($_POST['reset'] ?? '') === '1';
-    $layout = dashboardSanitizeLayout(json_decode((string)($_POST['layout'] ?? ''), true) ?: []);
+    // Laptop und Handy getrennt (14.11.2026) -- jedes Gerät speichert nur seine eigene Anordnung.
+    $device = ($_POST['device'] ?? '') === 'mobile' ? 'mobile' : 'desktop';
+    $layout = $reset ? null : dashboardSanitizeLayout(json_decode((string)($_POST['layout'] ?? ''), true) ?: []);
     if (Auth::isDemo()) {
-        if ($reset) { unset($_SESSION['dashboard_layouts'][$key]); } else { $_SESSION['dashboard_layouts'][$key] = $layout; }
+        $merged = dashboardStoreDevice($_SESSION['dashboard_layouts'][$key] ?? null, $device, $layout);
+        if ($merged === null) { unset($_SESSION['dashboard_layouts'][$key]); } else { $_SESSION['dashboard_layouts'][$key] = $merged; }
         echo json_encode(['status' => 'ok', 'saved' => 'session']);
         return;
     }
     try {
-        if ($reset) {
+        $old = DB::fetchOne('SELECT layout FROM user_dashboard_layouts WHERE user_id = ? AND dashboard_key = ?', [Auth::userId(), $key]);
+        $merged = dashboardStoreDevice($old ? (json_decode((string)$old['layout'], true) ?: null) : null, $device, $layout);
+        if ($merged === null) {
             DB::execute('DELETE FROM user_dashboard_layouts WHERE user_id = ? AND dashboard_key = ?', [Auth::userId(), $key]);
         } else {
             DB::execute(
                 'INSERT INTO user_dashboard_layouts (user_id, dashboard_key, layout) VALUES (?, ?, ?::jsonb)
                  ON CONFLICT (user_id, dashboard_key) DO UPDATE SET layout = EXCLUDED.layout, updated_at = now()',
-                [Auth::userId(), $key, json_encode($layout)]
+                [Auth::userId(), $key, json_encode($merged)]
             );
         }
     } catch (\Throwable $e) {
@@ -2355,6 +2368,14 @@ $router->post('/portal/dashboard-layout', function () {
 
 $router->get('/portal/dashboard', function () {
     Auth::requireLogin();
+    // Rolle "Admin" zeigt immer die Plattform-Übersicht -- auch wenn die Admin-Rolle (wie bei
+    // älteren Accounts) an eine EEG gebunden ist. Vorher landete man dann im Obmann-Dashboard
+    // dieser EEG (Patrick, 14.11.2026: "dann wird mir das EEG-Strom-Pool-Dashboard angezeigt").
+    // Das Obmann-Dashboard gibt es über die Obmann-Rolle der jeweiligen EEG.
+    if (Auth::isPlatformAdmin()) {
+        header('Location: /admin');
+        exit;
+    }
     if (Auth::isManager()) {
         // manager_dashboard.php braucht eine konkrete aktive EEG (DB::setCommunity() dort ganz
         // oben) -- ein platform_admin ohne community-gebundene Rolle (community_id NULL, siehe
@@ -6324,6 +6345,41 @@ $router->get('/portal/members/:id', function ($params) {
 });
 
 /**
+ * "Ins Portal des Kunden" (Patrick, 14.11.2026, für den Support): Obmann/Platform-Admin sieht
+ * das Portal so, wie das Mitglied es sieht, mit dessen Funktionen -- siehe
+ * Auth::startImpersonation() und die Sperrliste in Router::dispatch(). Start und Ende landen im
+ * Aktivitätslog der EEG.
+ */
+$router->post('/portal/members/:id/impersonate', function ($params) {
+    Auth::requireLogin(); Auth::requireRole('manager');
+    $member = requireMemberAccess($params['id']);
+    if (!$member) { return; }
+    $community = DB::fetchOne(
+        'SELECT id, name, slug, COALESCE(LOWER(marktpartner_id), slug) AS mqtt_id FROM communities WHERE id = ?',
+        [$member['community_id']]
+    );
+    if (!$community) { http_response_code(404); echo 'EEG nicht gefunden'; return; }
+    $name = trim($member['first_name'] . ' ' . $member['last_name']);
+    logAudit($member['community_id'], 'member.impersonate.start', 'member', $member['id'],
+        'Kundenansicht geöffnet: ' . $name . ($member['kundennummer'] ? ' (KdNr ' . $member['kundennummer'] . ')' : ''));
+    Auth::startImpersonation($member, $community);
+    header('Location: /portal/dashboard');
+    exit;
+});
+
+$router->post('/portal/impersonation/stop', function () {
+    Auth::requireLogin();
+    $imp = Auth::stopImpersonation();
+    if ($imp === null) { header('Location: /portal/dashboard'); exit; }
+    $minutes = max(1, (int)round((time() - (int)$imp['started_at']) / 60));
+    logAudit($imp['community_id'], 'member.impersonate.stop', 'member', $imp['member_id'],
+        'Kundenansicht beendet: ' . $imp['member_name'] . " (nach {$minutes} Min.)");
+    // Zurück zum Mitglied -- requireMemberAccess() dort prüft wieder mit der eigenen Rolle.
+    header('Location: /portal/members/' . rawurlencode((string)$imp['member_id']));
+    exit;
+});
+
+/**
  * P1-Kundenschnittstellen-Schlüssel eines Zählpunkts setzen oder löschen (Patrick, 07.11.2026).
  * Nur Obmann/Platform-Admin; gespeichert ausschließlich verschlüsselt (encryptSecret(), Schlüssel
  * aus APP_SECRET der .env). Im Audit-Log steht nur DASS geändert wurde, nie der Schlüssel selbst.
@@ -10019,7 +10075,85 @@ $router->get('/admin', function () {
     // Demo-Login: echte Login-Accounts hier NIE unmaskiert zeigen (siehe demoMaskUser()).
     $rawUsers = demoMaskUsers($rawUsers, Auth::isDemo());
     $users = array_map(fn($u) => array_merge($u, ['roles' => $roleMap[$u['id']] ?? []]), $rawUsers);
+
+    // Plattform-Übersicht (Patrick, 14.11.2026: beim Wechsel auf "Admin" ein nützliches
+    // Admin-Dashboard statt des Obmann-Dashboards einer EEG): je EEG die offenen Aufgaben und
+    // der Datenstand. Die Tabellen haben Row-Level Security -> je EEG einzeln abfragen.
+    $espOfflineMinutes = espOfflineAfterMinutes();
+    $eegStats = [];
+    foreach ($communities as $c) {
+        $st = ['id' => $c['id'], 'name' => $c['name'], 'members' => 0, 'meters' => 0, 'live' => 0,
+               'applications' => 0, 'notifications' => 0, 'support' => 0, 'unassigned' => 0,
+               'last_import' => null, 'last_interval_import' => null];
+        try {
+            DB::setCommunity($c['id']);
+            $row = DB::fetchOne(
+                "SELECT
+                    (SELECT COUNT(*) FROM members WHERE community_id = ? AND status = 'active' AND is_demo = false) AS members,
+                    (SELECT COUNT(*) FROM metering_points WHERE community_id = ? AND active = true AND member_id IS NOT NULL) AS meters,
+                    (SELECT COUNT(*) FROM metering_points WHERE community_id = ? AND active = true
+                        AND esp_last_seen_at > now() - (? || ' minutes')::interval) AS live,
+                    (SELECT COUNT(*) FROM membership_applications WHERE community_id = ? AND status = 'pending') AS applications,
+                    (SELECT COUNT(*) FROM notifications WHERE community_id = ? AND status = 'offen') AS notifications,
+                    (SELECT COUNT(*) FROM metering_points WHERE community_id = ? AND member_id IS NULL) AS unassigned,
+                    (SELECT MAX(imported_at) FROM eda_imports WHERE community_id = ?) AS last_import",
+                [$c['id'], $c['id'], $c['id'], $espOfflineMinutes, $c['id'], $c['id'], $c['id'], $c['id']]
+            );
+            $st = array_merge($st, $row ?: []);
+            $st['support'] = (int)(DB::fetchOne(
+                "SELECT COUNT(*) AS cnt FROM support_ticket_messages sm JOIN support_tickets st ON st.id = sm.ticket_id
+                 WHERE st.community_id = ? AND sm.is_staff = false
+                   AND sm.created_at > COALESCE(st.manager_read_at, '-infinity'::timestamptz)",
+                [$c['id']]
+            )['cnt'] ?? 0);
+            $st['last_interval_import'] = DB::fetchOne(
+                'SELECT MAX(imported_at) AS t FROM eda_interval_imports WHERE community_id = ?', [$c['id']]
+            )['t'] ?? null;
+        } catch (\Throwable $e) {
+            error_log('[admin] Übersicht für EEG ' . $c['id'] . ': ' . $e->getMessage());
+        }
+        $eegStats[] = $st;
+    }
+    $mailConfig = DB::fetchOne('SELECT * FROM platform_mail_config WHERE id = 1') ?: [];
+    $backupStatus = null;
+    if (is_readable('/var/www/html/backups/last_backup.json')) {
+        $backupStatus = json_decode((string)file_get_contents('/var/www/html/backups/last_backup.json'), true) ?: null;
+    }
+    try { $platformSettings = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1') ?: []; } catch (\Throwable $e) { $platformSettings = []; }
     require ROOT . '/src/views/pages/admin.php';
+});
+
+/**
+ * Alle Mitglieder aller EEGs mit Suche nach Name, Geburtsdatum, Adresse, KdNr, E-Mail oder
+ * Zählpunkt (Patrick, 14.11.2026). Klick öffnet die Mitglied-Details (dort u.a. "Ins Portal
+ * des Kunden"). members hat Row-Level Security -> je EEG einzeln laden.
+ */
+$router->get('/admin/members', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); echo 'Kein Zugriff'; return; }
+    $communities = DB::fetchAll('SELECT id, name FROM communities ORDER BY name');
+    $isDemo = Auth::isDemo();
+    $members = [];
+    foreach ($communities as $c) {
+        DB::setCommunity($c['id']);
+        $rows = DB::fetchAll(
+            "SELECT m.id, m.kundennummer, m.salutation, m.first_name, m.last_name, m.company_name, m.email,
+                    m.phone, m.address, m.zip, m.city, m.geburtsdatum, m.status, m.is_demo,
+                    (SELECT string_agg(mp.zaehlpunkt_nr, ' ') FROM metering_points mp
+                      WHERE mp.member_id = m.id AND mp.active = true) AS zaehlpunkte
+             FROM members m WHERE m.community_id = ?
+             ORDER BY m.last_name, m.first_name",
+            [$c['id']]
+        );
+        foreach (demoMaskMembers($rows, $isDemo) as $r) {
+            if ($isDemo && empty($r['is_demo']) && !empty($r['zaehlpunkte'])) { $r['zaehlpunkte'] = demoMaskFull((string)$r['zaehlpunkte']); }
+            $r['community_name'] = $c['name'];
+            $members[] = $r;
+        }
+    }
+    usort($members, fn($a, $b) => strcasecmp($a['last_name'] . ' ' . $a['first_name'], $b['last_name'] . ' ' . $b['first_name']));
+    $q = trim((string)($_GET['q'] ?? ''));
+    require ROOT . '/src/views/pages/admin_members.php';
 });
 
 /**

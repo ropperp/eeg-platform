@@ -32,6 +32,12 @@ besserer EDA-Export den alten Import ersetzen können, statt manuell aufräumen 
 der Zeitraum bereits abgerechnet, bleibt es beim harten Fehler wie zuvor (schützt bereits
 verschickte Rechnungen).
 
+Mehrmonatige Dateien (z.B. ein ganzes Quartal in einer Datei, seit 14.11.2026): der Gesamtwert
+der Gesamtübersicht wird anhand der Monatszeilen der Detailübersicht auf die einzelnen Monate
+aufgeteilt (eine eda_measurements-Zeile je Monat, Summe unverändert), siehe split_into_months().
+Schon früher importierte Quartalsdateien: einmalig `--resplit` (Vorschau) bzw.
+`--resplit --apply`, siehe resplit_existing().
+
 Aufruf:
   python parser.py --file RC108175_2026070120260731_20260805T200419.xlsx \
                    --community strompool-feldkirchen \
@@ -122,10 +128,12 @@ class XlsxDataSource:
             )
 
         overview = self._parse_gesamtuebersicht(xl, sheet_gesamt)
-        detail, monthly_quality = self._parse_detailuebersicht(xl, sheet_detail)
+        detail, monthly_quality, monthly_values = self._parse_detailuebersicht(xl, sheet_detail)
         period_from, period_to = self._parse_auswertungszeitraum(xl, sheet_gesamt)
+        quality_by_month = {(q["zaehlpunkt_nr"], q["month"]): q for q in monthly_quality}
 
         result = []
+        split_notes = []
         for zaehlpunkt_nr, meta in overview.items():
             zusatz = detail.get(zaehlpunkt_nr, {})
             row = {
@@ -136,14 +144,44 @@ class XlsxDataSource:
                 "kwh_ueberschuss": zusatz.get("kwh_ueberschuss"),
                 "kwh_restueberschuss": zusatz.get("kwh_restueberschuss"),
             }
+            rows = [row]
+            # Mehrmonatige Datei (z.B. ein ganzes Quartal in EINER Datei): die Gesamtübersicht
+            # hat nur EINE Zeile für den ganzen Zeitraum -- bisher landete der komplette Wert
+            # deshalb mit dem Enddatum (z.B. 30.09.) im letzten Monat (Patrick, 14.11.2026:
+            # "die ganze Leistung vom Quartal 3 [...] alles im September-Balken"). Jetzt wird er
+            # anhand der Monatszeilen der Detailübersicht auf die einzelnen Monate aufgeteilt;
+            # die Summe bleibt exakt gleich (Abrechnung unverändert), siehe split_into_months().
+            split = split_into_months(
+                meta["kwh_wert"], monthly_values.get(zaehlpunkt_nr, {}), meta["type_hint"],
+                period_from, period_to, meta.get("teilnahme_von"),
+            )
+            if split is not None:
+                months, note = split
+                if note:
+                    split_notes.append(f"{zaehlpunkt_nr}: {note}")
+                rows = []
+                for m in months:
+                    q = quality_by_month.get((zaehlpunkt_nr, m["month"]), {})
+                    rows.append({
+                        "time": m["time"],
+                        "teilnahme_von": m["teilnahme_von"],
+                        "kwh_erzeugung": m["kwh"] if meta["type_hint"] == "producer" else None,
+                        "kwh_teilnahme": m["kwh"] if meta["type_hint"] == "consumer" else None,
+                        "kwh_ueberschuss": m.get("kwh_ueberschuss"),
+                        "kwh_restueberschuss": m.get("kwh_restueberschuss"),
+                        "quality": q.get("quality"),
+                        "completeness": q.get("completeness"),
+                    })
             result.append(MeteringPointData(
                 zaehlpunkt_nr=zaehlpunkt_nr,
                 meter_code="",  # EDA-Report enthält keine Zählernummer, nur die Zählpunktnummer
                 type_hint=meta["type_hint"],
                 completeness=meta["completeness"],
                 quality=meta["quality"],
-                timeseries=pd.DataFrame([row]),
+                timeseries=pd.DataFrame(rows),
             ))
+        for n in split_notes:
+            log.warning("Monatsaufteilung: %s", n)
         return LoadResult(
             metering_points=result, period_from=period_from, period_to=period_to,
             monthly_quality=monthly_quality,
@@ -300,7 +338,14 @@ class XlsxDataSource:
         col_uebermittlung = self._find_col(df.columns, ["Datenübermittlung"])
         col_qualitaet = self._find_col(df.columns, ["Datenqualität"])
         if not col_zp:
-            return {}, []
+            return {}, [], {}
+
+        # Alle Zahlenspalten je Zählpunkt und Monat (für split_into_months()) -- bewusst ALLE,
+        # nicht eine fest angenommene Spalte: welche davon zur abrechnungsrelevanten Menge der
+        # Gesamtübersicht passt, wird dort anhand der Summe geprüft.
+        skip_cols = {c for c in (col_zp, col_jahr, col_monat) if c}
+        monthly_values: dict = {}
+        month_rows_seen: set = set()
 
         result = {}
         monthly_quality = []
@@ -312,10 +357,31 @@ class XlsxDataSource:
             if pd.isna(zp) or not str(zp).strip().upper().startswith("AT"):
                 continue
             zp = str(zp).strip()
-            result[zp] = {
-                "kwh_ueberschuss": float(row[col_ueberschuss]) if col_ueberschuss and not pd.isna(row[col_ueberschuss]) else None,
-                "kwh_restueberschuss": float(row[col_rest]) if col_rest and not pd.isna(row[col_rest]) else None,
-            }
+            ueb = float(row[col_ueberschuss]) if col_ueberschuss and not pd.isna(row[col_ueberschuss]) else None
+            rest = float(row[col_rest]) if col_rest and not pd.isna(row[col_rest]) else None
+            has_month = bool(col_jahr and col_monat and not pd.isna(row[col_jahr]) and not pd.isna(row[col_monat]))
+            if has_month:
+                # Mehrere Monatszeilen (mehrmonatige Datei): Zusatzwerte über den Zeitraum
+                # summieren -- vorher gewann stillschweigend die LETZTE Monatszeile.
+                prev = result.get(zp) if zp in month_rows_seen else None
+                result[zp] = {
+                    "kwh_ueberschuss": _add_opt(prev["kwh_ueberschuss"] if prev else None, ueb),
+                    "kwh_restueberschuss": _add_opt(prev["kwh_restueberschuss"] if prev else None, rest),
+                }
+                month_rows_seen.add(zp)
+                month_key = f"{int(row[col_jahr]):04d}-{int(row[col_monat]):02d}-01"
+                values = {}
+                for c in df.columns:
+                    if c in skip_cols:
+                        continue
+                    v = pd.to_numeric(row[c], errors="coerce")
+                    if not pd.isna(v):
+                        values[str(c)] = float(v)
+                values["__ueberschuss"] = ueb
+                values["__restueberschuss"] = rest
+                monthly_values.setdefault(zp, {})[month_key] = values
+            elif zp not in month_rows_seen:
+                result[zp] = {"kwh_ueberschuss": ueb, "kwh_restueberschuss": rest}
 
             if col_jahr and col_monat and col_qualitaet and not pd.isna(row[col_jahr]) and not pd.isna(row[col_monat]):
                 jahr = int(row[col_jahr])
@@ -327,7 +393,117 @@ class XlsxDataSource:
                     "quality": self._worst_quality(row[col_qualitaet]),
                     "completeness": "COMPLETE" if status == "vollständig" else "INCOMPLETE",
                 })
-        return result, monthly_quality
+        return result, monthly_quality, monthly_values
+
+
+def _add_opt(a, b):
+    """Summe zweier optionaler Werte (None = kein Wert)."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a + b
+
+
+# Spalten der Detailübersicht, die am ehesten der abrechnungsrelevanten Menge der
+# Gesamtübersicht entsprechen -- nur eine Vorauswahl/Reihenfolge, entschieden wird anhand der
+# Summe (siehe split_into_months()).
+_MONTH_COL_HINTS = {
+    "consumer": ["eigendeckung gemeinschaftliche", "eigendeckung gem", "anteil gemeinschaftliche",
+                 "anteil gem", "abrechnungsrelevant"],
+    "producer": ["erzeugung lt. messung entsprechend", "abrechnungsrelevant",
+                 "gesamte gemeinschaftliche erzeugung", "gesamt/überschuss", "überschusserzeugung"],
+}
+
+
+def split_into_months(total, month_values: dict, type_hint: str, period_from, period_to, teilnahme_von=None):
+    """Teilt den Gesamtwert eines Zählpunkts aus einer MEHRMONATIGEN Datei auf die einzelnen
+    Kalendermonate auf. Liefert None, wenn nichts aufzuteilen ist (Datei mit nur einem Monat,
+    keine Monatszeilen), sonst (monate, hinweis) mit je Monat
+    {"month": "JJJJ-MM-01", "time": Monatsletzter (bzw. Periodenende), "teilnahme_von", "kwh",
+     "kwh_ueberschuss", "kwh_restueberschuss"}.
+
+    Welche Spalte der Detailübersicht die Monatswerte liefert, wird NICHT geraten: zuerst wird
+    eine Spalte gesucht, deren Monatswerte in Summe exakt den Gesamtwert ergeben (dann werden sie
+    1:1 übernommen). Gibt es keine, wird der Gesamtwert im Verhältnis der naheliegendsten Spalte
+    aufgeteilt (hinweis gesetzt). Die Summe der Monate ist in jedem Fall exakt der Gesamtwert --
+    Rechnungen über den ganzen Zeitraum ändern sich dadurch nicht."""
+    tz = "Europe/Vienna"
+    pf = pd.Timestamp(period_from).tz_localize(None) if pd.Timestamp(period_from).tzinfo else pd.Timestamp(period_from)
+    pt = pd.Timestamp(period_to).tz_localize(None) if pd.Timestamp(period_to).tzinfo else pd.Timestamp(period_to)
+    if (pf.year, pf.month) == (pt.year, pt.month):
+        return None
+
+    start_date = teilnahme_von if teilnahme_von is not None else pf.date()
+    months = []
+    for key in sorted(month_values):
+        m_start = pd.Timestamp(key)
+        m_end = (m_start + pd.offsets.MonthEnd(0)).normalize()
+        if m_start > pt or m_end < pf.normalize():
+            continue
+        end = min(m_end, pt.normalize())
+        if end.date() < start_date:
+            continue  # Monat vor Teilnahmebeginn -- da kann nichts verrechnet worden sein
+        months.append((key, m_start, end))
+    if len(months) < 2:
+        return None
+
+    total = float(total or 0.0)
+    all_cols = []
+    for key, _, _ in months:
+        for c in month_values[key]:
+            if not c.startswith("__") and c not in all_cols:
+                all_cols.append(c)
+    hints = _MONTH_COL_HINTS.get(type_hint, [])
+    preferred = [c for h in hints for c in all_cols if h in c.lower()]
+    ordered = list(dict.fromkeys(preferred + all_cols))
+
+    def col_values(c):
+        return [float(month_values[k].get(c) or 0.0) for k, _, _ in months]
+
+    tolerance = max(0.05, abs(total) * 0.002)
+    chosen, exact = None, False
+    if abs(total) < 1e-9:
+        weights = [0.0] * len(months)
+        exact = True
+    else:
+        for c in ordered:
+            vals = col_values(c)
+            if abs(sum(vals) - total) <= tolerance and all(v >= 0 for v in vals):
+                chosen, exact, weights = c, True, vals
+                break
+        if chosen is None:
+            for c in preferred:
+                vals = col_values(c)
+                if sum(vals) > 0 and all(v >= 0 for v in vals):
+                    chosen, weights = c, vals
+                    break
+        if chosen is None:
+            return None
+
+    note = None
+    if exact:
+        amounts = [round(v, 4) for v in weights]
+    else:
+        s = sum(weights)
+        amounts = [round(total * v / s, 4) for v in weights]
+        note = (f"Monatswerte im Verhältnis der Spalte „{chosen}“ aufgeteilt "
+                "(keine Spalte ergab exakt den Gesamtwert)")
+    # Rundungsrest in den letzten Monat, damit die Summe exakt dem Gesamtwert entspricht
+    amounts[-1] = round(amounts[-1] + (round(total, 4) - round(sum(amounts), 4)), 4)
+
+    out = []
+    for (key, m_start, end), kwh in zip(months, amounts):
+        von = max(m_start.date(), start_date)
+        out.append({
+            "month": key,
+            "time": pd.Timestamp(end).tz_localize(tz),
+            "teilnahme_von": von,
+            "kwh": kwh,
+            "kwh_ueberschuss": month_values[key].get("__ueberschuss"),
+            "kwh_restueberschuss": month_values[key].get("__restueberschuss"),
+        })
+    return out, note
 
 
 def _billing_period_finalized(conn, community_id, period_from, period_to) -> bool:
@@ -346,12 +522,139 @@ def _billing_period_finalized(conn, community_id, period_from, period_to) -> boo
             """
             SELECT 1 FROM billing_runs
             WHERE community_id = %s AND status IN ('released', 'done')
-              AND period_from <= %s AND period_to >= %s
+              AND period_from <= (%s::timestamptz AT TIME ZONE 'Europe/Vienna')::date
+              AND period_to >= (%s::timestamptz AT TIME ZONE 'Europe/Vienna')::date
             LIMIT 1
             """,
-            (community_id, period_from, period_to)
+            # Als Kalendertag in Wiener Zeit vergleichen: period_from/period_to der Datei sind
+            # tz-aware (00:00 Wien = 22:00/23:00 UTC am VORTAG), die des Abrechnungslaufs reine
+            # DATE-Werte -- der direkte Vergleich lief in einer UTC-Sitzung um diesen Versatz
+            # daneben, die Sperre griff dadurch nie (gefunden 14.11.2026).
+            (community_id, str(period_from), str(period_to))
         )
         return cur.fetchone() is not None
+
+
+def _row_text(row, key):
+    """Optionaler Text-Wert einer Zeitreihen-Zeile (fehlende Spalte/NaN -> None)."""
+    v = row.get(key) if hasattr(row, "get") else None
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    return str(v)
+
+
+def _insert_measurements(cur, community_id, mp_id, mp_data: MeteringPointData) -> int:
+    """Schreibt die Zeitreihe eines Zählpunkts (eine Zeile je Monat) nach eda_measurements."""
+    rows = [
+        (
+            row["time"],
+            community_id,
+            mp_id,
+            mp_data.meter_code,
+            row.get("kwh_erzeugung"),
+            row.get("kwh_teilnahme"),
+            row.get("kwh_ueberschuss"),
+            row.get("kwh_restueberschuss"),
+            _row_text(row, "quality") or mp_data.quality,
+            _row_text(row, "completeness") or mp_data.completeness,
+            row.get("teilnahme_von"),
+        )
+        for _, row in mp_data.timeseries.iterrows()
+        if not pd.isna(row["time"])
+    ]
+    rows = [tuple(None if (isinstance(v, float) and pd.isna(v)) else v for v in r) for r in rows]
+    psycopg2.extras.execute_values(
+        cur,
+        """
+        INSERT INTO eda_measurements
+            (time, community_id, metering_point_id, meter_code,
+             kwh_erzeugung, kwh_teilnahme, kwh_ueberschuss, kwh_restueberschuss,
+             quality, completeness, teilnahme_von)
+        VALUES %s
+        ON CONFLICT DO NOTHING
+        """,
+        rows,
+    )
+    return len(rows)
+
+
+def resplit_existing(conn, uploads_dir: str, apply: bool) -> list[dict]:
+    """Einmalige Reparatur für schon importierte MEHRMONATIGE Dateien (z.B. Q3 2026 in einer
+    Datei), deren Gesamtwert noch als EIN Datensatz am Periodenende liegt: liest die beim Import
+    gespeicherte Originaldatei (storage/uploads/<eda_imports.filename>) erneut und ersetzt den
+    einen Datensatz durch Monatswerte -- aber NUR, wenn die Summe exakt gleich bleibt. Damit
+    ändern sich bereits verschickte Rechnungen über den ganzen Zeitraum nicht; deshalb ist das
+    (anders als ein normaler erneuter Import) auch für schon abgerechnete Zeiträume erlaubt.
+    Ohne apply=True wird nur angezeigt, was passieren würde."""
+    report = []
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            """
+            SELECT i.id, i.community_id, i.filename, i.period_from, i.period_to, c.name AS eeg,
+                   (i.period_from AT TIME ZONE 'Europe/Vienna')::date AS von,
+                   (i.period_to AT TIME ZONE 'Europe/Vienna')::date AS bis
+            FROM eda_imports i JOIN communities c ON c.id = i.community_id
+            WHERE date_trunc('month', i.period_from AT TIME ZONE 'Europe/Vienna')
+               <> date_trunc('month', i.period_to AT TIME ZONE 'Europe/Vienna')
+            ORDER BY i.imported_at
+            """
+        )
+        imports = cur.fetchall()
+
+    for imp in imports:
+        community_id = str(imp["community_id"])
+        entry = {"import": imp["filename"], "eeg": imp["eeg"],
+                 "zeitraum": f"{imp['von']:%d.%m.%Y}–{imp['bis']:%d.%m.%Y}",
+                 "aufgeteilt": 0, "uebersprungen": []}
+        report.append(entry)
+        path = os.path.join(uploads_dir, os.path.basename(imp["filename"]))
+        if not os.path.isfile(path):
+            entry["fehler"] = f"Originaldatei nicht gefunden: {path}"
+            continue
+        try:
+            loaded = XlsxDataSource().load(path, community_id)
+        except Exception as e:  # noqa: BLE001 -- Bericht statt Abbruch für die übrigen Dateien
+            entry["fehler"] = f"Datei nicht lesbar: {e}"
+            continue
+
+        with conn.cursor() as cur:
+            cur.execute("SELECT zaehlpunkt_nr, id FROM metering_points WHERE community_id = %s", (community_id,))
+            mp_ids = {r[0]: str(r[1]) for r in cur.fetchall()}
+            for mp in loaded.metering_points:
+                if len(mp.timeseries) < 2 or mp.zaehlpunkt_nr not in mp_ids:
+                    continue
+                mp_id = mp_ids[mp.zaehlpunkt_nr]
+                col = "kwh_erzeugung" if mp.type_hint == "producer" else "kwh_teilnahme"
+                cur.execute(
+                    f"""
+                    SELECT COUNT(*), COALESCE(SUM({col}), 0) FROM eda_measurements
+                    WHERE community_id = %s AND metering_point_id = %s AND time >= %s AND time <= %s
+                    """,
+                    (community_id, mp_id, imp["period_from"], imp["period_to"]),
+                )
+                count, old_sum = cur.fetchone()
+                new_sum = float(mp.timeseries[col].fillna(0).sum())
+                if count != 1:
+                    entry["uebersprungen"].append(
+                        f"{mp.zaehlpunkt_nr}: {'schon monatsweise vorhanden' if count > 1 else 'keine Daten in der Datenbank'}")
+                    continue
+                if abs(float(old_sum) - new_sum) > 0.01:
+                    entry["uebersprungen"].append(
+                        f"{mp.zaehlpunkt_nr}: Wert in der Datenbank ({float(old_sum):.2f} kWh) weicht von der Datei ab ({new_sum:.2f} kWh)")
+                    continue
+                if apply:
+                    cur.execute(
+                        """
+                        DELETE FROM eda_measurements
+                        WHERE community_id = %s AND metering_point_id = %s AND time >= %s AND time <= %s
+                        """,
+                        (community_id, mp_id, imp["period_from"], imp["period_to"]),
+                    )
+                    _insert_measurements(cur, community_id, mp_id, mp)
+                entry["aufgeteilt"] += 1
+        if apply:
+            conn.commit()
+    return report
 
 
 def import_to_db(
@@ -561,38 +864,9 @@ def import_to_db(
                     old_imports_cleaned = True
 
             # Einfügen
-            rows = [
-                (
-                    row["time"],
-                    community_id,
-                    mp_id,
-                    mp_data.meter_code,
-                    row.get("kwh_erzeugung"),
-                    row.get("kwh_teilnahme"),
-                    row.get("kwh_ueberschuss"),
-                    row.get("kwh_restueberschuss"),
-                    mp_data.quality,
-                    mp_data.completeness,
-                    row.get("teilnahme_von"),
-                )
-                for _, row in mp_data.timeseries.iterrows()
-                if not pd.isna(row["time"])
-            ]
-
-            psycopg2.extras.execute_values(
-                cur,
-                """
-                INSERT INTO eda_measurements
-                    (time, community_id, metering_point_id, meter_code,
-                     kwh_erzeugung, kwh_teilnahme, kwh_ueberschuss, kwh_restueberschuss,
-                     quality, completeness, teilnahme_von)
-                VALUES %s
-                ON CONFLICT DO NOTHING
-                """,
-                rows,
-            )
-            total_records += len(rows)
-            log.info("Zählpunkt %s: %d Datensatz/Datensätze importiert (%s, %s)", zp, len(rows), mp_data.quality, mp_data.completeness)
+            inserted = _insert_measurements(cur, community_id, mp_id, mp_data)
+            total_records += inserted
+            log.info("Zählpunkt %s: %d Datensatz/Datensätze importiert (%s, %s)", zp, inserted, mp_data.quality, mp_data.completeness)
 
         if overwritten:
             warnings.append(
@@ -644,12 +918,28 @@ def import_to_db(
 
 def main():
     parser = argparse.ArgumentParser(description="EDA-XLSX-Importer (Monatsexport)")
-    parser.add_argument("--file", required=True, help="Pfad zur XLSX-Datei")
-    parser.add_argument("--community", required=True, help="Community-Slug")
+    parser.add_argument("--file", help="Pfad zur XLSX-Datei")
+    parser.add_argument("--community", help="Community-Slug")
     parser.add_argument("--user-id", help="UUID des importierenden Users")
+    parser.add_argument("--resplit", action="store_true",
+                        help="Schon importierte mehrmonatige Dateien nachträglich auf Monate aufteilen "
+                             "(ohne --apply nur Vorschau)")
+    parser.add_argument("--apply", action="store_true", help="Mit --resplit: Änderungen wirklich schreiben")
+    parser.add_argument("--uploads-dir", default="/var/www/html/storage/uploads",
+                        help="Mit --resplit: Ordner der gespeicherten Originaldateien")
     args = parser.parse_args()
 
     conn = psycopg2.connect(DB_DSN)
+
+    if args.resplit:
+        try:
+            report = resplit_existing(conn, args.uploads_dir, args.apply)
+            print(json.dumps({"apply": args.apply, "imports": report}, indent=2, ensure_ascii=False, default=str))
+        finally:
+            conn.close()
+        return
+    if not args.file or not args.community:
+        parser.error("--file und --community sind erforderlich (oder --resplit)")
 
     try:
         # Community-ID auflösen

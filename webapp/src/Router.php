@@ -62,6 +62,17 @@ class Router
             return;
         }
 
+        // Kundenansicht ("Ins Portal des Kunden", Auth::startImpersonation()): der Obmann/Admin
+        // darf alles, was das Mitglied im Portal kann -- AUSSER Aktionen, die rechtlich oder
+        // für die Identität nur das Mitglied selbst setzen darf (Vertragsunterschrift, Passwort/
+        // 2FA/Profil des Logins, API-Schlüssel, Support-Nachrichten in seinem Namen). Zentral
+        // hier wie die Demo-Sperre oben, damit kein Handler vergessen werden kann.
+        if ($method === 'POST' && !$isApiRoute && Auth::isImpersonating() && self::blockedWhileImpersonating($uri)) {
+            http_response_code(403);
+            require __DIR__ . '/views/pages/impersonation_blocked.php';
+            return;
+        }
+
         foreach ($this->routes as [$routeMethod, $path, $handler]) {
             if ($routeMethod !== $method) continue;
 
@@ -75,6 +86,23 @@ class Router
 
         http_response_code(404);
         require __DIR__ . '/views/pages/404.php';
+    }
+
+    /** In der Kundenansicht gesperrte POST-Pfade (siehe dispatch()). Public für tests/router_test.php. */
+    public static function blockedWhileImpersonating(string $uri): bool
+    {
+        foreach ([
+            '#^/portal/my/contract/[^/]+/sign$#',
+            '#^/portal/my/api-keys(/|$)#',
+            '#^/portal/my/support(/|$)#',
+            '#^/portal/profile(/|$)#',
+            '#^/portal/password$#',
+            '#^/portal/dashboard-layout$#',
+            '#^/portal/members/[^/]+/impersonate$#',
+        ] as $re) {
+            if (preg_match($re, $uri)) return true;
+        }
+        return false;
     }
 
     /**
