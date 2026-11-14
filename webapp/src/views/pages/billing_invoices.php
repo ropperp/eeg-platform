@@ -44,7 +44,7 @@ $paymentMeta = [
 <!-- Suche & Filter -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-    <input type="text" id="invoice-search" placeholder="Kundennummer oder Name suchen…"
+    <input type="search" id="invoice-search" placeholder="Kundennummer oder Name suchen…"
            style="flex:1;min-width:200px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
            oninput="filterInvoices()">
     <select id="invoice-quartal" onchange="filterInvoices()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
@@ -64,8 +64,9 @@ $paymentMeta = [
   </div>
 </div>
 
-<div class="card" style="overflow-x:auto">
-  <table id="invoice-table">
+<?php // Handy: jede Rechnung als Karte (rtable, siehe app.css), 14.11.2026 ?>
+<div class="card member-table-card" style="overflow-x:auto">
+  <table id="invoice-table" class="rtable">
     <thead>
       <tr>
         <th class="sortable" data-sort-key="kdnr" data-sort-type="num" onclick="sortInvoices(this)">KdNr <span class="sort-arrow"></span></th>
@@ -92,24 +93,24 @@ $paymentMeta = [
           data-sort-quartal="<?= htmlspecialchars($inv['quartal']) ?>"
           data-sort-betrag="<?= (float)$inv['brutto_eur'] ?>"
           data-sort-erstellt="<?= htmlspecialchars($inv['created_at']) ?>">
-        <td style="font-weight:600;color:#15803d"><?= htmlspecialchars((string)($inv['kundennummer'] ?? '—')) ?></td>
-        <td><?= htmlspecialchars($name) ?></td>
-        <td style="font-size:.85rem"><?= htmlspecialchars($inv['email']) ?></td>
-        <td><?= htmlspecialchars($inv['quartal']) ?></td>
-        <td style="font-size:.8rem"><code><?= htmlspecialchars($inv['rechnungsnummer']) ?></code></td>
-        <td style="text-align:right;white-space:nowrap">
+        <td class="rt-kdnr" style="font-weight:600;color:#15803d"><span class="rt-inline-label">KdNr </span><?= htmlspecialchars((string)($inv['kundennummer'] ?? '—')) ?></td>
+        <td class="rt-title"><strong><?= htmlspecialchars($name) ?></strong></td>
+        <td class="rt-hide" style="font-size:.85rem"><?= htmlspecialchars($inv['email']) ?></td>
+        <td data-label="Zeitraum"><?= htmlspecialchars($inv['quartal']) ?></td>
+        <td data-label="Rechnung" style="font-size:.8rem"><code><?= htmlspecialchars($inv['rechnungsnummer']) ?></code></td>
+        <td data-label="Betrag (brutto)" style="text-align:right;white-space:nowrap">
           <?php $betrag = (float)$inv['brutto_eur']; ?>
           <span style="color:<?= $betrag < 0 ? '#16a34a' : 'var(--gray-800)' ?>;font-weight:600"><?= number_format($betrag, 2, ',', '.') ?> €</span>
         </td>
-        <td style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y', strtotime($inv['created_at'])) ?></td>
-        <td>
+        <td class="rt-hide" style="font-size:.85rem;white-space:nowrap"><?= date('d.m.Y', strtotime($inv['created_at'])) ?></td>
+        <td data-label="Versendet">
           <?php if ($inv['sent_at']): ?>
             <span class="badge badge-green"><?= icon('check') ?> <?= date('d.m.Y', strtotime($inv['sent_at'])) ?></span>
           <?php else: ?>
             <span class="badge badge-gray">Nicht versendet</span>
           <?php endif; ?>
         </td>
-        <td style="white-space:nowrap">
+        <td data-label="Zahlung" style="white-space:nowrap">
           <?php
             $ps = $inv['payment_status'] ?? 'offen';
             [$psLabel, $psBadge] = $paymentMeta[$ps] ?? [$ps, 'gray'];
@@ -170,14 +171,14 @@ $paymentMeta = [
             </form>
           <?php endif; ?>
         </td>
-        <td style="white-space:nowrap">
+        <td class="rt-actions" style="white-space:nowrap">
           <?php if ($inv['pdf_path']): ?>
             <a href="/portal/invoices/<?= $inv['id'] ?>/pdf" target="_blank" style="font-size:.8rem"><?= icon('file-text') ?> Ansehen</a>
           <?php else: ?>
             <span style="font-size:.78rem;color:var(--gray-600)">wird erstellt…</span>
           <?php endif; ?>
           <?php if (($inv['run_status'] ?? '') === 'ready'): ?>
-            · <a href="/portal/billing/invoices/<?= $inv['id'] ?>/edit" style="font-size:.8rem"><?= icon('note-pencil') ?> Bearbeiten</a>
+            <span class="rt-sep">·</span> <a href="/portal/billing/invoices/<?= $inv['id'] ?>/edit" style="font-size:.8rem"><?= icon('note-pencil') ?> Bearbeiten</a>
           <?php endif; ?>
         </td>
       </tr>

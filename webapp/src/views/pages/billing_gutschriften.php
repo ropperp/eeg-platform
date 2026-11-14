@@ -50,7 +50,7 @@ ob_start();
           </button>
         </form>
       </div>
-      <table style="width:100%">
+      <table class="kv-table" style="width:100%">
         <tbody>
           <tr>
             <th style="width:160px;text-align:left;color:var(--gray-600);font-weight:500">Kontoinhaber</th>

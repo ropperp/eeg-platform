@@ -937,43 +937,52 @@ footer {
   }
   body .portal-content .card.member-table-card:hover { transform: none; }
   table.rtable { display: block; min-width: 0 !important; white-space: normal; overflow: visible; }
-  table.rtable thead { display: none; }
-  table.rtable tbody { display: flex; flex-direction: column; gap: .75rem; }
-  table.rtable tr {
+  table.rtable > thead { display: none; }
+  table.rtable > tbody { display: flex; flex-direction: column; gap: .75rem; }
+  table.rtable > tbody > tr {
     display: grid; grid-template-columns: 1fr auto; gap: .45rem .75rem;
     padding: .9rem 1rem; background: var(--white); border: 1px solid var(--gray-200);
     border-radius: 14px; box-shadow: var(--shadow);
   }
-  table.rtable tr[data-href] { cursor: pointer; }
-  table.rtable td {
+  table.rtable > tbody > tr[data-href] { cursor: pointer; }
+  table.rtable > tbody > tr > td {
     display: flex; justify-content: space-between; align-items: center; gap: .75rem;
     padding: 0; border: 0; background: none; text-align: left !important;
     font-size: .88rem; grid-column: 1 / -1; white-space: normal !important; min-width: 0;
     flex-wrap: wrap;
   }
-  table.rtable td[data-label] { justify-content: flex-end; column-gap: .4rem; }
-  table.rtable td[data-label]::before { margin-right: auto; }
-  table.rtable td br { display: none; }
-  table.rtable td[data-label]::before {
+  table.rtable > tbody > tr > td[data-label] { justify-content: flex-end; column-gap: .4rem; }
+  table.rtable > tbody > tr > td[data-label]::before { margin-right: auto; }
+  table.rtable > tbody > tr > td br { display: none; }
+  table.rtable > tbody > tr > td[data-label]::before {
     content: attr(data-label); color: var(--gray-600); font-size: .78rem; font-weight: 500; flex-shrink: 0;
   }
-  table.rtable td.rt-title { grid-column: 1; grid-row: 1; font-size: 1rem; display: block; }
-  table.rtable td.rt-kdnr { grid-column: 2; grid-row: 1; justify-self: end; font-size: .8rem; }
-  table.rtable .rt-inline-label { display: inline; font-weight: 400; color: var(--gray-600); }
-  table.rtable td.rt-sub { margin-top: -.3rem; color: var(--gray-600); font-size: .8rem; display: block; overflow-wrap: anywhere; }
-  table.rtable td.rt-hide { display: none; }
-  table.rtable td.rt-actions {
+  table.rtable > tbody > tr > td.rt-title { grid-column: 1; grid-row: 1; font-size: 1rem; display: block; }
+  table.rtable > tbody > tr > td.rt-kdnr { grid-column: 2; grid-row: 1; justify-self: end; font-size: .8rem; }
+  table.rtable > tbody > tr > td .rt-inline-label { display: inline; font-weight: 400; color: var(--gray-600); }
+  table.rtable > tbody > tr > td.rt-sub { margin-top: -.3rem; color: var(--gray-600); font-size: .8rem; display: block; overflow-wrap: anywhere; }
+  table.rtable > tbody > tr > td.rt-hide { display: none; }
+  table.rtable > tbody > tr > td.rt-actions {
     justify-content: flex-end; flex-wrap: wrap; gap: .5rem;
     padding-top: .6rem; margin-top: .2rem; border-top: 1px solid var(--gray-200);
   }
-  table.rtable td.rt-actions a,
-  table.rtable td.rt-actions button {
+  table.rtable > tbody > tr > td.rt-actions a,
+  table.rtable > tbody > tr > td.rt-actions button {
     display: inline-flex; align-items: center; gap: .3rem; min-height: 40px;
-    padding: .4rem 1rem; border-radius: 999px; background: var(--gray-100);
-    font-size: .88rem !important; text-decoration: none;
+    padding: .4rem 1rem !important; border-radius: 999px;
+    font-size: .88rem !important; text-decoration: none; margin-left: 0 !important;
   }
+  table.rtable > tbody > tr > td.rt-actions a:not(.btn),
+  table.rtable > tbody > tr > td.rt-actions button:not(.btn) { background: var(--gray-100); }
+  table.rtable > tbody > tr > td.rt-actions form { display: inline-flex !important; }
+  /* Zusatzzeile, die optisch zur Karte darüber gehört (z.B. Zusatzpositionen eines Laufs) */
+  table.rtable > tbody > tr.rt-attach {
+    margin-top: -1.1rem; border-top: 0; border-radius: 0 0 14px 14px; padding-top: .4rem;
+    box-shadow: var(--shadow);
+  }
+  table.rtable > tbody > tr.rt-attach > td { display: block; background: none !important; }
   table.rtable .rt-sep { display: none; }
-  table.rtable td code { overflow-wrap: anywhere; word-break: break-all; }
+  table.rtable > tbody > tr > td code { overflow-wrap: anywhere; word-break: break-all; }
   /* Zwei-Spalten-Tabellen (Feld/Wert, z.B. Stammdaten) umbrechen statt seitlich zu scrollen */
   table.kv-table { display: table; white-space: normal; }
   table.kv-table th { width: 38%; padding: .55rem .6rem; }

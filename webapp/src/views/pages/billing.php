@@ -32,9 +32,9 @@ ob_start();
 
 <!-- Suche -->
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
-  <div style="display:flex;gap:.75rem;align-items:center">
-    <input type="text" id="billing-search" placeholder="Zeitraum suchen (z.B. 2026-Q1 oder 2026-07)…"
-           style="flex:1;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
+  <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+    <input type="search" id="billing-search" placeholder="Zeitraum suchen (z.B. 2026-Q1 oder 2026-07)…"
+           style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
            oninput="filterBilling()">
     <select id="billing-status" onchange="filterBilling()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
@@ -44,8 +44,9 @@ ob_start();
   </div>
 </div>
 
-<div class="card">
-  <table id="billing-table">
+<?php // Handy: jeder Abrechnungslauf als Karte (rtable, siehe app.css), 14.11.2026 ?>
+<div class="card member-table-card">
+  <table id="billing-table" class="rtable">
     <thead>
       <tr>
         <th>Bezeichnung</th>
@@ -70,8 +71,8 @@ ob_start();
         $freigabeErlaubt = empty($missingMonths) && $edaStatus !== 'unvollstaendig';
       ?>
       <tr data-quartal="<?= htmlspecialchars(strtolower($run['quartal'])) ?>" data-status="<?= htmlspecialchars($run['status']) ?>">
-        <td><?= htmlspecialchars($run['quartal']) ?></td>
-        <td>
+        <td class="rt-title"><strong><?= htmlspecialchars($run['quartal']) ?></strong></td>
+        <td data-label="Zeitraum">
           <?= date('d.m.Y', strtotime($run['period_from'])) ?> – <?= date('d.m.Y', strtotime($run['period_to'])) ?>
           <?php if (!empty($missingMonths)): ?>
             <div style="margin-top:.3rem">
@@ -81,13 +82,13 @@ ob_start();
             </div>
           <?php endif; ?>
         </td>
-        <td>
+        <td class="rt-kdnr">
           <?php $badges = ['pending' => 'gray', 'ready' => 'yellow', 'done' => 'green']; ?>
           <span class="badge badge-<?= $badges[$run['status']] ?? 'gray' ?>">
             <?= ['pending' => 'offen', 'ready' => 'Entwurf – prüfen', 'done' => 'abgeschlossen'][$run['status']] ?? htmlspecialchars($run['status']) ?>
           </span>
         </td>
-        <td>
+        <td data-label="EDA-Daten">
           <span class="badge badge-<?= $edaBadge ?>"><?= htmlspecialchars($edaLabel) ?></span>
           <?php if ($quality['l1'] || $quality['l2'] || $quality['l3']): ?>
             <div style="margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap">
@@ -97,8 +98,8 @@ ob_start();
             </div>
           <?php endif; ?>
         </td>
-        <td><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
-        <td>
+        <td data-label="Freigegeben" class="<?= $run['released_at'] ? '' : 'rt-hide' ?>"><?= $run['released_at'] ? date('d.m.Y H:i', strtotime($run['released_at'])) : '—' ?></td>
+        <td class="rt-actions">
           <?php if ($run['status'] === 'pending'): ?>
             <form method="post" action="/portal/billing/generate" style="display:inline"
                   onsubmit="return confirm('Rechnungen für dieses Quartal aus den EDA-Daten berechnen? Sie können danach jede Rechnung noch einzeln anpassen.')">
@@ -140,7 +141,7 @@ ob_start();
         </td>
       </tr>
       <?php if ($run['status'] === 'pending'): ?>
-        <tr>
+        <tr class="rt-attach">
           <td colspan="6" style="background:var(--gray-50)">
             <details>
               <summary style="cursor:pointer;font-size:.85rem;color:var(--gray-700)">
