@@ -19,6 +19,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Startseiten-Kästen selbst anordnen (14.11.2026)
+- **Admin-, Obmann- und Mitglieder-Startseite** bestehen jetzt aus einzelnen Kästen (Widgets),
+  die jeder für sich anordnen kann: Knopf „Anordnen“ → Kästen mit der Maus ziehen oder mit ↑/↓
+  verschieben (Handy, Tastatur), mit dem Auge aus- und wieder einblenden, „Standard“ setzt
+  zurück. Funktioniert im klassischen und im neuen Look, hell und dunkel.
+- **Im Konto gespeichert** (neue Tabelle `user_dashboard_layouts`, `migrate_20261114.sql`) --
+  gilt also auf jedem Gerät. Jede Änderung wird nach einer halben Sekunde automatisch gespeichert
+  (`POST /portal/dashboard-layout`). Demo-Zugänge speichern nur für die laufende Sitzung.
+- Neu eingebaute Kästen erscheinen bei allen automatisch (am Ende), ohne bestehende Anordnungen
+  zu zerstören; Kästen ohne Inhalt (z. B. Live-Werte ohne Ausleseeinheit) fallen weg.
+- Neue Datei `src/dashboard_widgets.php`, 5 neue Tests.
+
 ### Login-Animation wie im Video, weißes Logo im neuen Look, Handy-Kopfzeile (14.11.2026)
 - **Dreh-Animation** Anmelden ↔ Registrieren jetzt wie im Video-Vorbild: die beiden leuchtenden
   Eckdreiecke fahren in die Kartenmitte und setzen sich zu einem Quadrat mit Schrägstrich

@@ -9,6 +9,8 @@
   <div class="alert alert-error" style="margin-bottom:1rem"><?= htmlspecialchars($_GET['error']) ?></div>
 <?php endif; ?>
 
+<?php // Kästen selbst anordnen (Patrick, 14.11.2026), siehe src/dashboard_widgets.php ?>
+<?php $dw = new DashboardWidgets('admin', dashboardLayout('admin')); $dw->start('kennzahlen', 'Kennzahlen'); ?>
 <div class="grid-2" style="margin-bottom:2rem">
   <div class="card stat-card">
     <div class="stat-value"><?= count($communities) ?></div>
@@ -20,6 +22,7 @@
   </div>
 </div>
 
+<?php $dw->end(); $dw->start('eeg-anlegen', 'Neue EEG anlegen'); ?>
 <!-- Neue EEG anlegen -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">+ Neue EEG anlegen</h3>
@@ -52,6 +55,7 @@
   </form>
 </div>
 
+<?php $dw->end(); $dw->start('eeg-liste', 'Alle Energiegemeinschaften'); ?>
 <!-- EEG-Liste -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem">Alle Energiegemeinschaften</h3>
@@ -77,6 +81,7 @@
   </table>
 </div>
 
+<?php $dw->end(); $dw->start('benutzer', 'Benutzer & Rollen'); ?>
 <!-- Benutzer & Rollen -->
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem"><?= icon('user-circle') ?> Benutzer & Rollen</h3>
@@ -117,6 +122,7 @@
   </table>
 </div>
 
+<?php $dw->end(); $dw->start('admin-rollen', 'Platform-Admins einladen'); ?>
 <?php if (Auth::isFounderAdmin()): ?>
 <!-- Nur der Ersteller-Admin darf die Platform-Admin-Rollenverteilung selbst verändern
      (Patrick, 09.10.2026: "Bis halt auf die Rollenverteilung") -- Unteradmins sehen diese
@@ -148,5 +154,7 @@
   </form>
 </div>
 <?php endif; ?>
+
+<?php $dw->end(); echo $dw->render(); ?>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

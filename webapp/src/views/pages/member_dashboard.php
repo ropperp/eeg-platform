@@ -126,10 +126,13 @@ ob_start();
 
 <h2 style="margin-bottom:1.5rem">Guten Tag, <?= htmlspecialchars($member['first_name'] ?? Auth::userName()) ?>!</h2>
 
+<?php // Kästen selbst anordnen (Patrick, 14.11.2026), siehe src/dashboard_widgets.php ?>
+<?php $dw = new DashboardWidgets('member', dashboardLayout('member')); $dw->start('energiefluss', 'Energiefluss'); ?>
 <?php if ($usesAE): ?>
 <div style="margin-bottom:1.5rem"><?php require __DIR__ . '/../partials/energy_flow.php'; ?></div>
 <?php endif; ?>
 
+<?php $dw->end(); $dw->start('keine-daten', 'Noch keine Verbrauchsdaten'); ?>
 <?php if (!$mpIds): ?>
 <div class="card" style="margin-bottom:1.5rem;text-align:center;padding:2.5rem 1.5rem">
   <div style="font-size:2rem;margin-bottom:.5rem"><?= icon('chart-bar') ?></div>
@@ -139,8 +142,12 @@ ob_start();
     Bezug aus der Gemeinschaft. Ihre Rechnungen und Verträge finden Sie schon jetzt weiter unten.
   </p>
 </div>
-<?php else: ?>
+<?php endif; ?>
+<?php $dw->end(); ?>
 
+<?php // Alle folgenden Kästen nur mit Zählpunkten (vorher ein gemeinsamer else-Zweig). ?>
+<?php if ($mpIds): ?>
+<?php $dw->start('aktuelle-leistung', 'Aktuelle Leistung'); ?>
 <?php if ($usesAE): // Live-Werte nur mit Ausleseeinheit ?>
 <div class="card stat-card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('lightning') ?> Aktuelle Leistung</h3>
@@ -184,6 +191,7 @@ setInterval(async () => {
 </script>
 <?php endif; // $usesAE ?>
 
+<?php $dw->end(); $dw->start('monatswerte', 'Werte dieses Monats'); ?>
 <div class="grid-2" style="margin-bottom:1.5rem">
   <?php if ($hasConsumer): ?>
   <div class="card stat-card">
@@ -199,9 +207,11 @@ setInterval(async () => {
   <?php endif; ?>
 </div>
 
+<?php $dw->end(); $dw->start('diagramme', 'Diagramme'); ?>
 <?php // Diagramme nur im neuen Look (Glas) -- ersetzen dort die schmalen Balken weiter unten. ?>
 <?php if (platformDesign() === 'glas') { require __DIR__ . '/../partials/dashboard_charts_member.php'; } ?>
 
+<?php $dw->end(); $dw->start('einspeisung-live', 'Einspeisung in die Gemeinschaft'); ?>
 <?php if ($hasProducer && $usesAE): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('lightning') ?> Einspeisung in die Gemeinschaft
@@ -250,6 +260,7 @@ function onDashboardRangeChange(v) {
 </script>
 <?php endif; ?>
 
+<?php $dw->end(); $dw->start('verbrauch-viertelstunde', 'Viertelstündlicher Verbrauch'); ?>
 <?php if ($hasConsumer): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('chart-bar') ?> Viertelstündlicher Verbrauch</h3>
@@ -262,6 +273,7 @@ function onDashboardRangeChange(v) {
 </div>
 <?php endif; ?>
 
+<?php $dw->end(); $dw->start('einspeisung-viertelstunde', 'Viertelstündliche Einspeisung'); ?>
 <?php if ($hasProducer): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem"><?= icon('lightning') ?> Viertelstündliche Einspeisung</h3>
@@ -272,6 +284,7 @@ function onDashboardRangeChange(v) {
 </div>
 <?php endif; ?>
 
+<?php $dw->end(); $dw->start('verlauf', 'Verlauf der letzten Monate'); ?>
 <?php if ($monthly && platformDesign() !== 'glas'): ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:1rem"><?= icon('chart-bar') ?> Verlauf der letzten Monate</h3>
@@ -301,8 +314,10 @@ function onDashboardRangeChange(v) {
   </div>
 </div>
 <?php endif; ?>
-<?php endif; ?>
+<?php $dw->end(); ?>
+<?php endif; // $mpIds ?>
 
+<?php $dw->start('zaehlpunkte', 'Meine Zählpunkte'); ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.75rem">Meine Zählpunkte</h3>
   <?php if (!$meteringPoints): ?>
@@ -324,6 +339,7 @@ function onDashboardRangeChange(v) {
   <?php endif; ?>
 </div>
 
+<?php $dw->end(); $dw->start('rechnung', 'Letzte Rechnung'); ?>
 <div class="card">
   <h3 style="margin-bottom:.75rem">Letzte Rechnung</h3>
   <?php if ($lastInvoice): ?>
@@ -340,6 +356,8 @@ function onDashboardRangeChange(v) {
     <a href="/portal/my/documents" class="btn btn-secondary"><?= icon('file-text') ?> Meine Dokumente</a>
   </p>
 </div>
+
+<?php $dw->end(); echo $dw->render(); ?>
 
 <?php
 $content = ob_get_clean();
