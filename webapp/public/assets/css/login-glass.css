@@ -176,3 +176,9 @@
   .lg-streaks span { animation: none; }
   .lg-stage.is-flipping .lg-orb { animation: none; }
 }
+
+/* Einzelkarte (Passwort vergessen, neues Passwort, 2FA) und 2FA-Code-Feld */
+.lg-stage > .lg-card:only-of-type, .lg-stage > section.lg-card { transform: none; }
+.lg-card h1 .icon { width: 1.4rem; height: 1.4rem; vertical-align: -.15em; color: #7dd3fc; }
+.lg-field input.lg-code { padding: 0 1rem; text-align: center; letter-spacing: .45em; font-size: 1.45rem; font-weight: 700; }
+.lg-card .lg-btn + .lg-switch, .lg-alert + .lg-btn { margin-top: 1rem; }

@@ -138,7 +138,16 @@ a:hover { text-decoration: underline; }
 }
 /* Abstand zwischen den Nav-Elementen -- gilt bewusst für ALLE <a>-Kinder (Links UND Buttons),
    .navbar nav hat selbst kein "gap". */
-.navbar nav a { margin-left: 1.5rem; }
+.navbar nav a { margin-left: 1.5rem; white-space: nowrap; }
+/* Mittlere Breiten (Tablet / schmales Fenster, Patrick 14.11.2026 per Screenshot bei 841 px:
+   "Live-Anzeige" und "Informieren und Beitreten" brachen auf 2-3 Zeilen um): Abstände und
+   Schrift etwas kleiner statt Umbruch; unter 640 px übernimmt das Hamburger-Menü. */
+@media (min-width: 641px) and (max-width: 1000px) {
+  .navbar nav a { margin-left: .9rem; }
+  .navbar nav a:not(.btn) { font-size: .85rem; }
+  .navbar nav .btn { padding: .4rem .7rem !important; font-size: .85rem; }
+  .navbar .logo-img { height: 28px; }
+}
 /* Vorfall 01.11.2026 (Patrick, per Google-Barrierefreiheitsprüfung + eigenem Augenschein):
    ":not(.btn)" hier ist KEIN Stilmittel, sondern ein Bugfix. Ohne das gewann diese
    Farb-/Schriftgrößen-Regel (Spezifität 0-1-2: eine Klasse + zwei Typselektoren "nav"/"a")
