@@ -2299,6 +2299,60 @@ $router->post('/portal/reset-password', function () {
 });
 
 // ─── Portal: Dashboard ──────────────────────────────────
+/**
+ * Gespeicherte Anordnung der Startseiten-Kästen des angemeldeten Benutzers ($key = admin |
+ * manager | member), oder null (= Standard). Demo-Logins: nur aus der Sitzung. Fehlt die Tabelle
+ * (Migration noch nicht eingespielt), gilt still die Standard-Reihenfolge.
+ */
+function dashboardLayout(string $key): ?array
+{
+    if (Auth::isDemo()) {
+        return $_SESSION['dashboard_layouts'][$key] ?? null;
+    }
+    try {
+        $row = DB::fetchOne('SELECT layout FROM user_dashboard_layouts WHERE user_id = ? AND dashboard_key = ?', [Auth::userId(), $key]);
+    } catch (\Throwable $e) {
+        return null;
+    }
+    return $row ? (json_decode((string)$row['layout'], true) ?: null) : null;
+}
+
+/** Anordnung der Startseiten-Kästen speichern bzw. zurücksetzen (Fetch aus dashboard-widgets.js). */
+$router->post('/portal/dashboard-layout', function () {
+    Auth::requireLogin();
+    header('Content-Type: application/json; charset=UTF-8');
+    $key = (string)($_POST['dashboard'] ?? '');
+    if (!in_array($key, dashboardKeys(), true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Unbekannte Startseite.']);
+        return;
+    }
+    $reset = ($_POST['reset'] ?? '') === '1';
+    $layout = dashboardSanitizeLayout(json_decode((string)($_POST['layout'] ?? ''), true) ?: []);
+    if (Auth::isDemo()) {
+        if ($reset) { unset($_SESSION['dashboard_layouts'][$key]); } else { $_SESSION['dashboard_layouts'][$key] = $layout; }
+        echo json_encode(['status' => 'ok', 'saved' => 'session']);
+        return;
+    }
+    try {
+        if ($reset) {
+            DB::execute('DELETE FROM user_dashboard_layouts WHERE user_id = ? AND dashboard_key = ?', [Auth::userId(), $key]);
+        } else {
+            DB::execute(
+                'INSERT INTO user_dashboard_layouts (user_id, dashboard_key, layout) VALUES (?, ?, ?::jsonb)
+                 ON CONFLICT (user_id, dashboard_key) DO UPDATE SET layout = EXCLUDED.layout, updated_at = now()',
+                [Auth::userId(), $key, json_encode($layout)]
+            );
+        }
+    } catch (\Throwable $e) {
+        error_log('[dashboard-layout] ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'Konnte nicht gespeichert werden.']);
+        return;
+    }
+    echo json_encode(['status' => 'ok']);
+});
+
 $router->get('/portal/dashboard', function () {
     Auth::requireLogin();
     if (Auth::isManager()) {

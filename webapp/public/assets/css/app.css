@@ -1029,3 +1029,51 @@ footer {
   .navbar nav select { max-width: 54vw !important; font-size: .8rem !important; padding: .3rem .4rem !important; }
   .navbar nav { gap: .5rem !important; }
 }
+
+/* ─── Startseiten-Kästen selbst anordnen (src/dashboard_widgets.php, 14.11.2026) ─── */
+.dash-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; flex-wrap: wrap; margin: -.75rem 0 1rem; }
+.dash-toolbar-buttons { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
+.dash-toolbar .btn { padding: .35rem .85rem; font-size: .82rem; }
+.dash-toolbar [hidden], .dash-widget-bar[hidden] { display: none !important; }
+.dash-edit-hint { margin: 0; font-size: .8rem; color: var(--gray-600); flex: 1 1 260px; }
+.dash-flash { font-size: .8rem; font-weight: 600; color: #166534; opacity: 0; transition: opacity .3s ease; }
+.dash-flash.is-visible { opacity: 1; }
+.dash-flash.is-error { color: #b91c1c; }
+[data-theme="dark"] .dash-flash { color: #86efac; }
+[data-theme="dark"] .dash-flash.is-error { color: #fca5a5; }
+.dash-widgets { display: flex; flex-direction: column; }
+.dash-widget { min-width: 0; }
+.dash-widget.is-hidden-widget { display: none; }
+.dash-widget-bar {
+  display: flex; align-items: center; gap: .6rem; padding: .4rem .5rem .4rem .75rem; margin-bottom: .6rem;
+  background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 12px; font-size: .88rem;
+}
+.dash-widget-bar[hidden] { display: none; }
+.dash-handle { cursor: grab; color: var(--gray-600); letter-spacing: -2px; font-weight: 700; }
+.dash-widget-actions { margin-left: auto; display: flex; gap: .3rem; }
+.dash-widget-actions button {
+  min-width: 38px; min-height: 38px; border-radius: 10px; border: 1px solid var(--gray-200);
+  background: var(--white); color: var(--gray-800); cursor: pointer; font-size: 1rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-widget-actions button:hover { border-color: var(--gray-600); }
+.dash-widget-actions button:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 1px; }
+/* Bearbeiten-Modus: alle Kästen (auch ausgeblendete, halb durchsichtig) als kompakte Liste */
+.dash-widgets.is-editing .dash-widget {
+  display: block; margin-bottom: 1rem; padding: .5rem; border-radius: 16px;
+  outline: 2px dashed var(--gray-200); outline-offset: 0; background: var(--gray-50);
+}
+.dash-widgets.is-editing .dash-widget[draggable="true"] { cursor: grab; }
+.dash-widgets.is-editing .dash-widget.is-hidden-widget .dash-widget-body { opacity: .35; }
+.dash-widgets.is-editing .dash-widget.is-dragging { opacity: .45; outline-color: var(--green-dark); }
+.dash-widgets.is-editing .dash-widget-body {
+  max-height: 130px; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dash-widgets.is-editing .dash-widget { transition: outline-color .2s ease; }
+}
+/* Einheitlicher Abstand zwischen den Kästen, egal in welcher Reihenfolge (die Blöcke hatten
+   vorher unterschiedliche eigene Abstände, der letzte gar keinen). */
+.dash-widget { margin-bottom: 1.5rem; }
+.dash-widget-body > :is(div, section, .card) { margin-bottom: 0 !important; }

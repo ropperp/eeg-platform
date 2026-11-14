@@ -61,6 +61,8 @@ ob_start();
 
 <h2 style="margin-bottom:1.5rem"><?= htmlspecialchars($community['name']) ?></h2>
 
+<?php // Kästen selbst anordnen (Patrick, 14.11.2026), siehe src/dashboard_widgets.php ?>
+<?php $dw = new DashboardWidgets('manager', dashboardLayout('manager')); $dw->start('kennzahlen', 'Kennzahlen'); ?>
 <!-- KPI-Kacheln -->
 <div class="grid-3" style="margin-bottom:2rem">
   <div class="card stat-card">
@@ -79,9 +81,11 @@ ob_start();
   </div>
 </div>
 
+<?php $dw->end(); $dw->start('diagramme', 'Diagramme'); ?>
 <?php // Diagramme nur im neuen Look (Glas) -- das klassische Dashboard bleibt unverändert. ?>
 <?php if (platformDesign() === 'glas') { require __DIR__ . '/../partials/dashboard_charts_manager.php'; } ?>
 
+<?php $dw->end(); $dw->start('status', 'Betriebsstatus'); ?>
 <!-- Status-Kachelzeile: Betriebsreife auf einen Blick -->
 <div class="grid-4" style="margin-bottom:2rem">
   <div class="card" style="padding:1rem">
@@ -135,6 +139,7 @@ ob_start();
   </div>
 </div>
 
+<?php $dw->end(); $dw->start('live', 'Energiefluss & Schnellzugriff'); ?>
 <!-- Live-Daten -->
 <div class="grid-2" style="margin-bottom:2rem">
   <?php if ($usesAE) { require __DIR__ . '/../partials/energy_flow.php'; } ?>
@@ -149,6 +154,7 @@ ob_start();
   </div>
 </div>
 
+<?php $dw->end(); $dw->start('abrechnung', 'Offene Abrechnung'); ?>
 <!-- Abrechnungsstatus -->
 <?php if ($openBilling): ?>
 <div class="card" style="margin-bottom:1.5rem">
@@ -164,6 +170,7 @@ ob_start();
 </div>
 <?php endif; ?>
 
+<?php $dw->end(); $dw->start('eda-import', 'Letzter EDA-Import'); ?>
 <!-- Letzter EDA-Import -->
 <div class="card">
   <h3 style="margin-bottom:.75rem"><?= icon('folder-open') ?> Letzter EDA-Import</h3>
@@ -180,6 +187,8 @@ ob_start();
     <a href="/portal/eda/upload" class="btn btn-primary" style="margin-top:.75rem">EDA-Daten importieren</a>
   <?php endif; ?>
 </div>
+
+<?php $dw->end(); echo $dw->render(); ?>
 
 <?php
 $content = ob_get_clean();

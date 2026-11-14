@@ -410,3 +410,10 @@
   [data-design="glas"] .navbar nav { gap: .5rem !important; min-width: 0; }
   [data-design="glas"] #sidebar-toggle { display: none; }
 }
+
+/* Kästen anordnen im neuen Look */
+[data-design="glas"] .dash-widget-bar { background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .85); }
+[data-design="glas"] .dash-widgets.is-editing .dash-widget { background: rgba(255, 255, 255, .25); outline-color: rgba(15, 60, 90, .2); }
+[data-design="glas"][data-theme="dark"] .dash-widget-bar { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .12); }
+[data-design="glas"][data-theme="dark"] .dash-widgets.is-editing .dash-widget { background: rgba(255, 255, 255, .03); outline-color: rgba(255, 255, 255, .15); }
+[data-design="glas"] .dash-widgets.is-editing .dash-widget .card:hover { transform: none; }

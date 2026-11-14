@@ -1238,3 +1238,12 @@ docker compose up -d --build
 > Danach Admin → Einstellungen → Reiter „Design“ → „Neuer Look“ wählen. Ohne Migration bleibt
 > alles beim klassischen Design (kein Fehler).
 
+> **Einmalig nach dem Update vom 14.11.2026 -- Startseiten-Kästen selbst anordnen**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> # Tabelle user_dashboard_layouts (Anordnung je Benutzer und Startseite). Idempotent.
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261114.sql
+> docker compose up -d --build webapp
+> ```
+> Ohne Migration erscheinen die Startseiten wie bisher in der Standard-Reihenfolge, nur das
+> Speichern einer eigenen Anordnung meldet „Konnte nicht gespeichert werden“.

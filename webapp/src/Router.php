@@ -53,7 +53,9 @@ class Router
         //    portal.php, dort für Demo-Logins ohnehin schon unterdrückt) -- Patrick, 06.09.2026,
         //    per Screenshot: ohne diese Ausnahme saß ein Demo-Login beim allerersten Aufruf der
         //    Mitglied-Ansicht hinter diesem Banner fest, weil der "Gelesen"-Button ein POST ist.
-        $demoWriteAllowlist = ['/portal/switch-role', '/portal/ack-prelaunch'];
+        //  - /portal/dashboard-layout: Anordnung der Startseiten-Kästen -- für Demo-Logins nur in
+        //    der Sitzung gespeichert, nicht in der Datenbank (siehe Route in index.php).
+        $demoWriteAllowlist = ['/portal/switch-role', '/portal/ack-prelaunch', '/portal/dashboard-layout'];
         if ($method === 'POST' && !$isApiRoute && !in_array($uri, $demoWriteAllowlist, true) && Auth::isDemo()) {
             http_response_code(403);
             require __DIR__ . '/views/pages/demo_readonly_error.php';

@@ -1949,3 +1949,6 @@ function roleSwitcherLabel(array $role, array $allRoles): string
     }
     return $eeg !== '' ? $eeg : 'Energiegemeinschaft';
 }
+
+// Selbst anordnenbare Startseiten-Kästen (Widgets)
+require_once __DIR__ . '/dashboard_widgets.php';
