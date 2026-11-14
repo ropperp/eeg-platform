@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="de">
+<?php $siteDesign = function_exists('platformDesign') ? platformDesign() : 'klassisch'; // Admin -> Einstellungen -> Design ?>
+<html lang="de" data-design="<?= $siteDesign ?>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -43,6 +44,9 @@
   <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/assets/css/app.css?v=<?= @filemtime(ROOT . '/public/assets/css/app.css') ?: time() ?>">
+  <?php if ($siteDesign === 'glas'): ?>
+  <link rel="stylesheet" href="/assets/css/site-glass.css?v=<?= @filemtime(ROOT . '/public/assets/css/site-glass.css') ?: time() ?>">
+  <?php endif; ?>
   <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
   <!-- Markiert synchron (vor dem ersten Malen), dass JS verfügbar ist -- app.css nutzt das,
        um z.B. den Hero-Text erst dann per CSS auszublenden, wenn tatsächlich eine Animation
