@@ -1354,3 +1354,20 @@ docker compose up -d --build
 > Aufbewahrung ändern: `SELECT remove_retention_policy('esp_measurements'); SELECT add_retention_policy('esp_measurements', INTERVAL '800 days');`
 > Rückfall: `git revert` und `docker compose up -d --build mqtt-subscriber` (die Tabellen bleiben harmlos bestehen).
 
+> **Einmalig nach dem Update vom 15.11.2026 -- Container-Härtung**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose pull traefik          # holt die aktuelle v3.x
+> docker compose up -d --build
+> sleep 30 && docker compose ps        # ALLE Dienste "healthy"
+> docker compose logs --tail=20 traefik mqtt-subscriber
+> curl -sI -H "Host: stromfueralle.at" http://localhost/ | head -3
+> ```
+> Worauf achten: `mqtt-subscriber` muss `healthy` werden (Heartbeat-Datei in `/tmp`) und im Log
+> „Verbunden“ melden; `traefik` darf keine „permission denied“-Zeilen zeigen. Falls ein Dienst nach dem
+> Start nicht `healthy` wird: die Zeilen `security_opt`/`cap_drop`/`read_only`/`user`/`tmpfs` dieses
+> Dienstes in `docker-compose.yml` auskommentieren und `docker compose up -d <dienst>` -- der Rest bleibt
+> gehärtet. Exakte Traefik-Version festnageln: `docker compose images traefik`, dann in `docker-compose.yml`
+> z. B. `traefik:v3.6.1` eintragen. Mosquitto-Ports 1883/8883 sind bewusst unverändert (ESP32 im LAN);
+> sollen Geräte nur noch per TLS (8883) verbinden, ist 1883 in `docker-compose.yml` zu entfernen.
+> Rückfall: `git revert` und `docker compose up -d --build`.

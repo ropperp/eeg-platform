@@ -19,6 +19,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Container gehärtet, Traefik auf v3 festgelegt (15.11.2026)
+- **`no-new-privileges` + weniger Linux-Rechte:** webapp, redis, mosquitto und latex-service dürfen sich
+  nicht mehr über setuid-Programme Rechte holen und verlieren Rechte, die sie nie brauchen (rohe
+  Netzwerkpakete, Geräteknoten, chroot, Datei-Capabilities, Audit). Bewusst kein `cap_drop: ALL` -- nginx/
+  php-fpm, Redis und Mosquitto starten als root und wechseln selbst zu ihrem Dienstbenutzer.
+- **traefik:** nur noch `NET_BIND_SERVICE` (Port 80), Dateisystem schreibgeschützt (nur `/tmp` im
+  Arbeitsspeicher, das `/letsencrypt`-Volume bleibt beschreibbar).
+- **mqtt-subscriber:** läuft als unprivilegierter Benutzer (10001), ohne jedes Linux-Recht, mit
+  schreibgeschütztem Dateisystem (Heartbeat-Datei in `/tmp`), keine `.pyc`-Dateien.
+- **Traefik `v3` statt `latest`:** ein Neubau springt nicht mehr unbemerkt auf eine neue Hauptversion.
+- **Unverändert:** die Datenbank (TimescaleDB-Image braucht seine Rechte für `postgres`-Benutzerwechsel),
+  Mosquitto-Ports 1883/8883 (ESP32-Geräte im LAN nutzen sie).
+
 ### Messwerte: gesammelt schreiben, zusammenfassen, komprimieren (16.11.2026)
 - **MQTT-Dienst schreibt gesammelt:** statt je Nachricht eine eigene Transaktion (bei 20+ Zählern im
   5-Sekunden-Takt über ein Dutzend pro Sekunde, jede mit Schreib-Sync auf dem Pi) sammelt
