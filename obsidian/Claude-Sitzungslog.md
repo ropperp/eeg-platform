@@ -61,6 +61,15 @@ Startpunkt aus rechnen.
 15.11. (später): Zentrierung -- Energiefluss-Beschriftung um die Kreismitte statt ab der linken
 Kreiskante, „Energiegemeinschaften“ in Kacheln trennbar; dazu ein Prüfskript, das jeden zentrierten
 Text misst (vorher 2 Befunde auf allen Größen, danach 30 von 30 Seitenprüfungen ohne Befund).
+15.11. (abends): Auf eine Reel-Frage hin Passwort-Speicherung geprüft (bcrypt+Salt vorhanden) und
+verbessert: Argon2id mit automatischer Umstellung beim Login, Reset-Codes nur als Hash, Bremse + gleiche
+Antwortzeit bei „Passwort vergessen“. Dabei die gesamte Plattform auf modernere/sicherere Lösungen
+durchgesehen und umgesetzt, was ohne Risiko prüfbar war: opcache + Komprimierung statischer Dateien,
+Profilbild-Inhaltsprüfung (getarnte HTML-Datei), Traefik ohne Docker-Socket. Alles gegen die echte App
+mit Test-Datenbank durchgespielt (Login mit altem Hash, Reset, Bremse, Upload-Fälschung).
+**Fehler/Lehre:** Die erste Argon2-Einstellung (32 MiB) war mit 61 ms deutlich schneller als das
+bisherige bcrypt (197 ms) -- eine "modernere" Lösung darf pro Rateversuch nicht billiger werden; deshalb
+64 MiB/3 Durchläufe (127 ms). Parameter immer mit einer Messung festlegen.
 **Fehler/Lehre:** Beim Testen fiel auf, dass die Sperre für abgerechnete Zeiträume wegen eines
 Vergleichs DATE gegen Zeitstempel mit Zeitzone nie gegriffen hatte -- Zeiträume immer als
 Kalendertag in derselben Zeitzone vergleichen.

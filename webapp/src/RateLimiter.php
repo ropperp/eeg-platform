@@ -102,6 +102,20 @@ class RateLimiter
         return clientIp();
     }
 
+    /**
+     * Allgemeine Bremse für Aktionen, die man nur begrenzt oft auslösen können soll (z.B.
+     * "Passwort vergessen" -- sonst lassen sich beliebig viele Mails an eine fremde Adresse
+     * auslösen). Zählt JEDEN Aufruf (auch den, der abgelehnt wird) und liefert true, solange das
+     * Limit im Zeitfenster noch nicht überschritten ist. $id wird gehasht gespeichert (keine
+     * Klartext-E-Mail-Adressen in Redis). Fail-open wie der Rest dieser Klasse.
+     */
+    public static function allow(string $bucket, string $id, int $max, int $windowSeconds): bool
+    {
+        $key = 'ratelimit:' . $bucket . ':' . hash('sha256', strtolower(trim($id)));
+        self::increment($key, $windowSeconds);
+        return self::count($key) <= $max;
+    }
+
     /** true = Login-Versuch aktuell gesperrt (zu viele Fehlversuche zuletzt). */
     public static function isLoginBlocked(string $email): bool
     {
