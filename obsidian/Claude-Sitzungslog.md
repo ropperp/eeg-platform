@@ -77,6 +77,28 @@ Kalendertag in derselben Zeitzone vergleichen.
 Flächen mit weißer Schrift dunkleres Petrol verwendet, das helle Türkis nur als Leuchtschein.
 
 ---
+15.11./17.11. (Nacht): Auf die offene Punkteliste hin alles umgesetzt. Kästen als Mauerwerk (schmale Kästen
+stapeln sich in der Lücke statt zu einem großen Kasten zu werden). PHP 8.2 -> 8.4 (8.2 läuft Ende 2026 aus),
+Cent-Rundung unabhängig von der PHP-Version (`moneyRound()`), gespeicherte Zugangsdaten mit AES-256-GCM,
+EDA-Mail-Download nur von der Portal-Domain. Messwert-Tabelle: Live-Werte gesammelt statt einzeln
+geschrieben, 15-Minuten-Zusammenfassung, TimescaleDB-Aufbewahrung/Komprimierung (abgesichert). Container
+gehärtet (no-new-privileges, weniger Linux-Rechte, Traefik `v3`). Passkey-Anmeldung (eigene WebAuthn-Prüfung,
+Verwaltung im Profil, Test mit virtuellem Authenticator). Content-Security-Policy ohne `unsafe-inline` für
+Skripte: 35 Inline-Skripte mit Nonce, 126 Inline-Handler durch `data-`-Attribute ersetzt, CSP aus PHP statt
+nginx, statischer CI-Test + Browser-Test über 40+ Seiten. PHP 8.4 konnte nur über die CI geprüft werden
+(kein 8.4 in der Sandbox); Docker-Build, nginx, Traefik-Start und TimescaleDB-Richtlinien waren hier nicht
+ausführbar und stehen als Prüfschritte im Betriebshandbuch.
+**Fehler/Lehre:** Zwei echte Fehler fand erst der neue Python-Test des Sammelschreibens: Zeilen gingen
+verloren, wenn schon das Holen der Datenbankverbindung scheiterte, und der Zusammenfassungs-Zeiger
+(MAX(bucket)) lief an leeren Tagen endlos im Kreis -- Fehlerpfade (Datenbank weg) gezielt testen, nicht
+nur den Normalfall.
+**Fehler/Lehre:** Ein `?>` in einem `//`-Kommentar beendet PHP -- passierte zweimal (Kommentar mit
+`nonce="<?= … ?>"` in `functions.php` und im Test), Folge: halbe Datei als Text, Dutzende „Funktion nicht
+gefunden“. Im Kommentar nie PHP-Tags ausschreiben. Außerdem: eine neue Klasse muss in der Ladeliste am Anfang
+von `index.php` stehen (sonst „Class not found“ erst beim ersten Aufruf).
+**Fehler/Lehre:** Versehentlich einen eigenen Branch (`claude/php84-crypto`) gepusht, obwohl nur der
+vorgegebene Arbeits-Branch erlaubt ist; Inhalt auf den erlaubten Branch übernommen, der Remote-Branch
+bleibt bis zur Freigabe zum Löschen bestehen.
 
 ## 2026-11-08 00:10 — Claude Code — Claude Opus 5.5
 **Auftrag:** Strukturierter Auftrag (Datei, Stand 07.11.2026) zu Rechtsdokumenten und
