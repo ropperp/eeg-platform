@@ -8,7 +8,7 @@ define('ROOT', dirname(__DIR__));
 // dass die ini-Datei geladen wurde (Zeitzonen-Vorfall 07.11.2026, siehe fmtVienna()).
 date_default_timezone_set('Europe/Vienna');
 
-foreach (['DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push'] as $class) {
+foreach (['DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push', 'WebAuthn'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -2210,6 +2210,160 @@ $router->post('/portal/login/2fa', function () {
     RateLimiter::registerTotpFailure($uid);
     $error = 'Code ungültig oder abgelaufen. Bitte den aktuellen 6-stelligen Code eingeben.';
     require ROOT . '/src/views/pages/login_2fa.php';
+    exit;
+});
+
+// ─── Passkey-Anmeldung (WebAuthn, 17.11.2026) ───────────────────────────────────────
+// Ablauf Anmeldung: Browser holt eine Challenge (…/options), das Gerät signiert sie nach
+// Fingerabdruck/Gesicht/PIN, der Server prüft die Signatur gegen den gespeicherten öffentlichen
+// Schlüssel (…/verify). Ein Passkey mit Benutzerprüfung ersetzt Passwort UND 2FA -- deshalb
+// entfällt hier die TOTP-Abfrage. Die Challenge liegt in der Session und gilt genau einmal.
+function passkeyJson(array $data, int $status = 200): void
+{
+    http_response_code($status);
+    header('Content-Type: application/json');
+    header('Cache-Control: no-store');
+    echo json_encode($data);
+    exit;
+}
+
+function passkeyRpId(): string
+{
+    return WebAuthn::rpIdForHost((string)($_SERVER['HTTP_HOST'] ?? ''), (string)(getenv('DOMAIN') ?: ''));
+}
+
+/** Legt eine neue Einmal-Challenge in der Session ab und liefert sie (Base64URL). */
+function passkeyNewChallenge(string $kind): string
+{
+    $c = WebAuthn::b64uEncode(random_bytes(32));
+    $_SESSION['passkey_challenge'] = ['c' => $c, 'k' => $kind, 't' => time()];
+    return $c;
+}
+
+/** Holt die Challenge und entwertet sie sofort (Einmalverwendung); null wenn fehlt/abgelaufen/falsche Art. */
+function passkeyTakeChallenge(string $kind): ?string
+{
+    $ch = $_SESSION['passkey_challenge'] ?? null;
+    unset($_SESSION['passkey_challenge']);
+    if (!is_array($ch) || ($ch['k'] ?? '') !== $kind || time() - (int)($ch['t'] ?? 0) > 300) {
+        return null;
+    }
+    return (string)$ch['c'];
+}
+
+/** Die vom Browser als JSON-Feld "data" geschickte Antwort lesen. */
+function passkeyPostedData(): array
+{
+    $d = json_decode((string)($_POST['data'] ?? ''), true);
+    return is_array($d) ? $d : [];
+}
+
+$router->post('/portal/login/passkey/options', function () {
+    if (!RateLimiter::allow('passkey_opts', clientIp(), 60, 600)) {
+        passkeyJson(['error' => 'Zu viele Versuche. Bitte später erneut versuchen.'], 429);
+    }
+    passkeyJson([
+        'challenge'        => passkeyNewChallenge('get'),
+        'rpId'             => passkeyRpId(),
+        'timeout'          => 120000,
+        'userVerification' => 'required',
+        // Leer = "erkennbare" Passkeys: das Gerät zeigt selbst, welche Konten es für diese Seite kennt.
+    ]);
+});
+
+$router->post('/portal/login/passkey/verify', function () {
+    $fail = fn() => passkeyJson(['error' => 'Passkey konnte nicht bestätigt werden. Bitte mit Passwort anmelden.'], 401);
+    if (!RateLimiter::allow('passkey_login', clientIp(), 20, 900)) {
+        passkeyJson(['error' => 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.'], 429);
+    }
+    $challenge = passkeyTakeChallenge('get');
+    $d = passkeyPostedData();
+    $r = $d['response'] ?? null;
+    if ($challenge === null || !is_array($r) || !is_string($d['id'] ?? null)) $fail();
+    try {
+        $row = DB::fetchOne(
+            'SELECT p.id, p.user_id, p.public_key_pem, p.sign_count
+             FROM user_passkeys p JOIN users u ON u.id = p.user_id
+             WHERE p.credential_id = ? AND u.active = true',
+            [$d['id']]
+        );
+        if (!$row) $fail();
+        $userHandle = isset($r['userHandle']) && $r['userHandle'] !== '' ? WebAuthn::b64uDecode((string)$r['userHandle']) : null;
+        if ($userHandle !== null && $userHandle !== (string)$row['user_id']) $fail();
+        $count = WebAuthn::verifyAssertion(
+            WebAuthn::b64uDecode((string)($r['clientDataJSON'] ?? '')),
+            WebAuthn::b64uDecode((string)($r['authenticatorData'] ?? '')),
+            WebAuthn::b64uDecode((string)($r['signature'] ?? '')),
+            $row['public_key_pem'], (int)$row['sign_count'], $challenge, passkeyRpId()
+        );
+    } catch (\RuntimeException $e) {
+        error_log('[passkey-login] ' . $e->getMessage());
+        $fail();
+    }
+    DB::execute('UPDATE user_passkeys SET sign_count = ?, last_used_at = now() WHERE id = ?', [$count, $row['id']]);
+    unset($_SESSION['2fa_pending_user']);
+    Auth::establishSession($row['user_id']);
+    passkeyJson(['ok' => true, 'redirect' => '/portal/dashboard']);
+});
+
+$router->post('/portal/profile/passkeys/options', function () {
+    Auth::requireLogin();
+    $own = DB::fetchAll('SELECT credential_id FROM user_passkeys WHERE user_id = ?', [Auth::userId()]);
+    if (count($own) >= 10) {
+        passkeyJson(['error' => 'Es sind höchstens 10 Passkeys je Konto möglich.'], 422);
+    }
+    $u = DB::fetchOne('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [Auth::userId()]);
+    passkeyJson([
+        'challenge' => passkeyNewChallenge('create'),
+        'rp'        => ['id' => passkeyRpId(), 'name' => 'Strom für alle'],
+        'user'      => [
+            'id'          => WebAuthn::b64uEncode((string)$u['id']),
+            'name'        => $u['email'],
+            'displayName' => trim($u['first_name'] . ' ' . $u['last_name']),
+        ],
+        'pubKeyCredParams'       => [['type' => 'public-key', 'alg' => -7], ['type' => 'public-key', 'alg' => -257]],
+        'authenticatorSelection' => ['residentKey' => 'required', 'requireResidentKey' => true, 'userVerification' => 'required'],
+        'attestation'            => 'none',
+        'timeout'                => 120000,
+        'excludeCredentials'     => array_map(fn($c) => ['type' => 'public-key', 'id' => $c['credential_id']], $own),
+    ]);
+});
+
+$router->post('/portal/profile/passkeys/verify', function () {
+    Auth::requireLogin();
+    $challenge = passkeyTakeChallenge('create');
+    $d = passkeyPostedData();
+    $r = $d['response'] ?? null;
+    if ($challenge === null || !is_array($r)) {
+        passkeyJson(['error' => 'Die Anfrage ist abgelaufen. Bitte erneut versuchen.'], 400);
+    }
+    try {
+        $res = WebAuthn::verifyRegistration(
+            WebAuthn::b64uDecode((string)($r['clientDataJSON'] ?? '')),
+            WebAuthn::b64uDecode((string)($r['attestationObject'] ?? '')),
+            $challenge, passkeyRpId()
+        );
+    } catch (\RuntimeException $e) {
+        error_log('[passkey-register] ' . $e->getMessage());
+        passkeyJson(['error' => 'Der Passkey konnte nicht gespeichert werden.'], 422);
+    }
+    $label = trim(strip_tags((string)($d['label'] ?? '')));
+    $label = mb_substr($label !== '' ? $label : 'Passkey', 0, 60);
+    try {
+        DB::execute(
+            'INSERT INTO user_passkeys (user_id, credential_id, public_key_pem, sign_count, label) VALUES (?, ?, ?, ?, ?)',
+            [Auth::userId(), WebAuthn::b64uEncode($res['credentialId']), $res['publicKeyPem'], $res['signCount'], $label]
+        );
+    } catch (\Throwable $e) {
+        passkeyJson(['error' => 'Dieser Passkey ist bereits gespeichert.'], 409);
+    }
+    passkeyJson(['ok' => true]);
+});
+
+$router->post('/portal/profile/passkeys/delete', function () {
+    Auth::requireLogin();
+    DB::execute('DELETE FROM user_passkeys WHERE id = ? AND user_id = ?', [$_POST['id'] ?? '', Auth::userId()]);
+    header('Location: /portal/profile?success=' . urlencode('Passkey wurde entfernt.'));
     exit;
 });
 
@@ -7456,6 +7610,7 @@ $router->get('/portal/profile', function () {
     Auth::requireLogin();
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
+    $profilePasskeys = DB::fetchAll('SELECT id, label, created_at, last_used_at FROM user_passkeys WHERE user_id = ? ORDER BY created_at', [Auth::userId()]);
     if (!empty($_GET['success'])) { $success = $_GET['success']; }
     if (!empty($_GET['error'])) { $error = $_GET['error']; }
     require ROOT . '/src/views/pages/profile.php';
@@ -7478,6 +7633,7 @@ $router->post('/portal/profile', function () {
     }
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
+    $profilePasskeys = DB::fetchAll('SELECT id, label, created_at, last_used_at FROM user_passkeys WHERE user_id = ? ORDER BY created_at', [Auth::userId()]);
     require ROOT . '/src/views/pages/profile.php';
 });
 

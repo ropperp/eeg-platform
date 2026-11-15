@@ -85,6 +85,37 @@
   <?php endif; ?>
 </div>
 
+<div class="card" style="max-width:480px;margin-bottom:1.5rem" id="passkeys">
+  <h3 style="margin-bottom:.5rem"><?= icon('key') ?> Passkeys</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Anmelden ohne Passwort mit Fingerabdruck, Gesicht oder Geräte-PIN (z.&nbsp;B. iPhone, MacBook,
+    Windows&nbsp;Hello oder Sicherheitsschlüssel). Ein Passkey ersetzt Passwort und 2FA und lässt sich
+    nicht auf gefälschten Seiten eingeben.
+  </p>
+  <?php foreach (($profilePasskeys ?? []) as $pk): ?>
+    <form method="post" action="/portal/profile/passkeys/delete"
+          style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem 0;border-top:1px solid var(--gray-200)"
+          onsubmit="return confirm('Passkey wirklich entfernen?')">
+      <input type="hidden" name="id" value="<?= htmlspecialchars($pk['id']) ?>">
+      <span style="font-size:.9rem">
+        <strong><?= htmlspecialchars($pk['label']) ?></strong><br>
+        <span style="color:var(--gray-600);font-size:.8rem">
+          angelegt <?= htmlspecialchars(date('d.m.Y', strtotime($pk['created_at']))) ?><?= $pk['last_used_at'] ? ', zuletzt benutzt ' . htmlspecialchars(date('d.m.Y', strtotime($pk['last_used_at']))) : '' ?>
+        </span>
+      </span>
+      <button type="submit" class="btn btn-tint-red">Entfernen</button>
+    </form>
+  <?php endforeach; ?>
+  <div id="passkey-register-box" hidden style="margin-top:.75rem">
+    <label class="form-label" for="passkey-label">Name (z.&nbsp;B. „iPhone“)</label>
+    <input type="text" id="passkey-label" class="form-control" maxlength="60" style="margin-bottom:.75rem">
+    <button type="button" class="btn btn-primary" data-passkey-register data-csrf="<?= htmlspecialchars(csrfToken()) ?>">Passkey hinzufügen</button>
+    <p id="passkey-msg" role="status" style="font-size:.85rem;margin-top:.5rem"></p>
+  </div>
+  <p id="passkey-unsupported" style="color:var(--gray-600);font-size:.85rem">Dieser Browser unterstützt keine Passkeys.</p>
+</div>
+<script src="/assets/js/passkey.js" defer></script>
+
 <?php if ($profileMember): ?>
 <div class="card" style="max-width:480px;margin-bottom:1.5rem">
   <h3 style="margin-bottom:.5rem">Meine Daten exportieren</h3>

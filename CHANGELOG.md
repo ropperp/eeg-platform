@@ -19,6 +19,22 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Passkey-Anmeldung (17.11.2026)
+- **„Mit Passkey anmelden“** unter dem Passwort-Formular (klassisches und Glas-Design): Fingerabdruck,
+  Gesicht oder Geräte-PIN statt Passwort -- z. B. iPhone, MacBook (Passwörter-App/iCloud-Schlüsselbund),
+  Windows Hello, Sicherheitsschlüssel. Ein Passkey mit Benutzerprüfung ersetzt Passwort **und** 2FA und
+  lässt sich nicht auf einer gefälschten Seite eingeben. Das Passwort bleibt als Alternative bestehen.
+- **Verwaltung im Profil** („Passkeys“): hinzufügen (mit eigenem Namen), Liste mit Datum und letzter
+  Benutzung, entfernen; höchstens 10 je Konto. Für „Ins Portal des Kunden“ gesperrt wie alle Profil-Aktionen.
+- **Technik:** `webapp/src/WebAuthn.php` (ohne Fremdbibliothek: CBOR-Leser, ES256/RS256, Prüfung von
+  Challenge, Herkunft, rpIdHash, Anwesenheit/Benutzerprüfung, Signatur, Zähler gegen kopierte Schlüssel).
+  Gespeichert wird nur der öffentliche Schlüssel (`user_passkeys`, `migrate_20261117.sql`). Die Challenge
+  gilt einmal und 5 Minuten; Anfragen sind je IP begrenzt. Ein Passkey gilt für die Hauptdomain und alle
+  Unterdomains (portal., admin., …).
+- **Tests:** 9 neue PHP-Tests mit per openssl nachgebautem Authenticator (Erfolg, falsche Challenge/Domain/
+  Herkunft/Flags/Signatur/Zähler); Browser-Test `tests/browser/passkey.js` mit virtuellem Authenticator
+  (Registrieren, Anmelden in beiden Designs, entfernter/unbekannter Passkey abgelehnt, Passwort-Login ok).
+
 ### Container gehärtet, Traefik auf v3 festgelegt (15.11.2026)
 - **`no-new-privileges` + weniger Linux-Rechte:** webapp, redis, mosquitto und latex-service dürfen sich
   nicht mehr über setuid-Programme Rechte holen und verlieren Rechte, die sie nie brauchen (rohe

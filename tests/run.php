@@ -59,6 +59,7 @@ require __DIR__ . '/../webapp/src/Push.php';
 // aufgerufen.
 require __DIR__ . '/../webapp/src/Router.php';
 require __DIR__ . '/../webapp/src/EdaAutoImporter.php';
+require __DIR__ . '/../webapp/src/WebAuthn.php';
 
 foreach (glob(__DIR__ . '/*_test.php') as $file) {
     echo "\n" . basename($file) . "\n";
