@@ -48,6 +48,59 @@ declare(strict_types=1);
  */
 class EdaAutoImporter
 {
+    /** Hosts (inkl. Unterdomänen), von denen Exportdateien heruntergeladen werden dürfen. */
+    private const TRUSTED_DOWNLOAD_HOSTS = ['eda-portal.at'];
+
+    /** true nur für https-Adressen auf einem der vertrauenswürdigen Hosts (oder deren Unterdomäne). */
+    public static function isTrustedDownloadUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts) || strtolower((string)($parts['scheme'] ?? '')) !== 'https' || isset($parts['user']) || isset($parts['pass'])) {
+            return false;
+        }
+        $host = strtolower((string)($parts['host'] ?? ''));
+        foreach (self::TRUSTED_DOWNLOAD_HOSTS as $trusted) {
+            if ($host === $trusted || str_ends_with($host, '.' . $trusted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Lädt die Datei und folgt Weiterleitungen NUR zu vertrauenswürdigen Hosts (höchstens 5).
+     * @return array{0: string|false, 1: array<int, string>, 2: int} [Inhalt, Antwort-Header, HTTP-Status]
+     */
+    private static function fetchTrusted(string $url): array
+    {
+        for ($hop = 0; $hop < 5; $hop++) {
+            $ctx = stream_context_create(['http' => [
+                'method' => 'GET', 'timeout' => 60, 'follow_location' => 0, 'ignore_errors' => true,
+            ]]);
+            $content = @file_get_contents($url, false, $ctx);
+            $headers = $http_response_header ?? [];
+            $code = (int)explode(' ', $headers[0] ?? 'HTTP/1.1 0')[1];
+            if ($code >= 300 && $code < 400) {
+                $next = '';
+                foreach ($headers as $h) {
+                    if (stripos($h, 'Location:') === 0) { $next = trim(substr($h, 9)); }
+                }
+                if ($next === '') { return [false, $headers, $code]; }
+                if (!preg_match('#^https?://#i', $next)) {   // relative Weiterleitung
+                    $p = parse_url($url);
+                    $next = 'https://' . $p['host'] . '/' . ltrim($next, '/');
+                }
+                if (!self::isTrustedDownloadUrl($next)) {
+                    throw new \RuntimeException('Weiterleitung auf einen nicht vertrauenswürdigen Host abgelehnt.');
+                }
+                $url = $next;
+                continue;
+            }
+            return [$content, $headers, $code];
+        }
+        throw new \RuntimeException('Zu viele Weiterleitungen beim Download.');
+    }
+
     /** Einziger bekannter Absender echter EDA-Exportmails -- alles andere im dedizierten
      * Postfach (z.B. Zustellfehler, Antworten, Spam) wird ignoriert statt fälschlich als
      * fehlgeschlagener Import behandelt zu werden (kein Alarm, bleibt ungelesen zur manuellen
@@ -339,21 +392,22 @@ class EdaAutoImporter
             throw new \RuntimeException('Weder XLSX-Anhang noch Download-Link im Mailtext gefunden.');
         }
 
-        $ctx = stream_context_create(['http' => [
-            'method'        => 'GET',
-            'timeout'       => 60,
-            'follow_location' => 1,
-            'max_redirects' => 10,
-            'ignore_errors' => true,
-        ]]);
-        $content = @file_get_contents($url, false, $ctx);
-        $code = (int)explode(' ', $http_response_header[0] ?? 'HTTP/1.1 0')[1];
+        // Nur der bekannte EDA-Download-Host (15.11.2026): vorher wurde als Rückfall JEDER Link der
+        // Mail abgerufen -- ein gefälschter Absender hätte den Server so auf beliebige (auch interne)
+        // Adressen schicken können. Gilt ebenso für Weiterleitungen (siehe fetchTrusted()).
+        if (!self::isTrustedDownloadUrl($url)) {
+            $host = (string)parse_url($url, PHP_URL_HOST);
+            throw new \RuntimeException("Der Download-Link zeigt auf '{$host}', nicht auf den bekannten EDA-Host ("
+                . implode(', ', self::TRUSTED_DOWNLOAD_HOSTS) . ") -- nicht abgerufen. Datei bitte von Hand über /portal/eda/upload importieren.");
+        }
+
+        [$content, $respHeaders, $code] = self::fetchTrusted($url);
         if ($code !== 200 || $content === false || $content === '') {
             throw new \RuntimeException("Download fehlgeschlagen (HTTP {$code}) von {$url}");
         }
 
         $filename = null;
-        foreach ($http_response_header ?? [] as $h) {
+        foreach ($respHeaders as $h) {
             if (preg_match('/filename="?([^"\r\n;]+)"?/i', $h, $fm)) { $filename = $fm[1]; break; }
         }
         if ($filename === null) {

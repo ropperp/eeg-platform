@@ -58,6 +58,7 @@ require __DIR__ . '/../webapp/src/Push.php';
 // echten Request-/Superglobals-Kontext (CSRF/Demo-Check/Routing) und wird hier bewusst nicht
 // aufgerufen.
 require __DIR__ . '/../webapp/src/Router.php';
+require __DIR__ . '/../webapp/src/EdaAutoImporter.php';
 
 foreach (glob(__DIR__ . '/*_test.php') as $file) {
     echo "\n" . basename($file) . "\n";

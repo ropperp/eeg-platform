@@ -73,7 +73,7 @@ Traefik (Docker, Port 80)
    │  Routing per Host-Header
    │
    ▼
-webapp (nginx + PHP 8.2, internes Docker-Netz)
+webapp (nginx + PHP 8.4, internes Docker-Netz)
 ```
 
 ### nginx-Proxy-Config (auf 10.0.0.144)
@@ -163,7 +163,7 @@ Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende S
 | redis | redis:7-alpine | — | Session-Cache |
 | mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
 | mqtt-subscriber | (build) | — | MQTT → DB |
-| webapp | (build) | — | nginx + PHP 8.2 |
+| webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
 
 ### Wichtige Traefik-Details
