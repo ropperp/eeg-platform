@@ -35,7 +35,7 @@
 <div class="grid-4 admin-stats" style="margin-bottom:2rem">
   <div class="card stat-card">
     <div class="stat-value"><?= count($communities) ?></div>
-    <div class="stat-label">Energiegemeinschaften</div>
+    <div class="stat-label">Energie&shy;gemeinschaften</div>
   </div>
   <a class="card stat-card" href="/admin/members" style="text-decoration:none;color:inherit">
     <div class="stat-value"><?= $sum('members') ?></div>

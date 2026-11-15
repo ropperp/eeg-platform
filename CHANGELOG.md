@@ -19,6 +19,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Texte sauber zentriert (15.11.2026)
+- **Energiefluss:** Wert/Beschriftung unter den Kreisen sind jetzt um die Kreismitte zentriert --
+  „aktuell keine Einspeisung“ stand vorher deutlich zu weit rechts (Portal und öffentliche
+  Live-Seite).
+- **Kennzahl-Kacheln:** lange Wörter wie „Energiegemeinschaften“ werden in schmalen Kacheln am
+  Handy getrennt statt über den Rand nach rechts zu ragen.
+- Neues Prüfskript `tests/browser/zentrierung.js`: misst auf den Startseiten jeden zentrierten
+  Text (Laptop/Tablet/Handy) und meldet Versatz oder Überstand in Pixeln.
+
 ### Kästen anordnen wie das Ergebnis, Höhe ziehen (15.11.2026)
 - **„Anordnen“ zeigt die Kästen in echter Größe** -- die Bedienleiste (Griff, ↑, ↓, Auge) schwebt
   über dem Kasten und verändert kein Maß; ausgeblendete Kästen verschwinden auch im
