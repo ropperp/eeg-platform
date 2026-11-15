@@ -10,18 +10,29 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Dieselbe PHP-Version wie das Produktions-Image (webapp/Dockerfile: php:8.4-fpm-alpine). Veraltete
+    # Aufrufe ("Deprecated") zählen als Fehler -- sie würden mit der nächsten PHP-Version zu echten
+    # Fehlern, und im Produktivbetrieb gehen sie nur still ins Fehlerlog.
+    strategy:
+      matrix:
+        php: ['8.4']
     steps:
       - uses: actions/checkout@v4
 
-      - name: PHP 8.2 einrichten
+      - name: PHP ${{ matrix.php }} einrichten
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
+          extensions: openssl, mbstring, sodium
+          ini-values: display_errors=On, error_reporting=-1
 
-      - name: PHP-Syntaxprüfung (lint) über alle .php-Dateien
+      - name: PHP-Syntaxprüfung (lint) über alle .php-Dateien, ohne Deprecations
         run: |
-          find webapp tests -name '*.php' -print0 \
-            | xargs -0 -n1 -P4 php -l >/dev/null
+          out=$(find webapp tests scripts -name '*.php' -print0 | xargs -0 -n1 -P4 php -l 2>&1 | grep -v '^No syntax errors detected' || true)
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
 
-      - name: Unit-Tests
-        run: php tests/run.php
+      - name: Unit-Tests (Deprecations/Warnings sind Fehler)
+        run: |
+          php tests/run.php 2>&1 | tee /tmp/tests.out
+          if grep -Eiq '(Deprecated|Warning|Notice):' /tmp/tests.out; then echo '::error::Deprecated/Warning/Notice in der Test-Ausgabe'; grep -Ein '(Deprecated|Warning|Notice):' /tmp/tests.out | head -20; exit 1; fi
+          grep -q 'Alle .* Tests bestanden' /tmp/tests.out

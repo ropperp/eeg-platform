@@ -55,7 +55,7 @@ docker compose up -d --build
 | Komponente | Technologie |
 |------------|-------------|
 | Datenbank | PostgreSQL 16 + TimescaleDB |
-| Backend | PHP 8.2 (kein Framework, eigener Router) |
+| Backend | PHP 8.4 (kein Framework, eigener Router) |
 | Webserver | nginx (im selben Container wie PHP) |
 | Reverse Proxy | Traefik v3 + Let's Encrypt |
 | Session-Cache | Redis 7 |

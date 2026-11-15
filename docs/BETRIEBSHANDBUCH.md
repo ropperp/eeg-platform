@@ -1320,3 +1320,18 @@ docker compose up -d --build
 > Neue Dienste mit eigener Adresse tragen Sie ab jetzt in `docker/traefik/dynamic.yml` ein, nicht mehr
 > per Docker-Label.
 
+> **Einmalig nach dem Update vom 15.11.2026 (b) -- PHP 8.4, AES-GCM**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose up -d --build webapp          # baut mit php:8.4-fpm-alpine (dauert einige Minuten)
+> docker compose exec webapp php -v | head -1   # PHP 8.4.x
+> docker compose exec webapp php -r 'var_dump(defined("PASSWORD_ARGON2ID"), function_exists("opcache_get_status"));'
+> # gespeicherte Zugangsdaten (EDA-Passwort, P1-Schlüssel, WLAN-Passwörter, 2FA, APNs) auf AES-GCM umstellen:
+> docker compose exec -T webapp php < scripts/migrate_reencrypt_secrets_v2.php
+> ```
+> Das Skript meldet am Ende „N Wert(e) umgestellt, … 0 nicht entschlüsselbar“ und ist beliebig oft
+> ausführbar. Danach: Anmelden, EDA-Postfach „Jetzt prüfen“, eine Seite mit Python-Import testen
+> (z. B. Datenqualität unter EDA-Import öffnen). Falls etwas mit 8.4 nicht läuft:
+> `git revert` des Commits und `docker compose up -d --build webapp` (zurück auf 8.2).
+> Hinweis: Rechnungsbeträge sind durch `moneyRound()` unabhängig von der PHP-Version.
+
