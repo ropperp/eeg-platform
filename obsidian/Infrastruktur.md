@@ -122,7 +122,7 @@ Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Doc
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:latest | 80:80 | Reverse Proxy, Docker-Labels + File-Provider |
+| traefik | traefik:latest | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
 | redis | redis:7-alpine | — | Session-Cache |
 | mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
@@ -132,8 +132,11 @@ Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Doc
 
 ### Wichtige Traefik-Details
 - Traefik hört **nur auf Port 80** (kein HTTPS, kein Let's Encrypt) — SSL macht der nginx-Proxy
-- `DOCKER_API_VERSION=1.40` gesetzt (Docker Engine 29.x braucht mindestens 1.40)
-- `--providers.docker.exposedbydefault=false` → nur Container mit `traefik.enable=true` werden geroutet
+- **Kein Docker-Provider, kein Docker-Socket** (seit 15.11.2026): kein Dienst trägt Traefik-Labels, alle
+  Router stehen in `docker/traefik/dynamic.yml`. Ein Socket-Mount (auch `:ro`) ist Vollzugriff auf den
+  Docker-Dienst des Servers -- bei einer Traefik-Übernahme wäre der ganze Server offen. Neue Dienste mit
+  eigener Adresse daher in `dynamic.yml` eintragen, nicht per Label. (Die frühere `DOCKER_API_VERSION`-
+  Variable entfällt damit ebenfalls.)
 - `--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}` (seit 07.11.2026):
   Traefik übernimmt `X-Forwarded-For`/`X-Real-IP` NUR vom nginx-Proxy, sonst verwirft er sie --
   ohne das speicherte die webapp bei Beitritt/Vertragsunterschrift immer `172.19.0.x` statt der

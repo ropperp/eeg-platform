@@ -52,6 +52,56 @@ function icon(string $name, string $classes = ''): string
 }
 
 /**
+ * Passwort-Hashing an EINER Stelle (15.11.2026, nach einem Reel-Vergleich mit Patrick: Salt +
+ * bewusst langsames Verfahren). Argon2id ist die Erstempfehlung des OWASP Password Storage Cheat
+ * Sheet (speicherhart, damit auch GPU-/ASIC-Angriffe teuer sind); steht es in der PHP-Version
+ * nicht zur Verfügung, gilt bcrypt mit Kosten 12 wie bisher. Das Salt erzeugt password_hash()
+ * selbst und legt es in den Hash -- gleiches Passwort ergibt deshalb nie zweimal denselben Hash.
+ *
+ * Bestehende bcrypt-Hashes bleiben gültig (password_verify() erkennt das Verfahren am Hash) und
+ * werden beim nächsten erfolgreichen Login automatisch auf das aktuelle Verfahren umgestellt,
+ * siehe Auth::checkPassword() / passwordNeedsRehash(). Die Parameter lassen sich so später
+ * erhöhen, ohne dass jemand sein Passwort neu setzen muss.
+ *
+ * @return array{0: string, 1: array<string, int>} [Verfahren, Optionen]
+ */
+function passwordAlgo(): array
+{
+    if (defined('PASSWORD_ARGON2ID')) {
+        // 64 MiB, 3 Durchläufe, 1 Thread (~130 ms auf einem Laptop, bcrypt-12 braucht ~200 ms):
+        // weit über den OWASP-Mindestwerten (19 MiB/2 Durchläufe). Der Speicherbedarf ist durch
+        // pm.max_children von php-fpm (Standard 5) begrenzt, also höchstens ~320 MiB bei
+        // gleichzeitigen Anmeldungen -- kein DoS-Hebel, auch nicht auf einem Raspberry Pi.
+        return [PASSWORD_ARGON2ID, ['memory_cost' => 65536, 'time_cost' => 3, 'threads' => 1]];
+    }
+    return [PASSWORD_BCRYPT, ['cost' => 12]];
+}
+
+function hashPassword(string $plain): string
+{
+    [$algo, $options] = passwordAlgo();
+    return password_hash($plain, $algo, $options);
+}
+
+/** true, wenn der Hash nicht (mehr) dem aktuellen Verfahren/den aktuellen Parametern entspricht. */
+function passwordNeedsRehash(string $hash): bool
+{
+    [$algo, $options] = passwordAlgo();
+    return password_needs_rehash($hash, $algo, $options);
+}
+
+/**
+ * Passwort-vergessen-/Einladungs-Links: in der Datenbank liegt nur dieser SHA-256-Hash, nie der
+ * Code selbst (der steht nur im Link der E-Mail). Wer die Datenbank liest, kann damit kein Konto
+ * übernehmen. SHA-256 genügt hier, weil der Code 32 Zufallsbytes lang ist -- zum Durchprobieren
+ * einfach zu hasher Passwörter (wofür ein langsames Verfahren nötig ist) gibt es hier nichts.
+ */
+function hashResetToken(string $token): string
+{
+    return hash('sha256', $token);
+}
+
+/**
  * Verschlüsselt einen String mit AES-256-CBC (Schlüssel aus APP_SECRET). Für Werte gedacht,
  * die wieder im Klartext angezeigt werden müssen (z.B. WLAN-Passwort des Mitglieds fürs
  * ESP-Debugging, siehe docs/ESP_IDEEN.md) -- daher Verschlüsselung statt Hash. IV wird

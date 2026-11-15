@@ -19,6 +19,29 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Sicherheit und Effizienz (15.11.2026)
+- **Passwörter: Argon2id statt bcrypt** (Salt wie bisher automatisch, bewusst langsam: 64 MiB Speicher,
+  3 Durchläufe). Bestehende Passwörter bleiben gültig und werden beim nächsten Login unbemerkt
+  umgestellt (`password_needs_rehash`) -- so lassen sich die Parameter künftig ohne Passwort-Neuvergabe
+  erhöhen. Nur an einer Stelle (`hashPassword()` in `functions.php`).
+- **Gleiche Antwortzeit** bei „Konto gibt es nicht“ und „falsches Passwort“ (vorher ~100 ms schneller,
+  daran ließ sich erkennen, welche E-Mail-Adressen ein Konto haben).
+- **Passwort-vergessen-/Einladungs-Links nur noch als Hash gespeichert** (`reset_token` = SHA-256). Wer
+  die Datenbank liest, kann damit kein Konto mehr übernehmen. `migrate_20261115.sql` entfernt noch
+  offene Klartext-Codes.
+- **Passwort vergessen: Bremse** (höchstens 3 Mails pro Adresse und 10 pro IP-Adresse und Stunde,
+  vorher unbegrenzt -- man konnte fremde Postfächer mit Reset-Mails fluten). Die Seite antwortet sofort,
+  der Mailversand läuft danach (`fastcgi_finish_request`), dadurch auch gleiche Antwortzeit.
+- **Profilbilder:** der Inhalt wird beim Hochladen als echtes Bild geprüft (nicht nur die Endung), und
+  ausgeliefert wird nur noch, was wirklich ein Bild ist -- alles andere als Download mit gesperrter
+  Ausführung. Vorher hätte eine als `foto.jpg` hochgeladene HTML-Datei im Portal Skripte ausführen können,
+  sobald jemand ihre Adresse direkt öffnet.
+- **Traefik ohne Docker-Socket:** kein Dienst nutzt Traefik-Labels mehr (alle Router stehen in
+  `dynamic.yml`), der Socket-Zugriff -- auch `:ro` ein Vollzugriff auf den Server -- entfällt.
+- **opcache** eingeschaltet (vorher wurde `index.php` mit ~11.700 Zeilen bei jedem Seitenaufruf neu
+  eingelesen und übersetzt); **statische Dateien** (CSS/JS/SVG) werden komprimiert, dynamische Seiten
+  bewusst nicht (BREACH).
+
 ### Texte sauber zentriert (15.11.2026)
 - **Energiefluss:** Wert/Beschriftung unter den Kreisen sind jetzt um die Kreismitte zentriert --
   „aktuell keine Einspeisung“ stand vorher deutlich zu weit rechts (Portal und öffentliche

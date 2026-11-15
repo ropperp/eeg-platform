@@ -18,7 +18,7 @@ RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev python3 py3-pip tzdat
         libjpeg-turbo libpng freetype \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS libjpeg-turbo-dev libpng-dev freetype-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_pgsql curl zip gd \
+    && docker-php-ext-install pdo pdo_pgsql curl zip gd opcache \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps \

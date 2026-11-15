@@ -1297,3 +1297,26 @@ docker compose up -d --build
 > Ordnung, nichts weiter tun); „weicht ab“ = EDA hat Q3-Werte inzwischen geändert -- dann vor
 > weiteren Schritten Rücksprache.
 
+> **Einmalig nach dem Update vom 15.11.2026 -- Argon2id, gehashte Reset-Links, opcache, Traefik ohne
+> Docker-Socket**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> # entfernt noch offene Klartext-Reset-Codes (Idempotent; betrifft nur gerade offene Links)
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261115.sql
+> # baut webapp neu (opcache-Erweiterung) und erstellt traefik neu (ohne Docker-Socket, ~Sekunden)
+> docker compose up -d --build
+> ```
+> Danach prüfen:
+> - `docker compose ps`: alle Dienste `healthy`; `curl -sI -H "Host: stromfueralle.at" http://localhost/ | head -1`
+>   liefert `HTTP/1.1 200`.
+> - Anmelden mit dem eigenen Konto: funktioniert wie bisher; in der Datenbank beginnt der eigene Hash
+>   danach mit `$argon2id$` (`SELECT left(password_hash, 10) FROM users WHERE email = '...'`).
+> - `docker compose exec webapp php -r 'var_dump(defined("PASSWORD_ARGON2ID"), function_exists("opcache_get_status"));'`
+>   sollte zweimal `bool(true)` zeigen. Falls das erste `false` ist, bleibt alles auf bcrypt (funktioniert
+>   weiter, nur ohne Argon2).
+> - Rückfall, falls Traefik nach dem Update nicht startet: `git revert` des Commits und
+>   `docker compose up -d` (stellt den alten Docker-Provider samt Socket wieder her).
+>
+> Neue Dienste mit eigener Adresse tragen Sie ab jetzt in `docker/traefik/dynamic.yml` ein, nicht mehr
+> per Docker-Label.
+

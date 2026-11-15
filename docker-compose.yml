@@ -22,8 +22,12 @@ services:
     command:
       - "--api.insecure=false"
       - "--ping=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
+      # KEIN Docker-Provider mehr (15.11.2026): kein Dienst trägt noch Traefik-Labels, alle Router
+      # stehen in der Datei unten. Damit braucht Traefik den Docker-Socket nicht mehr -- der ist
+      # selbst als :ro-Mount ein Vollzugriff auf den Docker-Dienst des Servers (ein schreibgeschützter
+      # Socket schützt nicht vor schreibenden API-Aufrufen); wer Traefik übernähme, hätte den
+      # ganzen Server. Neue Dienste mit eigener Adresse also in dynamic.yml eintragen, nicht per Label.
+      #
       # File-Provider für die webapp-Router (siehe docker/traefik/dynamic.yml) -- lebt
       # unabhängig vom webapp-Container, damit ein gestopptes/abgestürztes webapp ein
       # korrektes 502/503/504 statt eines nackten Traefik-404 liefert (Vorfall 25.09.2026,
@@ -37,12 +41,9 @@ services:
       # Client-IP (Patrick, 07.11.2026). NUR diese eine Proxy-IP: von jedem anderen Absender
       # verwirft Traefik die Header weiterhin (Schutz gegen gefälschte IP-Angaben).
       - "--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}"
-    environment:
-      - DOCKER_API_VERSION=1.40
     ports:
       - "80:80"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/eeg/traefik/letsencrypt:/letsencrypt
       - ./docker/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     healthcheck:

@@ -676,12 +676,38 @@ function memberAvatarUrl(?string $memberId, ?string $photoPath, ?string $salutat
  * zurück, sonst ['path' => null, 'error' => Fehler-Code]. Kümmert sich nur um die
  * Dateiablage, nicht um die DB-Zeile (die ist je Tabelle unterschiedlich).
  */
+/**
+ * Sendet eine hochgeladene Bilddatei sicher aus: nur echte Bildtypen (JPEG/PNG/WebP, am INHALT
+ * erkannt, nicht an der Endung) werden als Bild ausgeliefert, alles andere als Download mit
+ * gesperrter Ausführung. Vorher kam der Dateityp direkt aus mime_content_type(): eine als
+ * "foto.jpg" hochgeladene HTML-Datei wäre als text/html im Portal ausgeliefert worden und hätte
+ * -- wegen 'unsafe-inline' in der CSP -- Skripte im Portal ausführen können, sobald jemand die
+ * Adresse direkt öffnet.
+ */
+function sendImageFileSafely(string $path): void
+{
+    $mime = @mime_content_type($path) ?: '';
+    if (in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        header('Content-Type: ' . $mime);
+    } else {
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="datei"');
+    }
+    header("Content-Security-Policy: default-src 'none'; sandbox");
+    header('X-Content-Type-Options: nosniff');
+}
+
 function storeAvatarFile(string $key, array $file): array
 {
     if ($file['error'] !== UPLOAD_ERR_OK) { return ['path' => null, 'error' => 'upload']; }
     $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, $allowedExt, true)) { return ['path' => null, 'error' => 'phototype']; }
+    // Die Endung allein sagt nichts: der Inhalt muss tatsächlich ein JPEG/PNG/WebP-Bild sein.
+    $info = @getimagesize($file['tmp_name']);
+    if ($info === false || !in_array($info[2] ?? 0, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
+        return ['path' => null, 'error' => 'phototype'];
+    }
 
     $dir = '/var/www/html/storage/uploads/avatars';
     if (!is_dir($dir)) { mkdir($dir, 0750, true); }
@@ -1055,7 +1081,7 @@ function createMemberRecord(string $communityId, array $f): array
     $inviteError = null;
     if (!$user) {
         $tempPw = bin2hex(random_bytes(8));
-        $hash = password_hash($tempPw, PASSWORD_BCRYPT, ['cost' => 12]);
+        $hash = hashPassword($tempPw);
         DB::execute(
             'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
             [$email, $hash, trim($f['first_name']), trim($f['last_name'])]
@@ -2229,6 +2255,22 @@ $router->get('/portal/forgot-password', function () {
 
 $router->post('/portal/forgot-password', function () {
     $email = strtolower(trim($_POST['email'] ?? ''));
+    // Bewusst immer dieselbe Meldung, unabhängig davon ob die E-Mail existiert, das Limit erreicht
+    // ist oder der Mailversand geklappt hat -- sonst ließe sich über die Fehlermeldung erraten,
+    // welche Adressen als Login registriert sind.
+    $success = 'Falls die E-Mail existiert, wurde ein Reset-Link versendet.';
+    require ROOT . '/src/views/pages/forgot_password.php';
+
+    // Antwort SOFORT zum Browser schicken, die eigentliche Arbeit (Token anlegen, Mail senden)
+    // danach: so antwortet die Seite für bekannte und unbekannte Adressen gleich schnell (kein
+    // Zeit-Seitenkanal zum Erraten von Konten) und der Nutzer wartet nicht auf den Mailserver.
+    if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+
+    // Begrenzung: höchstens 3 Mails pro Adresse und 10 pro IP-Adresse und Stunde (jeder Aufruf
+    // zählt, auch für nicht existierende Adressen -- gleiches Verhalten nach außen).
+    if (!RateLimiter::allow('forgot:email', $email, 3, 3600) || !RateLimiter::allow('forgot:ip', clientIp(), 10, 3600)) {
+        return;
+    }
     $token = Auth::createResetToken($email);
     if ($token) {
         try {
@@ -2250,18 +2292,13 @@ $router->post('/portal/forgot-password', function () {
             error_log('[forgot_password_mail] ' . $e->getMessage());
         }
     }
-    // Bewusst immer dieselbe Meldung, unabhängig davon ob die E-Mail existiert oder der
-    // Mailversand geklappt hat -- sonst ließe sich über die Fehlermeldung erraten, welche
-    // Adressen als Login registriert sind.
-    $success = 'Falls die E-Mail existiert, wurde ein Reset-Link versendet.';
-    require ROOT . '/src/views/pages/forgot_password.php';
 });
 
 $router->get('/portal/reset-password', function () {
     $token = $_GET['token'] ?? '';
     $valid = $token !== '' && (bool)DB::fetchOne(
         'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > now()',
-        [$token]
+        [hashResetToken($token)]
     );
     require ROOT . '/src/views/pages/reset_password.php';
 });
@@ -2272,7 +2309,7 @@ $router->post('/portal/reset-password', function () {
     $password2 = $_POST['password2'] ?? '';
     $valid = $token !== '' && (bool)DB::fetchOne(
         'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > now()',
-        [$token]
+        [hashResetToken($token)]
     );
     if (!$valid) {
         require ROOT . '/src/views/pages/reset_password.php';
@@ -4583,7 +4620,7 @@ $router->post('/api/v1/password', function () {
         echo json_encode(['error' => 'Dieses Passwort ist in bekannten Datenlecks aufgetaucht und ist deshalb unsicher. Bitte ein anderes Passwort wählen.']);
         return;
     }
-    $hash = password_hash($new, PASSWORD_BCRYPT, ['cost' => 12]);
+    $hash = hashPassword($new);
     DB::execute('UPDATE users SET password_hash=? WHERE id=?', [$hash, $ctx['user_id']]);
     echo json_encode(['status' => 'ok']);
 });
@@ -6635,7 +6672,7 @@ $router->get('/portal/members/:id/avatar', function ($params) {
     if (!$allowed) { http_response_code(403); return; }
     if (!is_file($member['photo_path'])) { http_response_code(404); return; }
 
-    header('Content-Type: ' . (mime_content_type($member['photo_path']) ?: 'application/octet-stream'));
+    sendImageFileSafely($member['photo_path']);
     // Siehe /logo-:variant.png (Vorfall 29.10.2026): Auth::start() setzt via PHPs
     // Session-Cache-Limiter automatisch ein abgelaufenes Expires + Pragma: no-cache, das dem
     // hier beabsichtigten privaten Caching sonst unbemerkt entgegenläuft.
@@ -6655,7 +6692,7 @@ $router->get('/portal/users/:id/avatar', function ($params) {
     $user = DB::fetchOne('SELECT photo_path FROM users WHERE id = ?', [$params['id']]);
     if (!$user || !$user['photo_path'] || !is_file($user['photo_path'])) { http_response_code(404); return; }
 
-    header('Content-Type: ' . (mime_content_type($user['photo_path']) ?: 'application/octet-stream'));
+    sendImageFileSafely($user['photo_path']);
     header_remove('Expires');
     header_remove('Pragma');
     header('Cache-Control: private, max-age=3600');
@@ -7533,7 +7570,7 @@ $router->post('/portal/password', function () {
     } elseif (isPasswordBreached($new)) {
         $error = 'Dieses Passwort ist in bekannten Datenlecks aufgetaucht und ist deshalb unsicher. Bitte ein anderes Passwort wählen.';
     } else {
-        $hash = password_hash($new, PASSWORD_BCRYPT, ['cost' => 12]);
+        $hash = hashPassword($new);
         DB::execute('UPDATE users SET password_hash=? WHERE id=?', [$hash, $userId]);
         $success = 'Passwort wurde erfolgreich geändert.';
     }
@@ -10205,7 +10242,7 @@ $router->post('/admin/platform-admins/invite', function () {
         }
         // Zufälliges, niemandem bekanntes Platzhalter-Passwort -- der eingeladene Unteradmin
         // vergibt sein eigenes über den Reset-Link in der Einladungs-Mail (siehe unten).
-        $placeholderHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT, ['cost' => 12]);
+        $placeholderHash = hashPassword(bin2hex(random_bytes(32)));
         DB::execute(
             'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
             [$email, $placeholderHash, $firstName, $lastName]

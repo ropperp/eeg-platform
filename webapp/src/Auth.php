@@ -5,7 +5,8 @@ declare(strict_types=1);
 /**
  * Authentifizierung und Session-Management.
  * Sessions sind Redis-backed (php.ini: session.save_handler = redis).
- * Passwort-Hash: bcrypt via password_hash(PASSWORD_BCRYPT).
+ * Passwort-Hash: Argon2id (Fallback bcrypt) über hashPassword() in functions.php; alte Hashes werden
+ * beim Login automatisch umgestellt.
  */
 class Auth
 {
@@ -100,8 +101,27 @@ class Auth
             'SELECT id, password_hash, first_name, last_name, active, totp_enabled, totp_secret FROM users WHERE email = ?',
             [strtolower(trim($email))]
         );
-        if (!$user || !$user['active'] || !password_verify($password, $user['password_hash'])) {
+        // Auch für unbekannte E-Mail-Adressen einmal rechnen: sonst antwortet "gibt es nicht" um
+        // ~100 ms schneller als "falsches Passwort", und man könnte so herausfinden, welche
+        // Adressen ein Konto haben (Timing-Seitenkanal). hashPassword() kostet so viel wie
+        // password_verify() auf einem aktuellen Hash.
+        if (!$user) {
+            hashPassword($password);
             return null;
+        }
+        $passwordOk = password_verify($password, $user['password_hash']);
+        if (!$user['active'] || !$passwordOk) {
+            return null;
+        }
+        // Alter Hash (bcrypt) oder schwächere Parameter: jetzt, wo das Klartext-Passwort kurz
+        // vorliegt, mit dem aktuellen Verfahren neu hashen. Ein Fehler hier darf den Login nie
+        // verhindern -- der alte Hash bleibt dann einfach bis zum nächsten Mal bestehen.
+        if (passwordNeedsRehash($user['password_hash'])) {
+            try {
+                DB::execute('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword($password), $user['id']]);
+            } catch (\Throwable $e) {
+                error_log('[rehash] ' . $e->getMessage());
+            }
         }
         return $user;
     }
@@ -399,12 +419,14 @@ class Auth
 
         $token = bin2hex(random_bytes(32));
 
+        // In der DB liegt nur der SHA-256-Hash (hashResetToken()), der Klartext-Code steht
+        // ausschließlich im Link der E-Mail.
         // Ablaufzeit bewusst in der DB berechnen (now() + Intervall) statt in PHP: die Prüfung
         // beim Einlösen nutzt ebenfalls Postgres-now(), und eine abweichende PHP-/DB-Zeitzone
         // könnte den Link sonst scheinbar sofort ungültig machen oder unnötig lange gültig lassen.
         DB::execute(
             "UPDATE users SET reset_token = ?, reset_token_expires = now() + (? * interval '1 second') WHERE id = ?",
-            [$token, $ttlSeconds, $user['id']]
+            [hashResetToken($token), $ttlSeconds, $user['id']]
         );
         return $token;
     }
@@ -413,11 +435,11 @@ class Auth
     {
         $user = DB::fetchOne(
             'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > now()',
-            [$token]
+            [hashResetToken($token)]
         );
         if (!$user) return false;
 
-        $hash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
+        $hash = hashPassword($newPassword);
         DB::execute(
             'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
             [$hash, $user['id']]
