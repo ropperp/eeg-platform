@@ -27,6 +27,7 @@ import logging
 import math
 import os
 import random
+import signal
 import threading
 import time
 import urllib.parse
@@ -41,6 +42,8 @@ import psycopg2.extras
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from psycopg2.pool import ThreadedConnectionPool
+
+from measurement_buffer import MeasurementBuffer, rollup_esp_15min
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,6 +77,7 @@ DB_NAME = os.environ["DB_NAME"]
 APP_SECRET = os.environ.get("APP_SECRET", "")
 
 db_pool: ThreadedConnectionPool | None = None
+measurement_buffer = MeasurementBuffer(lambda: get_db_pool())
 community_cache: dict[str, str] = {}        # slug → community_id (UUID)
 metering_point_cache: dict[str, list[dict]] = {}  # "community_id:znr" → [{"id":..., "type":...}, ...]
 
@@ -296,43 +300,10 @@ def insert_measurement(community_id: str, metering_point_id: str, mp_type: str, 
         pm, em = 0, 0
     elif mp_type == "producer":
         pp, ep = 0, 0
-    pool = get_db_pool()
-    conn = pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO esp_measurements
-                    (time, community_id, metering_point_id,
-                     power_bezug_w, power_einspeisung_w,
-                     energy_bezug_wh, energy_einspeisung_wh, znr)
-                VALUES (now(), %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    community_id,
-                    metering_point_id,
-                    pp,
-                    pm,
-                    ep,
-                    em,
-                    payload.get("znr"),
-                )
-            )
-            cur.execute(
-                """
-                UPDATE metering_points
-                SET esp_online = true, esp_last_seen_at = now(),
-                    meter_reachable = true, meter_last_seen_at = now()
-                WHERE id = %s
-                """,
-                (metering_point_id,)
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        pool.putconn(conn)
+    # Nicht mehr einzeln schreiben (je Nachricht eine eigene Transaktion), sondern sammeln -- der
+    # Puffer schreibt höchstens einmal pro Sekunde alle Zeilen in EINER Transaktion, siehe
+    # measurement_buffer.py (16.11.2026).
+    measurement_buffer.add(community_id, metering_point_id, pp, pm, ep, em, payload.get("znr"))
 
 
 def notify_unknown_meter(community_id: str, zaehlernummer: str) -> None:
@@ -1050,6 +1021,37 @@ def live_stats_loop() -> None:
         time.sleep(LIVE_STATS_INTERVAL_S)
 
 
+ROLLUP_INTERVAL_S = 600
+
+
+def rollup_loop() -> None:
+    """Fasst fertige 15-Minuten-Fenster der Livewerte in esp_15min zusammen (siehe
+    measurement_buffer.rollup_esp_15min()). Holt bei der ersten Ausführung die ganze Vorgeschichte
+    tageweise nach, danach alle 10 Minuten die neu fertigen Fenster."""
+    time.sleep(30)  # erst den Start abwarten
+    while True:
+        try:
+            pool = get_db_pool()
+            conn = pool.getconn()
+            try:
+                busy = rollup_esp_15min(conn)
+            finally:
+                pool.putconn(conn)
+            if busy:
+                time.sleep(1)       # es gibt noch Rückstand: gleich weitermachen
+                continue
+        except Exception as e:
+            log.error("Zusammenfassung der Livewerte fehlgeschlagen: %s", e)
+        time.sleep(ROLLUP_INTERVAL_S)
+
+
+def shutdown(signum, frame) -> None:
+    """SIGTERM (docker stop): gesammelte Messwerte noch schreiben, dann beenden."""
+    log.info("Beende -- schreibe gesammelte Messwerte (%d)", measurement_buffer.pending())
+    measurement_buffer.stop()
+    raise SystemExit(0)
+
+
 def main() -> None:
     # Warten bis DB bereit ist
     for attempt in range(30):
@@ -1084,6 +1086,10 @@ def main() -> None:
     threading.Thread(target=demo_simulation_loop, args=(client,), daemon=True).start()
     # Live-Kennzahlen-Vorberechnung starten (siehe live_stats_loop()).
     threading.Thread(target=live_stats_loop, daemon=True).start()
+    # Messwerte gesammelt schreiben + 15-Minuten-Zusammenfassung (siehe measurement_buffer.py).
+    threading.Thread(target=measurement_buffer.run, daemon=True).start()
+    threading.Thread(target=rollup_loop, daemon=True).start()
+    signal.signal(signal.SIGTERM, shutdown)
 
     while True:
         try:

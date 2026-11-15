@@ -19,6 +19,21 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Messwerte: gesammelt schreiben, zusammenfassen, komprimieren (16.11.2026)
+- **MQTT-Dienst schreibt gesammelt:** statt je Nachricht eine eigene Transaktion (bei 20+ Zählern im
+  5-Sekunden-Takt über ein Dutzend pro Sekunde, jede mit Schreib-Sync auf dem Pi) sammelt
+  `mqtt-subscriber/measurement_buffer.py` die Livewerte und schreibt sie höchstens einmal pro Sekunde in
+  EINER Transaktion (1000 Nachrichten = 1 Transaktion statt 1000). Zeitstempel ist der Eingang der
+  Nachricht; bei einem Datenbankausfall bleiben die Werte im Speicher (bis 20.000) und werden nachgeholt;
+  beim Beenden (`docker stop`) wird der Rest noch geschrieben.
+- **15-Minuten-Zusammenfassung** `esp_15min` (Mittel/Spitze der Leistung, letzter Zählerstand) -- wird
+  alle 10 Minuten aus den fertigen Fenstern gefüllt, bei der ersten Ausführung tageweise für die
+  Vorgeschichte nachgeholt. Normale Tabelle, überlebt das Aufräumen der Rohdaten.
+- **TimescaleDB-Richtlinien** für `esp_measurements` (`migrate_20261116.sql`): Komprimierung nach 7 Tagen,
+  Rohdaten nach 400 Tagen löschen (die Zusammenfassung bleibt). In abgesicherten Blöcken: geht eine
+  Anweisung nicht (z. B. Komprimierung zusammen mit Row-Level-Security), gibt es nur eine Meldung und
+  nichts wird verändert.
+
 ### PHP 8.4, Cent-genaue Rundung, AES-GCM, EDA-Link nur von EDA (15.11.2026)
 - **PHP 8.4 statt 8.2** (Basis-Image `php:8.4-fpm-alpine`): 8.2 bekommt ab 31.12.2026 keine
   Sicherheitsupdates mehr, 8.4 bis Ende 2028. Die CI läuft jetzt unter PHP 8.4 und wertet jede
