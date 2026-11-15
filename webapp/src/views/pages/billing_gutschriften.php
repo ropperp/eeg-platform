@@ -23,7 +23,7 @@ ob_start();
 
 <?php if (!empty($gutschriften)): ?>
   <button type="button" class="btn btn-secondary" style="margin-bottom:1.5rem"
-          onclick="openSepaDateModal(window.sepaTransferTiles, '/portal/billing/gutschriften/sepa-xml<?= $run ? '?run_id=' . htmlspecialchars($run['id']) : '' ?>')">
+          data-onclick="openSepaFromButton" data-arg-0="@this" data-sepa-var="sepaTransferTiles" data-sepa-url="/portal/billing/gutschriften/sepa-xml<?= $run ? '?run_id=' . htmlspecialchars($run['id']) : '' ?>">
     <?= icon('arrow-down') ?> SEPA-Sammelüberweisung (pain.001) herunterladen
   </button>
 <?php endif; ?>
@@ -43,7 +43,7 @@ ob_start();
           <?php endif; ?>
         </h3>
         <form method="post" action="/portal/billing/gutschriften/<?= htmlspecialchars($g['invoice_id']) ?>/erledigt"
-              onsubmit="return confirm('Überweisung von ' + <?= json_encode($g['betrag']) ?> + ' € an ' + <?= json_encode($g['name']) ?> + ' wirklich als durchgeführt markieren? Die Gutschrift verschwindet danach aus dieser Liste.')">
+              data-confirm="Überweisung von <?= htmlspecialchars((string)$g['betrag']) ?> € an <?= htmlspecialchars((string)$g['name']) ?> wirklich als durchgeführt markieren? Die Gutschrift verschwindet danach aus dieser Liste.">
           <?php if ($run): ?><input type="hidden" name="run_id" value="<?= htmlspecialchars($run['id']) ?>"><?php endif; ?>
           <button type="submit" class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem">
             <?= icon('check-circle') ?> Überweisung durchgeführt
@@ -109,7 +109,7 @@ ob_start();
   <p id="sepa-date-hint" style="font-size:.82rem;color:var(--gray-600);margin-bottom:1rem"></p>
   <div id="sepa-date-tiles" style="display:grid;grid-template-columns:repeat(2, 1fr);gap:.5rem;margin-bottom:1.25rem"></div>
   <div style="display:flex;gap:.5rem;justify-content:flex-end">
-    <button type="button" onclick="document.getElementById('sepa-date-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+    <button type="button" data-dialog-close="sepa-date-dialog" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
     <button type="button" id="sepa-date-confirm" class="btn btn-primary">XML herunterladen</button>
   </div>
 </dialog>
@@ -121,12 +121,12 @@ ob_start();
   .sepa-date-tile-selected { border-color:var(--green); background:var(--green); color:var(--on-color); font-weight:600; }
   .sepa-date-tile-blocked { opacity:.45; cursor:not-allowed; text-decoration:line-through; }
 </style>
-<script>
+<script nonce="<?= cspNonce() ?>">
 window.sepaTransferTiles = <?= json_encode($sepaTransferTiles, JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <script src="/assets/js/sepa-date-modal.js?v=<?= @filemtime(ROOT . '/public/assets/js/sepa-date-modal.js') ?: time() ?>"></script>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 document.querySelectorAll('.btn-copy').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var value = btn.dataset.value || '';

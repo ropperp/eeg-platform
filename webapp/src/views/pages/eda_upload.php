@@ -60,16 +60,15 @@
 
   <form method="post" action="/portal/eda/upload" enctype="multipart/form-data">
     <div style="text-align:center;margin-bottom:1.5rem">
-      <div id="upload-zone" onclick="document.getElementById('xlsx-input').click()"
+      <div id="upload-zone" class="upload-zone" data-click-target="xlsx-input"
            style="border:2px dashed #d1d5db;border-radius:8px;padding:2.5rem 2rem;cursor:pointer;
-                  display:inline-block;min-width:360px;transition:border-color .2s"
-           onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#d1d5db'">
+                  display:inline-block;min-width:360px;transition:border-color .2s">
         <div style="font-size:2.5rem;margin-bottom:.75rem"><?= icon('file-text') ?></div>
         <div style="font-weight:600;margin-bottom:.25rem">XLSX hier ablegen oder klicken</div>
         <div style="font-size:.8rem;color:var(--gray-600)">Maximale Dateigröße: 20 MB</div>
       </div>
       <input type="file" id="xlsx-input" name="xlsx" accept=".xlsx" style="display:none"
-             onchange="document.getElementById('file-label').textContent = this.files[0]?.name ?? ''">
+             data-file-label="file-label">
       <p id="file-label" style="margin-top:.75rem;font-size:.875rem;color:#16a34a;font-weight:500"></p>
     </div>
     <div style="text-align:center">
@@ -121,7 +120,7 @@
               </td>
               <td>
                 <form method="post" action="/portal/eda/imports/<?= $imp['id'] ?>/delete" style="display:inline"
-                      onsubmit="return confirmDangerDelete('EDA-Import „<?= htmlspecialchars(addslashes($imp['filename'])) ?>“ inkl. aller dabei importierten Messwerte')">
+                      data-danger-confirm="EDA-Import „<?= htmlspecialchars($imp['filename']) ?>“ inkl. aller dabei importierten Messwerte">
                   <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem" title="Import löschen"><?= icon('trash') ?></button>
                 </form>
               </td>
@@ -208,7 +207,7 @@
               </td>
               <td>
                 <form method="post" action="/portal/eda/interval-imports/<?= $imp['id'] ?>/delete" style="display:inline"
-                      onsubmit="return confirmDangerDelete('den Import „<?= htmlspecialchars(addslashes($imp['filename'])) ?>“ inkl. aller dabei importierten Viertelstundenwerte')">
+                      data-danger-confirm="den Import „<?= htmlspecialchars($imp['filename']) ?>“ inkl. aller dabei importierten Viertelstundenwerte">
                   <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem" title="Import inkl. Messwerte löschen"><?= icon('trash') ?></button>
                 </form>
               </td>

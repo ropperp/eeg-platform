@@ -51,7 +51,7 @@ ob_start();
         ?>
         <div class="form-group">
           <label>Titel vorgestellt</label>
-          <select name="titel_vor" id="titel-vor-select" onchange="toggleTitelOther('vor')">
+          <select name="titel_vor" id="titel-vor-select" data-onchange="toggleTitelOther" data-arg-0="vor">
             <option value="" <?= $titelVorVal === '' ? 'selected' : '' ?>>keiner</option>
             <?php foreach (titelVorOptionen() as $opt): ?>
               <option value="<?= htmlspecialchars($opt) ?>" <?= $titelVorVal === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
@@ -64,7 +64,7 @@ ob_start();
         </div>
         <div class="form-group">
           <label>Titel nachgestellt</label>
-          <select name="titel_nach" id="titel-nach-select" onchange="toggleTitelOther('nach')">
+          <select name="titel_nach" id="titel-nach-select" data-onchange="toggleTitelOther" data-arg-0="nach">
             <option value="" <?= $titelNachVal === '' ? 'selected' : '' ?>>keiner</option>
             <?php foreach (titelNachOptionen() as $opt): ?>
               <option value="<?= htmlspecialchars($opt) ?>" <?= $titelNachVal === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
@@ -275,7 +275,7 @@ ob_start();
         <div class="sig-pad-guide"></div>
       </div>
       <div style="margin-top:.5rem">
-        <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature('sig-pad')">Löschen</button>
+        <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" data-onclick="clearSignature" data-arg-0="sig-pad">Löschen</button>
       </div>
       <input type="hidden" name="signature_image" id="signature_image">
     </div>
@@ -294,7 +294,7 @@ ob_start();
         <div class="sig-pad-guide"></div>
       </div>
       <div style="margin-top:.5rem">
-        <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature('sepa-sig-pad')">Löschen</button>
+        <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" data-onclick="clearSignature" data-arg-0="sepa-sig-pad">Löschen</button>
       </div>
       <input type="hidden" name="sepa_signature_image" id="sepa_signature_image">
     </div>
@@ -305,7 +305,7 @@ ob_start();
   </form>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 // Titel-Dropdown "anderer …" blendet das Freitextfeld ein (resolveTitelField() in
 // functions.php löst es beim Speichern auf).
 function toggleTitelOther(which) {

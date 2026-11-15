@@ -165,7 +165,7 @@ ob_start();
   <?php endif; ?>
   </div>
 </div>
-<script>
+<script nonce="<?= cspNonce() ?>">
 // Aktuelle Leistung alle 5s per Fetch aktualisieren -- kein Seiten-Reload für einen Wert, von
 // dem man weiß, dass er sich laufend ändert (Patrick, 30.07.2026).
 setInterval(async () => {
@@ -218,7 +218,7 @@ setInterval(async () => {
     <span style="font-weight:400;font-size:.75rem;color:var(--gray-600)">(Live-Schätzung)</span>
   </h3>
   <form method="get" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
-    <select name="range" id="range-select" onchange="onDashboardRangeChange(this.value)"
+    <select name="range" id="range-select" data-onchange="onDashboardRangeChange" data-arg-0="@value"
             style="padding:.4rem .6rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="1h"    <?= $range === '1h' ? 'selected' : '' ?>>Letzte Stunde</option>
       <option value="3h"    <?= $range === '3h' ? 'selected' : '' ?>>Letzte 3 Stunden</option>
@@ -250,7 +250,7 @@ setInterval(async () => {
     offizielle EDA-Import (siehe „Bezug aus der Gemeinschaft"/„Eigene Erzeugung" oben).
   </p>
 </div>
-<script>
+<script nonce="<?= cspNonce() ?>">
 function onDashboardRangeChange(v) {
   document.getElementById('range-day-input').style.display = v === 'day' ? 'inline-block' : 'none';
   document.getElementById('range-custom-inputs').style.display = v === 'custom' ? 'inline-flex' : 'none';

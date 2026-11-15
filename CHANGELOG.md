@@ -19,6 +19,24 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Strengere Content-Security-Policy: keine Inline-Skripte mehr ohne Nonce (17.11.2026)
+- **Vorher:** `script-src 'unsafe-inline'` -- jedes eingeschleuste `<script>` oder `<img onerror=…>` wäre
+  gelaufen, sobald irgendwo ein Text unmaskiert ausgegeben worden wäre (klassischer XSS-Weg).
+- **Jetzt:** `script-src 'self' 'nonce-…'` (Nonce pro Antwort neu gewürfelt) und `script-src-attr 'none'`:
+  nur Skripte aus eigenen Dateien oder mit dem Nonce laufen, `on…=`-Attribute und `javascript:`-Links sind
+  ganz verboten. `style-src` bleibt (viele `style=""`-Attribute, Styles führen keinen Code aus).
+- **Umbau:** 35 Inline-Skripte bekommen den Nonce (`nonce="<?= cspNonce() ?>"`), 126 Inline-Handler
+  (Bestätigungsabfragen, Sortieren/Filtern, Dialoge, Hell/Dunkel …) wurden durch `data-…`-Attribute ersetzt,
+  die das neue `assets/js/ui-actions.js` ohne `eval` ausführt; 3 `javascript:history.back()`-Links -> `data-back`.
+- **Die CSP kommt jetzt aus PHP** (`functions.php: cspPolicy()`), nicht mehr aus `webapp/docker/nginx.conf`
+  (zwei CSP-Header würde der Browser zusammenschneiden und die alte lockere Policy gewänne wieder mit).
+- **Tests:** `tests/csp_static_test.php` (7 Tests) verbietet im CI jeden Rückfall (on*-Attribut,
+  `javascript:`, Inline-Skript ohne Nonce, CSP in nginx); `tests/browser/csp.js` besucht 40+ Seiten aller
+  Rollen auf CSP-Verletzungen/JS-Fehler, prüft dass ein eingeschleustes Skript/`onerror` blockiert wird und
+  dass die ersetzten Bedienelemente funktionieren.
+- **Regel für neuen Code:** keine `onclick=` & Co., kein `<script>` ohne `nonce`, kein `javascript:` --
+  stattdessen `data-confirm`, `data-onclick="funktion"` usw. (Übersicht im Kopf von `ui-actions.js`).
+
 ### Passkey-Anmeldung (17.11.2026)
 - **„Mit Passkey anmelden“** unter dem Passwort-Formular (klassisches und Glas-Design): Fingerabdruck,
   Gesicht oder Geräte-PIN statt Passwort -- z. B. iPhone, MacBook (Passwörter-App/iCloud-Schlüsselbund),

@@ -86,7 +86,7 @@
       <button type="submit" class="btn btn-primary" style="font-size:.85rem">Speichern</button>
     </form>
     <script src="/assets/js/rect-crop.js"></script>
-    <script>
+    <script nonce="<?= cspNonce() ?>">
       initRectCropper({
         fileInputId: 'hero-file-input',
         wrapperId: 'hero-crop-wrapper',
@@ -157,7 +157,7 @@
 </div>
 <?php endforeach; ?>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 document.querySelectorAll('.template-dropzone').forEach(function (zone) {
   const input = zone.querySelector('input[type=file]');
   const text = zone.querySelector('.dz-text');

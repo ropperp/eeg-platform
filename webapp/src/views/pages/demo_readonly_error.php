@@ -5,6 +5,6 @@
   <p style="color:var(--gray-600);margin-bottom:1.5rem">
     <?= htmlspecialchars($demoErrorMessage ?? 'Dieser Demo-Zugang dient nur zur Ansicht (Präsentation/Review) und kann keine Daten verändern. Diese Aktion wurde deshalb nicht ausgeführt.') ?>
   </p>
-  <a href="javascript:history.back()" class="btn btn-primary">Zurück</a>
+  <a href="#" data-back class="btn btn-primary">Zurück</a>
 </div>
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/base.php';

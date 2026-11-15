@@ -1503,6 +1503,36 @@ function totpProvisioningUri(string $secretBase32, string $account, string $issu
         . '&issuer=' . rawurlencode($issuer) . '&algorithm=SHA1&digits=6&period=30';
 }
 
+// ─── Content-Security-Policy mit Nonce (17.11.2026) ────────────────────────────────
+// Vorher erlaubte die Policy `script-src 'unsafe-inline'` -- damit lief jedes eingeschleuste
+// <script>…</script> oder <img onerror=…> (klassischer XSS-Weg), sobald irgendwo Text unmaskiert
+// ausgegeben würde. Jetzt führt der Browser nur noch (a) Skripte aus eigenen Dateien aus und (b) Inline-
+// Skripte mit dem pro Antwort neu gewürfelten Nonce; on*-Attribute sind ganz verboten (siehe
+// assets/js/ui-actions.js als Ersatz). Der Nonce steht NUR in Templates (Attribut nonce, Wert aus cspNonce()),
+// nie in einem Ausgabefilter -- sonst bekäme auch ein eingeschleustes Skript einen.
+// Die Policy kommt aus PHP (nicht mehr aus nginx): zwei CSP-Header würde der Browser schneiden.
+
+/** Der Nonce dieser Anfrage (zufällig, pro Anfrage gleich). */
+function cspNonce(): string
+{
+    static $nonce = null;
+    return $nonce ??= base64_encode(random_bytes(16));
+}
+
+function cspPolicy(string $nonce): string
+{
+    return "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        . "script-src 'self' 'nonce-{$nonce}'; script-src-attr 'none'; font-src 'self' data:; "
+        . "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+}
+
+function sendCspHeader(): void
+{
+    if (!headers_sent()) {
+        header('Content-Security-Policy: ' . cspPolicy(cspNonce()));
+    }
+}
+
 // ─── CSRF-Schutz (OWASP-Audit 13.08.2026) ──────────────────────────────────────────
 // Bisher schützte nur SameSite=Lax auf dem Session-Cookie vor CSRF -- das verhindert zwar
 // Cross-Site-POSTs von komplett fremden Domains im Normalfall, aber nicht z.B. Top-Level-

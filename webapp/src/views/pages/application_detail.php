@@ -119,7 +119,7 @@ ob_start();
   <h3 style="margin-bottom:1rem">Entscheidung</h3>
   <div style="display:flex;gap:1rem;flex-wrap:wrap">
     <form method="post" action="/portal/applications/<?= $a['id'] ?>/approve" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap"
-          onsubmit="return confirm('Mitgliedschaft freigeben? Es wird automatisch ein Mitgliedskonto inkl. Kundennummer angelegt.')">
+          data-confirm="Mitgliedschaft freigeben? Es wird automatisch ein Mitgliedskonto inkl. Kundennummer angelegt.">
       <label style="font-size:.85rem">E-Mail-Anrede
         <select name="email_anrede_mode" style="display:block;padding:.4rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
           <option value="auto" selected>Automatisch (aus Geschlecht)</option>
@@ -131,7 +131,7 @@ ob_start();
       <button type="submit" class="btn btn-primary"><?= icon('check-circle') ?> Freigeben &amp; Mitglied anlegen</button>
     </form>
     <form method="post" action="/portal/applications/<?= $a['id'] ?>/reject" style="display:flex;gap:.5rem;align-items:center"
-          onsubmit="return confirm('Beitrittserklärung wirklich ablehnen?')">
+          data-confirm="Beitrittserklärung wirklich ablehnen?">
       <input type="text" name="ablehnungsgrund" placeholder="Ablehnungsgrund (optional)"
              style="padding:.4rem .75rem;border:1px solid var(--gray-200);border-radius:6px">
       <button type="submit" class="btn btn-tint-red"><?= icon('x-circle') ?> Ablehnen</button>

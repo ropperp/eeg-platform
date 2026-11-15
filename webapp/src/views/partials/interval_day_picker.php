@@ -36,7 +36,7 @@ $today = date('Y-m-d');
     <a href="<?= htmlspecialchars($baseUrl) ?>?month=<?= $prevMonth ?>" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;padding:.35rem .6rem">&larr;</a>
     <form method="get" style="display:inline">
       <input type="month" name="month" value="<?= htmlspecialchars($month) ?>" max="<?= $todayMonth ?>"
-             onchange="this.form.submit()" style="padding:.4rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
+             data-autosubmit style="padding:.4rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
     </form>
     <a href="<?= $nextMonthDisabled ? '#' : htmlspecialchars($baseUrl) . '?month=' . $nextMonth ?>" class="btn"
        style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;padding:.35rem .6rem<?= $nextMonthDisabled ? ';pointer-events:none;opacity:.4' : '' ?>">&rarr;</a>
@@ -69,7 +69,7 @@ $today = date('Y-m-d');
     <span><span style="display:inline-block;width:.7rem;height:.7rem;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:3px;margin-right:.3rem;vertical-align:middle"></span>noch keine Daten</span>
   </div>
 </div>
-<script>
+<script nonce="<?= cspNonce() ?>">
 // Pfeiltasten-Navigation zwischen Monaten (Patrick: "über [...] Pfeiltasten zu den Monaten
 // springen") -- nur wenn der Fokus NICHT in einem Eingabefeld liegt, damit z.B. Tippen im
 // Monats-Feld selbst (Pfeiltasten zum Ändern von Tag/Monat/Jahr im nativen Picker) nicht

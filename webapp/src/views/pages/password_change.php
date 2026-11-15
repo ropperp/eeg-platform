@@ -19,7 +19,7 @@
       <div class="form-group">
         <label>Neues Passwort <span style="color:#ef4444">*</span></label>
         <input type="password" name="new_password" required minlength="8" autocomplete="new-password"
-               oninput="checkStrength(this.value)">
+               data-oninput="checkStrength" data-arg-0="@value">
         <div id="strength-bar" style="height:4px;border-radius:2px;margin-top:.25rem;transition:all .3s;background:#e5e7eb"></div>
         <small id="strength-label" style="font-size:.75rem;color:var(--gray-600)"></small>
       </div>
@@ -32,7 +32,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 function checkStrength(pw) {
   const bar = document.getElementById('strength-bar');
   const lbl = document.getElementById('strength-label');

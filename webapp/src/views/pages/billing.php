@@ -35,8 +35,8 @@ ob_start();
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <input type="search" id="billing-search" placeholder="Zeitraum suchen (z.B. 2026-Q1 oder 2026-07)…"
            style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
-           oninput="filterBilling()">
-    <select id="billing-status" onchange="filterBilling()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+           data-oninput="filterBilling">
+    <select id="billing-status" data-onchange="filterBilling" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
       <option value="pending">Ausstehend</option>
       <option value="done">Abgeschlossen</option>
@@ -102,20 +102,20 @@ ob_start();
         <td class="rt-actions">
           <?php if ($run['status'] === 'pending'): ?>
             <form method="post" action="/portal/billing/generate" style="display:inline"
-                  onsubmit="return confirm('Rechnungen für dieses Quartal aus den EDA-Daten berechnen? Sie können danach jede Rechnung noch einzeln anpassen.')">
+                  data-confirm="Rechnungen für dieses Quartal aus den EDA-Daten berechnen? Sie können danach jede Rechnung noch einzeln anpassen.">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
               <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem"><?= icon('calculator') ?> Rechnungen berechnen</button>
             </form>
           <?php elseif ($run['status'] === 'ready'): ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem"><?= icon('note-pencil') ?> Prüfen/Bearbeiten</a>
             <form method="post" action="/portal/billing/generate" style="display:inline"
-                  onsubmit="return confirm('Neu berechnen? Manuelle Änderungen an den Rechnungen dieses Laufs gehen dabei verloren.')">
+                  data-confirm="Neu berechnen? Manuelle Änderungen an den Rechnungen dieses Laufs gehen dabei verloren.">
               <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
               <button class="btn" style="background:var(--gray-100);color:var(--gray-700);padding:.35rem .6rem;font-size:.8rem"><?= icon('arrow-clockwise') ?> Neu</button>
             </form>
             <?php if ($freigabeErlaubt): ?>
               <form method="post" action="/portal/billing/release" style="display:inline"
-                    onsubmit="return confirm('Abrechnung endgültig freigeben? Dieser Schritt kann nicht rückgängig gemacht werden. Voraussetzung: die EDA-Werte sind belastbar (keine L3-Werte mehr).')">
+                    data-confirm="Abrechnung endgültig freigeben? Dieser Schritt kann nicht rückgängig gemacht werden. Voraussetzung: die EDA-Werte sind belastbar (keine L3-Werte mehr).">
                 <input type="hidden" name="billing_run_id" value="<?= $run['id'] ?>">
                 <button class="btn btn-primary" style="padding:.35rem .75rem;font-size:.8rem"><?= icon('check-circle') ?> Freigeben</button>
               </form>
@@ -127,14 +127,14 @@ ob_start();
           <?php else: ?>
             <a href="/portal/billing/invoices?quartal=<?= urlencode($run['quartal']) ?>" style="font-size:.8rem">Rechnungen ansehen</a>
             <button type="button" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"
-                    onclick="openSepaDateModal(window.sepaTilesByRun['<?= $run['id'] ?>'], '/portal/billing/<?= $run['id'] ?>/sepa-xml')">
+                    data-onclick="openSepaFromButton" data-arg-0="@this" data-sepa-var="sepaTilesByRun" data-sepa-key="<?= htmlspecialchars($run['id']) ?>" data-sepa-url="/portal/billing/<?= htmlspecialchars($run['id']) ?>/sepa-xml">
               <?= icon('arrow-down') ?> SEPA-XML
             </button>
             <a href="/portal/billing/gutschriften?run_id=<?= $run['id'] ?>" class="btn btn-secondary" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('bank') ?> Gutschriften</a>
           <?php endif; ?>
           <?php if (Auth::isManager() && $run['status'] !== 'done'): ?>
             <form method="post" action="/portal/billing/<?= $run['id'] ?>/delete" style="display:inline"
-                  onsubmit="return confirmDangerDelete('Abrechnungslauf <?= htmlspecialchars(addslashes($run['quartal'])) ?> inkl. aller zugehörigen Rechnungen')">
+                  data-danger-confirm="Abrechnungslauf <?= htmlspecialchars($run['quartal']) ?> inkl. aller zugehörigen Rechnungen">
               <button type="submit" class="btn btn-tint-red" style="padding:.35rem .6rem;font-size:.8rem;margin-left:.4rem"><?= icon('trash') ?></button>
             </form>
           <?php endif; ?>
@@ -162,7 +162,7 @@ ob_start();
                           </td>
                           <td>
                             <form method="post" action="/portal/billing/<?= $run['id'] ?>/extra-items/<?= $ei['id'] ?>/delete"
-                                  onsubmit="return confirm('Zusatzposition wirklich entfernen?')">
+                                  data-confirm="Zusatzposition wirklich entfernen?">
                               <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;font-size:.85rem"><?= icon('x') ?></button>
                             </form>
                           </td>
@@ -215,7 +215,7 @@ ob_start();
   <p id="sepa-date-hint" style="font-size:.82rem;color:var(--gray-600);margin-bottom:1rem"></p>
   <div id="sepa-date-tiles" style="display:grid;grid-template-columns:repeat(2, 1fr);gap:.5rem;margin-bottom:1.25rem"></div>
   <div style="display:flex;gap:.5rem;justify-content:flex-end">
-    <button type="button" onclick="document.getElementById('sepa-date-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+    <button type="button" data-dialog-close="sepa-date-dialog" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
     <button type="button" id="sepa-date-confirm" class="btn btn-primary">XML herunterladen</button>
   </div>
 </dialog>
@@ -229,7 +229,7 @@ ob_start();
   @media (max-width: 420px) { #sepa-date-tiles { grid-template-columns:repeat(2, 1fr); } }
 </style>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 function filterBilling() {
   const q = document.getElementById('billing-search').value.toLowerCase();
   const s = document.getElementById('billing-status').value;

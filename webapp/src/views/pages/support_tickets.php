@@ -26,7 +26,7 @@
     </thead>
     <tbody>
     <?php foreach ($tickets as $t): ?>
-      <tr style="cursor:pointer" onclick="location.href='/portal/support/<?= $t['id'] ?>'">
+      <tr style="cursor:pointer" data-href="/portal/support/<?= $t['id'] ?>">
         <td>
           <?php if (in_array($t['hat_ungelesen'] ?? false, [true, 't', '1', 1], true)): ?>
             <span title="Ungelesene Nachricht" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#dc2626;margin-right:.5rem"></span>

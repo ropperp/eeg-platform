@@ -8,7 +8,7 @@
   <input type="search" id="community-search" placeholder="Name oder Ort eingeben …" autocomplete="off">
 </div>
 <p id="community-search-empty" style="display:none;color:var(--gray-600)">Keine passende Energiegemeinschaft gefunden.</p>
-<script>
+<script nonce="<?= cspNonce() ?>">
 (function () {
   var input = document.getElementById('community-search');
   if (!input) return;

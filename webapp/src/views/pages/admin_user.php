@@ -36,7 +36,7 @@
             <form method="post" action="/admin/users/<?= $user['id'] ?>/roles/delete" style="display:inline">
               <input type="hidden" name="role_id" value="<?= $r['id'] ?>">
               <button type="submit" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.8rem"
-                      onclick="return confirm('Rolle entfernen?')">Entfernen</button>
+                      data-confirm="Rolle entfernen?">Entfernen</button>
             </form>
             <?php endif; ?>
           </td>
@@ -54,7 +54,7 @@
     <div class="grid-2">
       <div class="form-group">
         <label>Rolle</label>
-        <select name="role" id="role-field" onchange="onRoleFieldChange()">
+        <select name="role" id="role-field" data-onchange="onRoleFieldChange">
           <option value="manager">manager (EEG-Verwalter)</option>
           <option value="member">member (EEG-Mitglied)</option>
           <?php if (Auth::isFounderAdmin()): ?>
@@ -69,7 +69,7 @@
       </div>
       <div class="form-group" id="community-field">
         <label>EEG</label>
-        <select name="community_id" id="community-select" onchange="onCommunityFieldChange()">
+        <select name="community_id" id="community-select" data-onchange="onCommunityFieldChange">
           <?php foreach ($communities as $c): ?>
             <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
           <?php endforeach; ?>
@@ -93,7 +93,7 @@
     <button type="submit" class="btn btn-primary">Rolle zuweisen</button>
   </form>
 </div>
-<script>
+<script nonce="<?= cspNonce() ?>">
   function onRoleFieldChange() {
     const role = document.getElementById('role-field').value;
     document.getElementById('community-field').style.display = role === 'platform_admin' ? 'none' : 'block';
@@ -113,7 +113,7 @@
 <div class="card" style="margin-top:1.5rem;border:1px solid #fecaca">
   <h3 style="margin-bottom:1rem;color:#b91c1c">Gefahrenzone</h3>
   <form method="post" action="/admin/users/<?= $user['id'] ?>/delete"
-        onsubmit="return confirmDangerDelete('Benutzer <?= htmlspecialchars(addslashes($user['first_name'] . ' ' . $user['last_name'])) ?> (<?= htmlspecialchars(addslashes($user['email'])) ?>) inkl. aller Rollenzuweisungen')">
+        data-danger-confirm="Benutzer <?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?> (<?= htmlspecialchars($user['email']) ?>) inkl. aller Rollenzuweisungen">
     <button type="submit" class="btn btn-tint-red"><?= icon('trash') ?> Benutzer löschen</button>
   </form>
 </div>

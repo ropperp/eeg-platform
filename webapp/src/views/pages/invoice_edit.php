@@ -37,7 +37,7 @@ $editable = $invoice['run_status'] === 'ready';
 <?php foreach ($items as $it): ?>
   <form id="upd-<?= $it['id'] ?>" method="post" action="/portal/billing/invoices/<?= $invoice['id'] ?>/items/<?= $it['id'] ?>/update"></form>
   <form id="del-<?= $it['id'] ?>" method="post" action="/portal/billing/invoices/<?= $invoice['id'] ?>/items/<?= $it['id'] ?>/delete"
-        onsubmit="return confirm('Position wirklich streichen?')"></form>
+        data-confirm="Position wirklich streichen?"></form>
 <?php endforeach; ?>
 
 <div class="card" style="margin-bottom:1rem">

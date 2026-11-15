@@ -50,7 +50,7 @@
 <div class="print-bar no-print">
   <a href="/portal/members/<?= $member['id'] ?>">← Zurück</a>
   <span>Vertrag für <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?></span>
-  <button onclick="window.print()"><?= icon('printer') ?> Drucken / Als PDF speichern</button>
+  <button data-print><?= icon('printer') ?> Drucken / Als PDF speichern</button>
 </div>
 
 <div class="page">

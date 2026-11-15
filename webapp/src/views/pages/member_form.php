@@ -51,7 +51,7 @@ ob_start();
       ?>
       <div class="form-group">
         <label>Titel vorgestellt</label>
-        <select name="titel_vor" id="titel-vor-select" onchange="toggleTitelOther('vor')">
+        <select name="titel_vor" id="titel-vor-select" data-onchange="toggleTitelOther" data-arg-0="vor">
           <option value="" <?= $titelVorVal === '' ? 'selected' : '' ?>>keiner</option>
           <?php foreach (titelVorOptionen() as $opt): ?>
             <option value="<?= htmlspecialchars($opt) ?>" <?= $titelVorVal === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
@@ -64,7 +64,7 @@ ob_start();
       </div>
       <div class="form-group">
         <label>Titel nachgestellt</label>
-        <select name="titel_nach" id="titel-nach-select" onchange="toggleTitelOther('nach')">
+        <select name="titel_nach" id="titel-nach-select" data-onchange="toggleTitelOther" data-arg-0="nach">
           <option value="" <?= $titelNachVal === '' ? 'selected' : '' ?>>keiner</option>
           <?php foreach (titelNachOptionen() as $opt): ?>
             <option value="<?= htmlspecialchars($opt) ?>" <?= $titelNachVal === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
@@ -164,7 +164,7 @@ ob_start();
 
     <label style="display:flex;align-items:center;gap:.5rem;font-weight:600;margin-bottom:.5rem">
       <input type="checkbox" name="add_bezug_zp" id="add-bezug-zp" value="1" style="width:auto"
-             onchange="toggleNewMemberZpFields()" <?= !empty($_POST['add_bezug_zp']) ? 'checked' : '' ?>>
+             data-onchange="toggleNewMemberZpFields" <?= !empty($_POST['add_bezug_zp']) ? 'checked' : '' ?>>
       Bezieht Strom (Zählpunkt für Bezug anlegen)
     </label>
     <div id="new-mp-bezug-fields" class="grid-2" style="display:<?= !empty($_POST['add_bezug_zp']) ? 'grid' : 'none' ?>;margin:.25rem 0 1.25rem 1.6rem">
@@ -187,7 +187,7 @@ ob_start();
 
     <label style="display:flex;align-items:center;gap:.5rem;font-weight:600;margin-bottom:.5rem">
       <input type="checkbox" name="add_einspeisung_zp" id="add-einspeisung-zp" value="1" style="width:auto"
-             onchange="toggleNewMemberZpFields()" <?= !empty($_POST['add_einspeisung_zp']) ? 'checked' : '' ?>>
+             data-onchange="toggleNewMemberZpFields" <?= !empty($_POST['add_einspeisung_zp']) ? 'checked' : '' ?>>
       Speist ein (Zählpunkt für Einspeisung anlegen)
     </label>
     <div id="new-mp-einspeisung-fields" class="grid-2" style="display:<?= !empty($_POST['add_einspeisung_zp']) ? 'grid' : 'none' ?>;margin:.25rem 0 0 1.6rem">
@@ -218,7 +218,7 @@ ob_start();
       lediglich eine kurze Info-Meldung im Postfach.
     </p>
   </div>
-  <script>
+  <script nonce="<?= cspNonce() ?>">
     function toggleNewMemberZpFields() {
       document.getElementById('new-mp-bezug-fields').style.display =
         document.getElementById('add-bezug-zp').checked ? 'grid' : 'none';
@@ -345,7 +345,7 @@ ob_start();
   </div>
 </form>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
   // Titel-Dropdown "anderer …" blendet das Freitextfeld ein (resolveTitelField() in
   // functions.php löst es beim Speichern auf).
   function toggleTitelOther(which) {

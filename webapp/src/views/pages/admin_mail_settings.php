@@ -100,7 +100,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
         <input type="text" name="mqtt_password" id="mqtt-pass-input" value="<?= htmlspecialchars($mqttConfig['mqtt_password'] ?? '') ?>" placeholder="noch keins gesetzt">
       </div>
     </div>
-    <button type="button" class="btn btn-secondary" style="margin-bottom:1rem" onclick="suggestMqttPassword()">Einfaches Passwort vorschlagen</button>
+    <button type="button" class="btn btn-secondary" style="margin-bottom:1rem" data-onclick="suggestMqttPassword">Einfaches Passwort vorschlagen</button>
     <br>
     <button type="submit" class="btn btn-primary">Speichern &amp; anwenden</button>
   </form>
@@ -137,7 +137,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
   <?php elseif (!empty($mqttConfig['device_reconfig_sent_at'])): ?>
     <div class="alert alert-success" style="margin-bottom:1rem"><?= icon('check-circle') ?> Zuletzt gesendet: <?= date('d.m.Y H:i', strtotime($mqttConfig['device_reconfig_sent_at'])) ?> (<?= (int)($mqttConfig['device_reconfig_sent_count'] ?? 0) ?> Topic(s)).</div>
   <?php endif; ?>
-  <form method="post" action="/admin/mqtt-device-reconfig" onsubmit="return confirm('Wirklich an ALLE im Feld laufenden Geräte senden? Geräte mit einer aelteren Firmware ignorieren die Nachricht, alle anderen wechseln sofort zu diesen Werten.');">
+  <form method="post" action="/admin/mqtt-device-reconfig" data-confirm="Wirklich an ALLE im Feld laufenden Geräte senden? Geräte mit einer aelteren Firmware ignorieren die Nachricht, alle anderen wechseln sofort zu diesen Werten.">
     <div class="grid-2">
       <div class="form-group">
         <label>Broker-Domain / IP</label>
@@ -161,7 +161,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
   </form>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 function suggestMqttPassword() {
   var words = ['sonne', 'baum', 'fluss', 'berg', 'wolke', 'stern', 'wind', 'regen', 'apfel', 'wiese', 'stein', 'feuer', 'strom', 'draht', 'kabel'];
   var pick = function () { return words[Math.floor(Math.random() * words.length)]; };
@@ -206,7 +206,7 @@ function suggestMqttPassword() {
       </div>
       <div class="form-group" style="grid-column:1 / -1">
         <label>Signatur (an jede E-Mail angehängt)</label>
-        <textarea name="signature_html" id="signature-html-input" rows="4" oninput="updateMailPreview()" placeholder="<p>Bei Fragen zu Rechnungen, Verträgen oder Vereinbarungen antworten Sie einfach auf diese E-Mail oder schreiben Sie an office@stromfueralle.at.<br>EEG Strompool Feldkirchen Süd-West</p>"><?= htmlspecialchars($mailConfig['signature_html'] ?? '') ?></textarea>
+        <textarea name="signature_html" id="signature-html-input" rows="4" data-oninput="updateMailPreview" placeholder="<p>Bei Fragen zu Rechnungen, Verträgen oder Vereinbarungen antworten Sie einfach auf diese E-Mail oder schreiben Sie an office@stromfueralle.at.<br>EEG Strompool Feldkirchen Süd-West</p>"><?= htmlspecialchars($mailConfig['signature_html'] ?? '') ?></textarea>
         <small style="color:var(--gray-600)">Einfaches HTML möglich (z.B. <code>&lt;br&gt;</code>, <code>&lt;strong&gt;</code>). Gilt für
           <strong>alle</strong> E-Mails (Einladung, Passwort-Reset, Vertrags-/Rechnungsversand, Test-Mail) -- eine gemeinsame Signatur statt
           sie in jede einzelne Vorlage einzeln hineinzuschreiben, damit eine spätere Änderung (z.B. neue Telefonnummer) nur an einer
@@ -225,17 +225,17 @@ function suggestMqttPassword() {
             <input type="checkbox" name="signature_logo_remove" value="1"> Logo entfernen
           </label>
         <?php endif; ?>
-        <input type="file" name="signature_logo" id="signature-logo-input" accept="image/png,image/jpeg,image/gif" onchange="onLogoPicked(event)">
+        <input type="file" name="signature_logo" id="signature-logo-input" accept="image/png,image/jpeg,image/gif" data-onchange="onLogoPicked" data-arg-0="@event">
         <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem">
           <label style="font-size:.85rem;font-weight:normal">Breite (px)
             <input type="number" name="signature_logo_width" id="signature-logo-width" min="0" max="1000" step="1"
                    value="<?= htmlspecialchars((string)($mailConfig['signature_logo_width'] ?? '')) ?>"
-                   placeholder="auto" oninput="updateMailPreview()" style="width:100px;display:block">
+                   placeholder="auto" data-oninput="updateMailPreview" style="width:100px;display:block">
           </label>
           <label style="font-size:.85rem;font-weight:normal">Höhe (px)
             <input type="number" name="signature_logo_height" id="signature-logo-height" min="0" max="1000" step="1"
                    value="<?= htmlspecialchars((string)($mailConfig['signature_logo_height'] ?? '')) ?>"
-                   placeholder="auto" oninput="updateMailPreview()" style="width:100px;display:block">
+                   placeholder="auto" data-oninput="updateMailPreview" style="width:100px;display:block">
           </label>
         </div>
         <small style="color:var(--gray-600)">Wird als Inline-Bild eingebettet (auch bei No-Reply-Absendern, zuverlässig in Outlook/Gmail).
@@ -299,7 +299,7 @@ function suggestMqttPassword() {
   </p>
   <div style="margin-bottom:1rem">
     <label style="font-size:.85rem;font-weight:600;margin-right:.5rem">Vorlage:</label>
-    <select id="preview-template-select" onchange="updateMailPreview()" style="padding:.35rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
+    <select id="preview-template-select" data-onchange="updateMailPreview" style="padding:.35rem .6rem;border:1px solid var(--gray-200);border-radius:6px">
       <option value="">— Beispiel-Text (nur Signatur testen) —</option>
       <?php foreach ($previewTemplates as $key => $tpl): ?>
         <option value="<?= htmlspecialchars($key) ?>"<?= $key === 'sepa_prenotification' ? ' selected' : '' ?>><?= htmlspecialchars($tpl['label']) ?></option>
@@ -332,7 +332,7 @@ function suggestMqttPassword() {
   </div>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
   const mailPreviewInitialLogo = <?= json_encode($logoDataUri) ?>;
   let mailPreviewLogo = mailPreviewInitialLogo;
   const mailPreviewTemplates = <?= json_encode($previewTemplates, JSON_UNESCAPED_UNICODE) ?>;

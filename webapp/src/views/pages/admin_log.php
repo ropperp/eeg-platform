@@ -7,7 +7,7 @@
 
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <form method="get" style="display:flex;gap:.75rem;align-items:center">
-    <select name="community_id" onchange="this.form.submit()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select name="community_id" data-autosubmit style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Energiegemeinschaften</option>
       <?php foreach ($communities as $c): ?>
         <option value="<?= $c['id'] ?>" <?= ($_GET['community_id'] ?? '') === $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
