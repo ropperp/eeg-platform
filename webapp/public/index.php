@@ -8690,10 +8690,10 @@ $router->post('/portal/billing/invoices/:id/mahnung', function ($params) {
     }
 
     $neueStufe = (int)$inv['mahnstufe'] + 1;
-    $gebuehr   = round((float)($inv['mahngebuehr_eur'] ?? 0), 2);
+    $gebuehr   = moneyRound((float)($inv['mahngebuehr_eur'] ?? 0));
     $brutto    = taxBreakdown((float)$inv['saldo_eur'], $inv['eeg_tax_model'] ?? null, $inv['eeg_tax_rate'] ?? null)['brutto'];
-    $gebuehrSummeNeu = round((float)$inv['mahn_gebuehr_summe_eur'] + $gebuehr, 2);
-    $gesamt    = round($brutto + $gebuehrSummeNeu, 2);
+    $gebuehrSummeNeu = moneyRound((float)$inv['mahn_gebuehr_summe_eur'] + $gebuehr);
+    $gesamt    = moneyRound($brutto + $gebuehrSummeNeu);
     $fristTage = (int)($inv['sepa_prenotification_days'] ?? 14);
     $frist     = date('d.m.Y', strtotime('+' . max(7, $fristTage) . ' days'));
 

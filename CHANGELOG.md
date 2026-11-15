@@ -19,6 +19,19 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### PHP 8.4, Cent-genaue Rundung, AES-GCM, EDA-Link nur von EDA (15.11.2026)
+- **PHP 8.4 statt 8.2** (Basis-Image `php:8.4-fpm-alpine`): 8.2 bekommt ab 31.12.2026 keine
+  Sicherheitsupdates mehr, 8.4 bis Ende 2028. Die CI läuft jetzt unter PHP 8.4 und wertet jede
+  „Deprecated“-/Warnung-Meldung als Fehler.
+- **Eurobeträge runden in jeder PHP-Version gleich:** PHP 8.4 hat `round()` intern geändert (bei halben
+  Cent, z. B. 0,285 €, kann ein Cent Unterschied entstehen). Neue Funktion `moneyRound()` bildet das
+  bisherige Verhalten exakt nach (an 400.000 Zufallswerten gegen das alte `round()` geprüft, keine
+  Abweichung) und wird bei allen Rechnungsbeträgen, Steuer und Mahngebühren verwendet.
+- **Gespeicherte Zugangsdaten mit AES-256-GCM** (Manipulationsschutz, HKDF-Schlüssel) statt AES-CBC.
+  Alte Werte bleiben lesbar; `scripts/migrate_reencrypt_secrets_v2.php` stellt sie einmalig um.
+- **EDA-Mail-Import** lädt nur noch von `https://…eda-portal.at` (auch bei Weiterleitungen) -- vorher
+  wurde als Rückfall jeder Link der Mail abgerufen.
+
 ### Kästen: jeder behält seine Höhe, schmale stapeln sich (15.11.2026)
 - **Fehler behoben:** Ein schmaler Kasten (z. B. „Aktuelle Leistung“) neben einem hohen (Energiefluss)
   wurde auf dessen Höhe gestreckt und wirkte wie ein großes leeres Quadrat. Jetzt behält jeder Kasten

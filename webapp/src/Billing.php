@@ -223,7 +223,7 @@ class Billing
                         : null;
 
                     if (in_array($mp['mp_type'], ['consumer', 'prosumer']) && $energyData['kwh_bezug'] > 0) {
-                        $amount = round((float)$energyData['kwh_bezug'] * (float)$tariff['bezug_ct_kwh'] / 100, 2);
+                        $amount = moneyRound((float)$energyData['kwh_bezug'] * (float)$tariff['bezug_ct_kwh'] / 100);
                         $items[] = ['type' => 'bezug', 'kwh' => $energyData['kwh_bezug'],
                                     'rate_ct_kwh' => $tariff['bezug_ct_kwh'], 'amount_eur' => $amount,
                                     'zaehlpunkt_nr' => $mp['zaehlpunkt_nr'], 'teilnahme_ab' => $teilnahmeAb];
@@ -231,7 +231,7 @@ class Billing
                     }
 
                     if (in_array($mp['mp_type'], ['producer', 'prosumer']) && $energyData['kwh_einspeisung'] > 0) {
-                        $gutschrift = round((float)$energyData['kwh_einspeisung'] * (float)$tariff['einspeisung_ct_kwh'] / 100, 2);
+                        $gutschrift = moneyRound((float)$energyData['kwh_einspeisung'] * (float)$tariff['einspeisung_ct_kwh'] / 100);
                         $items[] = ['type' => 'einspeisung', 'kwh' => $energyData['kwh_einspeisung'],
                                     'rate_ct_kwh' => $tariff['einspeisung_ct_kwh'], 'amount_eur' => -$gutschrift,
                                     'teilnahme_ab' => $teilnahmeAb,
@@ -451,7 +451,7 @@ class Billing
     public static function recalcInvoiceSaldo(string $invoiceId): void
     {
         $sum = DB::fetchOne('SELECT COALESCE(SUM(amount_eur), 0) AS s FROM invoice_items WHERE invoice_id = ?', [$invoiceId]);
-        DB::execute('UPDATE invoices SET saldo_eur = ? WHERE id = ?', [round((float)$sum['s'], 2), $invoiceId]);
+        DB::execute('UPDATE invoices SET saldo_eur = ? WHERE id = ?', [moneyRound((float)$sum['s']), $invoiceId]);
     }
 
     private static function getTariffForPeriod(string $communityId, string $date): array
@@ -502,7 +502,7 @@ class Billing
             }
             $cursor = strtotime('+1 month', $cursor);
         }
-        return ['months' => $aktiveMonate, 'amount' => round($aktiveMonate * $monatsBeitrag, 2)];
+        return ['months' => $aktiveMonate, 'amount' => moneyRound($aktiveMonate * $monatsBeitrag)];
     }
 
     /**

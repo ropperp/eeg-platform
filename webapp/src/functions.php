@@ -102,27 +102,52 @@ function hashResetToken(string $token): string
 }
 
 /**
- * Verschlüsselt einen String mit AES-256-CBC (Schlüssel aus APP_SECRET). Für Werte gedacht,
- * die wieder im Klartext angezeigt werden müssen (z.B. WLAN-Passwort des Mitglieds fürs
- * ESP-Debugging, siehe docs/ESP_IDEEN.md) -- daher Verschlüsselung statt Hash. IV wird
- * zufällig erzeugt und dem Ciphertext vorangestellt (beides base64), damit decryptSecret()
- * ohne separate IV-Speicherung auskommt.
+ * Verschlüsselt einen String für die Datenbank (WLAN-Passwörter, EDA-Zugangsdaten, 2FA-Secrets,
+ * P1-Schlüssel, APNs-Schlüssel -- Werte, die wieder im Klartext gebraucht werden, daher
+ * Verschlüsselung statt Hash).
+ *
+ * Seit 15.11.2026 "v2": AES-256-GCM (authentifizierte Verschlüsselung -- eine verfälschte oder
+ * vertauschte Datenbankzeile wird beim Entschlüsseln erkannt statt stillschweigend Unsinn zu
+ * liefern) mit einem per HKDF aus APP_SECRET abgeleiteten Schlüssel (statt des rohen SHA-256).
+ * Format: "v2:" + base64(Nonce 12 Byte + Tag 16 Byte + Ciphertext). Das Präfix enthält ein ":", das
+ * in keinem Base64-/Base32-Text vorkommt -- alte Werte (AES-256-CBC, siehe decryptSecret()) sind
+ * deshalb eindeutig davon unterscheidbar und bleiben lesbar.
  */
+function secretKeyV2(): string
+{
+    // hash_hkdf() verlangt ein nicht leeres Ausgangsmaterial; ohne APP_SECRET (nur lokale Tests) ein
+    // fester Platzhalter statt einer Exception -- Produktivsysteme haben immer ein APP_SECRET.
+    $ikm = getenv('APP_SECRET') ?: 'eeg-platform-no-app-secret';
+    return hash_hkdf('sha256', $ikm, 32, 'eeg-platform secrets v2');
+}
+
 function encryptSecret(string $plain): string
 {
-    $key = hash('sha256', getenv('APP_SECRET') ?: '', true);
-    $iv  = random_bytes(16);
-    $cipher = openssl_encrypt($plain, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
-    return base64_encode($iv . $cipher);
+    $nonce = random_bytes(12);
+    $tag = '';
+    $cipher = openssl_encrypt($plain, 'aes-256-gcm', secretKeyV2(), OPENSSL_RAW_DATA, $nonce, $tag, '', 16);
+    if ($cipher === false) {
+        throw new RuntimeException('Verschlüsselung fehlgeschlagen.');
+    }
+    return 'v2:' . base64_encode($nonce . $tag . $cipher);
 }
 
 /**
- * Kehrt encryptSecret() um. Gibt bei ungültigen/leeren Daten '' zurück statt eines Fehlers,
- * damit ein fehlendes/kaputtes Feld die Seite nicht mit einer Exception abreißen lässt.
+ * Kehrt encryptSecret() um. Gibt bei ungültigen/leeren/verfälschten Daten '' zurück statt eines
+ * Fehlers, damit ein fehlendes/kaputtes Feld die Seite nicht mit einer Exception abreißen lässt.
+ * Liest auch das ältere Format (AES-256-CBC mit SHA-256-Schlüssel, ohne Präfix) -- bestehende
+ * Werte funktionieren unverändert weiter; scripts/migrate_reencrypt_secrets_v2.php stellt sie
+ * einmalig auf das neue Format um.
  */
 function decryptSecret(?string $encoded): string
 {
     if (!$encoded) return '';
+    if (str_starts_with($encoded, 'v2:')) {
+        $raw = base64_decode(substr($encoded, 3), true);
+        if ($raw === false || strlen($raw) <= 28) return '';
+        $plain = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', secretKeyV2(), OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
+        return $plain !== false ? $plain : '';
+    }
     $raw = base64_decode($encoded, true);
     if ($raw === false || strlen($raw) <= 16) return '';
     $key = hash('sha256', getenv('APP_SECRET') ?: '', true);
@@ -130,6 +155,14 @@ function decryptSecret(?string $encoded): string
     $cipher = substr($raw, 16);
     $plain = openssl_decrypt($cipher, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
     return $plain !== false ? $plain : '';
+}
+
+/** Alt (AES-256-CBC) verschlüsseln -- nur für Tests und die Umstellung in der Übergangszeit. */
+function encryptSecretLegacyCbc(string $plain): string
+{
+    $key = hash('sha256', getenv('APP_SECRET') ?: '', true);
+    $iv  = random_bytes(16);
+    return base64_encode($iv . openssl_encrypt($plain, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv));
 }
 
 /**
@@ -1723,6 +1756,23 @@ function mitgliedsbeitragLabelSuffix(int $months, int $totalMonths): string
 }
 
 /**
+ * Rundet einen Eurobetrag kaufmännisch auf Cent (halbe Cent weg von null), IN JEDER PHP-VERSION
+ * GLEICH. Hintergrund: PHP hat die interne Rundung von round() mit 8.4 neu geschrieben ("Vorrundung"
+ * entfernt) -- bei Beträgen genau auf halbem Cent, die als Gleitkommazahl nicht exakt darstellbar
+ * sind (z. B. 0,285 oder 1,005), kann round() seitdem einen Cent anders liefern als bis 8.3. Für
+ * Rechnungen wäre das ein Cent Unterschied zu allen bisher gestellten Rechnungen. Diese Funktion
+ * bildet das bisherige Verhalten nach: erst auf 6 Nachkommastellen von Cent bereinigen (entfernt den
+ * Darstellungsfehler der Gleitkommazahl), dann halb-auf. Gegen 400.000 Zufallswerte mit dem
+ * bisherigen round() verglichen: keine Abweichung (siehe tests/money_rounding_test.php).
+ */
+function moneyRound(float $value): float
+{
+    $sign = $value < 0 ? -1.0 : 1.0;
+    $cents = round(abs($value) * 100, 6);
+    return $sign * floor($cents + 0.5) / 100;
+}
+
+/**
  * Umsatzsteuer-Aufteilung für einen Netto-Betrag. Die Tarife der Plattform sind grundsätzlich
  * netto hinterlegt. Bei 'kleinunternehmer' (§ 6 Abs 1 Z 27 UStG) fällt keine USt an, netto =
  * brutto. Bei 'standard' wird der USt-Satz (Default 20 %) auf den Netto-Betrag aufgeschlagen.
@@ -1737,14 +1787,14 @@ function taxBreakdown(float $netto, ?string $model, $rate): array
     $ratePct = $model === 'standard'
         ? (float)str_replace(',', '.', (string)($rate ?? 20))
         : 0.0;
-    $netto = round($netto, 2);
-    $ust   = round($netto * $ratePct / 100, 2);
+    $netto = moneyRound($netto);
+    $ust   = moneyRound($netto * $ratePct / 100);
     return [
         'model'  => $model,
         'rate'   => $ratePct,
         'netto'  => $netto,
         'ust'    => $ust,
-        'brutto' => round($netto + $ust, 2),
+        'brutto' => moneyRound($netto + $ust),
     ];
 }
 
