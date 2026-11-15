@@ -9,16 +9,47 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# Grundhärtung für Dienste mit Standard-Rechten (15.11.2026): no-new-privileges verhindert, dass ein
+# Prozess im Container über setuid-Programme mehr Rechte bekommt; die abgelegten Linux-Capabilities
+# braucht keiner dieser Dienste (rohe Netzwerk-Pakete, Geräteknoten anlegen, chroot, Datei-
+# Capabilities setzen, Audit-Protokoll). Bewusst NICHT "alles abwerfen" (cap_drop: ALL) -- nginx/
+# php-fpm, Redis und Mosquitto starten als root und wechseln selbst zu ihrem Dienstbenutzer, das
+# braucht SETUID/SETGID/CHOWN. Die Datenbank bleibt unverändert (siehe docs/BETRIEBSHANDBUCH.md).
+x-hardening: &base-hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - NET_RAW
+    - MKNOD
+    - SETFCAP
+    - SETPCAP
+    - SYS_CHROOT
+    - AUDIT_WRITE
+
 services:
 
   # ─────────────────────────────────────────
   # Reverse Proxy + SSL (Let's Encrypt)
   # ─────────────────────────────────────────
   traefik:
-    image: traefik:latest
+    # Hauptversion fest (v3) statt ":latest": ein Neubau springt nie unbemerkt auf eine neue Hauptversion
+    # mit geänderter Konfiguration. Für eine exakte Version/Digest: `docker compose images traefik` auf
+    # dem Server und hier eintragen (siehe docs/BETRIEBSHANDBUCH.md, 15.11.2026).
+    image: traefik:v3
     container_name: traefik
     restart: always
     logging: *default-logging
+    # Traefik braucht nur Port 80 binden und seine Konfigurationsdatei lesen: alle Rechte außer
+    # NET_BIND_SERVICE weg, Dateisystem schreibgeschützt (nur /tmp im Arbeitsspeicher).
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
     command:
       - "--api.insecure=false"
       - "--ping=true"
@@ -99,6 +130,7 @@ services:
     container_name: redis
     restart: always
     logging: *default-logging
+    <<: *base-hardening
     volumes:
       - /opt/eeg/redis:/data
       # Optionale redis.conf mit "requirepass" (siehe scripts/redis_secure_setup.sh) --
@@ -130,6 +162,7 @@ services:
     container_name: mosquitto
     restart: always
     logging: *default-logging
+    <<: *base-hardening
     ports:
       - "1883:1883"
       - "8883:8883"
@@ -161,7 +194,18 @@ services:
     container_name: mqtt-subscriber
     restart: always
     logging: *default-logging
+    # Reiner Netzwerk-Client ohne Dateizugriff außer der Heartbeat-Datei in /tmp: als unprivilegierter
+    # Benutzer, ohne jedes Linux-Recht, mit schreibgeschütztem Dateisystem.
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
+      PYTHONDONTWRITEBYTECODE: "1"
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       # Seit dem TLS/Auth-Setup (scripts/mqtt_secure_setup.sh) verlangt der Broker Zugangsdaten
@@ -205,7 +249,7 @@ services:
       - eeg-net
 
   # ─────────────────────────────────────────
-  # Webapplikation — nginx + PHP 8.2
+  # Webapplikation — nginx + PHP 8.4
   # ─────────────────────────────────────────
   webapp:
     build:
@@ -214,6 +258,7 @@ services:
     container_name: webapp
     restart: always
     logging: *default-logging
+    <<: *base-hardening
     environment:
       DB_HOST: timescaledb
       DB_PORT: 5432
@@ -284,6 +329,7 @@ services:
     container_name: latex-service
     restart: always
     logging: *default-logging
+    <<: *base-hardening
     environment:
       API_KEY: ${LATEX_API_KEY}
       SMTP_HOST: ${SMTP_HOST}

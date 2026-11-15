@@ -158,7 +158,7 @@ Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende S
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:latest | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
+| traefik | traefik:v3 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
 | redis | redis:7-alpine | — | Session-Cache |
 | mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
