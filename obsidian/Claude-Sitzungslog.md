@@ -58,6 +58,9 @@ kleiner als der Inhalt), Kästen einer Reihe gleich hoch, ausgeblendete Kästen 
 **Fehler/Lehre:** Beim Höhe-Ziehen wuchs der Kasten schneller als die Maus, weil der Browser per
 Scroll-Verankerung mitscrollte -- während des Ziehens `overflow-anchor: none` und nur vom
 Startpunkt aus rechnen.
+15.11. (später): Zentrierung -- Energiefluss-Beschriftung um die Kreismitte statt ab der linken
+Kreiskante, „Energiegemeinschaften“ in Kacheln trennbar; dazu ein Prüfskript, das jeden zentrierten
+Text misst (vorher 2 Befunde auf allen Größen, danach 30 von 30 Seitenprüfungen ohne Befund).
 **Fehler/Lehre:** Beim Testen fiel auf, dass die Sperre für abgerechnete Zeiträume wegen eines
 Vergleichs DATE gegen Zeitstempel mit Zeitzone nie gegriffen hatte -- Zeiträume immer als
 Kalendertag in derselben Zeitzone vergleichen.
