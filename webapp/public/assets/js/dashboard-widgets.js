@@ -15,6 +15,37 @@
 
   function device() { return MOBILE.matches ? 'mobile' : 'desktop'; }
 
+  // Mauerwerk-Anordnung: jeder Kasten bekommt so viele 4-px-Zeilen, wie seine Höhe plus Abstand
+  // braucht (Abstand 24 px = 1,5 rem, siehe app.css). Neu berechnet, sobald sich ein Kasten
+  // vergrößert/verkleinert (Live-Werte, Schriften, Breitenänderung) oder das Fenster ändert.
+  var ROW = 4, GAP = 24;
+  function layoutMasonry(box) {
+    if (!WIDE.matches) return;
+    box.classList.add('is-masonry');
+    box.querySelectorAll(':scope > .dash-widget').forEach(function (w) {
+      if (getComputedStyle(w).display === 'none') return;
+      var h = w.getBoundingClientRect().height;
+      w.style.setProperty('--rows', String(Math.max(1, Math.ceil((h + GAP) / ROW))));
+    });
+  }
+  function watchMasonry(box) {
+    var pending = false;
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () { pending = false; layoutMasonry(box); });
+    }
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(schedule);
+      box.querySelectorAll(':scope > .dash-widget').forEach(function (w) { ro.observe(w); });
+    }
+    window.addEventListener('resize', schedule);
+    WIDE.addEventListener('change', schedule);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+    layoutMasonry(box);
+    box._masonry = schedule;
+  }
+
   document.querySelectorAll('.dash-widgets[data-dashboard]').forEach(function (box) {
     var key = box.getAttribute('data-dashboard');
     var layouts = {};
@@ -23,14 +54,18 @@
     function widgets() { return Array.prototype.slice.call(box.querySelectorAll(':scope > .dash-widget')); }
     function byId(id) { return box.querySelector(':scope > .dash-widget[data-widget="' + id + '"]'); }
 
+    function relayout() { if (box._masonry) box._masonry(); }
+
     function setSpan(w, span) {
       w.dataset.span = String(span);
       w.style.setProperty('--span', String(span));
+      relayout();
     }
 
     function setHeight(w, px) {
       w.dataset.height = String(px || 0);
       if (px) w.style.setProperty('--min-h', px + 'px'); else w.style.removeProperty('--min-h');
+      relayout();
     }
 
     // Natürliche Höhe = was der Inhalt mindestens braucht (ohne eigene Höhe, ohne Strecken in
@@ -38,15 +73,14 @@
     function naturalHeight(w) {
       var oldMin = w.style.getPropertyValue('--min-h');
       w.style.removeProperty('--min-h');
-      w.style.alignSelf = 'start';
       var hgt = w.getBoundingClientRect().height;
-      w.style.alignSelf = '';
       if (oldMin) w.style.setProperty('--min-h', oldMin);
       return Math.ceil(hgt);
     }
 
     function setHidden(w, hidden) {
       w.classList.toggle('is-hidden-widget', hidden);
+      relayout();
       var t = w.querySelector('.dash-toggle');
       if (!t) return;
       t.setAttribute('aria-pressed', hidden ? 'false' : 'true');
@@ -70,6 +104,7 @@
       if (typeof renderTray === 'function') renderTray();
     }
     applyLayout();
+    watchMasonry(box);
     var currentDevice = device();
     MOBILE.addEventListener('change', function () {
       if (box.classList.contains('is-editing')) { flush(); }
