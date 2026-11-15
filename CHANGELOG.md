@@ -19,6 +19,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Kästen: jeder behält seine Höhe, schmale stapeln sich (15.11.2026)
+- **Fehler behoben:** Ein schmaler Kasten (z. B. „Aktuelle Leistung“) neben einem hohen (Energiefluss)
+  wurde auf dessen Höhe gestreckt und wirkte wie ein großes leeres Quadrat. Jetzt behält jeder Kasten
+  seine eigene Höhe, und der nächste Kasten rutscht in die Lücke darunter -- zwei schmale lassen sich
+  so neben einem hohen **übereinander stapeln** (Mauerwerk-Anordnung, 4-px-Raster per JavaScript;
+  ohne JavaScript bleibt es bei normalen Reihen). Die selbst gezogene Höhe gilt weiter als Mindesthöhe.
+  Ersetzt die Regel „Kästen einer Reihe werden gleich hoch“ vom selben Tag.
+
 ### Sicherheit und Effizienz (15.11.2026)
 - **Passwörter: Argon2id statt bcrypt** (Salt wie bisher automatisch, bewusst langsam: 64 MiB Speicher,
   3 Durchläufe). Bestehende Passwörter bleiben gültig und werden beim nächsten Login unbemerkt

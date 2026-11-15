@@ -1129,11 +1129,16 @@ footer {
 @media (prefers-reduced-motion: reduce) { .info-tip-i { transition: none; } }
 
 /* ── Kästen nebeneinander, Breite/Höhe ziehen (Laptop, 14.11.2026) ──
-   Kästen einer Reihe werden gleich hoch (Raster streckt sie, die Karte im Kasten füllt die Höhe);
-   --min-h ist die selbst gezogene Höhe -- nie kleiner als der Inhalt, das sorgt min-height. */
+   Mauerwerk-Anordnung (15.11.2026, Patrick: ein schmaler Kasten neben einem hohen wurde auf dessen
+   Höhe gestreckt): jeder Kasten behält SEINE Höhe, der nächste rutscht in die Lücke darunter
+   ("dense"). dashboard-widgets.js teilt dafür das Raster in 4-px-Zeilen und setzt je Kasten
+   --rows = benötigte Zeilen; ohne JavaScript bleibt es bei normalen Reihen. --min-h ist die selbst
+   gezogene Höhe -- nie kleiner als der Inhalt, das sorgt min-height. */
 @media (min-width: 901px) {
-  .dash-widgets { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 1.5rem; row-gap: 1.5rem; align-items: stretch; margin-bottom: 1.5rem; }
-  .dash-widget { grid-column: span var(--span, 12); min-width: 0; margin-bottom: 0; min-height: var(--min-h, 0px); display: flex; flex-direction: column; }
+  .dash-widgets { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 1.5rem; row-gap: 1.5rem; align-items: start; grid-auto-flow: row dense; margin-bottom: 1.5rem; }
+  .dash-widget { grid-column: span var(--span, 12); min-width: 0; margin-bottom: 0; min-height: var(--min-h, 0px); display: flex; flex-direction: column; align-self: start; }
+  .dash-widgets.is-masonry { grid-auto-rows: 4px; row-gap: 0; }
+  .dash-widgets.is-masonry > .dash-widget { grid-row-end: span var(--rows, 1); }
   .dash-widget-body { flex: 1 1 auto; display: flex; flex-direction: column; }
   .dash-widget-body > :first-child { flex: 1 1 auto; }
 }
