@@ -408,6 +408,19 @@ nach dem Abschalten innerhalb von ~2 Minuten nicht mehr in die Live-Summe mit
 
 ---
 
+## Frontend-Regeln (Content-Security-Policy, seit 17.11.2026)
+
+Die Plattform sendet `script-src 'self' 'nonce-…'` und `script-src-attr 'none'` (PHP: `cspPolicy()` in
+`webapp/src/functions.php`; **nicht** in nginx setzen). Für neuen Code heißt das:
+- **Kein** `onclick=`/`onchange=`/`onsubmit=`/… in Templates und kein `javascript:`-Link. Stattdessen die
+  `data-`-Attribute aus `webapp/public/assets/js/ui-actions.js` (`data-confirm`, `data-danger-confirm`,
+  `data-onclick="funktion" data-arg-0=…`, `data-dialog-open`, `data-print`, …).
+- Jedes Inline-`<script>` braucht `nonce="<?= cspNonce() ?>"` (außer `application/ld+json`). Größere Skripte
+  besser als Datei unter `assets/js/` ablegen.
+- `tests/csp_static_test.php` (läuft im CI) schlägt bei jedem Verstoß an; `tests/browser/csp.js` prüft im Browser.
+
+---
+
 ## Obsidian-Sync
 
 `/obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks lokalen Obsidian-Vault

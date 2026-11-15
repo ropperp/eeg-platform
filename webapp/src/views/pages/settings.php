@@ -238,7 +238,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
       </div>
       <div class="form-group">
         <label>Steuermodell</label>
-        <select name="tax_model" id="tax-model-select" onchange="document.getElementById('tax-rate-field').style.display = this.value === 'standard' ? 'block' : 'none'">
+        <select name="tax_model" id="tax-model-select" data-toggle-target="tax-rate-field" data-toggle-when="standard">
           <option value="kleinunternehmer" <?= ($tax['tax_model'] ?? '') === 'kleinunternehmer' ? 'selected' : '' ?>>Kleinunternehmer (§ 6 Abs 1 Z 27 UStG)</option>
           <option value="standard" <?= ($tax['tax_model'] ?? '') === 'standard' ? 'selected' : '' ?>>Standard (mit USt-Ausweis)</option>
         </select>
@@ -310,7 +310,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
     </div>
     <input type="hidden" name="signature_image" id="signature_image_settings">
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-      <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700)" onclick="clearSettingsSignature()">Löschen</button>
+      <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700)" data-onclick="clearSettingsSignature">Löschen</button>
       <button type="submit" class="btn btn-primary">Unterschrift speichern</button>
       <?php if (!empty($myUser['signature_image'])): ?>
         <button type="submit" formaction="/portal/settings/signature/delete" formnovalidate class="btn btn-tint-red">Unterschrift entfernen</button>
@@ -401,7 +401,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
           <td>
             <?php if (!$isRevoked): ?>
             <form method="post" action="/portal/settings/live-api-keys/<?= $k['id'] ?>/revoke"
-                  onsubmit="return confirm('API-Key „<?= htmlspecialchars(addslashes($k['name'])) ?>&#8220; wirklich widerrufen?')">
+                  data-confirm="API-Key „<?= htmlspecialchars($k['name']) ?>&#8220; wirklich widerrufen?">
               <button type="submit" class="btn btn-tint-red" style="font-size:.78rem;padding:.3rem .6rem">Widerrufen</button>
             </form>
             <?php endif; ?>
@@ -418,7 +418,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
 </section>
 <?php endif; // $usesAE ?>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 (function() {
   const canvas = document.getElementById('sig-pad-settings');
   const ctx = canvas.getContext('2d');

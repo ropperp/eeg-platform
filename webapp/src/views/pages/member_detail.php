@@ -8,7 +8,7 @@ ob_start(); ?>
   <div style="position:relative">
     <img src="<?= htmlspecialchars(memberAvatarUrl($member['id'], $member['photo_path'], $member['salutation'])) ?>"
          alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover">
-    <button type="button" onclick="document.getElementById('photo-dialog').showModal()"
+    <button type="button" data-dialog-open="photo-dialog"
             title="Profilbild ändern"
             style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--gray-100);border:1px solid var(--gray-200);line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center"><?= icon('pencil-simple') ?></button>
   </div>
@@ -43,12 +43,12 @@ ob_start(); ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/bezug" target="_blank"
        class="btn" style="background:#1d4ed8;color:#fff;font-size:.8rem"><?= icon('file-text') ?> Bezugsvereinbarung</a>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/send" style="display:inline"
-          onsubmit="return confirm('Bezugsvereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
+          data-confirm="Bezugsvereinbarung jetzt endgültig an <?= htmlspecialchars($member['email']) ?> senden?">
       <button type="submit" class="btn" style="background:#eff6ff;color:#1d4ed8;font-size:.8rem"><?= icon('envelope-simple') ?> Jetzt senden</button>
     </form>
     <?php if (!empty($member['contract_bezug_sent_at'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/bezug/reset" style="display:inline"
-          onsubmit="return confirm('Bezugsvereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
+          data-confirm="Bezugsvereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.">
       <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem"><?= icon('arrow-clockwise') ?> Zurücksetzen</button>
     </form>
     <?php endif; ?>
@@ -57,19 +57,19 @@ ob_start(); ?>
     <a href="/portal/members/<?= $member['id'] ?>/contract/einspeisung" target="_blank"
        class="btn" style="background:#b45309;color:#fff;font-size:.8rem"><?= icon('sun') ?> Einspeisevereinbarung</a>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/send" style="display:inline"
-          onsubmit="return confirm('Einspeisevereinbarung jetzt endgültig an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
+          data-confirm="Einspeisevereinbarung jetzt endgültig an <?= htmlspecialchars($member['email']) ?> senden?">
       <button type="submit" class="btn" style="background:#fffbeb;color:#b45309;font-size:.8rem"><?= icon('envelope-simple') ?> Jetzt senden</button>
     </form>
     <?php if (!empty($member['contract_einspeisung_sent_at'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/einspeisung/reset" style="display:inline"
-          onsubmit="return confirm('Einspeisevereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.')">
+          data-confirm="Einspeisevereinbarung zurücksetzen? Beim nächsten Versand wird das Mitglied darauf hingewiesen, dass die zuvor gesendete Fassung ab dann ungültig ist.">
       <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-600);font-size:.8rem"><?= icon('arrow-clockwise') ?> Zurücksetzen</button>
     </form>
     <?php endif; ?>
     <?php endif; ?>
     <?php if ($hasConsumer && $hasProducer && contractsEnabled($member['community_id'])): ?>
     <form method="post" action="/portal/members/<?= $member['id'] ?>/contract/send-both" style="display:inline"
-          onsubmit="return confirm('Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail an <?= htmlspecialchars(addslashes($member['email'])) ?> senden?')">
+          data-confirm="Bezugs- und Einspeisevereinbarung gemeinsam in einer E-Mail an <?= htmlspecialchars($member['email']) ?> senden?">
       <button type="submit" class="btn btn-tint-green" style="font-size:.8rem"><?= icon('envelope-simple') ?> Beide gemeinsam senden</button>
     </form>
     <?php endif; ?>
@@ -96,16 +96,16 @@ ob_start(); ?>
     <?php if (Auth::isPlatformAdmin()): ?>
       <?php if ($member['status'] === 'inactive'): ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/reactivate" style="display:inline"
-            onsubmit="return confirm('Mitgliedschaft von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wieder freigeben?')">
+            data-confirm="Mitgliedschaft von <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?> wieder freigeben?">
         <button type="submit" class="btn btn-tint-green" style="font-size:.8rem"><?= icon('check-circle') ?> Freigeben</button>
       </form>
       <?php else: ?>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/delete-login" style="display:inline"
-            onsubmit="return confirmDangerDelete('Login-Konto von <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> (das Mitglied selbst bleibt bestehen)')">
+            data-danger-confirm="Login-Konto von <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?> (das Mitglied selbst bleibt bestehen)">
         <button type="submit" class="btn btn-tint-amber" style="font-size:.8rem"><?= icon('lock-key') ?> Login löschen</button>
       </form>
       <form method="post" action="/portal/members/<?= $member['id'] ?>/deactivate" style="display:inline"
-            onsubmit="return confirmDangerDelete('Mitglied <?= htmlspecialchars(addslashes($member['first_name'] . ' ' . $member['last_name'])) ?> wirklich — Daten/Verträge/Dateien bleiben aus Aufbewahrungspflicht erhalten, der Login wird gesperrt und eine Benachrichtigung per E-Mail verschickt')">
+            data-danger-confirm="Mitglied <?= htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) ?> wirklich — Daten/Verträge/Dateien bleiben aus Aufbewahrungspflicht erhalten, der Login wird gesperrt und eine Benachrichtigung per E-Mail verschickt">
         <button type="submit" class="btn btn-tint-red" style="font-size:.8rem"><?= icon('trash') ?> Wirklich löschen</button>
       </form>
       <?php endif; ?>
@@ -204,7 +204,7 @@ foreach ($qiMps as $qmp) {
     <a href="/portal/members/<?= $member['id'] ?>/edit" class="btn btn-secondary"><?= icon('pencil-simple') ?> Bearbeiten</a>
   </div>
 </div>
-<script>
+<script nonce="<?= cspNonce() ?>">
 // Kopieren-Knöpfe (Schnellinfo): Zwischenablage, Rückmeldung "Kopiert" für 1,5 s.
 document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -309,7 +309,7 @@ document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
               <?php if (!Auth::isDemo() && $usesAE): ?>
                 <?php $hasP1Key = !empty($mp['p1_key_enc']); ?>
                 <br>
-                <button type="button" onclick="openP1Key('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'], ENT_QUOTES) ?>',<?= $hasP1Key ? 'true' : 'false' ?>)"
+                <button type="button" data-onclick="openP1Key" data-arg-0="<?= $mp['id'] ?>" data-arg-1="<?= htmlspecialchars($mp['zaehlpunkt_nr'], ENT_QUOTES) ?>" data-arg-2="@<?= $hasP1Key ? 'true' : 'false' ?>"
                         class="badge <?= $hasP1Key ? 'badge-green' : 'badge-gray' ?>"
                         style="font-size:.68rem;border:none;cursor:pointer;margin-top:.2rem"
                         title="P1-Kundenschnittstelle: zählerspezifischer Schlüssel (nur Vorstand/Admin)">
@@ -362,7 +362,7 @@ document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
                 <?php endif; ?>
                 <?php if (!Auth::isDemo()): ?>
                 <br>
-                <button type="button" onclick="showWifiInfo('<?= $member['id'] ?>','<?= $mp['id'] ?>')"
+                <button type="button" data-onclick="showWifiInfo" data-arg-0="<?= $member['id'] ?>" data-arg-1="<?= $mp['id'] ?>"
                         style="background:none;border:none;cursor:pointer;color:var(--gray-600);font-size:.72rem;padding:.15rem 0;text-decoration:underline">
                   WLAN-Info anzeigen
                 </button>
@@ -385,10 +385,10 @@ document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
             </td>
             <?php endif; // $usesAE ?>
             <td class="rt-actions" style="white-space:nowrap">
-              <button onclick="openEditMp('<?= $mp['id'] ?>','<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>','<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>','<?= $mp['type'] ?>','<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>','<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>')"
+              <button data-onclick="openEditMp" data-arg-0="<?= $mp['id'] ?>" data-arg-1="<?= htmlspecialchars($mp['zaehlpunkt_nr'],ENT_QUOTES) ?>" data-arg-2="<?= htmlspecialchars($mp['meter_code']??'',ENT_QUOTES) ?>" data-arg-3="<?= $mp['type'] ?>" data-arg-4="<?= htmlspecialchars((string)($mp['jahresverbrauch_kwh']??''),ENT_QUOTES) ?>" data-arg-5="<?= htmlspecialchars((string)($mp['engpassleistung_kw']??''),ENT_QUOTES) ?>" data-arg-6="<?= htmlspecialchars((string)($mp['geplante_einspeisung_kwh']??''),ENT_QUOTES) ?>"
                       style="background:none;border:none;cursor:pointer;color:var(--gray-600)"><?= icon('pencil-simple') ?></button>
               <form method="post" action="/portal/members/<?= $member['id'] ?>/metering-points/<?= $mp['id'] ?>/delete" style="display:inline">
-                <button type="submit" onclick="return confirm('Zählpunkt wirklich deaktivieren?')"
+                <button type="submit" data-confirm="Zählpunkt wirklich deaktivieren?"
                         style="background:none;border:none;cursor:pointer;color:#ef4444"><?= icon('trash') ?></button>
               </form>
             </td>
@@ -402,7 +402,7 @@ document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
       <form method="post" action="/portal/members/<?= $member['id'] ?>/reset-live-data"
             style="margin-bottom:1.25rem;padding-top:.75rem;border-top:1px solid var(--gray-200)">
         <button type="submit" class="btn btn-secondary" style="color:#ef4444"
-                onclick="return confirm('Wirklich ALLE Live-ESP-Messdaten dieses Mitglieds unwiderruflich löschen? Betrifft alle Zählpunkte dieses Mitglieds (Leistungswerte, Zählerstände, WLAN-Status).')">
+                data-confirm="Wirklich ALLE Live-ESP-Messdaten dieses Mitglieds unwiderruflich löschen? Betrifft alle Zählpunkte dieses Mitglieds (Leistungswerte, Zählerstände, WLAN-Status).">
           <?= icon('trash') ?> Live-Messdaten zurücksetzen (Testphase)
         </button>
         <p style="font-size:.72rem;color:var(--gray-600);margin-top:.35rem">
@@ -429,7 +429,7 @@ document.querySelectorAll('.quickinfo [data-copy]').forEach(function (btn) {
       <div style="display:flex;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
         <div class="form-group" style="margin-bottom:0">
           <label style="font-size:.8rem">Typ</label>
-          <select name="type" id="add-mp-type" onchange="toggleMpTypeFields('add')">
+          <select name="type" id="add-mp-type" data-onchange="toggleMpTypeFields" data-arg-0="add">
             <option value="consumer">Bezug</option>
             <option value="producer">Einspeisung</option>
             <option value="prosumer">Bezug + Einspeisung (ein Zähler)</option>
@@ -599,7 +599,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
       <small style="color:var(--gray-600)">Zum Verschieben im Bild ziehen.</small>
     </div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
-      <button type="button" onclick="document.getElementById('photo-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+      <button type="button" data-dialog-close="photo-dialog" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
       <button type="submit" class="btn btn-primary">Speichern</button>
     </div>
   </form>
@@ -619,7 +619,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     </div>
     <div class="form-group">
       <label>Typ</label>
-      <select name="type" id="edit-mp-type" onchange="toggleMpTypeFields('edit')">
+      <select name="type" id="edit-mp-type" data-onchange="toggleMpTypeFields" data-arg-0="edit">
         <option value="consumer">Bezug</option>
         <option value="producer">Einspeisung</option>
         <option value="prosumer">Bezug + Einspeisung (ein Zähler)</option>
@@ -641,7 +641,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     </div>
     <div style="display:flex;gap:.75rem">
       <button type="submit" class="btn btn-primary">Speichern</button>
-      <button type="button" onclick="document.getElementById('edit-mp-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+      <button type="button" data-dialog-close="edit-mp-dialog" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
     </div>
   </form>
 </dialog>
@@ -656,7 +656,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   </p>
   <div id="p1-dialog-current" style="display:none;margin-bottom:1rem">
     <span class="badge badge-green"><?= icon('key') ?> hinterlegt</span>
-    <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:.5rem" onclick="revealP1Key()">Anzeigen</button>
+    <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem;margin-left:.5rem" data-onclick="revealP1Key">Anzeigen</button>
     <code id="p1-dialog-reveal" style="display:block;margin-top:.5rem;word-break:break-all"></code>
   </div>
   <form method="post" id="p1-form">
@@ -668,18 +668,18 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
     </div>
     <div style="display:flex;gap:.75rem;flex-wrap:wrap">
       <button type="submit" class="btn btn-primary">Speichern</button>
-      <button type="button" onclick="document.getElementById('p1-dialog').close()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
+      <button type="button" data-dialog-close="p1-dialog" class="btn" style="background:var(--gray-100);color:var(--gray-700)">Abbrechen</button>
     </div>
   </form>
   <form method="post" id="p1-delete-form" style="display:none;margin-top:1rem"
-        onsubmit="return confirm('P1-Schlüssel für diesen Zählpunkt wirklich löschen?')">
+        data-confirm="P1-Schlüssel für diesen Zählpunkt wirklich löschen?">
     <input type="hidden" name="action" value="delete">
     <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;font-size:.8rem;text-decoration:underline">Schlüssel löschen</button>
   </form>
 </dialog>
 
 <script src="/assets/js/avatar-crop.js"></script>
-<script>
+<script nonce="<?= cspNonce() ?>">
   initAvatarCropper({
     fileInputId: 'member-photo-input',
     wrapperId: 'member-photo-crop-wrapper',

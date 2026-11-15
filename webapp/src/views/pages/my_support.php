@@ -44,7 +44,7 @@
     </thead>
     <tbody>
     <?php foreach ($tickets as $t): ?>
-      <tr style="cursor:pointer" onclick="location.href='/portal/my/support/<?= $t['id'] ?>'">
+      <tr style="cursor:pointer" data-href="/portal/my/support/<?= $t['id'] ?>">
         <td><?= htmlspecialchars($t['subject']) ?></td>
         <td><?= $t['category'] === 'feature' ? 'Feature-Vorschlag' : 'Problem/Frage' ?></td>
         <td>

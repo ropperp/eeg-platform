@@ -18,7 +18,7 @@ ob_start();
   </p>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 try { localStorage.removeItem('beitritt_draft_<?= strtolower($community['marktpartner_id']) ?>'); } catch (e) {}
 </script>
 

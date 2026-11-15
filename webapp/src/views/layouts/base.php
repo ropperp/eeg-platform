@@ -47,14 +47,15 @@
   <?php if ($siteDesign === 'glas'): ?>
   <link rel="stylesheet" href="/assets/css/site-glass.css?v=<?= @filemtime(ROOT . '/public/assets/css/site-glass.css') ?: time() ?>">
   <?php endif; ?>
-  <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
+  <script nonce="<?= cspNonce() ?>">(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
   <!-- Markiert synchron (vor dem ersten Malen), dass JS verfügbar ist -- app.css nutzt das,
        um z.B. den Hero-Text erst dann per CSS auszublenden, wenn tatsächlich eine Animation
        (site-animations.js, unten) übernehmen wird. Ohne JS bleibt alles normal sichtbar. -->
-  <script>document.documentElement.classList.add('js-anim');</script>
+  <script nonce="<?= cspNonce() ?>">document.documentElement.classList.add('js-anim');</script>
   <?php if (!empty($extraHead)): ?>
   <?= $extraHead ?>
   <?php endif; ?>
+  <script src="/assets/js/ui-actions.js?v=<?= @filemtime(ROOT . '/public/assets/js/ui-actions.js') ?: time() ?>" defer></script>
 </head>
 <body>
 
@@ -77,7 +78,7 @@
          (siehe app.css) statt den Seiteninhalt nach unten zu schieben -- schließt sich
          automatisch beim Scrollen (siehe closeMobileNavOnScroll() unten). -->
     <div class="navbar-controls">
-      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
+      <button id="theme-toggle" data-onclick="toggleDark" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
         <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
       </button>
       <nav id="main-nav">
@@ -94,7 +95,7 @@
         <a href="<?= htmlspecialchars(marketingUrl('/beitreten')) ?>" class="btn btn-secondary" style="padding:.4rem .9rem">Informieren und Beitreten</a>
       <?php endif; ?>
       </nav>
-      <button id="mobile-nav-toggle" class="mobile-nav-toggle-btn" onclick="toggleMobileNav()"
+      <button id="mobile-nav-toggle" class="mobile-nav-toggle-btn" data-onclick="toggleMobileNav"
               aria-label="Menü öffnen" aria-expanded="false" aria-controls="main-nav">
         <?= icon('list', 'mobile-nav-icon-open') ?><?= icon('x', 'mobile-nav-icon-close') ?>
       </button>
@@ -128,7 +129,7 @@
 <script src="/assets/js/site-animations.js"></script>
 <script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
 <script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
-<script>
+<script nonce="<?= cspNonce() ?>">
 // CSRF-Schutz (OWASP-Audit 13.08.2026): fügt automatisch ein verstecktes Token-Feld in jedes
 // method="post"-Formular der Seite ein, statt jede der ~70 Formular-Views einzeln anzufassen.
 // Geprüft wird zentral in Router::dispatch() (siehe functions.php: csrfToken()/csrfValid()).

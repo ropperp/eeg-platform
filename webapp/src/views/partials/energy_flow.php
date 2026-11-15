@@ -54,7 +54,7 @@
     </p>
   </details>
 </div>
-<script>
+<script nonce="<?= cspNonce() ?>">
 (function () {
   var flow = window.EnergyFlow.init('eflow');
   flow.update(<?= (float)($live['einsp_w'] ?? 0) ?>, <?= (float)($live['bezug_w'] ?? 0) ?>);

@@ -46,19 +46,19 @@ $paymentMeta = [
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <input type="search" id="invoice-search" placeholder="Kundennummer oder Name suchen…"
            style="flex:1;min-width:200px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
-           oninput="filterInvoices()">
-    <select id="invoice-quartal" onchange="filterInvoices()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+           data-oninput="filterInvoices">
+    <select id="invoice-quartal" data-onchange="filterInvoices" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Quartale</option>
       <?php foreach (array_unique(array_column($invoices, 'quartal')) as $q): ?>
         <option value="<?= htmlspecialchars($q) ?>" <?= $quartalFilter === $q ? 'selected' : '' ?>><?= htmlspecialchars($q) ?></option>
       <?php endforeach; ?>
     </select>
     <input type="number" id="invoice-betrag-min" placeholder="Betrag von (€)" step="0.01"
-           style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" oninput="filterInvoices()">
+           style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" data-oninput="filterInvoices">
     <input type="number" id="invoice-betrag-max" placeholder="Betrag bis (€)" step="0.01"
-           style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" oninput="filterInvoices()">
+           style="width:130px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px" data-oninput="filterInvoices">
     <span id="invoice-result-count" style="font-size:.8rem;color:var(--gray-600)"></span>
-    <a href="#" onclick="return downloadInvoiceZip()" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
+    <a href="#" data-onclick="downloadInvoiceZip" data-return="1" class="btn" style="background:var(--gray-100);color:var(--gray-700)">
       <?= icon('download-simple') ?> Quartal als ZIP
     </a>
   </div>
@@ -69,13 +69,13 @@ $paymentMeta = [
   <table id="invoice-table" class="rtable">
     <thead>
       <tr>
-        <th class="sortable" data-sort-key="kdnr" data-sort-type="num" onclick="sortInvoices(this)">KdNr <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort-key="name" data-sort-type="str" onclick="sortInvoices(this)">Name <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="kdnr" data-sort-type="num" data-onclick="sortInvoices" data-arg-0="@this">KdNr <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="name" data-sort-type="str" data-onclick="sortInvoices" data-arg-0="@this">Name <span class="sort-arrow"></span></th>
         <th>E-Mail</th>
-        <th class="sortable" data-sort-key="quartal" data-sort-type="str" onclick="sortInvoices(this)">Quartal <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="quartal" data-sort-type="str" data-onclick="sortInvoices" data-arg-0="@this">Quartal <span class="sort-arrow"></span></th>
         <th>Rechnungsnummer</th>
-        <th class="sortable" style="text-align:right" data-sort-key="betrag" data-sort-type="num" onclick="sortInvoices(this)">Betrag (brutto) <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort-key="erstellt" data-sort-type="str" onclick="sortInvoices(this)">Erstellt <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:right" data-sort-key="betrag" data-sort-type="num" data-onclick="sortInvoices" data-arg-0="@this">Betrag (brutto) <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="erstellt" data-sort-type="str" data-onclick="sortInvoices" data-arg-0="@this">Erstellt <span class="sort-arrow"></span></th>
         <th>Versendet</th>
         <th>Zahlung</th>
         <th>PDF</th>
@@ -121,14 +121,14 @@ $paymentMeta = [
           <?php if ($isReleased && $ps === 'offen'): ?>
             <?php if ($betrag > 0): ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
-                    onsubmit="return confirm('Rechnung als per SEPA eingezogen markieren? Bitte erst bestätigen, wenn die Lastschrift bei der Bank tatsächlich durchgelaufen ist.')">
+                    data-confirm="Rechnung als per SEPA eingezogen markieren? Bitte erst bestätigen, wenn die Lastschrift bei der Bank tatsächlich durchgelaufen ist.">
                 <input type="hidden" name="payment_status" value="eingezogen">
                 <button class="btn btn-tint-green" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"
                         <?= $hasMandat ? '' : 'disabled title="Kein SEPA-Mandat (IBAN/Mandatsreferenz fehlt)"' ?>><?= icon('check') ?> eingezogen</button>
               </form>
             <?php elseif ($betrag < 0): ?>
               <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
-                    onsubmit="return confirm('Rechnung als an das Mitglied überwiesen markieren?')">
+                    data-confirm="Rechnung als an das Mitglied überwiesen markieren?">
                 <input type="hidden" name="payment_status" value="ueberwiesen">
                 <button class="btn btn-tint-blue" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"><?= icon('check') ?> überwiesen</button>
               </form>
@@ -140,7 +140,7 @@ $paymentMeta = [
             <?php endif; ?>
           <?php elseif ($isReleased && in_array($ps, ['eingezogen', 'ueberwiesen', 'fehlgeschlagen'], true)): ?>
             <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mark-paid" style="display:inline"
-                  onsubmit="return confirm('Zahlungsstatus zurück auf „offen“ setzen?')">
+                  data-confirm="Zahlungsstatus zurück auf „offen“ setzen?">
               <input type="hidden" name="payment_status" value="offen">
               <button class="btn" style="background:none;color:var(--gray-600);padding:.2rem .35rem;font-size:.68rem" title="Zurücksetzen">↺</button>
             </form>
@@ -154,7 +154,7 @@ $paymentMeta = [
           ?>
           <?php if ($isReleased && $betrag > 0 && $ps === 'eingezogen'): ?>
             <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/ruecklastschrift" style="display:inline"
-                  onsubmit="return confirm('Rücklastschrift erfassen? Der Einzug gilt dann als fehlgeschlagen (Zahlung wieder offen).')">
+                  data-confirm="Rücklastschrift erfassen? Der Einzug gilt dann als fehlgeschlagen (Zahlung wieder offen).">
               <button class="btn btn-tint-amber" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem" title="SEPA-Einzug von der Bank zurückgebucht"><?= icon('warning-circle') ?> Rücklastschrift</button>
             </form>
           <?php endif; ?>
@@ -166,7 +166,7 @@ $paymentMeta = [
           <?php endif; ?>
           <?php if ($offeneForderung && $mahnstufe < 3): ?>
             <form method="post" action="/portal/billing/invoices/<?= $inv['id'] ?>/mahnung" style="display:inline"
-                  onsubmit="return confirm('<?= htmlspecialchars(addslashes(['1' => 'Zahlungserinnerung', '2' => '1. Mahnung', '3' => '2. (letzte) Mahnung'][(string)($mahnstufe + 1)] ?? 'Mahnung')) ?> per E-Mail senden?')">
+                  data-confirm="<?= htmlspecialchars(['1' => 'Zahlungserinnerung', '2' => '1. Mahnung', '3' => '2. (letzte) Mahnung'][(string)($mahnstufe + 1)] ?? 'Mahnung') ?> per E-Mail senden?">
               <button class="btn btn-tint-red" style="padding:.2rem .5rem;font-size:.7rem;margin-top:.25rem"><?= icon('envelope-simple') ?> Mahnen (Stufe <?= $mahnstufe + 1 ?>)</button>
             </form>
           <?php endif; ?>
@@ -190,7 +190,7 @@ $paymentMeta = [
   </table>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 // ZIP-Sammeldownload bezieht sich auf das aktuell im Filter gewählte Quartal/Monat (siehe
 // /portal/billing/invoices.zip) -- ohne Auswahl kein sinnvoller Zeitraum, deshalb Hinweis statt
 // stillschweigend "alle jemals erzeugten Rechnungen".

@@ -102,7 +102,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
           <li style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--gray-200);font-size:.85rem">
             <span><?= htmlspecialchars(fmtVienna($h['created_at'])) ?> · <?= htmlspecialchars($editorName($h)) ?><?= $i === 0 ? ' <span class="badge badge-green">aktuell</span>' : '' ?></span>
             <?php if ($i > 0): ?>
-            <form method="post" action="/portal/dokumente/<?= $tabId ?>/restore" onsubmit="return confirm('Diese frühere Fassung wieder veröffentlichen?')">
+            <form method="post" action="/portal/dokumente/<?= $tabId ?>/restore" data-confirm="Diese frühere Fassung wieder veröffentlichen?">
               <input type="hidden" name="version_id" value="<?= htmlspecialchars($h['id']) ?>">
               <button type="submit" class="btn btn-secondary" style="padding:.2rem .6rem;font-size:.78rem">Wiederherstellen</button>
             </form>
@@ -112,7 +112,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
         <?php if ($d['has_default'] && ($d['current']['source'] ?? '') === 'eigen'): ?>
           <li style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.4rem 0;font-size:.85rem">
             <span>Mitgelieferte Standardfassung</span>
-            <form method="post" action="/portal/dokumente/<?= $tabId ?>/restore" onsubmit="return confirm('Standardfassung wieder veröffentlichen?')">
+            <form method="post" action="/portal/dokumente/<?= $tabId ?>/restore" data-confirm="Standardfassung wieder veröffentlichen?">
               <input type="hidden" name="version_id" value="standard">
               <button type="submit" class="btn btn-secondary" style="padding:.2rem .6rem;font-size:.78rem">Wiederherstellen</button>
             </form>
@@ -155,7 +155,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
           </div>
         </fieldset>
       <?php endforeach; ?>
-      <button type="submit" class="btn btn-primary" onclick="return confirm('Als neue Fassung speichern? Sie gilt ab sofort für neue Beitrittserklärungen.')">Als neue Fassung speichern</button>
+      <button type="submit" class="btn btn-primary" data-confirm="Als neue Fassung speichern? Sie gilt ab sofort für neue Beitrittserklärungen.">Als neue Fassung speichern</button>
     </form>
     <?php if ($consentHistory): ?>
       <details style="margin-top:1.5rem">
@@ -187,7 +187,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
       <button type="submit" class="btn btn-primary">Hochladen &amp; veröffentlichen</button>
     </form>
     <?php if ($infoblatt['own']): ?>
-      <form method="post" action="/portal/dokumente/infoblatt" style="margin-top:1rem" onsubmit="return confirm('Eigenes Infoblatt löschen?')">
+      <form method="post" action="/portal/dokumente/infoblatt" style="margin-top:1rem" data-confirm="Eigenes Infoblatt löschen?">
         <input type="hidden" name="action" value="delete">
         <button type="submit" class="btn" style="background:none;color:#b91c1c;padding:0;text-decoration:underline;font-size:.85rem">Eigenes Infoblatt löschen</button>
       </form>

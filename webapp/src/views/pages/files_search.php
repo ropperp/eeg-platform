@@ -7,7 +7,7 @@
 <div class="card" style="margin-bottom:1rem;padding:.75rem 1rem">
   <input type="text" id="search-input" placeholder="Mitglied suchen (Name, E-Mail oder Kundennummer)…"
          style="width:100%;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
-         oninput="filterFileMembers()" autocomplete="off">
+         data-oninput="filterFileMembers" autocomplete="off">
 </div>
 
 <div class="card" style="overflow-x:auto">
@@ -41,7 +41,7 @@
   </table>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 function filterFileMembers() {
   const q = document.getElementById('search-input').value.toLowerCase().trim();
   document.querySelectorAll('#files-member-table tbody tr[data-search]').forEach(row => {

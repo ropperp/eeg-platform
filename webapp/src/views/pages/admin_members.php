@@ -58,7 +58,7 @@ ob_start(); ?>
   </table>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 (function () {
   var input = document.getElementById('am-search');
   var eeg = document.getElementById('am-eeg');

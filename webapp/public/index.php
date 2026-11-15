@@ -17,6 +17,7 @@ require ROOT . '/src/functions.php';
 // Einzige Quelle der Zustimmungstexte der Beitrittserklärung (siehe Dateikopf).
 require ROOT . '/src/consent_texts.php';
 
+sendCspHeader(); // vor jeder Ausgabe; Routen mit eigener Policy (Dateiauslieferung) überschreiben sie
 Auth::start();
 
 /**
@@ -111,7 +112,7 @@ function uploadRedirect(string $location): void
     header('Content-Type: text/html; charset=UTF-8');
     echo '<!DOCTYPE html><html><head><meta charset="UTF-8">'
         . '<meta http-equiv="refresh" content="0;url=' . htmlspecialchars($location) . '">'
-        . '<script>location.replace(' . json_encode($location) . ');</script></head>'
+        . '<script nonce="' . cspNonce() . '">location.replace(' . json_encode($location) . ');</script></head>'
         . '<body>Wird weitergeleitet …</body></html>';
     exit;
 }

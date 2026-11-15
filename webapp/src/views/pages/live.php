@@ -120,7 +120,7 @@ ob_start();
 </div>
 
 <script src="/assets/js/vendor/chart.umd.min.js"></script>
-<script>
+<script nonce="<?= cspNonce() ?>">
 let currentSlug = null;
 let chart = null;
 let refreshTimer = null;

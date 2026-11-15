@@ -64,3 +64,13 @@ function formatDateDE(iso) {
   const parts = iso.split('-');
   return parts[2] + '.' + parts[1] + '.' + parts[0];
 }
+
+/* Auslöser per data-Attributen statt Inline-Handler (CSP ohne 'unsafe-inline'): der Knopf nennt den Namen
+ * der Seiten-Variablen mit den Terminkacheln (data-sepa-var), bei mehreren Läufen den Schlüssel (data-sepa-key)
+ * und die Download-Adresse (data-sepa-url). Aufgerufen über data-onclick="openSepaFromButton" (ui-actions.js). */
+function openSepaFromButton(btn) {
+  var tiles = window[btn.getAttribute('data-sepa-var')];
+  var key = btn.getAttribute('data-sepa-key');
+  if (tiles && key !== null) tiles = tiles[key];
+  openSepaDateModal(tiles, btn.getAttribute('data-sepa-url'));
+}

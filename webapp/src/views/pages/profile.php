@@ -36,7 +36,7 @@
 </div>
 
 <script src="/assets/js/avatar-crop.js"></script>
-<script>
+<script nonce="<?= cspNonce() ?>">
   initAvatarCropper({
     fileInputId: 'profile-photo-input',
     wrapperId: 'profile-photo-crop-wrapper',
@@ -73,7 +73,7 @@
       <span class="badge badge-green">Aktiv</span> Bei jeder Anmeldung wird zusätzlich ein 6-stelliger Code abgefragt.
     </p>
     <form method="post" action="/portal/profile/2fa/disable"
-          onsubmit="return confirm('Zwei-Faktor-Authentifizierung wirklich ausschalten?')">
+          data-confirm="Zwei-Faktor-Authentifizierung wirklich ausschalten?">
       <button type="submit" class="btn btn-tint-red">2FA deaktivieren</button>
     </form>
   <?php else: ?>
@@ -95,7 +95,7 @@
   <?php foreach (($profilePasskeys ?? []) as $pk): ?>
     <form method="post" action="/portal/profile/passkeys/delete"
           style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem 0;border-top:1px solid var(--gray-200)"
-          onsubmit="return confirm('Passkey wirklich entfernen?')">
+          data-confirm="Passkey wirklich entfernen?">
       <input type="hidden" name="id" value="<?= htmlspecialchars($pk['id']) ?>">
       <span style="font-size:.9rem">
         <strong><?= htmlspecialchars($pk['label']) ?></strong><br>

@@ -1386,3 +1386,19 @@ docker compose up -d --build
 > Benutzer: `DELETE FROM user_passkeys WHERE user_id = '<id>';`. Rückfall: `git revert` -- die Tabelle bleibt
 > harmlos bestehen.
 
+> **Einmalig nach dem Update vom 17.11.2026 -- Strengere Content-Security-Policy**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose up -d --build webapp          # neue nginx.conf (ohne CSP) + PHP (sendet die CSP)
+> curl -sI -H "Host: stromfueralle.at" -H "X-Forwarded-Proto: https" http://localhost/ | grep -i content-security
+> ```
+> Erwartet: **genau eine** Zeile `Content-Security-Policy: … script-src 'self' 'nonce-…'; script-src-attr 'none' …`
+> (kein `'unsafe-inline'` bei script-src). Danach im Browser durchklicken: Anmelden, Mitgliederliste (sortieren,
+> filtern), Lösch-Abfragen, Hell/Dunkel, Profilmenü, Rollenwahl, SEPA-Dialog.
+> **Wenn ein Knopf nicht mehr reagiert:** Browser-Konsole (F12) öffnen -- eine CSP-Verletzung steht dort als
+> „Refused to execute inline …“ mit der Fundstelle; bitte die Seite und Zeile melden. Ein einzelner Rückfall
+> betrifft nur diesen Knopf, nicht die Plattform. Notfall-Rückfall: `git revert` des Commits und
+> `docker compose up -d --build webapp`.
+> Steht nach dem Update die ALTE Policy (mit `'unsafe-inline'`) im Header, läuft noch das alte Image
+> (`--build` vergessen) oder die Proxy-Konfiguration setzt selbst eine CSP -- dann diese entfernen.
+

@@ -37,7 +37,7 @@ ob_start();
       <div class="sig-pad-guide"></div>
     </div>
     <div style="margin:.5rem 0 1rem">
-      <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" onclick="clearSignature()">Löschen</button>
+      <button type="button" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.8rem" data-onclick="clearSignature">Löschen</button>
     </div>
     <input type="hidden" name="signature_image" id="signature_image">
 
@@ -45,7 +45,7 @@ ob_start();
   </form>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 (function () {
   const canvas = document.getElementById('sig-pad');
   const ctx = canvas.getContext('2d');

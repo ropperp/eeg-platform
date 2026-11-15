@@ -6,6 +6,6 @@
     Dieses Formular war zu lange geöffnet oder wurde von einer anderen Seite aus abgeschickt.
     Bitte die vorherige Seite neu laden und erneut versuchen.
   </p>
-  <a href="javascript:history.back()" class="btn btn-primary">Zurück</a>
+  <a href="#" data-back class="btn btn-primary">Zurück</a>
 </div>
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/base.php';

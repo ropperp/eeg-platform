@@ -12,6 +12,6 @@ ob_start(); ?>
     Mitglieds kann nur das Mitglied selbst erledigen. Alles andere funktioniert in der
     Kundenansicht genauso wie beim Mitglied.
   </p>
-  <a href="javascript:history.back()" class="btn btn-secondary">Zurück</a>
+  <a href="#" data-back class="btn btn-secondary">Zurück</a>
 </div>
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

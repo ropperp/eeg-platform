@@ -126,7 +126,7 @@
     "EEG aktiv" deaktivieren, um die Daten zu behalten.
   </p>
   <form method="post" action="/admin/communities/<?= $community['id'] ?>/delete"
-        onsubmit="return confirmDangerDelete('EEG <?= htmlspecialchars(addslashes($community['name'])) ?> inkl. aller <?= count($members) ?> Mitglieder, Verträge und Rechnungen')">
+        data-danger-confirm="EEG <?= htmlspecialchars($community['name']) ?> inkl. aller <?= count($members) ?> Mitglieder, Verträge und Rechnungen">
     <button type="submit" class="btn btn-tint-red"><?= icon('trash') ?> EEG endgültig löschen</button>
   </form>
 </div>

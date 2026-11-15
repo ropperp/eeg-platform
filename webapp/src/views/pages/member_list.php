@@ -53,37 +53,37 @@ $usesAE = activeCommunityUsesAusleseeinheit();
   <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
     <input type="search" id="search-input" placeholder="Name, Geburtsdatum, Adresse, KdNr, E-Mail oder Zählpunkt…" value="<?= htmlspecialchars((string)($_GET['q'] ?? '')) ?>"
            style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px"
-           oninput="filterMembers()" autocomplete="off">
+           data-oninput="filterMembers" autocomplete="off">
     <?php // Handy: Filter hinter einem Knopf, damit die Suche + Liste sofort sichtbar sind (13.11.2026). ?>
     <button type="button" class="btn btn-secondary mobile-only" id="filter-toggle" aria-expanded="false"
-            aria-controls="member-filters" onclick="toggleMemberFilters(this)" style="padding:.4rem .8rem;font-size:.85rem">Filter</button>
+            aria-controls="member-filters" data-onclick="toggleMemberFilters" data-arg-0="@this" style="padding:.4rem .8rem;font-size:.85rem">Filter</button>
     <div class="member-filters" id="member-filters">
-    <select id="filter-status" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="filter-status" data-onchange="filterMembers" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Status</option>
       <option value="active">Aktiv</option>
       <option value="pending">Ausstehend</option>
       <option value="inactive">Archiviert</option>
     </select>
     <?php if ($contractsEnabled): ?>
-    <select id="filter-contract" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="filter-contract" data-onchange="filterMembers" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Verträge</option>
       <option value="none">Vertrag noch nicht erstellt</option>
       <option value="open">Erstellt, noch nicht unterschrieben</option>
       <option value="signed">Alles unterschrieben</option>
     </select>
     <?php endif; ?>
-    <select id="filter-art" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="filter-art" data-onchange="filterMembers" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Mitgliedsarten</option>
       <option value="bezug">Bezug</option>
       <option value="einspeisung">Einspeisung</option>
       <option value="beides">Bezug + Einspeisung</option>
     </select>
-    <select id="filter-herkunft" onchange="filterMembers()" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="filter-herkunft" data-onchange="filterMembers" style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Online + Offline</option>
       <option value="online">Nur Online-Beitritt</option>
       <option value="offline">Nur Offline angelegt</option>
     </select>
-    <select id="filter-esp" onchange="filterMembers()"<?= $usesAE ? '' : ' hidden' ?> style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
+    <select id="filter-esp" data-onchange="filterMembers"<?= $usesAE ? '' : ' hidden' ?> style="padding:.4rem .75rem;border:1px solid #e5e7eb;border-radius:6px">
       <option value="">Alle Zähler-Status</option>
       <option value="fehler">Nur mit Fehler</option>
       <option value="ok">Nur ohne Fehler</option>
@@ -97,24 +97,24 @@ $usesAE = activeCommunityUsesAusleseeinheit();
   <table id="member-table" class="rtable" style="min-width:900px">
     <thead>
       <tr>
-        <th class="sortable" data-sort-key="kdnr" data-sort-type="num" onclick="sortMembers(this)">KdNr <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort-key="name" data-sort-type="str" onclick="sortMembers(this)">Name <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort-key="email" data-sort-type="str" onclick="sortMembers(this)">E-Mail <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort-key="since" data-sort-type="str" onclick="sortMembers(this)">Mitglied seit <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort-key="status" data-sort-type="str" onclick="sortMembers(this)">Status <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="kdnr" data-sort-type="num" data-onclick="sortMembers" data-arg-0="@this">KdNr <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="name" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Name <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="email" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">E-Mail <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="since" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Mitglied seit <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="status" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Status <span class="sort-arrow"></span></th>
         <?php if ($contractsEnabled): ?>
-        <th class="sortable" style="text-align:center" data-sort-key="bezug" data-sort-type="str" onclick="sortMembers(this)">Bezugsvertr. <span class="sort-arrow"></span></th>
-        <th class="sortable" style="text-align:center" data-sort-key="einsp" data-sort-type="str" onclick="sortMembers(this)">Einspeisevertr. <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="bezug" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Bezugsvertr. <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="einsp" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Einspeisevertr. <span class="sort-arrow"></span></th>
         <?php else: ?>
-        <th class="sortable" style="text-align:center" data-sort-key="znrbezug" data-sort-type="str" onclick="sortMembers(this)">ZP Bezug <span class="sort-arrow"></span></th>
-        <th class="sortable" style="text-align:center" data-sort-key="znreinsp" data-sort-type="str" onclick="sortMembers(this)">ZP Einspeisung <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="znrbezug" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">ZP Bezug <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="znreinsp" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">ZP Einspeisung <span class="sort-arrow"></span></th>
         <?php endif; ?>
-        <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" onclick="sortMembers(this)">Offener Betrag <span class="sort-arrow"></span></th>
-        <th class="sortable" style="text-align:center" data-sort-key="herkunft" data-sort-type="str" onclick="sortMembers(this)">Herkunft <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:right" data-sort-key="offen" data-sort-type="num" data-onclick="sortMembers" data-arg-0="@this">Offener Betrag <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="herkunft" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Herkunft <span class="sort-arrow"></span></th>
         <?php if ($usesAE): ?>
-        <th class="sortable" style="text-align:center" data-sort-key="esp" data-sort-type="num" onclick="sortMembers(this)">Zähler <span class="sort-arrow"></span></th>
+        <th class="sortable" style="text-align:center" data-sort-key="esp" data-sort-type="num" data-onclick="sortMembers" data-arg-0="@this">Zähler <span class="sort-arrow"></span></th>
         <?php endif; ?>
-        <th class="sortable" data-sort-key="lastlogin" data-sort-type="str" onclick="sortMembers(this)">Zuletzt angemeldet <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort-key="lastlogin" data-sort-type="str" data-onclick="sortMembers" data-arg-0="@this">Zuletzt angemeldet <span class="sort-arrow"></span></th>
         <th>Aktionen</th>
       </tr>
     </thead>
@@ -221,7 +221,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
           <?php elseif (empty($lastLoginAt)): ?>
             <span style="color:#b45309;display:block;margin-bottom:.25rem">Noch nicht angemeldet</span>
             <form method="post" action="/portal/members/<?= $m['id'] ?>/resend-invite" style="display:inline"
-                  onsubmit="return confirm('Willkommens-E-Mail mit neuem Erstlogin-Link (24 Stunden gültig) erneut an <?= htmlspecialchars(addslashes($m['email'])) ?> senden?')">
+                  data-confirm="Willkommens-E-Mail mit neuem Erstlogin-Link (24 Stunden gültig) erneut an <?= htmlspecialchars($m['email']) ?> senden?">
               <button type="submit" class="btn" style="background:var(--gray-100);color:var(--gray-700);font-size:.72rem;padding:.2rem .5rem"><?= icon('envelope-simple') ?> Einladung erneut senden</button>
             </form>
           <?php else: ?>
@@ -242,7 +242,7 @@ $usesAE = activeCommunityUsesAusleseeinheit();
   </table>
 </div>
 
-<script>
+<script nonce="<?= cspNonce() ?>">
 // Alle Suchwörter müssen vorkommen ("Huber 1980", "Hauptstraße 9560"); KdNr/Zählpunkt auch
 // ohne Leerzeichen eingegeben (siehe memberSearchText() in functions.php).
 function memberSearchMatch(text, q) {

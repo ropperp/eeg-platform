@@ -14,7 +14,8 @@
   <?php if ($portalDesign === 'glas'): ?>
   <link rel="stylesheet" href="/assets/css/glass.css?v=<?= @filemtime(ROOT . '/public/assets/css/glass.css') ?: time() ?>">
   <?php endif; ?>
-  <script>(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
+  <script nonce="<?= cspNonce() ?>">(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
+  <script src="/assets/js/ui-actions.js?v=<?= @filemtime(ROOT . '/public/assets/js/ui-actions.js') ?: time() ?>" defer></script>
 </head>
 <body>
 
@@ -32,7 +33,7 @@
 <header class="navbar">
   <div class="container inner">
     <div style="display:flex;align-items:center;gap:1rem">
-      <button id="sidebar-toggle" onclick="toggleSidebar()" title="Menü ein-/ausklappen"
+      <button id="sidebar-toggle" data-onclick="toggleSidebar" title="Menü ein-/ausklappen"
               style="background:none;border:none;cursor:pointer;padding:.25rem .4rem;border-radius:6px;color:var(--gray-600);line-height:1"><?= icon('list') ?></button>
       <a href="<?= htmlspecialchars(marketingUrl('/')) ?>" class="logo">
         <?php if ($portalDesign === 'glas'): // Neuer Look: immer das weiße Logo, am Handy nur das Zeichen (Patrick, 14.11.2026) ?>
@@ -126,7 +127,7 @@
           if ($ar['community_id'] ?? null) { DB::setCommunity($ar['community_id']); }
         ?>
         <div style="position:relative;display:inline-block">
-        <select onchange="switchRole(this)" aria-label="Rolle wechseln" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem;max-width:12rem">
+        <select data-onchange="switchRole" data-arg-0="@this" aria-label="Rolle wechseln" style="padding:.3rem .6rem;border-radius:6px;border:1px solid #e5e7eb;font-size:.85rem;max-width:12rem">
           <?php foreach ($roles as $r): ?>
             <?php
               // member_id nur bei Demo-Logins mit mehreren Mitglied-Identitäten in derselben
@@ -160,7 +161,7 @@
           <input type="hidden" name="role" id="sw-role">
           <input type="hidden" name="member_id" id="sw-member">
         </form>
-        <script>
+        <script nonce="<?= cspNonce() ?>">
           function switchRole(sel) {
             const [cid, role, memberId] = sel.value.split('|');
             document.getElementById('sw-community').value = cid;
@@ -172,7 +173,7 @@
       <?php endif; ?>
 
       <!-- Dark-Mode-Toggle -->
-      <button id="theme-toggle" onclick="toggleDark()" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
+      <button id="theme-toggle" data-onclick="toggleDark" title="Hell/Dunkel umschalten" class="theme-toggle-btn">
         <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
       </button>
 
@@ -198,7 +199,7 @@
         }
       ?>
       <div class="profile-menu" id="profile-menu">
-        <button onclick="toggleProfile(event)" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
+        <button data-onclick="toggleProfile" data-arg-0="@event" class="profile-btn" title="<?= htmlspecialchars($currentUserEmail ?: 'Konto') ?>">
           <span class="profile-avatar"><img src="<?= htmlspecialchars($navAvatarUrl) ?>" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;display:block"></span>
         </button>
         <div class="profile-dropdown" id="profile-dropdown">
@@ -446,7 +447,7 @@
 
 <script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
 <script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
-<script>
+<script nonce="<?= cspNonce() ?>">
 // ─── Sidebar toggle ───────────────────────────────────────────────
 const SIDEBAR_KEY = 'sidebarCollapsed';
 const sidebar = document.getElementById('sidebar');

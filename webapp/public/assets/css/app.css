@@ -1157,3 +1157,6 @@ footer {
 .dash-resize:focus-visible::after { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--primary, #16a34a); }
 .dash-widget.is-resizing { outline-style: solid !important; }
 @media (max-width: 900px) { .dash-resize { display: none !important; } .dash-hint-desktop { display: none; } }
+
+/* EDA-Upload-Fläche: Hover-Farbe per CSS statt Inline-Handler (CSP) */
+.upload-zone:hover { border-color: #16a34a !important; }
