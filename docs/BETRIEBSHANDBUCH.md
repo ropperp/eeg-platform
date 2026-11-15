@@ -1335,3 +1335,22 @@ docker compose up -d --build
 > `git revert` des Commits und `docker compose up -d --build webapp` (zurück auf 8.2).
 > Hinweis: Rechnungsbeträge sind durch `moneyRound()` unabhängig von der PHP-Version.
 
+> **Einmalig nach dem Update vom 16.11.2026 -- Messwerte gesammelt schreiben, Zusammenfassung,
+> Komprimierung**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> # Tabellen esp_15min + esp_rollup_state, TimescaleDB-Richtlinien (Meldungen LESEN, siehe unten). Idempotent.
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261116.sql
+> docker compose up -d --build mqtt-subscriber
+> sleep 60 && docker compose logs --tail=20 mqtt-subscriber       # keine Fehler "Sammel-Schreiben fehlgeschlagen"
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c "SELECT * FROM esp_rollup_state; SELECT count(*) FROM esp_15min;"
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c "SELECT hypertable_name, proc_name, schedule_interval FROM timescaledb_information.jobs WHERE hypertable_name = 'esp_measurements';"
+> ```
+> Die Migration meldet je Regel, ob sie gesetzt wurde: „Aufbewahrung: Rohdaten … nach 400 Tagen“ und
+> „Komprimierung: Chunks älter als 7 Tage“. Steht stattdessen „Komprimierung nicht aktiviert (bleibt wie
+> bisher): …“, hat diese TimescaleDB-Version die Komprimierung nicht erlaubt (vermutlich wegen
+> Row-Level-Security) -- dann ist nichts kaputt, nur nicht komprimiert; die Meldung bitte aufheben.
+> `esp_rollup_state.done_until` rückt bei jedem Lauf weiter (Nachholen: ein Tag je Sekunde).
+> Aufbewahrung ändern: `SELECT remove_retention_policy('esp_measurements'); SELECT add_retention_policy('esp_measurements', INTERVAL '800 days');`
+> Rückfall: `git revert` und `docker compose up -d --build mqtt-subscriber` (die Tabellen bleiben harmlos bestehen).
+
