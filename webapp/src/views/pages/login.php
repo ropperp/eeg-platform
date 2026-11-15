@@ -31,11 +31,22 @@ ob_start();
       </button>
     </form>
 
+    <div data-passkey-login-wrap hidden style="margin-top:1rem">
+      <div style="text-align:center;color:var(--gray-600);font-size:.8rem;margin-bottom:.5rem">oder</div>
+      <button type="button" class="btn" data-passkey-login data-csrf="<?= htmlspecialchars(csrfToken()) ?>"
+              style="width:100%;justify-content:center;padding:.65rem;border:1px solid var(--gray-300)">
+        <?= icon('key') ?> Mit Passkey anmelden
+      </button>
+      <p data-passkey-msg role="alert" style="font-size:.85rem;margin-top:.5rem;text-align:center"></p>
+    </div>
+
     <p style="text-align:center;margin-top:1rem;font-size:.875rem">
       <a href="/portal/forgot-password">Passwort vergessen?</a>
     </p>
   </div>
 </div>
+
+<script src="/assets/js/passkey.js" defer></script>
 
 <?php
 $content = ob_get_clean();

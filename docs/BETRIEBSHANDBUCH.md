@@ -1371,3 +1371,18 @@ docker compose up -d --build
 > z. B. `traefik:v3.6.1` eintragen. Mosquitto-Ports 1883/8883 sind bewusst unverändert (ESP32 im LAN);
 > sollen Geräte nur noch per TLS (8883) verbinden, ist 1883 in `docker-compose.yml` zu entfernen.
 > Rückfall: `git revert` und `docker compose up -d --build`.
+
+> **Einmalig nach dem Update vom 17.11.2026 -- Passkey-Anmeldung**:
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261117.sql   # Tabelle user_passkeys, idempotent
+> docker compose up -d --build webapp
+> ```
+> Danach im Profil (Passkeys) einen Passkey anlegen und mit „Mit Passkey anmelden“ testen. Voraussetzungen:
+> HTTPS (ist über den nginx-Proxy gegeben) und `DOMAIN=stromfueralle.at` in der `.env` -- daraus wird die
+> Passkey-Domain abgeleitet (gilt für portal./admin./www.). Wird die Plattform später über eine andere
+> Domain betrieben, funktionieren die bisherigen Passkeys dort nicht; Passwort-Anmeldung bleibt möglich.
+> Verlorenes Gerät: Passkey im Profil (nach Passwort-Anmeldung) entfernen. Notfall für einen einzelnen
+> Benutzer: `DELETE FROM user_passkeys WHERE user_id = '<id>';`. Rückfall: `git revert` -- die Tabelle bleibt
+> harmlos bestehen.
+

@@ -47,6 +47,14 @@ ob_start();
             <button type="submit" class="lg-btn">Anmelden <?= icon('arrow-right') ?></button>
           </form>
 
+          <div data-passkey-login-wrap hidden class="lg-passkey">
+            <div class="lg-or"><span>oder</span></div>
+            <button type="button" class="lg-btn lg-btn-ghost" data-passkey-login data-csrf="<?= htmlspecialchars(csrfToken()) ?>">
+              <?= icon('key') ?> Mit Passkey anmelden
+            </button>
+            <p data-passkey-msg role="alert" class="lg-alert-inline"></p>
+          </div>
+
           <p class="lg-switch">Noch keinen Zugang? <a href="#registrieren" data-flip="register">Registrieren</a></p>
         </section>
 
@@ -73,6 +81,7 @@ ob_start();
 <?php
 $authStage = ob_get_clean();
 $authScripts = <<<'JS'
+<script src="/assets/js/passkey.js" defer></script>
 <script>
 // Karte umdrehen (Anmelden <-> Registrieren), auch per #registrieren in der Adresse aufrufbar.
 (function () {

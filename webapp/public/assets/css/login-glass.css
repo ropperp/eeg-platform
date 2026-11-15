@@ -185,3 +185,16 @@
 .lg-card h1 .icon { width: 1.4rem; height: 1.4rem; vertical-align: -.15em; color: #7dd3fc; }
 .lg-field input.lg-code { padding: 0 1rem; text-align: center; letter-spacing: .45em; font-size: 1.45rem; font-weight: 700; }
 .lg-card .lg-btn + .lg-switch, .lg-alert + .lg-btn { margin-top: 1rem; }
+
+/* Passkey-Anmeldung (17.11.2026): zweiter, heller Rahmen-Knopf unter dem Passwort-Formular */
+.lg-passkey { margin-top: 1.1rem; }
+.lg-passkey[hidden] { display: none; }
+.lg-or { display: flex; align-items: center; gap: .75rem; color: #b9cde2; font-size: .82rem; margin-bottom: .9rem; }
+.lg-or::before, .lg-or::after { content: ""; flex: 1; height: 1px; background: rgba(148, 197, 255, .22); }
+.lg-btn.lg-btn-ghost {
+  background: rgba(148, 197, 255, .10); color: #e6f2ff !important; box-shadow: none;
+  border: 1px solid rgba(148, 197, 255, .38);
+}
+.lg-btn.lg-btn-ghost:hover { background: rgba(148, 197, 255, .18); }
+.lg-btn:disabled { opacity: .6; cursor: progress; transform: none; }
+.lg-alert-inline { margin: .6rem 0 0; font-size: .85rem; color: #fecaca; text-align: center; min-height: 1.2em; }
