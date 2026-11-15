@@ -44,7 +44,7 @@ function wa_clientdata(string $type, string $challenge, string $origin = 'https:
     return json_encode(['type' => $type, 'challenge' => $challenge, 'origin' => $origin, 'crossOrigin' => false]);
 }
 
-function wa_register(array $k, string $challenge, string $rpId = 'stromfueralle.at', int $flags = 0x45, string $credId = null, string $origin = 'https://portal.stromfueralle.at'): array
+function wa_register(array $k, string $challenge, string $rpId = 'stromfueralle.at', int $flags = 0x45, ?string $credId = null, string $origin = 'https://portal.stromfueralle.at'): array
 {
     $credId ??= random_bytes(32);
     $authData = hash('sha256', $rpId, true) . chr($flags) . pack('N', 0)
@@ -146,7 +146,7 @@ test('WebAuthn Anmeldung: fremder Schlüssel, veränderte Daten, falsche Challen
     $reg = wa_register($k, $ch);
     $pem = WebAuthn::verifyRegistration($reg['clientDataJSON'], $reg['attestationObject'], $ch, 'stromfueralle.at')['publicKeyPem'];
 
-    $v = fn(array $a, int $stored = 0, string $challenge = null, string $rp = 'stromfueralle.at') =>
+    $v = fn(array $a, int $stored = 0, ?string $challenge = null, string $rp = 'stromfueralle.at') =>
         WebAuthn::verifyAssertion($a['clientDataJSON'], $a['authenticatorData'], $a['signature'], $pem, $stored, $challenge ?? $ch, $rp);
 
     assertSame(1, $v(wa_assert($k, $ch, 1)));

@@ -99,6 +99,9 @@ von `index.php` stehen (sonst „Class not found“ erst beim ersten Aufruf).
 **Fehler/Lehre:** Versehentlich einen eigenen Branch (`claude/php84-crypto`) gepusht, obwohl nur der
 vorgegebene Arbeits-Branch erlaubt ist; Inhalt auf den erlaubten Branch übernommen, der Remote-Branch
 bleibt bis zur Freigabe zum Löschen bestehen.
+**Fehler/Lehre:** Die CI auf PHP 8.4 (Deprecations = Fehler) lehnte meinen neuen Passkey-Test ab: `string $x = null`
+ist ab 8.4 veraltet (`?string $x = null` schreiben). Ich hatte die drei PRs gemerged, bevor die CI lief -- lokal
+läuft nur PHP 8.3, der Fehler zeigte sich deshalb nur dort. Nach dem Merge den CI-Lauf auf `main` immer prüfen.
 
 ## 2026-11-08 00:10 — Claude Code — Claude Opus 5.5
 **Auftrag:** Strukturierter Auftrag (Datei, Stand 07.11.2026) zu Rechtsdokumenten und
