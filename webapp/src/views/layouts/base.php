@@ -11,8 +11,8 @@
   // keine Seite diese Tags komplett vergisst. $pageCanonical ohne Query-String (z.B. ?success=...
   // nach einem Formular-Submit soll nicht als eigene, separat indexierbare URL gelten).
   $pageDescription = $pageDescription ?? 'Strom für alle -- die Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung und Echtzeit-Energiedaten.';
-  $pageCanonical = $pageCanonical ?? ('https://stromfueralle.at' . strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
-  $pageOgImage = $pageOgImage ?? 'https://stromfueralle.at/assets/images/og-image.png';
+  $pageCanonical = $pageCanonical ?? (AppConfig::get()->marketingBaseUrl() . strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
+  $pageOgImage = $pageOgImage ?? AppConfig::get()->marketingBaseUrl() . '/assets/images/og-image.png';
   ?>
   <meta name="description" content="<?= htmlspecialchars($pageDescription) ?>">
   <link rel="canonical" href="<?= htmlspecialchars($pageCanonical) ?>">

@@ -141,7 +141,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
     <div class="grid-2">
       <div class="form-group">
         <label>Broker-Domain / IP</label>
-        <input type="text" name="device_mqtt_host" value="<?= htmlspecialchars($mqttConfig['device_reconfig_payload']['mqtt_host'] ?? 'stromfueralle.at') ?>">
+        <input type="text" name="device_mqtt_host" value="<?= htmlspecialchars($mqttConfig['device_reconfig_payload']['mqtt_host'] ?? AppConfig::get()->domain) ?>">
       </div>
       <div class="form-group">
         <label>Port</label>
@@ -256,7 +256,7 @@ function suggestMqttPassword() {
       </div>
       <div class="form-group">
         <label>Neues Support-Ticket an</label>
-        <input type="email" name="support_notification_email" value="<?= htmlspecialchars($mailConfig['support_notification_email'] ?? 'office@stromfueralle.at') ?>" placeholder="office@stromfueralle.at">
+        <input type="email" name="support_notification_email" value="<?= htmlspecialchars($mailConfig['support_notification_email'] ?? AppConfig::get()->contactEmail) ?>" placeholder="office@stromfueralle.at">
         <small style="color:var(--gray-600)">Meldet ein Mitglied ein Problem oder einen Feature-Vorschlag über „Support" im Mitgliederportal, geht eine kurze Benachrichtigung an diese Adresse.</small>
       </div>
     </div>
@@ -343,7 +343,7 @@ function suggestMqttPassword() {
     anrede: 'Sehr geehrter Herr',
     nachname: 'Mustermann',
     eeg_name: 'EEG Strompool Feldkirchen Süd-West',
-    link: 'https://portal.stromfueralle.at/portal/login',
+    link: <?= json_encode(AppConfig::get()->portalBaseUrl() . '/portal/login', JSON_UNESCAPED_SLASHES) ?>,
     gueltigkeit: '24 Stunden',
     hinweis: '<p style="color:#b45309"><em>Hinweis: Eine zuvor gesendete Fassung wird damit ungültig.</em></p>',
     rechnungsnummer: 'RC108175-2026-Q1-001',

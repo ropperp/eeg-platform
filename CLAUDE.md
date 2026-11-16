@@ -123,6 +123,10 @@ nötig (Traefik macht kein Let's Encrypt mehr).
 | `APP_DB_USER` (`eeg_app`) | Webapp | nur Daten, **RLS greift**; in Produktion Pflicht |
 | `WORKER_DB_USER` (`eeg_worker`) | mqtt-subscriber, EDA-Parser | nur Daten, `BYPASSRLS`, kein Superuser |
 
+Domain, Portal-Host, öffentliche URLs und Kontakt-Rückfall kommen aus `webapp/src/AppConfig.php`
+(`DOMAIN`, optional `PORTAL_HOST`/`CONTACT_EMAIL`) -- keine neuen fest codierten `stromfueralle.at` im Code.
+Fehlerseite zeigt nur eine Fehlernummer (Log: `grep <nummer>`), Details nur mit `APP_DEBUG=1`.
+
 `APP_ENV` (Standard `production`): ohne `APP_DB_USER` startet die Webapp nicht, der Healthcheck
 (`webapp/bin/db_role_check.php`) meldet eine falsch privilegierte Rolle als `unhealthy`. Lokal setzt
 `docker-compose.override.yml` `APP_ENV=development`.

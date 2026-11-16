@@ -8,7 +8,7 @@ define('ROOT', dirname(__DIR__));
 // dass die ini-Datei geladen wurde (Zeitzonen-Vorfall 07.11.2026, siehe fmtVienna()).
 date_default_timezone_set('Europe/Vienna');
 
-foreach (['DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push', 'WebAuthn'] as $class) {
+foreach (['AppConfig', 'DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push', 'WebAuthn'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }
 // Reine Hilfsfunktionen (validateIban, texEscape, rechnung*Latex ...) -- ausgelagert, damit
@@ -21,14 +21,12 @@ sendCspHeader(); // vor jeder Ausgabe; Routen mit eigener Policy (Dateiausliefer
 Auth::start();
 
 /**
- * Sicherheitsnetz gegen rohe 500er ohne jede Auskunft: bisher fing z.B. der Datei-Upload
- * nur PDOException gezielt ab -- ein TypeError/Error o.ä. (etwa durch eine unerwartete
- * Alt-Spalte oder einen Tippfehler) lief unkontrolliert durch und endete als nichtssagender
- * nginx-Standard-500er. Jetzt wird jeder unbehandelte Fehler serverseitig geloggt (docker
- * compose logs webapp) und angemeldeten Nutzern wenigstens die Fehlermeldung angezeigt,
- * damit der Fehler überhaupt reproduzier-/meldbar wird.
+ * Sicherheitsnetz gegen rohe 500er ohne jede Auskunft: jeder unbehandelte Fehler wird
+ * serverseitig mit einer kurzen Fehlernummer geloggt (docker compose logs webapp | grep <nummer>),
+ * die Seite zeigt nur diese Nummer. Die Fehlermeldung selbst kann SQL, Pfade oder Daten enthalten
+ * und erscheint deshalb nur bei APP_ENV=development oder ausdrücklich gesetztem APP_DEBUG=1.
  */
-function renderFatalErrorPage(string $message): void
+function renderFatalErrorPage(string $message, string $ref): void
 {
     if (headers_sent()) { return; }
     http_response_code(500);
@@ -36,22 +34,26 @@ function renderFatalErrorPage(string $message): void
     echo '<!doctype html><meta charset="utf-8"><title>Fehler</title>';
     echo '<div style="font-family:sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem">';
     echo '<h2>Es ist ein unerwarteter Fehler aufgetreten.</h2>';
-    if (Auth::check()) {
+    echo '<p style="color:#6b7280;font-size:.9rem">Fehlernummer: <code>' . htmlspecialchars($ref) . '</code>'
+        . ' &ndash; bitte bei einer Rückfrage angeben.</p>';
+    if (!AppConfig::get()->production || getenv('APP_DEBUG') === '1') {
         echo '<p style="color:#6b7280;font-size:.9rem">Technische Details: <code>' . htmlspecialchars($message) . '</code></p>';
     }
     echo '<p><a href="/">Zur Startseite</a></p></div>';
 }
 
 set_exception_handler(function (\Throwable $e) {
-    error_log('[unhandled] ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-    renderFatalErrorPage($e->getMessage());
+    $ref = bin2hex(random_bytes(4));
+    error_log('[unhandled ' . $ref . '] ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    renderFatalErrorPage($e->getMessage(), $ref);
 });
 
 register_shutdown_function(function () {
     $err = error_get_last();
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-        error_log('[fatal] ' . $err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
-        renderFatalErrorPage($err['message']);
+        $ref = bin2hex(random_bytes(4));
+        error_log('[fatal ' . $ref . '] ' . $err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
+        renderFatalErrorPage($err['message'], $ref);
     }
 });
 
@@ -66,8 +68,7 @@ register_shutdown_function(function () {
  */
 function portalUrl(string $path): string
 {
-    $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-    return $host === 'portal.stromfueralle.at' ? $path : 'https://portal.stromfueralle.at' . $path;
+    return AppConfig::get()->portalUrl($path, (string)($_SERVER['HTTP_HOST'] ?? ''));
 }
 
 /**
@@ -76,8 +77,7 @@ function portalUrl(string $path): string
  */
 function marketingUrl(string $path): string
 {
-    $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-    return $host === 'stromfueralle.at' || $host === 'www.stromfueralle.at' ? $path : 'https://stromfueralle.at' . $path;
+    return AppConfig::get()->marketingUrl($path, (string)($_SERVER['HTTP_HOST'] ?? ''));
 }
 
 /**
@@ -87,7 +87,7 @@ function marketingUrl(string $path): string
  */
 function passwordResetLink(string $token): string
 {
-    return 'https://portal.stromfueralle.at/portal/reset-password?token=' . urlencode($token);
+    return AppConfig::get()->portalBaseUrl() . '/portal/reset-password?token=' . urlencode($token);
 }
 
 /**
@@ -1343,12 +1343,12 @@ $isBackofficePath = str_starts_with($requestPath, '/portal') || str_starts_with(
 // ab, bevor diese Weiterleitungslogik überhaupt lief).
 $isSharedAsset = $requestPath === '/logo-light.png' || $requestPath === '/logo-dark.png';
 
-if ($requestHost === 'portal.stromfueralle.at' && !$isBackofficePath && !$isSharedAsset) {
-    header('Location: https://stromfueralle.at' . $_SERVER['REQUEST_URI']);
+if (AppConfig::get()->isPortalHost($requestHost) && !$isBackofficePath && !$isSharedAsset) {
+    header('Location: ' . AppConfig::get()->marketingBaseUrl() . $_SERVER['REQUEST_URI']);
     exit;
 }
-if (in_array($requestHost, ['stromfueralle.at', 'www.stromfueralle.at'], true) && $isBackofficePath) {
-    header('Location: https://portal.stromfueralle.at' . $_SERVER['REQUEST_URI']);
+if (AppConfig::get()->isMarketingHost($requestHost) && $isBackofficePath) {
+    header('Location: ' . AppConfig::get()->portalBaseUrl() . $_SERVER['REQUEST_URI']);
     exit;
 }
 
@@ -1638,7 +1638,7 @@ function handleContactForm(string $back, string $to, string $recipientLabel, arr
 
 /** Plattform-Kontaktformular (/kontakt) -- geht an den Plattformbetreiber, nicht an eine EEG. */
 $router->post('/kontakt', function () {
-    handleContactForm('/kontakt', 'office@stromfueralle.at', 'der Plattform „Strom für alle“', contactFormTopics(true));
+    handleContactForm('/kontakt', AppConfig::get()->contactEmail, 'der Plattform „Strom für alle“', contactFormTopics(true));
 });
 
 /** Kontaktformular einer EEG -- an deren Kontakt-E-Mail (Einstellungen), sonst office@stromfueralle.at. */
@@ -1647,7 +1647,7 @@ $router->post('/:communityid/kontakt', function ($params) {
     if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
     handleContactForm(
         '/' . strtolower($community['marktpartner_id']) . '/kontakt',
-        trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at',
+        trim((string)($community['contact_email'] ?? '')) ?: AppConfig::get()->contactEmail,
         'der ' . $community['name'],
         contactFormTopics(false)
     );
@@ -3516,7 +3516,7 @@ function notifySupportTicketCreated(string $ticketId, array $member, string $sub
 {
     try {
         $to = DB::fetchOne('SELECT support_notification_email FROM platform_mail_config WHERE id = 1')['support_notification_email']
-            ?? 'office@stromfueralle.at';
+            ?? AppConfig::get()->contactEmail;
         $community = DB::fetchOne('SELECT name FROM communities WHERE id = ?', [$member['community_id']]);
         $categoryLabel = $category === 'feature' ? 'Feature-Vorschlag' : 'Problem/Frage';
         $body = '<p>Neues Support-Ticket in „' . htmlspecialchars($community['name'] ?? '') . '":</p>'
@@ -5741,8 +5741,8 @@ $router->post('/api/v1/admin/settings/mail', function () {
         return array_key_exists($key, $body) ? (trim((string)$body[$key]) ?: null) : ($current[$key] ?? null);
     };
     $supportEmail = array_key_exists('support_notification_email', $body)
-        ? (trim((string)$body['support_notification_email']) ?: 'office@stromfueralle.at')
-        : ($current['support_notification_email'] ?? 'office@stromfueralle.at');
+        ? (trim((string)$body['support_notification_email']) ?: AppConfig::get()->contactEmail)
+        : ($current['support_notification_email'] ?? AppConfig::get()->contactEmail);
 
     DB::execute(
         'UPDATE platform_mail_config
@@ -6990,7 +6990,7 @@ function bezugsvereinbarungVars(array $member, array $community, ?array $tariff,
         // ?? statt ?: -- ein direkter Array-Zugriff auf einen fehlenden Key (z.B. Spalte noch
         // nicht migriert) erzeugt bei ?: trotzdem eine "Undefined array key"-Warning, die den
         // PDF-Response zerstört (Output vor den header()-Aufrufen). ?? liest den Key sicher aus.
-        'EEG_DASHBOARD_URL'         => ($community['dashboard_url'] ?? null) ?: 'https://portal.stromfueralle.at/portal/login',
+        'EEG_DASHBOARD_URL'         => ($community['dashboard_url'] ?? null) ?: AppConfig::get()->portalBaseUrl() . '/portal/login',
         'RAW_EEG_UNTERSCHRIFT_BILD' => $signature['var'],
         'RAW_MITGLIED_UNTERSCHRIFT_BILD' => $memberSignature['var'],
         'RAW_MITGLIED_ORT_DATUM'    => memberOrtDatumLine($member, 'bezug'),
@@ -10734,7 +10734,7 @@ $router->get('/admin/log/export', function () {
         $params
     );
     $esc = fn($s) => str_replace(['|', "\r", "\n"], ['\\|', '', ' '], (string)$s);
-    $md  = "# Audit-Log – stromfueralle.at\n\n";
+    $md  = "# Audit-Log – " . AppConfig::get()->domain . "\n\n";
     $md .= 'Exportiert am ' . date('d.m.Y H:i') . ' · ' . count($entries) . " Einträge"
          . ($filterCommunity !== '' ? ' · gefiltert nach einer EEG' : '') . "\n\n";
     $md .= "| Datum/Zeit | Benutzer | EEG | Aktion | Objekt | Beschreibung | Fehler |\n";
@@ -11002,8 +11002,8 @@ $router->post('/admin/mail-settings', function () {
         return isset($_POST[$key]) ? (trim($_POST[$key]) ?: null) : ($current[$key] ?? null);
     };
     $supportEmail = isset($_POST['support_notification_email'])
-        ? (trim($_POST['support_notification_email']) ?: 'office@stromfueralle.at')
-        : ($current['support_notification_email'] ?? 'office@stromfueralle.at');
+        ? (trim($_POST['support_notification_email']) ?: AppConfig::get()->contactEmail)
+        : ($current['support_notification_email'] ?? AppConfig::get()->contactEmail);
 
     DB::execute(
         'UPDATE platform_mail_config
@@ -11088,7 +11088,7 @@ $router->post('/admin/mail-settings/test', function () {
         return;
     }
     try {
-        Mailer::send($to, 'Test-E-Mail von Strom für alle', '<p>Das ist eine Test-E-Mail aus dem Platform-Admin-Bereich von stromfueralle.at.</p><p>Wenn Sie das lesen, funktioniert der Microsoft-Graph-Mailversand.</p>');
+        Mailer::send($to, 'Test-E-Mail von Strom für alle', '<p>Das ist eine Test-E-Mail aus dem Platform-Admin-Bereich von ' . htmlspecialchars(AppConfig::get()->domain) . '.</p><p>Wenn Sie das lesen, funktioniert der Microsoft-Graph-Mailversand.</p>');
         $testSuccess = 'Test-E-Mail an ' . htmlspecialchars($to) . ' wurde verschickt.';
     } catch (\Throwable $e) {
         $testError = $e->getMessage();
@@ -11264,7 +11264,7 @@ function adminFileVariables(): array
             'EEG_ZVR' => 'ZVR-Zahl der Energiegemeinschaft',
             'EEG_RC' => 'RC-Nummer ohne "RC"-Präfix (z.B. 108175)',
             'EEG_ADRESSE' => 'Adresse/Sitz der Energiegemeinschaft',
-            'KONTAKT_EMAIL' => 'Kontakt-E-Mail (Fallback office@stromfueralle.at)',
+            'KONTAKT_EMAIL' => 'Kontakt-E-Mail (Fallback ' . AppConfig::get()->contactEmail . ')',
             'RAW_KONTAKT' => 'Kontaktzeile E-Mail + Telefon (RAW, nicht escapen)',
             'RAW_SEPA_TEXT' => 'Wortlaut des SEPA-Mandats aus consent_texts.php (RAW, nicht escapen)',
             'RAW_ZUSTIMMUNGEN_LISTE' => 'Langfassung der sechs Zustimmungen aus consent_texts.php (RAW, nicht escapen)',

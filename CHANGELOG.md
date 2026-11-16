@@ -19,6 +19,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Zentrale Konfiguration und Fehlerseite ohne technische Details (16.11.2026)
+- **`webapp/src/AppConfig.php`** ist die einzige Quelle für Hauptdomain, Portal-Host, öffentliche URLs,
+  Session-Cookie-Domain und Kontakt-Rückfalladresse (aus `DOMAIN`, optional `PORTAL_HOST`/`CONTACT_EMAIL`).
+  `portalUrl()`, `marketingUrl()`, Passwort-Reset-Link, Domain-Weiterleitungen, Canonical-/OG-URLs und
+  sieben `office@…`-Rückfälle nutzen sie. Mit `DOMAIN=stromfueralle.at` unverändertes Verhalten; mit
+  `DOMAIN=localhost` keine Domain-Trennung (lokale Entwicklung). Cookie-Domain prüft jetzt exakt
+  (`evilstromfueralle.at` bekam vorher ebenfalls `.stromfueralle.at`). Rechts- und Zustimmungstexte
+  bleiben bewusst unverändert (versionierte Fassungen).
+- **Fehlerseite:** zeigt nur noch eine Fehlernummer, die auch im Log steht (`docker compose logs webapp |
+  grep <nummer>`). Die rohe Meldung (SQL, Pfade) bekamen vorher alle angemeldeten Nutzer; jetzt nur mit
+  `APP_ENV=development` oder `APP_DEBUG=1`.
+
 ### Mandantentrennung erzwungen, eigenes DB-Dienstkonto, gzip/Cache korrigiert, CI ausgebaut (16.11.2026)
 - **RLS in Produktion Pflicht:** neues `APP_ENV` (Standard `production`). Ohne `APP_DB_USER`/`APP_DB_PASSWORD`
   bricht die Webapp mit klarer Meldung ab, statt still als Superuser `DB_USER` zu verbinden (RLS wäre dann

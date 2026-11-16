@@ -27,9 +27,9 @@ $extraHead = ($extraHead ?? '') . '
   "@type": "Organization",
   "name": "Strom für alle",
   "alternateName": "EEG Strompool Feldkirchen Süd-West",
-  "url": "https://stromfueralle.at/",
-  "logo": "https://stromfueralle.at/logo-light.png",
-  "email": "office@stromfueralle.at",
+  "url": ' . json_encode(AppConfig::get()->marketingBaseUrl() . '/', JSON_UNESCAPED_SLASHES) . ',
+  "logo": ' . json_encode(AppConfig::get()->marketingBaseUrl() . '/logo-light.png', JSON_UNESCAPED_SLASHES) . ',
+  "email": ' . json_encode(AppConfig::get()->contactEmail) . ',
   "description": "Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung, Echtzeit-Energiedaten.",
   "areaServed": "AT"
 }

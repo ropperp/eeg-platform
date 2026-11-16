@@ -205,6 +205,11 @@ Migrationen/Backup). Die Webapp verbindet als `eeg_app` (nur Daten, Row-Level Se
 mqtt-subscriber und der EDA-Parser als `eeg_worker` (nur Daten, `BYPASSRLS`, kein Superuser). Der
 Webapp-Healthcheck (`webapp/bin/db_role_check.php`) meldet `unhealthy`, wenn die Rolle zu viele Rechte hat.
 
+**Zentrale Konfiguration (seit 16.11.2026):** Domain, Portal-Host, öffentliche Links und
+Kontakt-Rückfalladresse kommen aus `webapp/src/AppConfig.php` (aus `DOMAIN`, optional `PORTAL_HOST`/
+`CONTACT_EMAIL`). Die Fehlerseite zeigt nur eine Fehlernummer; Details stehen im Log
+(`docker compose logs webapp | grep <nummer>`) oder mit `APP_DEBUG=1` auf der Seite.
+
 **Assets und Caching:** Skripte/Styles immer über `assetUrl('/assets/…')` einbinden (`?v=<mtime>`); nur
 versionierte Assets cached nginx ein Jahr als `immutable`. Security-Header stehen in
 `webapp/docker/security-headers.conf`. Dynamisches HTML/JSON wird nie gzip-komprimiert (BREACH).

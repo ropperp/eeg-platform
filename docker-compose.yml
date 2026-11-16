@@ -284,6 +284,12 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       DOMAIN: ${DOMAIN}
+      # Optional, Standard aus DOMAIN abgeleitet (webapp/src/AppConfig.php): Portal-Host
+      # (portal.<DOMAIN>) und Rückfall-Kontaktadresse (office@<DOMAIN>).
+      PORTAL_HOST: ${PORTAL_HOST:-}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+      # Nur zur Fehlersuche: 1 zeigt technische Details auf der Fehlerseite (sonst nur Fehlernummer).
+      APP_DEBUG: ${APP_DEBUG:-}
       # Derselbe nginx-Proxy, dem Traefik oben vertraut -- clientIp() (functions.php)
       # überspringt ihn beim Auslesen von X-Forwarded-For.
       TRUSTED_PROXY_IP: ${TRUSTED_PROXY_IP:-10.0.0.144}
