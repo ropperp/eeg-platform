@@ -8,6 +8,29 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-16 15:00 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
+**Auftrag:** Einen extern erstellten Umsetzungsauftrag (Robustheit, Wartbarkeit, Ressourcen) Paket für
+Paket umsetzen, ohne den Stack zu wechseln; danach Server-Befehle liefern und mit EDA-Worker und
+Integrationstests weitermachen.
+**Verbesserter Prompt:** "Setze die Arbeitspakete aus docs-Auftrag der Reihe nach als kleine, getestete
+Commits um (RLS-Pflicht + DB-Dienstkonto, gzip/Cache-Header, CI mit PHPStan und echten DB-Tests, zentrale
+Konfiguration, Routen auslagern + einen Fachbereich als Controller/Service/Repository, seitenweises JS,
+responsive Bilder, Image-Pinning). Weise für jeden Umbau per Vorher/Nachher-Vergleich gegen eine echte DB
+nach, dass sich nichts ändert, und liefere die Server-Befehle in Ausführungsreihenfolge."
+**Ergebnis:** PR #296 (Squash nach main): `APP_ENV`/Rollenprüfung im Healthcheck, Dienstkonto `eeg_worker`
+statt Superuser für mqtt-subscriber/EDA-Parser, nginx ohne gzip für PHP (komprimierte vorher HTML),
+`immutable` nur mit `?v=`, Security-Header auch auf statischen Dateien, `AppConfig`, Fehlerseite mit
+Fehlernummer, Routen in `webapp/routes/` (index.php 11.907 → 1.363 Zeilen), Support-Tickets als
+Controller/Service/Repository mit Composer-PSR-4, `docs/ARCHITEKTUR.md` + 5 ADRs, Skripte nur bei Bedarf,
+WebP-Hero (Handy 60 statt 380 KB), Images mit Digest, Dependabot. CI: static/integration/http-Jobs.
+Nachgewiesen mit 353 Unit-, 10 Integrationstests, Vorher/Nachher-Vergleich von 105 Seiten und allen
+Support-Abläufen sowie Playwright-Browsertest aller Rollen. Offen: EDA-Worker, weitere Integrationstests,
+500er für Platform-Admin ohne aktive EEG auf Manager-Seiten.
+**Fehler/Lehre:** Eine Excel-Sperrdatei (`~$…xlsx`) wurde durch `git add -A docs` mitcommittet; per
+Folge-Commit entfernt und per Squash gemergt, `~$*` steht jetzt in `.gitignore`. Lehre: nur gezielte Pfade
+stagen und vor dem Commit `git status` lesen. Force-Push ist (zu Recht) gesperrt.
+
+
 ## 2026-11-13 21:40 — Claude Code — Claude Opus 5.5
 **Auftrag:** Ein Dashboard-Design aus einem Instagram-Video (Glas-Optik) für die Plattform
 nachbauen, als Plattform-Admin-Einstellung zum Umschalten zwischen neuem Look und bisherigem
