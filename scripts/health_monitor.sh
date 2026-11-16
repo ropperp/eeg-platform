@@ -16,7 +16,7 @@
 set -uo pipefail
 
 REPO_DIR="${EEG_REPO_DIR:-/opt/eeg-platform}"
-SERVICES="${EEG_SERVICES:-traefik timescaledb redis mosquitto mqtt-subscriber webapp latex-service}"
+SERVICES="${EEG_SERVICES:-traefik timescaledb redis mosquitto mqtt-subscriber eda-worker webapp latex-service}"
 STAMP_DIR="${EEG_HEALTH_STAMP_DIR:-/opt/eeg/health-monitor}"
 COOLDOWN_SECONDS="${EEG_HEALTH_COOLDOWN:-21600}"   # 6 h
 HOST="$(hostname)"

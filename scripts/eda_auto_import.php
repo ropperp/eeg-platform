@@ -7,7 +7,8 @@ declare(strict_types=1);
  * Exportdateien automatisch (siehe EdaAutoImporter.php für die eigentliche Logik/Annahmen).
  *
  * Aufruf identisch zu scripts/health_alert.php -- vom Host per Cron, Ausführung IM
- * webapp-Container (dort liegen eda-parser/ und die DB-Zugangsdaten):
+ * webapp-Container (DB-Zugang); den eigentlichen Import erledigt seit 16.11.2026 der Container
+ * eda-worker, dieses Skript wartet auf dessen Ergebnis:
  *   docker compose exec -T webapp php < scripts/eda_auto_import.php
  *
  * Alle 5 Minuten (Patrick, 14.11.2026: "Vielleicht machen wir das bitte doch alle 5 Minuten";
@@ -23,6 +24,8 @@ declare(strict_types=1);
 
 if (!defined('STDERR')) { define('STDERR', fopen('php://stderr', 'w')); }
 
+require '/var/www/html/src/autoload.php';
+require '/var/www/html/src/AppConfig.php';
 require '/var/www/html/src/functions.php';
 require '/var/www/html/src/DB.php';
 require '/var/www/html/src/Mailer.php';

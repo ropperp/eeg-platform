@@ -5,6 +5,7 @@ name: CI
 #   static       PHPStan, docker compose config, Shell-Syntax
 #   integration  echte TimescaleDB: RLS-Mandantentrennung (tests/integration) + Python-Messwertpuffer
 #   http         Webapp-Image bauen, HTTP-Header prüfen (gzip/BREACH, Cache, Security-Header)
+#   e2e          ganzer Stack: Anmeldung, Rechte, Mandantentrennung, App-API, EDA-Import über den Worker
 on:
   push:
     branches: [main]
@@ -72,7 +73,7 @@ jobs:
           docker compose config --quiet
 
       - name: Shell-Skripte (bash -n)
-        run: for f in scripts/*.sh tests/integration/*.sh tests/http/*.sh; do bash -n "$f" || exit 1; done
+        run: for f in scripts/*.sh tests/integration/*.sh tests/http/*.sh tests/e2e/*.sh; do bash -n "$f" || exit 1; done
 
   integration:
     runs-on: ubuntu-latest
@@ -120,14 +121,26 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Python-Test Messwertpuffer (als Dienstkonto eeg_worker, wie in Produktion)
+      - name: Python-Tests Messwertpuffer und EDA-Worker (als Dienstkonto eeg_worker, wie in Produktion)
         env:
           DB_HOST: localhost
           DB_USER: eeg_worker
           DB_PASSWORD: worker
+        # Nacheinander installieren: beide Dienste pinnen eigene Versionen (eigene Container).
         run: |
           pip install -q -r mqtt-subscriber/requirements.txt
           python tests/python/test_measurement_buffer.py
+          pip install -q -r eda-parser/requirements.txt
+          python tests/python/test_eda_worker.py
+
+  e2e:
+    # Ganzer Stack in Docker (Webapp, eda-worker, TimescaleDB, Redis): Login/2FA/CSRF, Rollen,
+    # Mandantentrennung per HTTP, App-API, EDA-Upload über den Worker (tests/e2e/).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: End-to-End-Abläufe
+        run: bash tests/e2e/run.sh
 
   http:
     runs-on: ubuntu-latest

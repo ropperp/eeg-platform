@@ -248,6 +248,47 @@ services:
       - eeg-net
 
   # ─────────────────────────────────────────
+  # EDA-Worker — Netzbetreiber-Dateien importieren (Jobs aus eda_import_jobs)
+  # Eigener Container seit 16.11.2026 (docs/adr/0005-eda-import-als-worker.md): ein großer Import
+  # blockiert keine Web-Anfrage mehr, und das Webapp-Image braucht kein Python/pandas.
+  # ─────────────────────────────────────────
+  eda-worker:
+    build: ./eda-parser
+    container_name: eda-worker
+    restart: always
+    logging: *default-logging
+    # Gleiche UID wie PHP (www-data, 82): liest die von der Webapp gespeicherten Uploads.
+    user: "82:82"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      # Dienstkonto (BYPASSRLS, kein Superuser) wie mqtt-subscriber; Rückfall DB_USER.
+      DB_USER: ${WORKER_DB_USER:-${DB_USER}}
+      DB_PASSWORD: ${WORKER_DB_PASSWORD:-${DB_PASSWORD}}
+    volumes:
+      # Nur lesend: der Worker liest die hochgeladenen bzw. abgeholten Dateien, schreibt nur in die DB.
+      - /opt/eeg/webapp-storage:/var/www/html/storage:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if os.path.exists('/tmp/eda_worker_healthy') and time.time()-os.path.getmtime('/tmp/eda_worker_healthy')<90 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
   # Webapplikation — nginx + PHP 8.4
   # ─────────────────────────────────────────
   webapp:
@@ -267,11 +308,6 @@ services:
       APP_ENV: ${APP_ENV:-production}
       APP_DB_USER: ${APP_DB_USER:-}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
-      # Nur für den EDA-Parser, den die Webapp als Unterprozess startet (EdaParserRunner.php):
-      # dasselbe Dienstkonto wie mqtt-subscriber. Bewusst nicht der Superuser DB_USER, sobald
-      # WORKER_DB_USER eingerichtet ist.
-      DB_USER: ${WORKER_DB_USER:-${DB_USER}}
-      DB_PASSWORD: ${WORKER_DB_PASSWORD:-${DB_PASSWORD}}
       DB_NAME: ${DB_NAME}
       REDIS_HOST: redis
       REDIS_PORT: 6379

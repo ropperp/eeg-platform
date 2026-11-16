@@ -94,13 +94,13 @@ $COMPOSE exec -T timescaledb psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1
 echo "✓ Rolle und Grants eingerichtet."
 
 echo ""
-echo "Starte webapp und mqtt-subscriber neu, damit sie mit den neuen Rollen verbinden..."
-$COMPOSE up -d --force-recreate webapp mqtt-subscriber
+echo "Starte webapp, mqtt-subscriber und eda-worker neu, damit sie mit den neuen Rollen verbinden..."
+$COMPOSE up -d --force-recreate webapp mqtt-subscriber eda-worker
 
 echo ""
 echo "─────────────────────────────────────────────────────────────"
 echo "Fertig. Die Webapp verbindet ab sofort als '${APP_DB_USER}' -- diese Rolle besitzt keine"
 echo "Tabellen, die Row-Level-Security-Policies greifen jetzt tatsächlich. DB_USER (${DB_USER})"
-echo "bleibt unverändert Schema-Besitzer für Migrationen. mqtt-subscriber und EDA-Parser verbinden"
+echo "bleibt unverändert Schema-Besitzer für Migrationen. mqtt-subscriber und eda-worker verbinden"
 echo "als '${WORKER_DB_USER}' (BYPASSRLS, aber kein Superuser)."
 echo "─────────────────────────────────────────────────────────────"

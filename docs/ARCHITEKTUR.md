@@ -10,7 +10,7 @@ Browser / App ──HTTPS──► nginx-Proxy (TLS) ──► Traefik ──►
                                                               │  eeg_app (RLS)
 ESP32 ──MQTT──► Mosquitto ──► mqtt-subscriber ──eeg_worker──► │
                                                               ▼
-EDA-Datei (Upload/Postfach) ──► EDA-Parser ──eeg_worker──► PostgreSQL + TimescaleDB
+EDA-Datei (Upload/Postfach) ──► webapp legt Job an ──► eda-worker ──eeg_worker──► PostgreSQL + TimescaleDB
                                                               ▲
 webapp ──HTTP (API-Key)──► latex-service (PDF) ──────────────┘ (keine DB)
 ```
@@ -19,7 +19,7 @@ webapp ──HTTP (API-Key)──► latex-service (PDF) ───────�
 |---|---|---|
 | webapp | Web-Portal, Admin, öffentliche Seiten, App-API | `eeg_app`: nur Daten, RLS je Community |
 | mqtt-subscriber | Live-Messwerte, Geräte-Konfiguration, Messe-Demo | `eeg_worker`: BYPASSRLS, kein Superuser |
-| EDA-Parser | Netzbetreiber-Daten (Abrechnungsgrundlage) | `eeg_worker` |
+| eda-worker | Netzbetreiber-Daten (Abrechnungsgrundlage), Jobs aus `eda_import_jobs` | `eeg_worker` |
 | latex-service | rechtlich formatierte PDFs (Verträge, Rechnungen) | keine |
 | timescaledb | Geschäfts- und Zeitreihendaten | `eeg`: Superuser, nur Migrationen/Backup |
 
@@ -63,6 +63,7 @@ liegt noch als Closures in `routes/*.php` und wird nur bei Berührung umgezogen 
 | Befehl | Prüft |
 |---|---|
 | `make test` | Unit-Tests ohne Datenbank (auch Templates statisch: CSP, Zustimmungstexte) |
+| `make test-e2e` | ganzer Stack in Docker: Login/2FA/CSRF, Rollen, Mandantentrennung, App-API, EDA-Import über den Worker |
 | `make test-integration` | Schema + alle Migrationen in Wegwerf-TimescaleDB, RLS-Trennung, Repositories, Python-Puffer |
 | `tests/http/headers_test.sh` | gzip/BREACH, Cache-Header, Security-Header gegen laufenden Container |
 | PHPStan (`phpstan.neon`) | statische Analyse Level 5; Baseline nur abbauen |

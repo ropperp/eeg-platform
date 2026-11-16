@@ -230,6 +230,25 @@ class Auth
     }
 
     /**
+     * Für Obmann-Seiten, die die Daten EINER Energiegemeinschaft zeigen: liefert deren ID.
+     * Ein Platform-Admin hat in seiner Admin-Rolle keine eigene EEG -- statt eines Serverfehlers
+     * (500, setCommunity(null)) kommt er mit einem Hinweis zurück auf die Admin-Startseite und
+     * wählt oben über die Rollenwahl eine EEG aus.
+     */
+    public static function requireManagerCommunity(): string
+    {
+        self::requireRole('manager');
+        $communityId = self::activeCommunityId();
+        if ($communityId === null) {
+            header('Location: /admin?error=' . urlencode(
+                'Diese Seite gehört zu einer Energiegemeinschaft. Bitte oben in der Rollenwahl die gewünschte EEG auswählen.'
+            ));
+            exit;
+        }
+        return $communityId;
+    }
+
+    /**
      * Prüft NUR die aktuell aktive Rolle, nicht alle jemals zugewiesenen Rollen.
      * Wer platform_admin ist, aber gerade auf eine Manager-Rolle umgeschaltet hat,
      * soll währenddessen keinen Admin-Zugriff haben (erst nach Zurückwechseln).

@@ -10,6 +10,9 @@ services:
     environment:
       # Lokal darf die Webapp ohne eingeschränkte DB-Rolle laufen (siehe webapp/src/DB.php).
       APP_ENV: development
+      # Rückfall-Zugang für die Entwicklung, falls APP_DB_USER (noch) fehlt.
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
     ports:
       - "80:80"
     labels:

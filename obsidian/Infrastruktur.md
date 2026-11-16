@@ -129,6 +129,7 @@ Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Doc
 
 Alle Images mit Version und Digest gepinnt; Updates nur als Dependabot-PR (seit 16.11.2026).
 | mqtt-subscriber | (build) | — | MQTT → DB |
+| eda-worker | (build) | — | EDA-Import-Jobs (Upload + Postfach) → DB |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
 
@@ -216,7 +217,11 @@ Kontakt-Rückfalladresse kommen aus `webapp/src/AppConfig.php` (aus `DOMAIN`, op
 versionierte Assets cached nginx ein Jahr als `immutable`. Security-Header stehen in
 `webapp/docker/security-headers.conf`. Dynamisches HTML/JSON wird nie gzip-komprimiert (BREACH).
 
-**Tests:** `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS-Trennung),
+**EDA-Import (seit 16.11.2026):** eigener Container `eda-worker`. Upload und Postfach-Abruf legen nur einen
+Job an (Tabelle `eda_import_jobs`), der Worker importiert; die Upload-Seite zeigt den Fortschritt.
+Prüfen: `docker compose ps eda-worker`, `docker compose logs --tail=50 eda-worker`.
+
+**Tests:** `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS-Trennung), `make test-e2e` (ganzer Stack),
 `tests/http/headers_test.sh` (Header gegen laufenden Container), PHPStan (`phpstan.neon`). Alles läuft in der CI.
 
 ## Update (laufendes System)

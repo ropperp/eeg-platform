@@ -27,8 +27,8 @@ Hier gehören nur dauerhaft gültige Architektur, Regeln und Stolperfallen hin.
   Auf dem Produktivserver wird nur `main` deployt (Patrick pullt/baut selbst).
 - **Öffentliches Repo:** keine Passwörter, Tokens, Zugangsdaten, E-Mail-Adressen oder Personendaten
   (Familie, Mitglieder, Kunden) in Code, Doku oder Log. Keine wörtlichen Prompts oder Zitate.
-- Tests: `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS), `tests/http/headers_test.sh`
-  (gegen laufenden Container); alles auch im CI, dazu PHPStan (`phpstan.neon`, Baseline nur abbauen, nicht
+- Tests: `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS), `make test-e2e` (ganzer Stack:
+  Login, Rechte, App-API, EDA-Worker), `tests/http/headers_test.sh`; alles auch im CI, dazu PHPStan (`phpstan.neon`, Baseline nur abbauen, nicht
   erweitern). Neue Doku-Erkenntnisse sofort in die passende Datei oben einarbeiten.
 
 ## Git-Workflow
@@ -75,6 +75,7 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
 | redis | redis:7.4.12-alpine | — | Session-Cache |
 | mosquitto | eclipse-mosquitto:2 (2.1.2) | 1883, 8883 | MQTT-Broker |
 | mqtt-subscriber | (build) | — | MQTT → DB (+ Messe-Demo-Thread) |
+| eda-worker | (build, `eda-parser/`) | — | EDA-Import-Jobs (Upload + Postfach) → DB |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
 
@@ -124,7 +125,7 @@ nötig (Traefik macht kein Let's Encrypt mehr).
 |---|---|---|
 | `DB_USER` (`eeg`) | Migrationen, Backup | Superuser (Postgres-Image), Schema-Besitzer |
 | `APP_DB_USER` (`eeg_app`) | Webapp | nur Daten, **RLS greift**; in Produktion Pflicht |
-| `WORKER_DB_USER` (`eeg_worker`) | mqtt-subscriber, EDA-Parser | nur Daten, `BYPASSRLS`, kein Superuser |
+| `WORKER_DB_USER` (`eeg_worker`) | mqtt-subscriber, eda-worker | nur Daten, `BYPASSRLS`, kein Superuser |
 
 Domain, Portal-Host, öffentliche URLs und Kontakt-Rückfall kommen aus `webapp/src/AppConfig.php`
 (`DOMAIN`, optional `PORTAL_HOST`/`CONTACT_EMAIL`) -- keine neuen fest codierten `stromfueralle.at` im Code.
@@ -163,6 +164,15 @@ Dienst `unhealthy`/gestoppt, startet es ihn 1–2× neu und schickt sonst eine A
 ```bash
 ( crontab -l 2>/dev/null; echo "*/5 * * * * cd /opt/eeg-platform && bash scripts/health_monitor.sh >> /var/log/eeg-health.log 2>&1" ) | crontab -
 ```
+
+## EDA-Import (eda-worker)
+
+Upload (`/portal/eda/upload`) und Postfach-Abruf (Cron `scripts/eda_auto_import.php`) legen nur einen
+Job in `eda_import_jobs` an; der Container `eda-worker` (`eda-parser/worker.py`) ruft die unveränderten
+Parser auf und schreibt Ergebnis + Audit. Die Webapp enthält kein Python mehr. Hängt ein Import:
+`docker compose ps eda-worker`, `docker compose logs --tail=50 eda-worker`, Jobs:
+`SELECT status, count(*) FROM eda_import_jobs GROUP BY 1;`. Parser-Werkzeuge (z. B. `--resplit`) jetzt
+mit `docker compose exec eda-worker python parser.py …`. Entscheidung: `docs/adr/0005-eda-import-als-worker.md`.
 
 ## Messe-/Präsentations-Demo
 

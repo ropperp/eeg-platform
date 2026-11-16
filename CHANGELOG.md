@@ -19,6 +19,22 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### EDA-Import als eigener Container, End-to-End-Tests, Admin ohne EEG (16.11.2026)
+- **Container `eda-worker`** (`eda-parser/worker.py`, `eda-parser/Dockerfile`): Upload und Postfach-Abruf legen
+  einen Job in `eda_import_jobs` an (`migrate_20261118.sql`), der Worker ruft die unveränderten Parser auf.
+  Ein großer Import blockiert keine Web-Anfrage mehr; die Upload-Seite zeigt den Fortschritt und lädt selbst
+  nach. Dieselbe Datei läuft nie doppelt (SHA-256), abgestürzte Jobs werden bis zu dreimal wiederholt.
+  Audit-Einträge mit identischem Wortlaut. Der Postfach-Abruf wartet auf das Ergebnis und bleibt unverändert.
+- **Webapp-Image ohne Python/pandas:** 473 MB → 172 MB. Die Webapp hat keine Zugangsdaten des
+  Dienstkontos mehr, nur noch die RLS-Rolle.
+- **Platform-Admin ohne gewählte EEG** bekam auf 43 Obmann-Seiten (Mitglieder, Abrechnung, Einstellungen …)
+  einen Serverfehler (500). Jetzt Weiterleitung auf `/admin` mit Hinweis, eine EEG in der Rollenwahl zu wählen
+  (`Auth::requireManagerCommunity()`).
+- **End-to-End-Tests** (`tests/e2e/`, `make test-e2e`, CI-Job `e2e`): ganzer Stack in Docker, 35 Prüfungen --
+  Login inkl. Session-Erneuerung, 2FA-Pflicht, Logout, CSRF, Rollenrechte, Mandantentrennung per HTTP,
+  App-API mit Token, Beitrittsformular, EDA-Import (ungültige und gültige synthetische Datei) über den Worker.
+  Dazu 10 Worker-Tests in Python (u. a. zwei Worker übernehmen nie denselben Job) und 2 RLS-Integrationstests.
+
 ### Weniger JavaScript, responsive Hero-Bilder, gepinnte Images (16.11.2026)
 - **Skripte nur bei Bedarf:** GSAP + ScrollTrigger + Animationen (~120 KB) nur noch auf Seiten mit Hero
   (Startseite), Passwort-Skript nur bei Passwortfeldern, Unterschrift-Skript nur bei Unterschrift. Die
