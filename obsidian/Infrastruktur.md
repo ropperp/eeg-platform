@@ -269,6 +269,15 @@ Details: Abschnitt „Selbstdokumentation" in `CLAUDE.md`.
 
 ---
 
+## Code-Struktur der Webapp (seit 16.11.2026)
+
+`webapp/public/index.php` ist nur noch der Bootstrap (~1.400 statt ~11.900 Zeilen). Die Routen liegen in
+`webapp/routes/` (public, portal, admin, api – die Reihenfolge ist die Priorität). Neuer Code kommt nach
+PSR-4 in den Namensraum `App\` (Controller, Domain-Service, Repository); Vorlage ist der Bereich
+Support-Tickets. Überblick: `docs/ARCHITEKTUR.md`, Entscheidungen: `docs/adr/` im Repo.
+
+---
+
 ## Frontend-Regeln (Content-Security-Policy)
 
 Die Plattform sendet `script-src 'self' 'nonce-…'` und `script-src-attr 'none'` (PHP: `cspPolicy()` in

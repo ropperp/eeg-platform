@@ -34,6 +34,7 @@ require __DIR__ . '/../webapp/src/EdaAutoImporter.php';
 require __DIR__ . '/../webapp/src/WebAuthn.php';
 require __DIR__ . '/../webapp/src/DB.php';
 require __DIR__ . '/../webapp/src/AppConfig.php';
+require __DIR__ . '/../webapp/src/autoload.php';
 
 foreach (glob(__DIR__ . '/*_test.php') as $file) {
     echo "\n" . basename($file) . "\n";

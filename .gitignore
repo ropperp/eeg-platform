@@ -49,3 +49,5 @@ node_modules/
 
 /obsidian/.obsidian/workspace*.json
 /obsidian/.trash/
+# Composer (Autoloader wird bei Bedarf erzeugt, siehe webapp/src/autoload.php)
+webapp/vendor/

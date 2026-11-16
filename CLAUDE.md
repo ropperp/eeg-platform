@@ -169,6 +169,13 @@ MQTT-Werte (echtzeit-synchrones Tagesprofil, Einspeisung nach echtem Wetter von 
 aktiv, zeigt die Oberfläche einen Hinweis auf fiktive Werte. Vollständige Beschreibung:
 `docs/MESSE_DEMO.md`.
 
+## Code-Struktur (Webapp)
+
+`public/index.php` = Bootstrap; Routen in `webapp/routes/{public,portal,admin,api}.php` (Reihenfolge =
+Priorität). Neuer Code nach PSR-4 im Namensraum `App\` (`src/Http`, `src/Domain`, `src/Infrastructure`),
+Vorlage: Support-Tickets. Keine neue Fachlogik als Closure-Block, SQL nur in Repositories.
+Details und Regeln: `docs/ARCHITEKTUR.md`, Entscheidungen: `docs/adr/`.
+
 ## Frontend-Regeln (Content-Security-Policy)
 
 Die Plattform sendet `script-src 'self' 'nonce-…'` und `script-src-attr 'none'` (PHP: `cspPolicy()` in

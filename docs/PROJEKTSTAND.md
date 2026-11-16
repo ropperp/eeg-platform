@@ -35,6 +35,9 @@ Die Plattform ist als **mandantenfähiges SaaS** konzipiert: Patrick, Fabian und
 
 ## Verzeichnisstruktur
 
+> Aktuelle Struktur der Webapp (Routen, Controller, Services): `docs/ARCHITEKTUR.md`. Der Baum unten
+> zeigt den ursprünglichen Stand.
+
 ```
 eeg-platform/
 ├── docker-compose.yml              # Alle Services, Netzwerk, Healthchecks
@@ -251,7 +254,9 @@ Das Datum `freigabe_nach` in `billing_runs` wird aus `period_to + 60 Tage` berec
 
 ### Kein PHP-Framework
 
-Bewusste Entscheidung: eigener Router (Router.php), kein Composer, kein ORM. Hält den Stack klein, ist im HTL-Lehrplan verankert, und die Komplexität des Projekts rechtfertigt kein Framework.
+Bewusste Entscheidung: eigener Router (Router.php), kein ORM, kein Framework. Seit 16.11.2026 Composer
+nur für PSR-4-Autoloading, Routen in `webapp/routes/`, neuer Code geschichtet in Controller/Domain/
+Infrastructure -- siehe `docs/ARCHITEKTUR.md` und `docs/adr/0002-composer-psr4-ohne-framework.md`.
 
 ### Platform-Admin hat keine community_id in der Session
 

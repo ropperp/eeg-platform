@@ -52,10 +52,18 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          tools: phpstan:2.3.6
+          extensions: zip
+          tools: phpstan:2.3.6, composer:v2
 
       - name: PHPStan (Level und Altbefunde siehe phpstan.neon / phpstan-baseline.neon)
         run: phpstan analyse --no-progress --memory-limit=2G
+
+      - name: Composer (composer.json gültig, PSR-4-Autoloader von Composer statt Fallback testen)
+        run: |
+          composer validate --strict --working-dir=webapp
+          composer dump-autoload --working-dir=webapp
+          php tests/run.php > /tmp/composer-tests.out; tail -1 /tmp/composer-tests.out
+          grep -q 'Alle .* Tests bestanden' /tmp/composer-tests.out
 
       - name: docker compose config (Syntax + Variablen-Interpolation)
         run: |

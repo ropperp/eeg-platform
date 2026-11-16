@@ -19,6 +19,20 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Neue Code-Struktur: Routendateien, Controller/Service/Repository, ADRs (16.11.2026)
+- **Routen ausgelagert:** `webapp/public/index.php` 11.907 → 1.363 Zeilen; die 273 Routen liegen in
+  `webapp/routes/{public,portal,admin,api}.php`. Rein mechanisch verschoben, mit Vorher/Nachher-Vergleich
+  aller 105 parameterlosen GET-Seiten (anonym + angemeldet, echte DB): identisch.
+- **Support-Tickets als Vorlage extrahiert:** `SupportController` (Web), `Api\SupportApiController` (App),
+  `Domain\Support\SupportTicketService` (Regeln), `Infrastructure\Database\PdoSupportTicketRepository`
+  (SQL), `Infrastructure\Mail\MailSupportNotifier`. Anlegen/Antworten war zwischen Web und App doppelt
+  implementiert, jetzt eine Stelle. Ablauf-Vergleich (Web Mitglied + Verwaltung + App-API, Fehlerfälle,
+  DB-Endzustand) vorher/nachher identisch. 5 Unit- und 2 RLS-Integrationstests.
+- **Composer/PSR-4** (`webapp/composer.json`, `App\` → `src/`) ohne Laufzeit-Abhängigkeiten; Fallback-Loader
+  `src/autoload.php`, CI prüft `composer validate` und den echten Composer-Autoloader.
+- **Doku:** `docs/ARCHITEKTUR.md` (Datenfluss, Struktur, Regeln für neuen Code), `docs/adr/` (5 ADRs).
+- CSP- und Zustimmungstext-Tests prüfen jetzt auch `webapp/routes/`.
+
 ### Zentrale Konfiguration und Fehlerseite ohne technische Details (16.11.2026)
 - **`webapp/src/AppConfig.php`** ist die einzige Quelle für Hauptdomain, Portal-Host, öffentliche URLs,
   Session-Cookie-Domain und Kontakt-Rückfalladresse (aus `DOMAIN`, optional `PORTAL_HOST`/`CONTACT_EMAIL`).

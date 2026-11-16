@@ -234,7 +234,7 @@ $router->get('/:communityid/kontakt', function ($params) {
  * jeweiligen EEG (Einstellungen -> Kontakt-E-Mail, sonst office@stromfueralle.at); schlägt der
  * Versand fehl (z.B. Graph nicht konfiguriert), wird NICHT der Nutzer mit einem Fehler
  * konfrontiert, sondern geloggt und als "gesendet" quittiert, sobald die Nachricht wenigstens
- * inhaltlich gültig war -- gleiches Prinzip wie notifySupportTicketCreated().
+ * inhaltlich gültig war -- gleiches Prinzip wie App\Infrastructure\Mail\MailSupportNotifier.
  * Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot es aus, wird stillschweigend
  * ohne Mailversand auf die Erfolgsseite umgeleitet (kein Hinweis an den Bot, dass er entdeckt wurde).
  */
@@ -260,7 +260,7 @@ function contactFormTopics(bool $platform): array
  * Löschung), damit nicht zwingend ein eigenes E-Mail-Programm nötig ist. Versand per Mailer
  * (Microsoft Graph); schlägt er fehl (z.B. Graph nicht konfiguriert), wird geloggt und trotzdem
  * quittiert, sobald die Nachricht inhaltlich gültig war -- gleiches Prinzip wie
- * notifySupportTicketCreated(). Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot
+ * App\Infrastructure\Mail\MailSupportNotifier. Spam-Schutz: unsichtbares Honeypot-Feld "website" -- füllt ein Bot
  * es aus, wird stillschweigend ohne Mailversand auf die Erfolgsseite umgeleitet.
  */
 function handleContactForm(string $back, string $to, string $recipientLabel, array $topics): void

@@ -11,6 +11,8 @@ declare(strict_types=1);
  * @var Router $router
  */
 
+use App\Support\Services;
+
 // ─── Portal: Login ──────────────────────────────────────
 $router->get('/portal/login', function () {
     if (Auth::check()) { header('Location: /portal/dashboard'); exit; }
@@ -1341,96 +1343,14 @@ $router->post('/portal/my/api-keys/:id/revoke', function ($params) {
 });
 
 /**
- * Benachrichtigt die konfigurierte Support-Adresse über ein neues Ticket -- rein informativ
- * ("es gibt was Neues, bitte im Portal ansehen"), kein Ticket-Inhalt-Editing per Mail-Antwort.
- * Scheitert der Mailversand (z.B. Microsoft Graph nicht konfiguriert), wird das nur geloggt --
- * ein Mitglied darf nie an einer fehlgeschlagenen internen Benachrichtigung scheitern.
- */
-function notifySupportTicketCreated(string $ticketId, array $member, string $subject, string $category, string $message): void
-{
-    try {
-        $to = DB::fetchOne('SELECT support_notification_email FROM platform_mail_config WHERE id = 1')['support_notification_email']
-            ?? AppConfig::get()->contactEmail;
-        $community = DB::fetchOne('SELECT name FROM communities WHERE id = ?', [$member['community_id']]);
-        $categoryLabel = $category === 'feature' ? 'Feature-Vorschlag' : 'Problem/Frage';
-        $body = '<p>Neues Support-Ticket in „' . htmlspecialchars($community['name'] ?? '') . '":</p>'
-            . '<p><strong>' . htmlspecialchars($subject) . '</strong> (' . $categoryLabel . ')<br>'
-            . 'von ' . htmlspecialchars(trim($member['first_name'] . ' ' . $member['last_name']))
-            . ' (' . htmlspecialchars($member['email'] ?? '') . ')</p>'
-            . '<p>' . nl2br(htmlspecialchars($message)) . '</p>'
-            . '<p><a href="' . htmlspecialchars(portalUrl('/portal/support/' . $ticketId)) . '">Ticket im Portal ansehen &amp; antworten</a></p>';
-        Mailer::send($to, 'Neues Support-Ticket: ' . $subject, $body);
-    } catch (\Throwable $e) {
-        error_log('[support_ticket_mail] ' . $e->getMessage());
-    }
-}
-
-/**
  * Support-Ticket-System (siehe migrate_20260821.sql): Mitglieder können Probleme melden oder
  * Feature-Vorschläge machen, statt dass alles per E-Mail hin- und hergeschickt wird. Manager/
  * Platform-Admin sehen und beantworten alle Tickets ihrer Community unter /portal/support.
  */
-$router->get('/portal/my/support', function () {
-    Auth::requireLogin();
-    $member = currentMemberFull();
-    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
-    $tickets = DB::fetchAll('SELECT * FROM support_tickets WHERE member_id = ? ORDER BY updated_at DESC', [$member['id']]);
-    require ROOT . '/src/views/pages/my_support.php';
-});
-
-$router->post('/portal/my/support', function () {
-    Auth::requireLogin();
-    $member = currentMemberFull();
-    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
-    $subject  = trim($_POST['subject'] ?? '');
-    $message  = trim($_POST['message'] ?? '');
-    $category = ($_POST['category'] ?? '') === 'feature' ? 'feature' : 'problem';
-    if ($subject === '' || $message === '') {
-        header('Location: /portal/my/support?error=' . urlencode('Bitte Betreff und Nachricht ausfüllen.'));
-        exit;
-    }
-    $ticket = DB::fetchOne(
-        'INSERT INTO support_tickets (community_id, member_id, subject, category) VALUES (?, ?, ?, ?) RETURNING id',
-        [$member['community_id'], $member['id'], $subject, $category]
-    );
-    DB::execute(
-        'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
-        [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
-    );
-    notifySupportTicketCreated($ticket['id'], $member, $subject, $category, $message);
-    header('Location: /portal/my/support/' . $ticket['id']);
-    exit;
-});
-
-$router->get('/portal/my/support/:id', function ($params) {
-    Auth::requireLogin();
-    $member = currentMemberFull();
-    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
-    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $member['id']]);
-    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
-    $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
-    require ROOT . '/src/views/pages/my_support_detail.php';
-});
-
-$router->post('/portal/my/support/:id/reply', function ($params) {
-    Auth::requireLogin();
-    $member = currentMemberFull();
-    if (!$member) { http_response_code(404); echo 'Kein Mitgliedskonto in dieser EEG.'; return; }
-    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $member['id']]);
-    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
-    $message = trim($_POST['message'] ?? '');
-    if ($message !== '') {
-        DB::execute(
-            'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
-            [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
-        );
-        // Eine Mitglied-Antwort auf ein bereits beantwortetes/geschlossenes Ticket setzt den
-        // Status zurück auf "offen" -- sonst würde die Antwort im Blick des Obmanns leicht untergehen.
-        DB::execute("UPDATE support_tickets SET status = 'offen', updated_at = now() WHERE id = ?", [$ticket['id']]);
-    }
-    header('Location: /portal/my/support/' . $ticket['id']);
-    exit;
-});
+$router->get('/portal/my/support', fn() => Services::supportController()->memberIndex()->send());
+$router->post('/portal/my/support', fn() => Services::supportController()->memberCreate($_POST)->send());
+$router->get('/portal/my/support/:id', fn($params) => Services::supportController()->memberShow($params['id'])->send());
+$router->post('/portal/my/support/:id/reply', fn($params) => Services::supportController()->memberReply($params['id'], $_POST)->send());
 
 /**
  * Wandelt einen von PostgreSQL/PDO gelieferten Datums-/Zeitstempel-String in striktes
@@ -4578,79 +4498,9 @@ $router->post('/portal/postfach/:id/erledigt', function ($params) {
 });
 
 // ─── Portal: Support-Tickets (Manager/Platform-Admin) ───
-$router->get('/portal/support', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $statusFilter = $_GET['status'] ?? '';
-    $where = 't.community_id = ?';
-    $params = [$communityId];
-    if (in_array($statusFilter, ['offen', 'in_bearbeitung', 'geschlossen'], true)) {
-        $where .= ' AND t.status = ?';
-        $params[] = $statusFilter;
-    }
-    $tickets = DB::fetchAll(
-        "SELECT t.*, m.first_name, m.last_name, m.is_demo,
-                EXISTS(
-                    SELECT 1 FROM support_ticket_messages sm
-                    WHERE sm.ticket_id = t.id AND sm.is_staff = false
-                      AND sm.created_at > COALESCE(t.manager_read_at, '-infinity'::timestamptz)
-                ) AS hat_ungelesen
-         FROM support_tickets t JOIN members m ON m.id = t.member_id
-         WHERE $where ORDER BY (t.status = 'offen') DESC, t.updated_at DESC",
-        $params
-    );
-    // Namen echter Mitglieder maskieren, damit der Demo-Account das Ticketsystem herzeigen kann,
-    // ohne fremde Namen preiszugeben (Patrick, 23.08.2026: "der Admin oder der Obmann darf den
-    // Namen nicht sehen, wenn nämlich andere auch Support-Tickets schicken") -- eigene
-    // Demo-Tickets (Verbraucher 1/Einspeiser 1, is_demo=true) bleiben unmaskiert.
-    $tickets = demoMaskMembers($tickets, Auth::isDemo());
-    require ROOT . '/src/views/pages/support_tickets.php';
-});
-
-$router->get('/portal/support/:id', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $ticket = DB::fetchOne(
-        'SELECT t.*, m.first_name, m.last_name, m.email, m.is_demo
-         FROM support_tickets t JOIN members m ON m.id = t.member_id
-         WHERE t.id = ? AND t.community_id = ?',
-        [$params['id'], $communityId]
-    );
-    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
-    $ticketMemberIsDemo = (bool)($ticket['is_demo'] ?? false);
-    $ticket = demoMaskMember($ticket, Auth::isDemo());
-    $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
-    $messages = demoMaskSupportMessages($messages, Auth::isDemo(), $ticketMemberIsDemo);
-    // Öffnen der Detailseite gilt als "gelesen" -- alle bisherigen Mitglieder-Nachrichten dieses
-    // Tickets zählen ab jetzt nicht mehr zum Ungelesen-Badge in der Sidebar.
-    DB::execute('UPDATE support_tickets SET manager_read_at = now() WHERE id = ?', [$ticket['id']]);
-    require ROOT . '/src/views/pages/support_ticket_detail.php';
-});
-
-$router->post('/portal/support/:id/reply', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
-    DB::setCommunity($communityId);
-    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
-    if (!$ticket) { http_response_code(404); echo 'Ticket nicht gefunden.'; return; }
-    $message = trim($_POST['message'] ?? '');
-    if ($message !== '') {
-        DB::execute(
-            'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, true, ?)',
-            [$ticket['id'], Auth::userName() ?: 'Verwaltung', $message]
-        );
-    }
-    $newStatus = $_POST['status'] ?? '';
-    if (in_array($newStatus, ['offen', 'in_bearbeitung', 'geschlossen'], true)) {
-        DB::execute('UPDATE support_tickets SET status = ?, updated_at = now() WHERE id = ?', [$newStatus, $ticket['id']]);
-    } elseif ($message !== '') {
-        DB::execute('UPDATE support_tickets SET updated_at = now() WHERE id = ?', [$ticket['id']]);
-    }
-    header('Location: /portal/support/' . $ticket['id']);
-    exit;
-});
+$router->get('/portal/support', fn() => Services::supportController()->staffIndex($_GET)->send());
+$router->get('/portal/support/:id', fn($params) => Services::supportController()->staffShow($params['id'])->send());
+$router->post('/portal/support/:id/reply', fn($params) => Services::supportController()->staffReply($params['id'], $_POST)->send());
 
 // ─── Portal: Online-Beitrittserklärungen (Freigabe) ─────
 $router->get('/portal/applications', function () {

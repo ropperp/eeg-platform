@@ -12,6 +12,8 @@ declare(strict_types=1);
  * @var Router $router
  */
 
+use App\Support\Services;
+
 $router->get('/api/live/:slug', function ($params) {
     header('Content-Type: application/json');
     $slug = $params['slug'];
@@ -1114,104 +1116,19 @@ $router->get('/api/v1/dsgvo-export', function () {
 });
 
 // ─── Mitglieder-App: Support-Tickets ─────────────────────────────────────────
-$router->get('/api/v1/support', function () {
+// Auth, Mitglieds-Prüfung und RLS-Kontext hier, Logik in App\Http\Controllers\Api\SupportApiController.
+$supportApi = function (callable $action): void {
     $ctx = AppApiAuth::requireAppAuth();
     if (!$ctx) return;
     header('Content-Type: application/json; charset=UTF-8');
     if (!requireAppMemberId($ctx)) return;
     DB::setCommunity($ctx['community_id']);
-
-    $tickets = DB::fetchAll('SELECT * FROM support_tickets WHERE member_id = ? ORDER BY updated_at DESC', [$ctx['member_id']]);
-    echo json_encode(['tickets' => array_map(fn($t) => [
-        'id'         => $t['id'],
-        'subject'    => $t['subject'],
-        'category'   => $t['category'],
-        'status'     => $t['status'],
-        'created_at' => appDate($t['created_at']),
-        'updated_at' => appDate($t['updated_at']),
-    ], $tickets)]);
-});
-
-$router->post('/api/v1/support', function () {
-    $ctx = AppApiAuth::requireAppAuth();
-    if (!$ctx) return;
-    header('Content-Type: application/json; charset=UTF-8');
-    if (!requireAppMemberId($ctx)) return;
-    DB::setCommunity($ctx['community_id']);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
-    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
-
-    $body = jsonBody();
-    $subject  = trim((string)($body['subject'] ?? ''));
-    $message  = trim((string)($body['message'] ?? ''));
-    $category = ($body['category'] ?? '') === 'feature' ? 'feature' : 'problem';
-    if ($subject === '' || $message === '') {
-        http_response_code(400);
-        echo json_encode(['error' => 'Bitte Betreff und Nachricht ausfüllen.']);
-        return;
-    }
-    $ticket = DB::fetchOne(
-        'INSERT INTO support_tickets (community_id, member_id, subject, category) VALUES (?, ?, ?, ?) RETURNING id',
-        [$member['community_id'], $member['id'], $subject, $category]
-    );
-    DB::execute(
-        'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
-        [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
-    );
-    notifySupportTicketCreated($ticket['id'], $member, $subject, $category, $message);
-    echo json_encode(['id' => $ticket['id'], 'status' => 'ok']);
-});
-
-$router->get('/api/v1/support/:id', function ($params) {
-    $ctx = AppApiAuth::requireAppAuth();
-    if (!$ctx) return;
-    header('Content-Type: application/json; charset=UTF-8');
-    if (!requireAppMemberId($ctx)) return;
-    DB::setCommunity($ctx['community_id']);
-
-    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $ctx['member_id']]);
-    if (!$ticket) { http_response_code(404); echo json_encode(['error' => 'Ticket nicht gefunden.']); return; }
-    $messages = DB::fetchAll('SELECT * FROM support_ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', [$ticket['id']]);
-    echo json_encode([
-        'ticket' => [
-            'id'         => $ticket['id'],
-            'subject'    => $ticket['subject'],
-            'category'   => $ticket['category'],
-            'status'     => $ticket['status'],
-            'created_at' => appDate($ticket['created_at']),
-            'updated_at' => appDate($ticket['updated_at']),
-        ],
-        'messages' => array_map(fn($m) => [
-            'id'           => $m['id'],
-            'author_label' => $m['author_label'],
-            'is_staff'     => (bool)$m['is_staff'],
-            'message'      => $m['message'],
-            'created_at'   => appDate($m['created_at']),
-        ], $messages),
-    ]);
-});
-
-$router->post('/api/v1/support/:id/reply', function ($params) {
-    $ctx = AppApiAuth::requireAppAuth();
-    if (!$ctx) return;
-    header('Content-Type: application/json; charset=UTF-8');
-    if (!requireAppMemberId($ctx)) return;
-    DB::setCommunity($ctx['community_id']);
-    $member = DB::fetchOne('SELECT * FROM members WHERE id = ? AND community_id = ?', [$ctx['member_id'], $ctx['community_id']]);
-    if (!$member) { http_response_code(404); echo json_encode(['error' => 'Mitglied nicht gefunden.']); return; }
-    $ticket = DB::fetchOne('SELECT * FROM support_tickets WHERE id = ? AND member_id = ?', [$params['id'], $ctx['member_id']]);
-    if (!$ticket) { http_response_code(404); echo json_encode(['error' => 'Ticket nicht gefunden.']); return; }
-
-    $body = jsonBody();
-    $message = trim((string)($body['message'] ?? ''));
-    if ($message === '') { http_response_code(400); echo json_encode(['error' => 'Nachricht darf nicht leer sein.']); return; }
-    DB::execute(
-        'INSERT INTO support_ticket_messages (ticket_id, author_label, is_staff, message) VALUES (?, ?, false, ?)',
-        [$ticket['id'], trim($member['first_name'] . ' ' . $member['last_name']), $message]
-    );
-    DB::execute("UPDATE support_tickets SET status = 'offen', updated_at = now() WHERE id = ?", [$ticket['id']]);
-    echo json_encode(['status' => 'ok']);
-});
+    $action($ctx)->send();
+};
+$router->get('/api/v1/support', fn() => $supportApi(fn($ctx) => Services::supportApiController()->index($ctx)));
+$router->post('/api/v1/support', fn() => $supportApi(fn($ctx) => Services::supportApiController()->create($ctx, jsonBody())));
+$router->get('/api/v1/support/:id', fn($params) => $supportApi(fn($ctx) => Services::supportApiController()->show($ctx, $params['id'])));
+$router->post('/api/v1/support/:id/reply', fn($params) => $supportApi(fn($ctx) => Services::supportApiController()->reply($ctx, $params['id'], jsonBody())));
 
 // ─── Mitglieder-App: Profil, Passwort, 2FA (Konto-Endpunkte, users-Tabelle) ──────────────────
 // Anders als die obigen Routen (member_id nötig) funktionieren diese für JEDES Token -- Mitglied

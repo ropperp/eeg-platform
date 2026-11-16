@@ -8,6 +8,8 @@ define('ROOT', dirname(__DIR__));
 // dass die ini-Datei geladen wurde (Zeitzonen-Vorfall 07.11.2026, siehe fmtVienna()).
 date_default_timezone_set('Europe/Vienna');
 
+// Neue Klassen im Namensraum App\ (src/Http, src/Domain, ...) per PSR-4-Autoloader.
+require ROOT . '/src/autoload.php';
 foreach (['AppConfig', 'DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAuth', 'Router', 'Billing', 'Mailer', 'GraphMailReader', 'EdaParserRunner', 'EdaAutoImporter', 'Push', 'WebAuthn'] as $class) {
     require ROOT . '/src/' . $class . '.php';
 }

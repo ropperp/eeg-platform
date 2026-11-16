@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../lib.php';
 require __DIR__ . '/../../webapp/src/DB.php';
+require __DIR__ . '/../../webapp/src/autoload.php';
 
 if (!getenv('TEST_DB_HOST')) {
     fwrite(STDERR, "TEST_DB_HOST nicht gesetzt -- Integrationstests übersprungen (siehe tests/integration/run.php).\n");
