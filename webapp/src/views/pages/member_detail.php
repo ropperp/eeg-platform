@@ -678,7 +678,7 @@ if ($hasProducer) $contractTypes['einspeisung'] = ['label' => 'Einspeisevereinba
   </form>
 </dialog>
 
-<script src="/assets/js/avatar-crop.js"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/avatar-crop.js')) ?>"></script>
 <script nonce="<?= cspNonce() ?>">
   initAvatarCropper({
     fileInputId: 'member-photo-input',

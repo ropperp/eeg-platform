@@ -26,11 +26,13 @@ RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev python3 py3-pip tzdat
 
 # nginx Konfiguration
 COPY webapp/docker/nginx.conf /etc/nginx/nginx.conf
+COPY webapp/docker/security-headers.conf /etc/nginx/security-headers.conf
 COPY webapp/docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 # App-Code + EDA-Parser
 COPY webapp/public/ /var/www/html/public/
 COPY webapp/src/ /var/www/html/src/
+COPY webapp/bin/ /var/www/html/bin/
 COPY eda-parser/ /var/www/html/eda-parser/
 
 # Read-only Rückfallebene für /admin/templates (Platform-Admin: LaTeX-Vorlagen + Infoblatt

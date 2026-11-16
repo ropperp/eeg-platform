@@ -1,0 +1,18 @@
+# Statische Analyse (PHPStan). Läuft in der CI (.github/workflows/ci.yml), lokal:
+#   docker run --rm -v "$PWD":/app -w /app ghcr.io/phpstan/phpstan:2-php8.4 analyse
+# Bekannte Altbefunde stehen in phpstan-baseline.neon; neue Befunde lassen die CI scheitern.
+# Level schrittweise erhöhen, sobald die Baseline abgebaut ist.
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    phpVersion: 80400
+    paths:
+        - webapp/src
+        - webapp/bin
+        - webapp/public/index.php
+    excludePaths:
+        # Templates: werden von index.php mit lokalen Variablen eingebunden (extract), das kann
+        # PHPStan nicht nachvollziehen.
+        - webapp/src/views

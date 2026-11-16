@@ -19,6 +19,26 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Mandantentrennung erzwungen, eigenes DB-Dienstkonto, gzip/Cache korrigiert, CI ausgebaut (16.11.2026)
+- **RLS in Produktion Pflicht:** neues `APP_ENV` (Standard `production`). Ohne `APP_DB_USER`/`APP_DB_PASSWORD`
+  bricht die Webapp mit klarer Meldung ab, statt still als Superuser `DB_USER` zu verbinden (RLS wäre dann
+  wirkungslos). Lokal setzt `docker-compose.override.yml` `APP_ENV=development`.
+- **Healthcheck prüft die Rolle:** `webapp/bin/db_role_check.php` meldet `unhealthy`, wenn die Laufzeit-Rolle
+  Superuser ist, `BYPASSRLS` hat, RLS-Tabellen besitzt oder sich nicht anmelden kann (health_monitor alarmiert).
+- **Dienstkonto `eeg_worker`** für mqtt-subscriber und EDA-Parser: `BYPASSRLS`, aber kein Superuser und keine
+  Schema-Änderungen. Vorher liefen beide als `DB_USER`, der im Postgres-Image Superuser ist; die
+  Superuser-Zugangsdaten lagen dadurch auch im Webapp-Container. Rollen-SQL jetzt in
+  `scripts/sql/runtime_roles.sql` (Setup-Skript und Tests nutzen dieselbe Datei).
+- **gzip:** nginx komprimierte dynamisches HTML trotz gegenteiligem Kommentar (text/html wird bei `gzip on`
+  immer komprimiert) -- jetzt `gzip off` für PHP (BREACH), statische Dateien weiter komprimiert.
+- **Cache:** `immutable` (1 Jahr) nur noch für Assets mit `?v=`; ohne Versionsparameter 1 h mit
+  Nachfrage. Vorher blieben z. B. `passkey.js` oder GSAP bis zu 30 Tage veraltet. Neuer Helfer `assetUrl()`.
+- **Security-Header auf statischen Dateien:** nginx erbt `add_header` nicht in locations mit eigenem
+  `add_header` -- CSS/JS kamen ohne `nosniff`/HSTS. Header jetzt in `webapp/docker/security-headers.conf`.
+- **CI:** neue Jobs `static` (PHPStan Level 5 mit Baseline, `docker compose config`, Shell-Syntax),
+  `integration` (echte TimescaleDB: 8 RLS-Tests + Python-Messwertpuffer als `eeg_worker`) und `http`
+  (Image bauen, 11 Header-Tests). Lokal: `make test-integration`, `tests/http/headers_test.sh`.
+
 ### Strengere Content-Security-Policy: keine Inline-Skripte mehr ohne Nonce (17.11.2026)
 - **Vorher:** `script-src 'unsafe-inline'` -- jedes eingeschleuste `<script>` oder `<img onerror=…>` wäre
   gelaufen, sobald irgendwo ein Text unmaskiert ausgegeben worden wäre (klassischer XSS-Weg).

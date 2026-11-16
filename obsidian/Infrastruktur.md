@@ -195,7 +195,22 @@ LATEX_API_KEY=<random>
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_USER=<email>
 SMTP_PASSWORD=<passwort>
+APP_ENV=production          # Standard; ohne APP_DB_USER startet die Webapp dann nicht
+APP_DB_USER=eeg_app         # + APP_DB_PASSWORD, generiert von scripts/db_runtime_role_setup.sh
+WORKER_DB_USER=eeg_worker   # + WORKER_DB_PASSWORD, ebenso generiert
 ```
+
+**Datenbank-Rollen (seit 16.11.2026):** `DB_USER` (`eeg`) ist Superuser und Schema-Besitzer (nur
+Migrationen/Backup). Die Webapp verbindet als `eeg_app` (nur Daten, Row-Level Security greift), der
+mqtt-subscriber und der EDA-Parser als `eeg_worker` (nur Daten, `BYPASSRLS`, kein Superuser). Der
+Webapp-Healthcheck (`webapp/bin/db_role_check.php`) meldet `unhealthy`, wenn die Rolle zu viele Rechte hat.
+
+**Assets und Caching:** Skripte/Styles immer über `assetUrl('/assets/…')` einbinden (`?v=<mtime>`); nur
+versionierte Assets cached nginx ein Jahr als `immutable`. Security-Header stehen in
+`webapp/docker/security-headers.conf`. Dynamisches HTML/JSON wird nie gzip-komprimiert (BREACH).
+
+**Tests:** `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS-Trennung),
+`tests/http/headers_test.sh` (Header gegen laufenden Container), PHPStan (`phpstan.neon`). Alles läuft in der CI.
 
 ## Update (laufendes System)
 

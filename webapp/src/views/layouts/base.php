@@ -124,9 +124,9 @@
   </div>
 </footer>
 
-<script src="/assets/js/vendor/gsap.min.js"></script>
-<script src="/assets/js/vendor/ScrollTrigger.min.js"></script>
-<script src="/assets/js/site-animations.js"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/vendor/gsap.min.js')) ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/vendor/ScrollTrigger.min.js')) ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/site-animations.js')) ?>"></script>
 <script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
 <script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
 <script nonce="<?= cspNonce() ?>">

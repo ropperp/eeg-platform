@@ -25,6 +25,25 @@ function jsonBody(): array
 }
 
 /**
+ * URL einer Datei unter public/assets mit Versionsparameter (Änderungszeit der Datei). nginx
+ * cached nur Assets MIT ?v= ein Jahr lang als "immutable" (webapp/docker/nginx.conf); ohne
+ * Versionsparameter würde ein Browser nach einem Update sonst alte Skripte weiterverwenden.
+ *
+ * @param string $path Pfad ab /assets, z. B. "/assets/js/passkey.js"
+ */
+function assetUrl(string $path, ?string $publicDir = null): string
+{
+    static $cache = [];
+    $publicDir ??= __DIR__ . '/../public';
+    $key = $publicDir . $path;
+    if (!isset($cache[$key])) {
+        $mtime = @filemtime($publicDir . $path);
+        $cache[$key] = $mtime ? $path . '?v=' . $mtime : $path;
+    }
+    return $cache[$key];
+}
+
+/**
  * Rendert ein Phosphor-Icon aus dem selbst gehosteten Sprite
  * (webapp/public/assets/icons/phosphor-sprite.svg) als <svg>-Snippet. Ersetzt die früher
  * verwendeten Emojis durch ein einheitliches, professionelles Icon-Set (siehe CHANGELOG).
@@ -2049,7 +2068,7 @@ function communityShortName(string $name): string
             continue;
         }
         if (str_contains($w, '-')) {
-            $out[] = implode('', array_map(fn($p) => mb_strtoupper(mb_substr($p, 0, 1)), array_filter(explode('-', $w), 'strlen')));
+            $out[] = implode('', array_map(fn($p) => mb_strtoupper(mb_substr($p, 0, 1)), array_filter(explode('-', $w), fn(string $p): bool => $p !== '')));
         } elseif (mb_strlen($w) <= 3) {
             $out[] = $w;
         } else {

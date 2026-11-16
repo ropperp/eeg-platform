@@ -1402,3 +1402,21 @@ docker compose up -d --build
 > Steht nach dem Update die ALTE Policy (mit `'unsafe-inline'`) im Header, läuft noch das alte Image
 > (`--build` vergessen) oder die Proxy-Konfiguration setzt selbst eine CSP -- dann diese entfernen.
 
+> **Einmalig nach dem Update vom 16.11.2026 -- RLS-Pflicht, DB-Dienstkonto, gzip/Cache**:
+> **Reihenfolge wichtig:** erst das Rollen-Skript, dann neu bauen. Sonst startet die Webapp im
+> Produktionsmodus ohne eingeschränkte Rolle nicht (Fehlermeldung „APP_DB_USER und APP_DB_PASSWORD fehlen“).
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> grep -E '^(APP_DB_USER|WORKER_DB_USER)=' .env      # was ist schon eingerichtet?
+> ./scripts/db_runtime_role_setup.sh                  # legt eeg_worker an, eeg_app bleibt unverändert
+> docker compose up -d --build
+> sleep 40 && docker compose ps                       # webapp und mqtt-subscriber "healthy"
+> docker compose exec webapp php /var/www/html/bin/db_role_check.php && echo "Rolle OK"
+> docker compose exec timescaledb psql -U eeg -d eeg_platform -c '\du'   # eeg_worker: nur "Bypass RLS"
+> curl -s -o /dev/null -D - -H 'Accept-Encoding: gzip' -H 'Host: stromfueralle.at' http://localhost/ | grep -i content-encoding   # leer
+> ```
+> Danach prüfen: Live-Werte kommen weiter an (mqtt-subscriber schreibt jetzt als `eeg_worker`), ein EDA-Import
+> läuft durch. **Rückfall ohne Code-Revert:** `WORKER_DB_USER=`/`WORKER_DB_PASSWORD=` in der `.env` leeren,
+> `docker compose up -d` -- dann verbinden beide Dienste wieder als `DB_USER`. Notfall für die Webapp
+> (nur kurzfristig!): `APP_ENV=development` in die `.env`.
+

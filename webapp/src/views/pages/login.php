@@ -46,7 +46,7 @@ ob_start();
   </div>
 </div>
 
-<script src="/assets/js/passkey.js" defer></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/passkey.js')) ?>" defer></script>
 
 <?php
 $content = ob_get_clean();

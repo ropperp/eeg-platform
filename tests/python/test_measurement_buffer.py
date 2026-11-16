@@ -26,6 +26,9 @@ try:
 except Exception as e:  # pragma: no cover
     POOL = None
     print("Keine Datenbank erreichbar -- übersprungen:", e)
+    if os.environ.get("CI"):
+        # In der CI wäre ein stilles Überspringen ein falsches Grün.
+        sys.exit(1)
 
 
 @unittest.skipIf(POOL is None, "keine Datenbank")

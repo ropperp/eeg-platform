@@ -2219,7 +2219,7 @@ $router->post('/portal/login/2fa', function () {
 // Fingerabdruck/Gesicht/PIN, der Server prüft die Signatur gegen den gespeicherten öffentlichen
 // Schlüssel (…/verify). Ein Passkey mit Benutzerprüfung ersetzt Passwort UND 2FA -- deshalb
 // entfällt hier die TOTP-Abfrage. Die Challenge liegt in der Session und gilt genau einmal.
-function passkeyJson(array $data, int $status = 200): void
+function passkeyJson(array $data, int $status = 200): never
 {
     http_response_code($status);
     header('Content-Type: application/json');
@@ -2273,7 +2273,7 @@ $router->post('/portal/login/passkey/options', function () {
 });
 
 $router->post('/portal/login/passkey/verify', function () {
-    $fail = fn() => passkeyJson(['error' => 'Passkey konnte nicht bestätigt werden. Bitte mit Passwort anmelden.'], 401);
+    $fail = fn(): never => passkeyJson(['error' => 'Passkey konnte nicht bestätigt werden. Bitte mit Passwort anmelden.'], 401);
     if (!RateLimiter::allow('passkey_login', clientIp(), 20, 900)) {
         passkeyJson(['error' => 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.'], 429);
     }

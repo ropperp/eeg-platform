@@ -35,7 +35,7 @@
   </div>
 </div>
 
-<script src="/assets/js/avatar-crop.js"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/avatar-crop.js')) ?>"></script>
 <script nonce="<?= cspNonce() ?>">
   initAvatarCropper({
     fileInputId: 'profile-photo-input',
@@ -114,7 +114,7 @@
   </div>
   <p id="passkey-unsupported" style="color:var(--gray-600);font-size:.85rem">Dieser Browser unterstützt keine Passkeys.</p>
 </div>
-<script src="/assets/js/passkey.js" defer></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/passkey.js')) ?>" defer></script>
 
 <?php if ($profileMember): ?>
 <div class="card" style="max-width:480px;margin-bottom:1.5rem">

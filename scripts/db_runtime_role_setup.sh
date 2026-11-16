@@ -9,11 +9,10 @@
 # deshalb bislang nie. Diese neue, eingeschränkte Rolle besitzt keine einzige Tabelle, erhält
 # nur gezielte GRANTs -- für sie gelten die Policies ganz normal.
 #
-# NUR für webapp/src/DB.php gedacht (Vorfall 17.08.2026): mqtt-subscriber und eda-parser
-# verbinden bewusst weiterhin als DB_USER (Schema-Besitzer) -- beides vertrauenswürdige interne
-# Hintergrunddienste ohne einzelne, community-gebundene Nutzer-Session (sie verarbeiten
-# Nachrichten/Importe für ALLE Communities), RLS würde dort ohne ein SET app.community_id vor
-# jeder Abfrage nur jeden Zugriff blockieren, siehe main.py bzw. parser.py.
+# Zweite Rolle WORKER_DB_USER (seit 16.11.2026) für mqtt-subscriber und EDA-Parser: Diese
+# Hintergrunddienste verarbeiten Daten ALLER Communities (Vorfall 17.08.2026: mit RLS blockiert)
+# und bekommen deshalb BYPASSRLS. Vorher liefen sie als DB_USER, der im Postgres-Image Superuser
+# ist; das Dienstkonto darf dagegen nur Daten lesen/schreiben, kein Schema ändern.
 #
 # WICHTIG -- Reihenfolge beim Deploy: dieses Skript MUSS vor "docker compose up -d --build"
 # laufen (bzw. Teil desselben Deploy-Schritts sein). webapp/src/DB.php bevorzugt
@@ -57,61 +56,51 @@ else
   exit 1
 fi
 
-APP_DB_USER_DEFAULT="eeg_app"
-
-if [ -n "${APP_DB_PASSWORD:-}" ] && [ "$FORCE" = false ]; then
-  echo "✓ APP_DB_USER/APP_DB_PASSWORD stehen bereits in .env -- wird nicht neu generiert (--force zum Erneuern)."
-  APP_DB_USER="${APP_DB_USER:-$APP_DB_USER_DEFAULT}"
-else
-  APP_DB_USER="${APP_DB_USER:-$APP_DB_USER_DEFAULT}"
-  APP_DB_PASSWORD=$(openssl rand -hex 24)
-  if grep -q '^APP_DB_USER=' .env 2>/dev/null; then
-    sed -i "s/^APP_DB_USER=.*/APP_DB_USER=${APP_DB_USER}/" .env
-    sed -i "s/^APP_DB_PASSWORD=.*/APP_DB_PASSWORD=${APP_DB_PASSWORD}/" .env
+# ensure_credentials <USER_VAR> <PASSWORD_VAR> <Standardname> <Kommentar>
+# Erzeugt ein Passwort und trägt beides in .env ein, wenn es dort noch fehlt (oder mit --force).
+ensure_credentials() {
+  local user_var="$1" pass_var="$2" default_user="$3" comment="$4"
+  local user="${!user_var:-$default_user}" pass="${!pass_var:-}"
+  if [ -n "$pass" ] && [ "$FORCE" = false ]; then
+    echo "✓ ${user_var}/${pass_var} stehen bereits in .env -- wird nicht neu generiert (--force zum Erneuern)."
   else
-    { echo ""; echo "# Eingeschränkte DB-Laufzeit-Rolle -- siehe scripts/db_runtime_role_setup.sh"; \
-      echo "APP_DB_USER=${APP_DB_USER}"; echo "APP_DB_PASSWORD=${APP_DB_PASSWORD}"; } >> .env
+    pass=$(openssl rand -hex 24)
+    if grep -q "^${user_var}=" .env 2>/dev/null; then
+      sed -i "s/^${user_var}=.*/${user_var}=${user}/" .env
+    else
+      { echo ""; echo "# ${comment} -- siehe scripts/db_runtime_role_setup.sh"; echo "${user_var}=${user}"; } >> .env
+    fi
+    if grep -q "^${pass_var}=" .env 2>/dev/null; then
+      sed -i "s/^${pass_var}=.*/${pass_var}=${pass}/" .env
+    else
+      echo "${pass_var}=${pass}" >> .env
+    fi
+    echo "✓ ${user_var}/${pass_var} generiert und in .env eingetragen (Benutzer: ${user})."
   fi
-  echo "✓ APP_DB_USER/APP_DB_PASSWORD generiert und in .env eingetragen (Benutzer: ${APP_DB_USER})."
-fi
+  printf -v "$user_var" '%s' "$user"
+  printf -v "$pass_var" '%s' "$pass"
+}
+
+ensure_credentials APP_DB_USER APP_DB_PASSWORD eeg_app "Eingeschränkte DB-Laufzeit-Rolle der Webapp (RLS greift)"
+# Dienstkonto für mqtt-subscriber und EDA-Parser: verarbeitet Daten ALLER Communities und braucht
+# deshalb BYPASSRLS, ist aber -- anders als DB_USER aus dem Postgres-Image -- kein Superuser und
+# darf kein Schema ändern.
+ensure_credentials WORKER_DB_USER WORKER_DB_PASSWORD eeg_worker "DB-Dienstkonto für mqtt-subscriber und EDA-Parser"
 
 echo "Lege Rolle '${APP_DB_USER}' an bzw. aktualisiere Grants (als Schema-Besitzer ${DB_USER})..."
 $COMPOSE exec -T timescaledb psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 \
-  -v app_user="$APP_DB_USER" -v app_pass="$APP_DB_PASSWORD" -v dbname="$DB_NAME" <<'SQL'
--- Hinweis: psql interpoliert :'var'/:"var" NICHT innerhalb von dollar-quotierten Strings
--- ($do$...$do$) -- ein ursprünglicher DO-Block-Ansatz hier scheiterte deshalb live mit einem
--- Syntaxfehler (leerer, nicht ersetzter Doppelpunkt). \gexec (Server liefert einen fertigen
--- SQL-Text als Ergebniszeile zurück, den psql anschließend ausführt) umgeht das, weil die
--- Interpolation dabei außerhalb jeder Dollar-Quotierung passiert -- live gegen echtes
--- PostgreSQL 16 getestet (14.08.2026).
-SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION', :'app_user', :'app_pass')
-WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'app_user')
-\gexec
-
-SELECT format('ALTER ROLE %I PASSWORD %L', :'app_user', :'app_pass')
-WHERE EXISTS (SELECT FROM pg_roles WHERE rolname = :'app_user')
-\gexec
-
-GRANT CONNECT ON DATABASE :"dbname" TO :"app_user";
-GRANT USAGE ON SCHEMA public TO :"app_user";
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"app_user";
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"app_user";
--- Damit künftige Migrationen (weiterhin als Schema-Besitzer ausgeführt) neue Tabellen/Sequenzen
--- automatisch für die App-Rolle freigeben, ohne dass jedes Mal an ein manuelles GRANT gedacht
--- werden muss.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app_user";
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"app_user";
-SQL
+  -v app_user="$APP_DB_USER" -v app_pass="$APP_DB_PASSWORD" \
+  -v worker_user="$WORKER_DB_USER" -v worker_pass="$WORKER_DB_PASSWORD" -v dbname="$DB_NAME" < scripts/sql/runtime_roles.sql
 echo "✓ Rolle und Grants eingerichtet."
 
 echo ""
-echo "Starte webapp neu, damit sie mit der neuen Rolle verbindet..."
-$COMPOSE up -d --force-recreate webapp
+echo "Starte webapp und mqtt-subscriber neu, damit sie mit den neuen Rollen verbinden..."
+$COMPOSE up -d --force-recreate webapp mqtt-subscriber
 
 echo ""
 echo "─────────────────────────────────────────────────────────────"
 echo "Fertig. Die Webapp verbindet ab sofort als '${APP_DB_USER}' -- diese Rolle besitzt keine"
 echo "Tabellen, die Row-Level-Security-Policies greifen jetzt tatsächlich. DB_USER (${DB_USER})"
-echo "bleibt unverändert Schema-Besitzer für Migrationen. mqtt-subscriber/eda-parser verbinden"
-echo "bewusst weiterhin als DB_USER (siehe Kommentar oben im Skript)."
+echo "bleibt unverändert Schema-Besitzer für Migrationen. mqtt-subscriber und EDA-Parser verbinden"
+echo "als '${WORKER_DB_USER}' (BYPASSRLS, aber kein Superuser)."
 echo "─────────────────────────────────────────────────────────────"

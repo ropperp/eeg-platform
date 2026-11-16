@@ -27,8 +27,9 @@ Hier gehören nur dauerhaft gültige Architektur, Regeln und Stolperfallen hin.
   Auf dem Produktivserver wird nur `main` deployt (Patrick pullt/baut selbst).
 - **Öffentliches Repo:** keine Passwörter, Tokens, Zugangsdaten, E-Mail-Adressen oder Personendaten
   (Familie, Mitglieder, Kunden) in Code, Doku oder Log. Keine wörtlichen Prompts oder Zitate.
-- Tests: `make test` (läuft auch im CI). Neue Doku-Erkenntnisse sofort in die passende Datei oben
-  einarbeiten, nicht erst am Sitzungsende.
+- Tests: `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS), `tests/http/headers_test.sh`
+  (gegen laufenden Container); alles auch im CI, dazu PHPStan (`phpstan.neon`, Baseline nur abbauen, nicht
+  erweitern). Neue Doku-Erkenntnisse sofort in die passende Datei oben einarbeiten.
 
 ## Git-Workflow
 
@@ -100,6 +101,9 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
   auf dem Server nicht an“ → zuerst `ls -la /opt/eeg/latex-templates/`. Liegt die Datei dort und war
   nie bewusst angepasst: löschen (`rm …/<datei>.tex`), dann greift die Image-Version wieder. Bewusst
   angepasste Dateien stattdessen über `/admin/templates` neu hochladen. Hintergrund: `docs/VORFAELLE.md`.
+- **Assets immer mit `assetUrl('/assets/…')` einbinden** (hängt `?v=<mtime>` an). nginx cached nur
+  versionierte Assets lange (`immutable`); Security-Header stehen in `webapp/docker/security-headers.conf`
+  und müssen in jeder location mit eigenem `add_header` erneut per `include` eingebunden werden.
 - **Neues Storage-Volume vor `up --build` anlegen**, sonst gehört es root und PHP (www-data, UID 82)
   kann nicht schreiben: `sudo mkdir -p <pfad> && sudo chown -R 82:82 <pfad>`.
 
@@ -109,6 +113,19 @@ Datei `/opt/eeg-platform/.env` (nicht in Git, nie committen). Pflichtfelder: `DB
 `DB_NAME`, `DOMAIN`, `APP_SECRET` (64 Zeichen zufällig), `LATEX_API_KEY`, `SMTP_HOST`, `SMTP_USER`,
 `SMTP_PASSWORD`. Optional: `TRUSTED_PROXY_IP`, `MESSE_DEMO_LAT`/`MESSE_DEMO_LON`. Kein `ACME_EMAIL`
 nötig (Traefik macht kein Let's Encrypt mehr).
+
+**Datenbank-Rollen** (`scripts/db_runtime_role_setup.sh` erzeugt `APP_DB_*` und `WORKER_DB_*`, SQL in
+`scripts/sql/runtime_roles.sql`):
+
+| Rolle | Wer | Rechte |
+|---|---|---|
+| `DB_USER` (`eeg`) | Migrationen, Backup | Superuser (Postgres-Image), Schema-Besitzer |
+| `APP_DB_USER` (`eeg_app`) | Webapp | nur Daten, **RLS greift**; in Produktion Pflicht |
+| `WORKER_DB_USER` (`eeg_worker`) | mqtt-subscriber, EDA-Parser | nur Daten, `BYPASSRLS`, kein Superuser |
+
+`APP_ENV` (Standard `production`): ohne `APP_DB_USER` startet die Webapp nicht, der Healthcheck
+(`webapp/bin/db_role_check.php`) meldet eine falsch privilegierte Rolle als `unhealthy`. Lokal setzt
+`docker-compose.override.yml` `APP_ENV=development`.
 
 ## Neuinstallation und Update
 

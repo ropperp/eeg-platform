@@ -215,15 +215,12 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       DB_HOST: timescaledb
       DB_PORT: 5432
-      # BEWUSST nur DB_USER/DB_PASSWORD (Schema-Besitzer), NICHT APP_DB_USER -- dieser Dienst
-      # verarbeitet MQTT-Nachrichten community-übergreifend und löst die Community erst pro
-      # Nachricht auf (siehe main.py), Row-Level Security würde ohne ein SET app.community_id
-      # vor jeder Abfrage jeden Schreibzugriff blockieren (Vorfall 17.08.2026: beide ESPs
-      # gleichzeitig "offline"). Anders als bei der Webapp (siehe unten) bringt die
-      # eingeschränkte Rolle hier keinen zusätzlichen Schutz -- MQTT ist bereits über
-      # TLS+Zugangsdaten abgesichert, kein direkter HTTP-Zugriff von außen.
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      # Eigenes Dienstkonto WORKER_DB_USER (kein Superuser, nur BYPASSRLS + Datenrechte; siehe
+      # scripts/db_runtime_role_setup.sh). Der Dienst verarbeitet MQTT-Nachrichten aller
+      # Communities und kennt die Community erst nach dem Nachschlagen, RLS würde ihn blockieren
+      # (Vorfall 17.08.2026). Rückfall auf DB_USER, solange das Skript noch nicht gelaufen ist.
+      DB_USER: ${WORKER_DB_USER:-${DB_USER}}
+      DB_PASSWORD: ${WORKER_DB_PASSWORD:-${DB_PASSWORD}}
       DB_NAME: ${DB_NAME}
       # Für die Verschlüsselung des ESP-WLAN-Passworts (eeg/+/meter/+/status), gleicher
       # Schlüssel wie encryptSecret()/decryptSecret() in webapp/src/functions.php.
@@ -262,18 +259,17 @@ services:
     environment:
       DB_HOST: timescaledb
       DB_PORT: 5432
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      # Eingeschränkte Laufzeit-Rolle (siehe scripts/db_runtime_role_setup.sh) -- DB.php
-      # bevorzugt diese, fällt aber auf DB_USER/DB_PASSWORD zurück, solange leer/nicht gesetzt.
-      # Nur für diese Rolle greifen die Row-Level-Security-Policies überhaupt (DB_USER ist
-      # Tabellenbesitzer und von RLS immer ausgenommen). NUR für die Webapp gedacht -- wird zwar
-      # per proc_open() (ohne eigenes env-Array) auch an den eda-parser-Subprozess vererbt, der
-      # ignoriert es aber bewusst und verbindet immer als DB_USER (gleicher Grund wie
-      # mqtt-subscriber unten: community-übergreifender Batch-Prozess ohne einzelne
-      # Nutzer-Session, siehe eda-parser/parser.py).
+      # production (Standard): die Webapp verbindet nur als eingeschränkte Rolle APP_DB_USER und
+      # bricht sonst mit klarer Meldung ab (webapp/src/DB.php). Lokal setzt
+      # docker-compose.override.yml APP_ENV=development.
+      APP_ENV: ${APP_ENV:-production}
       APP_DB_USER: ${APP_DB_USER:-}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
+      # Nur für den EDA-Parser, den die Webapp als Unterprozess startet (EdaParserRunner.php):
+      # dasselbe Dienstkonto wie mqtt-subscriber. Bewusst nicht der Superuser DB_USER, sobald
+      # WORKER_DB_USER eingerichtet ist.
+      DB_USER: ${WORKER_DB_USER:-${DB_USER}}
+      DB_PASSWORD: ${WORKER_DB_PASSWORD:-${DB_PASSWORD}}
       DB_NAME: ${DB_NAME}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -312,7 +308,8 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      # nginx antwortet UND die DB-Rolle hebelt RLS nicht aus (webapp/bin/db_role_check.php).
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health >/dev/null && php /var/www/html/bin/db_role_check.php"]
       interval: 30s
       timeout: 10s
       retries: 3

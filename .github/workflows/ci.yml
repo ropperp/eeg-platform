@@ -1,11 +1,17 @@
 name: CI
 
-# Läuft bei jedem Push und Pull Request: prüft alle PHP-Dateien auf Syntaxfehler und führt
-# die abhängigkeitsfreie Test-Suite aus (tests/run.php). Kein Composer/PHPUnit nötig.
+# Läuft bei jedem Push und Pull Request:
+#   test         PHP-Syntax + abhängigkeitsfreie Unit-Tests (tests/run.php)
+#   static       PHPStan, docker compose config, Shell-Syntax
+#   integration  echte TimescaleDB: RLS-Mandantentrennung (tests/integration) + Python-Messwertpuffer
+#   http         Webapp-Image bauen, HTTP-Header prüfen (gzip/BREACH, Cache, Security-Header)
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -23,7 +29,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: openssl, mbstring, sodium
+          extensions: openssl, mbstring, sodium, zip
           ini-values: display_errors=On, error_reporting=-1
 
       - name: PHP-Syntaxprüfung (lint) über alle .php-Dateien, ohne Deprecations
@@ -36,3 +42,103 @@ jobs:
           php tests/run.php 2>&1 | tee /tmp/tests.out
           if grep -Eiq '(Deprecated|Warning|Notice):' /tmp/tests.out; then echo '::error::Deprecated/Warning/Notice in der Test-Ausgabe'; grep -Ein '(Deprecated|Warning|Notice):' /tmp/tests.out | head -20; exit 1; fi
           grep -q 'Alle .* Tests bestanden' /tmp/tests.out
+
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP + PHPStan einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: phpstan:2.3.6
+
+      - name: PHPStan (Level und Altbefunde siehe phpstan.neon / phpstan-baseline.neon)
+        run: phpstan analyse --no-progress --memory-limit=2G
+
+      - name: docker compose config (Syntax + Variablen-Interpolation)
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml config --quiet
+          docker compose config --quiet
+
+      - name: Shell-Skripte (bash -n)
+        run: for f in scripts/*.sh tests/integration/*.sh tests/http/*.sh; do bash -n "$f" || exit 1; done
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      timescaledb:
+        # Gleiche Major-Version wie Produktion (PostgreSQL 16 + TimescaleDB), schlankes Image.
+        image: timescale/timescaledb:2.17.2-pg16
+        env:
+          POSTGRES_USER: eeg
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: eeg_platform
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U eeg -d eeg_platform"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGPASSWORD: test
+      TEST_DB_HOST: localhost
+      TEST_DB_PORT: '5432'
+      TEST_DB_NAME: eeg_platform
+      TEST_DB_OWNER: eeg
+      TEST_DB_OWNER_PASSWORD: test
+      TEST_APP_USER: eeg_app
+      TEST_APP_USER_PASSWORD: app
+      TEST_WORKER_USER: eeg_worker
+      TEST_WORKER_USER_PASSWORD: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Schema, Migrationen und Rollen einspielen
+        run: PSQL="psql -h localhost -U eeg -d eeg_platform" bash tests/integration/prepare_db.sh
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql
+          ini-values: error_reporting=-1
+
+      - name: Integrationstests (RLS mit echter Laufzeit-Rolle)
+        run: php tests/integration/run.php
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python-Test Messwertpuffer (als Dienstkonto eeg_worker, wie in Produktion)
+        env:
+          DB_HOST: localhost
+          DB_USER: eeg_worker
+          DB_PASSWORD: worker
+        run: |
+          pip install -q -r mqtt-subscriber/requirements.txt
+          python tests/python/test_measurement_buffer.py
+
+  http:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Webapp-Image bauen
+        run: docker build -f webapp/Dockerfile -t eeg-webapp-ci .
+
+      - name: Container ohne Datenbank starten
+        run: |
+          docker run -d --name web -e APP_ENV=development -p 18080:80 eeg-webapp-ci
+          for i in $(seq 1 30); do curl -fs http://localhost:18080/health && break; sleep 1; done
+
+      - name: HTTP-Header prüfen
+        run: BASE_URL=http://localhost:18080 bash tests/http/headers_test.sh
+
+      - name: Produktionsmodus ohne eingeschränkte Rolle schlägt im Healthcheck fehl
+        run: |
+          if docker exec -e APP_ENV=production web php /var/www/html/bin/db_role_check.php; then
+            echo '::error::db_role_check.php hätte ohne APP_DB_USER scheitern müssen'; exit 1
+          fi
