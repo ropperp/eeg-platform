@@ -37,6 +37,7 @@ Server-Update startete webapp nicht (Port 80 belegt): die versionierte `docker-c
 `git pull` zurück, weil sie geändert wurde. Fix: Datei entversioniert (Vorlage `docker-compose.dev.yml`),
 Vorfall in `docs/VORFAELLE.md`. Lehre: Dateien, die es auf dem Server nicht geben darf, nie versionieren.
 
+**Nachtrag Abend:** Deploy auf dem Server erfolgreich (alle Dienste healthy, Traefik v3.7.19, Rolle OK, Mosquitto nach `chown 1883` + Neustart ohne Log-Fehler). Drei ungeplante Pi-Neustarts (18:32/19:03/19:33) per Systemlog als harte Stromverluste eingeordnet (kein Hänger, `unsafe_shutdowns` gestiegen); in `docs/VORFAELLE.md` vermerkt, nicht weiter verfolgt.
 
 ## 2026-11-13 21:40 — Claude Code — Claude Opus 5.5
 **Auftrag:** Ein Dashboard-Design aus einem Instagram-Video (Glas-Optik) für die Plattform

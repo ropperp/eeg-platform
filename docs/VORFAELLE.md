@@ -2178,3 +2178,16 @@ im Entwicklungsmodus (Container ist nie gestartet).
 **Lehre:** Dateien, die es auf dem Server nicht geben darf, gehören nicht ins Repo (nur als Vorlage unter
 anderem Namen).
 
+**Nachtrag (gleicher Abend): drei ungeplante Neustarts um 18:32, 19:03 und 19:33 Uhr.** Kein Hänger (das
+Systemlog läuft bis Sekunden vor jedem Start normal weiter, keine Lücke), kein sauberes Herunterfahren
+(Docker wird nie gestoppt), kein OOM, kein Watchdog-Eintrag, kein Cronjob im 30-Minuten-Takt,
+`vcgencmd get_throttled` danach `0x0`. NVMe-Zähler: `unsafe_shutdowns` 156 bei `power_cycles` 245 (September:
+131/170) -- also wieder harte Stromverluste wie im Vorfall „Pi friert ein“ oben. Zeitlich genau in der
+Phase, in der die Seite wegen des Port-80-Fehlers down war; danach keine weiteren. Nicht weiter verfolgt
+(Patrick: vermutlich Folge des Update-Abends). Tritt es wieder auf: Loxone-Steckdose auf Regeln/Zeitschaltung
+bzw. Verbindungs-Watchdog prüfen, Netzteil (5V/5A PD) und Kabel prüfen. Diagnose ohne `last` (fehlt auf dem Pi):
+```bash
+sudo grep -a "Startup finished" /var/log/journal-persist.log | tail          # jeder Systemstart
+sudo nvme smart-log /dev/nvme0n1 | grep -E "power_cycles|unsafe_shutdowns"     # steigt unsafe -> Stromverlust
+```
+
