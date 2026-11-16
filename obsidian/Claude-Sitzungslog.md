@@ -24,11 +24,15 @@ Fehlernummer, Routen in `webapp/routes/` (index.php 11.907 → 1.363 Zeilen), Su
 Controller/Service/Repository mit Composer-PSR-4, `docs/ARCHITEKTUR.md` + 5 ADRs, Skripte nur bei Bedarf,
 WebP-Hero (Handy 60 statt 380 KB), Images mit Digest, Dependabot. CI: static/integration/http-Jobs.
 Nachgewiesen mit 353 Unit-, 10 Integrationstests, Vorher/Nachher-Vergleich von 105 Seiten und allen
-Support-Abläufen sowie Playwright-Browsertest aller Rollen. Offen: EDA-Worker, weitere Integrationstests,
-500er für Platform-Admin ohne aktive EEG auf Manager-Seiten.
+Support-Abläufen sowie Playwright-Browsertest aller Rollen. Nachtrag (PR #302): EDA-Import als eigener
+Container `eda-worker` mit Jobtabelle `eda_import_jobs` (Upload zeigt Fortschritt, Postfach-Abruf wartet),
+Webapp-Image ohne Python (473 → 172 MB), Platform-Admin ohne gewählte EEG bekommt Hinweis statt 500
+(43 Routen), End-to-End-Tests des ganzen Stacks (35 Abläufe inkl. echtem Import einer synthetischen
+EDA-Datei) als CI-Job `e2e`. Server-Schritte: Betriebshandbuch, beide Einträge vom 16.11.2026.
 **Fehler/Lehre:** Eine Excel-Sperrdatei (`~$…xlsx`) wurde durch `git add -A docs` mitcommittet; per
 Folge-Commit entfernt und per Squash gemergt, `~$*` steht jetzt in `.gitignore`. Lehre: nur gezielte Pfade
-stagen und vor dem Commit `git status` lesen. Force-Push ist (zu Recht) gesperrt.
+stagen und vor dem Commit `git status` lesen. Force-Push ist (zu Recht) gesperrt. CI-Fehler: zwei Dienste
+pinnen unterschiedliche psycopg2-Versionen, ein gemeinsames `pip install` scheitert -- nacheinander installieren.
 
 
 ## 2026-11-13 21:40 — Claude Code — Claude Opus 5.5
