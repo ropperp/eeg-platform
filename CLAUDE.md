@@ -70,13 +70,16 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:v3 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
+| traefik | traefik:v3.7.19 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
-| redis | redis:7-alpine | — | Session-Cache |
-| mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
+| redis | redis:7.4.12-alpine | — | Session-Cache |
+| mosquitto | eclipse-mosquitto:2 (2.1.2) | 1883, 8883 | MQTT-Broker |
 | mqtt-subscriber | (build) | — | MQTT → DB (+ Messe-Demo-Thread) |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
+
+Alle Images sind mit Version **und Digest** gepinnt (Compose + Dockerfiles); Updates kommen als
+Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
 
 ### Traefik
 - Hört **nur auf Port 80**; SSL macht der nginx-Proxy.

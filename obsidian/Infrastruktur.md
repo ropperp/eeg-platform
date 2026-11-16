@@ -122,10 +122,12 @@ Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Doc
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:v3 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
+| traefik | traefik:v3.7.19 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
-| redis | redis:7-alpine | — | Session-Cache |
-| mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
+| redis | redis:7.4.12-alpine | — | Session-Cache |
+| mosquitto | eclipse-mosquitto:2 (2.1.2) | 1883, 8883 | MQTT-Broker |
+
+Alle Images mit Version und Digest gepinnt; Updates nur als Dependabot-PR (seit 16.11.2026).
 | mqtt-subscriber | (build) | — | MQTT → DB |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |

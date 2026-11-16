@@ -676,9 +676,12 @@ $router->get('/logo-:variant.png', function ($params) {
  * Schlägt die GD-Verarbeitung aus irgendeinem Grund fehl (z.B. korruptes Bild), liefert die
  * Route als Rückfallebene die Originaldatei unverändert aus, statt mit einem Fehler zu enden.
  */
-function optimizedHeroBannerPath(string $sourcePath): string
+function optimizedHeroBannerPath(string $sourcePath, int $maxWidth = 1920, string $format = 'jpg'): string
 {
-    $cachePath = dirname($sourcePath) . '/hero-banner.optimized.jpg';
+    // Varianten für responsive Auslieferung (Handy 960 px, Desktop 1920 px; WebP wo möglich).
+    // Die bisherige Datei hero-banner.optimized.jpg bleibt der Name der Standardvariante.
+    $suffix = ($maxWidth === 1920 ? '' : '-' . $maxWidth) . '.' . $format;
+    $cachePath = dirname($sourcePath) . '/hero-banner.optimized' . $suffix;
     if (is_file($cachePath) && filemtime($cachePath) >= filemtime($sourcePath)) {
         return $cachePath;
     }
@@ -687,7 +690,7 @@ function optimizedHeroBannerPath(string $sourcePath): string
     // nicht enthält), ruft KEINE der folgenden GD-Funktionen auf -- ein Aufruf einer
     // undefinierten Funktion wäre ein Fatal Error, den @ nicht abfangen kann und der die ganze
     // Seite mit HTTP 500 lahmlegen würde. Lieber das Originalbild unverändert ausliefern.
-    if (!function_exists('imagecreatefromstring')) {
+    if (!function_exists('imagecreatefromstring') || ($format === 'webp' && !function_exists('imagewebp'))) {
         return $sourcePath;
     }
     $raw = @file_get_contents($sourcePath);
@@ -697,7 +700,6 @@ function optimizedHeroBannerPath(string $sourcePath): string
     }
     $width = imagesx($img);
     $height = imagesy($img);
-    $maxWidth = 1920;
     if ($width > $maxWidth) {
         $newWidth = $maxWidth;
         $newHeight = (int) round($height * ($maxWidth / $width));
@@ -706,7 +708,7 @@ function optimizedHeroBannerPath(string $sourcePath): string
         imagedestroy($img);
         $img = $resized;
     }
-    $ok = @imagejpeg($img, $cachePath, 82);
+    $ok = $format === 'webp' ? @imagewebp($img, $cachePath, 80) : @imagejpeg($img, $cachePath, 82);
     imagedestroy($img);
     return $ok ? $cachePath : $sourcePath;
 }
@@ -725,8 +727,11 @@ function optimizedHeroBannerPath(string $sourcePath): string
 $router->get('/hero-banner-image', function () {
     $path = adminFilePath('hero-banner.jpg');
     if (!$path) { http_response_code(404); return; }
-    $servePath = optimizedHeroBannerPath($path);
-    header('Content-Type: image/jpeg');
+    // Nur feste Varianten (keine beliebigen Größen -> kein Speicher-/CPU-Missbrauch per URL).
+    $width = in_array($_GET['w'] ?? '', ['960', '1920'], true) ? (int) $_GET['w'] : 1920;
+    $format = ($_GET['f'] ?? '') === 'webp' ? 'webp' : 'jpg';
+    $servePath = optimizedHeroBannerPath($path, $width, $format);
+    header('Content-Type: ' . (str_ends_with($servePath, '.webp') ? 'image/webp' : 'image/jpeg'));
     // Siehe Kommentar bei /logo-:variant.png weiter oben: Auth::start() ruft session_start()
     // vor JEDER Route auf, PHPs Standard-Session-Cache-Limiter setzt dabei automatisch ein
     // bereits abgelaufenes Expires + Pragma: no-cache -- das lief dem hier eigentlich

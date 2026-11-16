@@ -244,7 +244,7 @@ function filterBilling() {
 // window.sepaTilesByRun[<<run-id>>] = {tiles: [{date,label,blocked,reason}], selected, invoice_date, min_days}.
 window.sepaTilesByRun = <?= json_encode($sepaTilesByRun, JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<script src="/assets/js/sepa-date-modal.js?v=<?= @filemtime(ROOT . '/public/assets/js/sepa-date-modal.js') ?: time() ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/sepa-date-modal.js')) ?>"></script>
 
 <div class="card" style="margin-top:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('info') ?> Freigabe nach EDA-Datenqualität</h3>

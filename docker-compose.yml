@@ -35,7 +35,8 @@ services:
     # Hauptversion fest (v3) statt ":latest": ein Neubau springt nie unbemerkt auf eine neue Hauptversion
     # mit geänderter Konfiguration. Für eine exakte Version/Digest: `docker compose images traefik` auf
     # dem Server und hier eintragen (siehe docs/BETRIEBSHANDBUCH.md, 15.11.2026).
-    image: traefik:v3
+    # Images mit Version + Digest fest (16.11.2026), Updates per Dependabot-PR.
+    image: traefik:v3.7.19@sha256:aa942a00bce033c909bf1f7e861d93761be4b31a035f10d2410d33e38a8f41cf
     container_name: traefik
     restart: always
     logging: *default-logging
@@ -126,7 +127,7 @@ services:
   # Session-Cache
   # ─────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
     container_name: redis
     restart: always
     logging: *default-logging
@@ -158,7 +159,8 @@ services:
   # MQTT Broker
   # ─────────────────────────────────────────
   mosquitto:
-    image: eclipse-mosquitto:2
+    # Version 2.1.2 (kein eigener Versions-Tag veröffentlicht, daher Tag "2" + Digest)
+    image: eclipse-mosquitto:2@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98
     container_name: mosquitto
     restart: always
     logging: *default-logging

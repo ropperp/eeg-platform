@@ -25,6 +25,25 @@ function jsonBody(): array
 }
 
 /**
+ * Welche optionalen Skripte braucht eine Seite? Die Layouts entscheiden anhand des fertig
+ * gerenderten Seiteninhalts, statt jede Seite ein Kennzeichen setzen zu lassen (das man vergisst):
+ *  - animations: GSAP + ScrollTrigger + site-animations.js (~120 KB) nur bei einem Hero-Bereich
+ *  - password:   password-toggle.js nur bei einem Passwortfeld
+ *  - signature:  signature-pad-trim.js nur, wenn die Seite trimSignatureCanvas() aufruft
+ *
+ * @return array{animations: bool, password: bool, signature: bool}
+ */
+function pageScriptNeeds(string $html): array
+{
+    return [
+        // Klasse "hero" als eigenes Wort (nicht "hero-banner"), wie querySelector('.hero')
+        'animations' => (bool) preg_match('/class="(?:[^"]*\s)?hero(?:\s[^"]*)?"/', $html),
+        'password'   => str_contains($html, 'type="password"'),
+        'signature'  => str_contains($html, 'trimSignatureCanvas'),
+    ];
+}
+
+/**
  * URL einer Datei unter public/assets mit Versionsparameter (Änderungszeit der Datei). nginx
  * cached nur Assets MIT ?v= ein Jahr lang als "immutable" (webapp/docker/nginx.conf); ohne
  * Versionsparameter würde ein Browser nach einem Update sonst alte Skripte weiterverwenden.

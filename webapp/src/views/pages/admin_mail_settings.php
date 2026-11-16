@@ -580,6 +580,6 @@ function suggestMqttPassword() {
 </div>
 </section>
 
-<script src="/assets/js/tabs.js?v=<?= @filemtime(ROOT . '/public/assets/js/tabs.js') ?: time() ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/tabs.js')) ?>"></script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

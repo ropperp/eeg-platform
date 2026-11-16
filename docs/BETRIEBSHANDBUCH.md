@@ -1420,3 +1420,16 @@ docker compose up -d --build
 > `docker compose up -d` -- dann verbinden beide Dienste wieder als `DB_USER`. Notfall für die Webapp
 > (nur kurzfristig!): `APP_ENV=development` in die `.env`.
 
+> **Zusätzlich beim selben Update (16.11.2026) -- gepinnte Images, neue Code-Struktur**:
+> Traefik, Redis und Mosquitto haben jetzt feste Versionen. Ist der Server länger nicht mit `pull` aktualisiert
+> worden, wechselt er dabei auf diese Versionen (v. a. Mosquitto 2.0 → 2.1). Vorher den Stand notieren:
+> ```bash
+> cd /opt/eeg-platform && docker compose images > ~/images-vorher.txt   # Rückfall-Information
+> git pull origin main && docker compose pull traefik redis mosquitto && docker compose up -d --build
+> sleep 40 && docker compose ps            # alle "healthy"
+> docker compose logs --tail=30 mosquitto mqtt-subscriber   # "Verbunden", keine Config-Fehler
+> ```
+> Danach: Live-Seite zeigt Werte, Login (Passwort + Passkey), ein Support-Ticket anlegen/beantworten,
+> Startseite am Handy (Hero-Bild). **Rückfall Mosquitto:** in `docker-compose.yml` das Image auf die Zeile aus
+> `~/images-vorher.txt` setzen (z. B. `eclipse-mosquitto:2.0.22`), `docker compose up -d mosquitto`.
+

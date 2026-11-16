@@ -124,7 +124,7 @@ ob_start();
 <script nonce="<?= cspNonce() ?>">
 window.sepaTransferTiles = <?= json_encode($sepaTransferTiles, JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<script src="/assets/js/sepa-date-modal.js?v=<?= @filemtime(ROOT . '/public/assets/js/sepa-date-modal.js') ?: time() ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/sepa-date-modal.js')) ?>"></script>
 
 <script nonce="<?= cspNonce() ?>">
 document.querySelectorAll('.btn-copy').forEach(function (btn) {

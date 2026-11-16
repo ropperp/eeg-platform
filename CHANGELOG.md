@@ -19,6 +19,21 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Weniger JavaScript, responsive Hero-Bilder, gepinnte Images (16.11.2026)
+- **Skripte nur bei Bedarf:** GSAP + ScrollTrigger + Animationen (~120 KB) nur noch auf Seiten mit Hero
+  (Startseite), Passwort-Skript nur bei Passwortfeldern, Unterschrift-Skript nur bei Unterschrift. Die
+  Layouts entscheiden anhand des Seiteninhalts (`pageScriptNeeds()`), keine Kennzeichen pro Seite nötig.
+  Nicht kritische Skripte mit `defer`. Alle Layout-Assets über `assetUrl()` (kein `time()`-Cache-Busting).
+- **Hero-Bild responsiv:** `/hero-banner-image?w=960|1920&f=webp|jpg` (feste Varianten), Startseite per
+  Media-Query + `image-set()` mit JPEG-Rückfall, responsives Preload. Handy lädt ~60 KB WebP statt
+  ~380 KB JPEG. gd im Image jetzt mit WebP (`libwebp`).
+- **Images gepinnt:** PHP 8.4.27, Python 3.12.16, Node 20.20.2, Traefik v3.7.19, Redis 7.4.12, Mosquitto 2.1.2
+  jeweils mit Digest. Python-Pakete des EDA-Parsers aus `eda-parser/requirements.txt` (vorher ungepinnt,
+  die Datei war veraltet). Dependabot schlägt monatlich gruppierte Updates vor (Docker, Compose, pip, npm,
+  GitHub Actions).
+- **Geprüft im Browser** (Playwright, `tests/browser/csp.js`): alle Rollen und ~60 Seiten ohne
+  CSP-Verletzung/JS-Fehler; Hero-Variante je Bildschirmbreite, Animation und Passwort-Auge funktionieren.
+
 ### Neue Code-Struktur: Routendateien, Controller/Service/Repository, ADRs (16.11.2026)
 - **Routen ausgelagert:** `webapp/public/index.php` 11.907 → 1.363 Zeilen; die 273 Routen liegen in
   `webapp/routes/{public,portal,admin,api}.php`. Rein mechanisch verschoben, mit Vorher/Nachher-Vergleich

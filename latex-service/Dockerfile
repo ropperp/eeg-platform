@@ -1,4 +1,5 @@
-FROM node:20-slim
+# Version + Digest fest (reproduzierbare Builds); Updates schlägt Dependabot vor (.github/dependabot.yml).
+FROM node:20.20.2-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
 # TeX Live mit deutschen Sprachpaketen + eurosym
 # cm-super wird explizit ergänzt: es ist bei Debian/Ubuntu nur ein "Recommends" von

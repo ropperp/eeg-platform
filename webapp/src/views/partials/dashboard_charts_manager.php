@@ -96,4 +96,4 @@ $kwh = fn(float $v) => chartNumber($v) . ' kWh';
     </div>
   </div>
 </div>
-<script src="/assets/js/glass-charts.js?v=<?= @filemtime(ROOT . '/public/assets/js/glass-charts.js') ?: time() ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/glass-charts.js')) ?>"></script>

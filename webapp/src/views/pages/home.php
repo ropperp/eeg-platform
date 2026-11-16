@@ -11,9 +11,19 @@ $customHeroBanner = adminFilePath('hero-banner.jpg');
 // beim ersten Scan des HTML wie bei einem <img src>. Ein <link rel="preload"> im <head> (muss
 // dafür VOR dem eigentlichen Seiteninhalt bekannt sein, siehe $extraHead/base.php) lässt den
 // Browser den Download parallel zu allem anderen anstoßen, statt erst nach dem CSS-Parsing.
+// Responsiv (16.11.2026): 960 px fürs Handy, 1920 px ab Tablet-Breite, jeweils WebP mit JPEG-Rückfall
+// (image-set; Browser ohne Unterstützung nehmen die erste, reine JPEG-Deklaration).
 if ($customHeroBanner) {
-    $heroBannerUrl = '/hero-banner-image?v=' . filemtime($customHeroBanner);
-    $extraHead = '<link rel="preload" as="image" fetchpriority="high" href="' . htmlspecialchars($heroBannerUrl) . '">';
+    $heroV = (int) filemtime($customHeroBanner);
+    $heroUrl = static fn(int $w, string $f): string => '/hero-banner-image?v=' . $heroV . '&w=' . $w . '&f=' . $f;
+    $extraHead = '<link rel="preload" as="image" fetchpriority="high" type="image/webp" imagesizes="100vw" imagesrcset="'
+        . htmlspecialchars($heroUrl(960, 'webp') . ' 960w, ' . $heroUrl(1920, 'webp') . ' 1920w') . '">';
+    // Nur Ziffern/Buchstaben/?&= in den URLs -> im <style> ohne HTML-Escaping sicher.
+    $heroCss = static function (string $selector, string $gradient, int $w) use ($heroUrl): string {
+        return $selector . ' { background-image: ' . $gradient . ", url('" . $heroUrl($w, 'jpg') . "');"
+            . ' background-image: ' . $gradient . ", image-set(url('" . $heroUrl($w, 'webp') . "') type(\"image/webp\"), url('"
+            . $heroUrl($w, 'jpg') . "') type(\"image/jpeg\")); }";
+    };
 }
 // Organization-Schema (schema.org/JSON-LD): hilft Suchmaschinen (Google Knowledge-Panel/
 // Sitelinks) UND KI-Suchassistenten (Perplexity, ChatGPT-Search, Google AI Overviews), die
@@ -39,8 +49,12 @@ ob_start();
 
 <?php if ($customHeroBanner): ?>
 <style>
-.hero { background-image: linear-gradient(180deg, rgba(4,16,12,.62) 0%, rgba(4,16,12,.32) 45%, rgba(4,16,12,.72) 100%), url('<?= htmlspecialchars($heroBannerUrl) ?>'); }
-[data-theme="dark"] .hero { background-image: linear-gradient(180deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.85) 100%), url('<?= htmlspecialchars($heroBannerUrl) ?>'); }
+<?php
+$heroLight = 'linear-gradient(180deg, rgba(4,16,12,.62) 0%, rgba(4,16,12,.32) 45%, rgba(4,16,12,.72) 100%)';
+$heroDark = 'linear-gradient(180deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.85) 100%)';
+echo $heroCss('.hero', $heroLight, 960), "\n", $heroCss('[data-theme="dark"] .hero', $heroDark, 960), "\n";
+echo '@media (min-width: 961px) { ', $heroCss('.hero', $heroLight, 1920), ' ', $heroCss('[data-theme="dark"] .hero', $heroDark, 1920), " }\n";
+?>
 </style>
 <?php endif; ?>
 

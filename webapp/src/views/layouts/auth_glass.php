@@ -19,7 +19,7 @@ $v = fn(string $f) => @filemtime(ROOT . '/public/assets/' . $f) ?: time();
   <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
   <link rel="stylesheet" href="/assets/css/app.css?v=<?= $v('css/app.css') ?>">
   <link rel="stylesheet" href="/assets/css/login-glass.css?v=<?= $v('css/login-glass.css') ?>">
-  <script src="/assets/js/ui-actions.js?v=<?= @filemtime(ROOT . '/public/assets/js/ui-actions.js') ?: time() ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('/assets/js/ui-actions.js')) ?>" defer></script>
 </head>
 <body class="lg-body">
   <div class="lg-streaks" aria-hidden="true"><span></span><span></span><span></span></div>
