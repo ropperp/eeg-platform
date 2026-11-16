@@ -32,7 +32,10 @@ EDA-Datei) als CI-Job `e2e`. Server-Schritte: Betriebshandbuch, beide Einträge 
 **Fehler/Lehre:** Eine Excel-Sperrdatei (`~$…xlsx`) wurde durch `git add -A docs` mitcommittet; per
 Folge-Commit entfernt und per Squash gemergt, `~$*` steht jetzt in `.gitignore`. Lehre: nur gezielte Pfade
 stagen und vor dem Commit `git status` lesen. Force-Push ist (zu Recht) gesperrt. CI-Fehler: zwei Dienste
-pinnen unterschiedliche psycopg2-Versionen, ein gemeinsames `pip install` scheitert -- nacheinander installieren.
+pinnen unterschiedliche psycopg2-Versionen, ein gemeinsames `pip install` scheitert -- nacheinander installieren. Beim
+Server-Update startete webapp nicht (Port 80 belegt): die versionierte `docker-compose.override.yml` kam per
+`git pull` zurück, weil sie geändert wurde. Fix: Datei entversioniert (Vorlage `docker-compose.dev.yml`),
+Vorfall in `docs/VORFAELLE.md`. Lehre: Dateien, die es auf dem Server nicht geben darf, nie versionieren.
 
 
 ## 2026-11-13 21:40 — Claude Code — Claude Opus 5.5
