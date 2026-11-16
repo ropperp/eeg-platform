@@ -1433,3 +1433,21 @@ docker compose up -d --build
 > Startseite am Handy (Hero-Bild). **Rückfall Mosquitto:** in `docker-compose.yml` das Image auf die Zeile aus
 > `~/images-vorher.txt` setzen (z. B. `eclipse-mosquitto:2.0.22`), `docker compose up -d mosquitto`.
 
+> **Einmalig nach dem Update vom 16.11.2026 (zweiter Teil) -- EDA-Import als eigener Container `eda-worker`**:
+> Voraussetzung: der erste Teil vom 16.11.2026 (Rollen-Skript) ist erledigt. **Reihenfolge:** erst die
+> Migration (neue Tabelle `eda_import_jobs`), dann bauen -- die neue Webapp legt Importe dort ab.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261118.sql
+> docker compose up -d --build
+> sleep 60 && docker compose ps                      # eda-worker "healthy"
+> docker compose logs --tail=20 eda-worker           # "EDA-Worker gestartet"
+> ```
+> Test: unter Obmann → EDA-Daten eine Datei hochladen; die Seite zeigt „wird importiert …“ und danach das
+> Ergebnis. Hängt ein Import: `docker compose logs --tail=50 eda-worker` und
+> `docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c "SELECT status, count(*) FROM eda_import_jobs GROUP BY 1;"`.
+> Parser-Werkzeuge laufen jetzt im Worker: `docker compose exec eda-worker python parser.py --resplit`.
+> Der Cron für den Postfach-Abruf bleibt unverändert. **Rückfall:** `git revert` des Commits und
+> `docker compose up -d --build` (die Tabelle bleibt harmlos bestehen; `docker compose rm -sf eda-worker`).
+

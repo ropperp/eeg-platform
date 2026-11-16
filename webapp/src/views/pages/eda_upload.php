@@ -6,6 +6,24 @@
   <div class="alert alert-error" style="margin-bottom:1rem"><?= $error ?></div>
 <?php endif; ?>
 
+<?php if (!empty($pendingJob)): ?>
+  <?php $wartetSeit = time() - strtotime((string)$pendingJob['created_at']); ?>
+  <div class="alert alert-warning" style="margin-bottom:1rem;display:flex;gap:.75rem;align-items:center"
+       data-eda-job="<?= htmlspecialchars((string)$pendingJob['id']) ?>"
+       data-eda-status="<?= htmlspecialchars((string)$pendingJob['status']) ?>" role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <div>
+      <strong><?= htmlspecialchars((string)$pendingJob['original_name']) ?></strong>:
+      <?= $pendingJob['status'] === 'running' ? 'wird gerade importiert …' : 'wartet auf den Import …' ?>
+      Die Seite aktualisiert sich automatisch.
+      <?php if ($pendingJob['status'] === 'queued' && $wartetSeit > 120): ?>
+        <br><small>Der Import hat seit <?= (int)floor($wartetSeit / 60) ?> Minuten nicht begonnen. Bitte die
+        Plattform-Verwaltung informieren (Dienst <code>eda-worker</code>).</small>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
+
 <?php if (isset($_GET['deleted'])): ?>
   <div class="alert alert-success" style="margin-bottom:1rem">Import gelöscht -- die zugehörigen Messwerte wurden entfernt.</div>
 <?php endif; ?>
@@ -231,4 +249,7 @@
   </p>
 </div>
 
+<?php if (!empty($pendingJob)): ?>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/eda-job-status.js')) ?>" defer></script>
+<?php endif; ?>
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

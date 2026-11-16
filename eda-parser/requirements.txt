@@ -1,5 +1,8 @@
-# Einzige Quelle für die Python-Pakete des EDA-Parsers (webapp/Dockerfile installiert daraus).
-# Versionen = Stand im Image vom 16.11.2026; Updates schlägt Dependabot vor (.github/dependabot.yml).
+# Einzige Quelle für die Python-Pakete des EDA-Parsers/-Workers (eda-parser/Dockerfile).
+# Versionen = Stand im Webapp-Image vom 16.11.2026; Updates schlägt Dependabot vor (.github/dependabot.yml).
 pandas==3.1.1
 openpyxl==3.1.5
 psycopg2-binary==2.9.13
+# IANA-Zeitzonen für zoneinfo (Europe/Vienna) -- python:slim bringt keine System-Zeitzonen mit
+# (gleicher Grund wie mqtt-subscriber/requirements.txt, Vorfall 05.10.2026).
+tzdata==2024.2

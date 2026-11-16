@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# End-to-End-Abläufe gegen einen laufenden Stack (Webapp + eda-worker + DB + Redis) mit den
+# Testdaten aus tests/e2e/seed.sql. Normalerweise über tests/e2e/run.sh (make test-e2e, CI-Job e2e).
+#   BASE=http://localhost:18100 bash tests/e2e/app_flows_test.sh
+# Prüft: Login + Session-Erneuerung, falsches Passwort, 2FA-Pflicht, Logout, CSRF, Rollenrechte,
+# Platform-Admin ohne EEG, Mandantentrennung per HTTP, App-API mit Token, Beitrittsformular,
+# EDA-Upload über den Worker (Job -> Status -> Ergebnisseite).
+set -uo pipefail
+export LC_ALL=C
+BASE="${BASE:-http://localhost:18100}"
+PORTAL=portal.stromfueralle.at; MAIN=stromfueralle.at
+PW='E2e-Test-123!'
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+pass=0; fail=0
+ok()  { pass=$((pass + 1)); echo "  ✓ $1"; }
+bad() { fail=$((fail + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "      $2"; }
+check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "erwartet '$3', war '$2'"; fi; }
+contains() { if grep -qF -- "$3" <<<"$2"; then ok "$1"; else bad "$1" "'$3' fehlt"; fi; }
+
+# req <sitzung> <host> <METHODE> <pfad> [curl-args...] -> setzt CODE, LOC, BODY; Cookie je Sitzung in Datei
+req() {
+  local s=$1 host=$2 m=$3 path=$4; shift 4
+  local ck; ck=$(cat "$T/$s.ck" 2>/dev/null || true)
+  curl -s -X "$m" -D "$T/h" -o "$T/b" -H "Host: $host" -H "X-Forwarded-Proto: https" ${ck:+-H "Cookie: $ck"} "$@" "$BASE$path"
+  CODE=$(head -1 "$T/h" | awk '{print $2}')
+  LOC=$(grep -i '^location:' "$T/h" | tr -d '\r' | awk '{print $2}')
+  BODY=$(cat "$T/b")
+  local nc; nc=$(grep -i '^set-cookie: eeg_session=' "$T/h" | head -1 | sed -E 's/^[^:]+: *([^;]+).*/\1/' | tr -d '\r')
+  [ -n "$nc" ] && echo "$nc" > "$T/$s.ck"
+  local tok; tok=$(grep -oE 'data-csrf="[0-9a-f]{64}"|var token = "[0-9a-f]{64}"' "$T/b" | head -1 | grep -oE '[0-9a-f]{64}')
+  [ -n "$tok" ] && echo "$tok" > "$T/$s.tok"
+  return 0
+}
+token() { cat "$T/$1.tok" 2>/dev/null; }
+login() { # login <sitzung> <email>
+  rm -f "$T/$1.ck" "$T/$1.tok"
+  req "$1" $PORTAL GET /portal/login
+  req "$1" $PORTAL POST /portal/login --data-urlencode "csrf_token=$(token "$1")" --data-urlencode "email=$2" --data-urlencode "password=$PW"
+}
+
+echo "Anmeldung und Sitzung"
+req anon $PORTAL GET /portal/login; before=$(cat "$T/anon.ck")
+req anon $PORTAL POST /portal/login --data-urlencode "csrf_token=$(token anon)" --data-urlencode "email=e2e-manager@example.invalid" --data-urlencode "password=falsch"
+check "falsches Passwort: keine Weiterleitung ins Portal" "$([ "$LOC" = /portal/dashboard ] && echo ja || echo nein)" "nein"
+login mgr e2e-manager@example.invalid
+check "Obmann-Login leitet aufs Dashboard" "$CODE $LOC" "302 /portal/dashboard"
+check "Session-ID wird beim Login erneuert (Schutz vor Session-Fixation)" "$([ "$(cat "$T/mgr.ck")" != "$before" ] && echo ja)" "ja"
+login totp e2e-totp@example.invalid
+check "Konto mit 2FA: Passwort allein führt zur Code-Abfrage" "$LOC" "/portal/login/2fa"
+req totp $PORTAL GET /portal/dashboard
+check "  ... und noch nicht ins Portal" "$CODE $LOC" "302 /portal/login"
+login bye e2e-manager@example.invalid; req bye $PORTAL GET /portal/logout; req bye $PORTAL GET /portal/dashboard
+check "nach dem Abmelden kein Zugriff mehr" "$CODE $LOC" "302 /portal/login"
+
+echo "CSRF"
+req mgr $PORTAL POST /portal/my/support --data-urlencode "subject=x" --data-urlencode "message=y"
+check "Formular-POST ohne CSRF-Token wird abgelehnt" "$CODE" "403"
+req mgr $PORTAL POST /portal/support/e2e00000-0000-0000-0000-0000000000c9/reply --data-urlencode "csrf_token=falsch" --data-urlencode "message=y"
+check "Formular-POST mit falschem Token wird abgelehnt" "$CODE" "403"
+
+echo "Rollen und Mandantentrennung"
+req anon2 $PORTAL GET /portal/members
+check "anonym: Mitgliederliste leitet zum Login" "$CODE $LOC" "302 /portal/login"
+login mem e2e-member@example.invalid
+req mem $PORTAL GET /portal/members
+check "Mitglied: Obmann-Seite verboten" "$CODE" "403"
+req mgr $PORTAL GET /portal/members
+check "Obmann: Mitgliederliste erreichbar" "$CODE" "200"
+contains "  ... zeigt eigenes Mitglied" "$BODY" "Mia"
+if grep -q "Fremd" <<<"$BODY"; then bad "  ... zeigt kein Mitglied der fremden EEG"; else ok "  ... zeigt kein Mitglied der fremden EEG"; fi
+req mgr $PORTAL GET /portal/support/e2e00000-0000-0000-0000-0000000000c9
+check "Obmann: Support-Ticket der fremden EEG nicht abrufbar" "$CODE" "404"
+req mem $PORTAL GET /portal/my/support/e2e00000-0000-0000-0000-0000000000c9
+check "Mitglied: fremdes Ticket nicht abrufbar" "$CODE" "404"
+login adm e2e-admin@example.invalid
+req adm $PORTAL GET /portal/members
+check "Platform-Admin ohne gewählte EEG: Hinweis statt Serverfehler" "$CODE $(cut -d'?' -f1 <<<"$LOC")" "302 /admin"
+req adm $PORTAL GET /admin
+check "Platform-Admin: Admin-Bereich erreichbar" "$CODE" "200"
+req mgr $PORTAL GET /admin
+check "Obmann: Admin-Bereich verboten" "$CODE" "403"
+
+echo "App-API"
+req api $MAIN GET /api/v1/support
+check "ohne Token: 401" "$CODE" "401"
+req api $MAIN POST /api/v1/login -H "Content-Type: application/json" -d "{\"email\":\"e2e-member@example.invalid\",\"password\":\"$PW\"}"
+AT=$(python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' <<<"$BODY" 2>/dev/null)
+check "Login über die App liefert Token" "$([ -n "$AT" ] && echo ja)" "ja"
+req api $MAIN GET /api/v1/support -H "Authorization: Bearer $AT"
+check "mit Token: eigene Tickets (200)" "$CODE" "200"
+req api $MAIN GET /api/v1/support/e2e00000-0000-0000-0000-0000000000c9 -H "Authorization: Bearer $AT"
+check "mit Token: fremdes Ticket 404" "$CODE" "404"
+req api $MAIN GET /api/v1/support -H "Authorization: Bearer kaputt"
+check "ungültiger Token: 401" "$CODE" "401"
+
+echo "Öffentliche Seiten"
+req pub $MAIN GET /rc108175/beitreten/formular
+check "Beitrittsformular erreichbar" "$CODE" "200"
+contains "  ... mit Zustimmungstexten" "$BODY" "zustimmungen"
+
+echo "EDA-Import über den Worker"
+printf 'keine Excel-Datei' > "$T/kaputt.xlsx"; printf 'x' > "$T/text.txt"
+req mgr $PORTAL POST /portal/eda/upload -F "csrf_token=$(token mgr)" -F "xlsx=@$T/text.txt;filename=text.txt"
+contains "Nicht-XLSX wird abgelehnt" "$BODY" "Nur XLSX-Dateien erlaubt"
+req mgr $PORTAL POST /portal/eda/upload -F "csrf_token=$(token mgr)" -F "xlsx=@$T/kaputt.xlsx;filename=kaputt.xlsx"
+JOB=$(grep -oE 'job=[0-9a-f-]{36}' <<<"$BODY" | head -1 | cut -d= -f2)
+check "Upload legt Job an und leitet zur Statusseite (ohne 3xx)" "$CODE $([ -n "$JOB" ] && echo job)" "200 job"
+req mgr $PORTAL GET "/portal/eda/upload?job=$JOB"
+# Je nach Tempo des Workers: Statusanzeige oder schon das Ergebnis -- beides ist richtig.
+if grep -qF "data-eda-job=\"$JOB\"" <<<"$BODY" || grep -qF "Parser-Fehler" <<<"$BODY"; then ok "Statusseite zeigt Fortschritt bzw. Ergebnis"; else bad "Statusseite zeigt Fortschritt bzw. Ergebnis"; fi
+st=""; for _ in $(seq 1 60); do req mgr $PORTAL GET "/portal/eda/jobs/$JOB"; st=$(python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["status"])' <<<"$BODY" 2>/dev/null); [ "$st" = failed ] || [ "$st" = done ] && break; sleep 1; done
+check "Worker verarbeitet den Job (kaputte Datei -> failed)" "$st" "failed"
+req mgr $PORTAL GET "/portal/eda/upload?job=$JOB"
+contains "Ergebnisseite zeigt den Parser-Fehler" "$BODY" "Parser-Fehler"
+req mem $PORTAL GET "/portal/eda/jobs/$JOB"
+check "Mitglied darf den Job-Status nicht abfragen" "$CODE" "403"
+if [ -n "${E2E_EDA_FIXTURE:-}" ]; then
+  req mgr $PORTAL GET /portal/eda/upload
+  req mgr $PORTAL POST /portal/eda/upload -F "csrf_token=$(token mgr)" -F "xlsx=@$E2E_EDA_FIXTURE;filename=RC108175_Energiedatenreport_test.xlsx"
+  JOB=$(grep -oE 'job=[0-9a-f-]{36}' <<<"$BODY" | head -1 | cut -d= -f2)
+  for _ in $(seq 1 90); do req mgr $PORTAL GET "/portal/eda/jobs/$JOB"; st=$(python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])' <<<"$BODY" 2>/dev/null); [ "$st" = failed ] || [ "$st" = done ] && break; sleep 1; done
+  check "gültige Monatsdatei: Worker importiert erfolgreich" "$st" "done"
+  req mgr $PORTAL GET "/portal/eda/upload?job=$JOB"
+  contains "  ... Ergebnisseite zeigt die importierten Datensätze" "$BODY" "2 Datensätze importiert"
+  contains "  ... und die neu angelegten Zählpunkte" "$BODY" "Neu angelegt (2)"
+  contains "  ... und die Datenqualitäts-Übersicht" "$BODY" "Datenqualit"
+fi
+
+echo ""
+if [ "$fail" -eq 0 ]; then echo "✓ Alle ${pass} E2E-Tests bestanden"; else echo "✗ ${fail} von $((pass + fail)) E2E-Tests fehlgeschlagen"; exit 1; fi

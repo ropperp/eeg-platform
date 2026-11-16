@@ -1,7 +1,8 @@
 # Version + Digest fest (reproduzierbare Builds); Updates schlägt Dependabot vor (.github/dependabot.yml).
 FROM php:8.4.27-fpm-alpine@sha256:511af6fa3ef55c4ea0c68bb47096ba4b81771ab4949bde7813807bf177efda11
 
-# PHP Extensions + Python für EDA-Parser
+# PHP-Extensions. Python/pandas für den EDA-Import liegen seit 16.11.2026 im eigenen Container
+# eda-worker (eda-parser/Dockerfile), nicht mehr hier.
 # tzdata: Alpine liefert von sich aus KEINE IANA-Zeitzonendatenbank (/usr/share/zoneinfo) mit --
 # Pythons zoneinfo-Modul (ab 3.9, von pandas beim Excel-Datumsparsing/lokaler Zeitzonenauflösung
 # transitiv genutzt) schlägt ohne dieses Paket mit "No time zone found with key ..." fehl, siehe
@@ -15,7 +16,7 @@ FROM php:8.4.27-fpm-alpine@sha256:511af6fa3ef55c4ea0c68bb47096ba4b81771ab4949bde
 # imagecreatefromstring() & Co. aufrief, ohne dass die gd-Extension hier überhaupt installiert
 # war -- ein Fatal Error durch einen Aufruf einer undefinierten Funktion, den @ NICHT
 # unterdrückt, anders als eine Warning/einen Notice).
-RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev python3 py3-pip tzdata \
+RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev tzdata \
         libjpeg-turbo libpng freetype libwebp \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS libjpeg-turbo-dev libpng-dev freetype-dev libwebp-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
@@ -24,21 +25,16 @@ RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev python3 py3-pip tzdat
     && docker-php-ext-enable redis \
     && apk del .build-deps
 
-# Python-Pakete für den EDA-Parser, feste Versionen aus eda-parser/requirements.txt
-COPY eda-parser/requirements.txt /tmp/eda-requirements.txt
-RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/eda-requirements.txt && rm /tmp/eda-requirements.txt
-
 # nginx Konfiguration
 COPY webapp/docker/nginx.conf /etc/nginx/nginx.conf
 COPY webapp/docker/security-headers.conf /etc/nginx/security-headers.conf
 COPY webapp/docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
-# App-Code + EDA-Parser
+# App-Code
 COPY webapp/public/ /var/www/html/public/
 COPY webapp/src/ /var/www/html/src/
 COPY webapp/bin/ /var/www/html/bin/
 COPY webapp/routes/ /var/www/html/routes/
-COPY eda-parser/ /var/www/html/eda-parser/
 
 # Read-only Rückfallebene für /admin/templates (Platform-Admin: LaTeX-Vorlagen + Infoblatt
 # herunter-/hochladen): das persistente Volume /opt/eeg/latex-templates (siehe

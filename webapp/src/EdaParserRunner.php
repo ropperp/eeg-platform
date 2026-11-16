@@ -2,41 +2,31 @@
 
 declare(strict_types=1);
 
+use App\Support\Services;
+
 /**
- * Führt eda-parser/parser.py aus und hält stdout (JSON-Ergebnis bei Erfolg) und stderr
- * (INFO/WARNING-Logzeilen des Parsers, siehe logging.basicConfig() dort -- Default-Handler
- * schreibt auf stderr) sauber getrennt.
+ * Synchroner EDA-Import für Hintergrundprozesse (Postfach-Abruf, EdaAutoImporter.php).
  *
- * Vorher liefen beide Streams über ein simples "2>&1" in EINEN String zusammen (siehe
- * public/index.php vor dieser Änderung). Dadurch schlug json_decode() auf dem kombinierten
- * String IMMER fehl, sobald der Parser mindestens eine Logzeile ausgegeben hatte -- was bei
- * JEDEM Lauf der Fall ist (allein schon die "Lese XLSX"-Zeile). Ergebnis: die Plattform zeigte
- * "Parser-Fehler" an, selbst wenn der Import tatsächlich vollständig erfolgreich in der
- * Datenbank gelandet war (Patrick, 06.08.2026 -- ein als Fehler gemeldeter Import hatte
- * tatsächlich 10 Datensätze korrekt importiert). proc_open() mit getrennten Pipes behebt das.
+ * Seit 16.11.2026 läuft der Parser nicht mehr als Unterprozess der Webapp, sondern im Container
+ * eda-worker (docs/adr/0005-eda-import-als-worker.md). Diese Klasse legt einen Job an, wartet auf
+ * das Ergebnis und liefert es im bisherigen Format: stdout (JSON-Ergebnis) und stderr (Logzeilen)
+ * getrennt, damit json_decode() auf stdout funktioniert (Vorfall 06.08.2026: zusammengelegte
+ * Streams ließen erfolgreiche Importe als "Parser-Fehler" erscheinen).
+ *
+ * Portal-Uploads warten NICHT, sondern zeigen den Job-Status an (routes/portal.php).
  */
 class EdaParserRunner
 {
-    /** @return array{stdout:string, stderr:string, exit_code:int} */
+    /** @return array{stdout:string, stderr:string, exit_code:int} Monatsexport (parser.py) */
     public static function run(string $filePath, string $communitySlug, ?string $userId = null): array
     {
-        $cmd = 'python3 /var/www/html/eda-parser/parser.py --file ' . escapeshellarg($filePath)
-             . ' --community ' . escapeshellarg($communitySlug)
-             . ($userId !== null && $userId !== '' ? ' --user-id ' . escapeshellarg($userId) : '');
+        return self::runJob('monthly', $filePath, $communitySlug, $userId);
+    }
 
-        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $process = proc_open($cmd, $descriptors, $pipes);
-        if (!is_resource($process)) {
-            return ['stdout' => '', 'stderr' => 'Parser-Prozess konnte nicht gestartet werden.', 'exit_code' => -1];
-        }
-
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exitCode = proc_close($process);
-
-        return ['stdout' => (string)$stdout, 'stderr' => (string)$stderr, 'exit_code' => $exitCode];
+    /** @return array{stdout:string, stderr:string, exit_code:int} Viertelstundenwerte (parser_interval.py) */
+    public static function runInterval(string $filePath, string $communitySlug, ?string $userId = null): array
+    {
+        return self::runJob('interval', $filePath, $communitySlug, $userId);
     }
 
     /** Für die Fehleranzeige: stderr (die eigentliche Fehlerursache) vor stdout, zusammen. */
@@ -46,26 +36,14 @@ class EdaParserRunner
         return $combined !== '' ? $combined : 'Keine Ausgabe';
     }
 
-    /** Wie run(), aber für den zweiten Export-Typ (Viertelstundenwerte, "Energiedaten"-Sheet,
-     *  siehe eda-parser/parser_interval.py) -- eigenes Skript, komplett anderes Dateiformat. */
-    public static function runInterval(string $filePath, string $communitySlug, ?string $userId = null): array
+    /** @return array{stdout:string, stderr:string, exit_code:int} */
+    private static function runJob(string $kind, string $filePath, string $communitySlug, ?string $userId): array
     {
-        $cmd = 'python3 /var/www/html/eda-parser/parser_interval.py --file ' . escapeshellarg($filePath)
-             . ' --community ' . escapeshellarg($communitySlug)
-             . ($userId !== null && $userId !== '' ? ' --user-id ' . escapeshellarg($userId) : '');
-
-        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $process = proc_open($cmd, $descriptors, $pipes);
-        if (!is_resource($process)) {
-            return ['stdout' => '', 'stderr' => 'Parser-Prozess konnte nicht gestartet werden.', 'exit_code' => -1];
+        $community = DB::fetchOne('SELECT id FROM communities WHERE slug = ?', [$communitySlug]);
+        if (!$community) {
+            return ['stdout' => '', 'stderr' => "Community '{$communitySlug}' nicht gefunden", 'exit_code' => 1];
         }
-
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exitCode = proc_close($process);
-
-        return ['stdout' => (string)$stdout, 'stderr' => (string)$stderr, 'exit_code' => $exitCode];
+        DB::setCommunity($community['id']);
+        return Services::edaImportJobs()->runAndWait($community['id'], $kind, $filePath, $userId);
     }
 }

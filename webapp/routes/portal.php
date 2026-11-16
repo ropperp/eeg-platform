@@ -1450,8 +1450,7 @@ function appIssueSessionResponse(array $membership, ?string $deviceLabel): array
 
 // ─── Portal: Mitgliederverwaltung ───────────────────────
 $router->get('/portal/members', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     // ESP-Fehlerstatus je Mitglied (für die neue "Zähler"-Spalte + Sidebar-Badge, Patrick
     // 30.07.2026): "Fehler" = mindestens ein aktiver Zählpunkt, der schon einmal gemeldet hat
@@ -1524,8 +1523,7 @@ $router->get('/portal/members', function () {
 });
 
 $router->get('/portal/files', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $members = DB::fetchAll(
         "SELECT id, first_name, last_name, company_name, email, kundennummer, is_demo
@@ -1571,8 +1569,7 @@ $router->get('/portal/members/new', function () {
 });
 
 $router->post('/portal/members', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
 
     $required = ['first_name', 'last_name', 'email', 'address', 'zip', 'city'];
@@ -3190,8 +3187,7 @@ $router->post('/portal/password', function () {
 
 // ─── Portal: Abrechnung ─────────────────────────────────
 $router->get('/portal/billing', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     // POST /portal/billing/generate (u.a.) leiten bei einem Fehler auf ?error=... um -- diese
     // Route hat das bisher nie in die $error-Variable übernommen, die die View unten prüft
@@ -3339,8 +3335,7 @@ $router->get('/portal/billing/preview', function () {
  * gesamte Rechnungs-Funktion war dadurch faktisch nie erreichbar.
  */
 $router->post('/portal/billing/create', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $quartal = trim($_POST['quartal'] ?? '');
     if (!preg_match('/^\d{4}-(Q[1-4]|(0[1-9]|1[0-2]))$/', $quartal)) {
@@ -3363,8 +3358,7 @@ $router->post('/portal/billing/create', function () {
  * (Billing::generateDrafts()) in jede einzelne Rechnung übernommen.
  */
 $router->post('/portal/billing/:id/extra-items', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $run = DB::fetchOne('SELECT * FROM billing_runs WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$run) { http_response_code(404); echo 'Abrechnungslauf nicht gefunden'; return; }
@@ -3390,8 +3384,7 @@ $router->post('/portal/billing/:id/extra-items', function ($params) {
 });
 
 $router->post('/portal/billing/:id/extra-items/:itemId/delete', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     DB::execute(
         'DELETE FROM billing_run_extra_items WHERE id = ? AND billing_run_id = ? AND community_id = ?',
@@ -3410,8 +3403,7 @@ $router->post('/portal/billing/:id/extra-items/:itemId/delete', function ($param
  * /portal/billing direkt gefiltert aufmachen kann.
  */
 $router->get('/portal/billing/invoices', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $invoices = DB::fetchAll(
         'SELECT i.*, br.quartal, br.status AS run_status, m.kundennummer, m.first_name, m.last_name,
@@ -3695,8 +3687,7 @@ $router->get('/portal/billing/gutschriften', function () {
  * Möglichkeit, gleiches Muster wie überall sonst im Portal, z.B. beim Löschen eines Abrechnungslaufs).
  */
 $router->post('/portal/billing/gutschriften/:invoiceId/erledigt', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     // Setzt BEIDE "erledigt"-Felder -- gutschrift_ausgezahlt_at (steuert diese Liste + die
     // Login-Erinnerung) UND payment_status/paid_at (steuert die Jahresübersicht/Rechnungsliste,
@@ -4168,8 +4159,7 @@ $router->get('/portal/billing/:id/sepa-xml', function ($params) {
  * und kein echter Einzug.
  */
 $router->get('/portal/billing/sepa-test-xml', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $c = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $version = ($c['sepa_pain_version'] ?? '08') === '02' ? '02' : '08';
@@ -4204,8 +4194,7 @@ $router->get('/portal/billing/sepa-test-xml', function () {
  * 'ueberwiesen' -- erst dann gilt die Rechnung als erledigt. 'offen' setzt zurück.
  */
 $router->post('/portal/billing/invoices/:id/mark-paid', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $inv = DB::fetchOne('SELECT * FROM invoices WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$inv) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
@@ -4243,8 +4232,7 @@ $router->post('/portal/billing/invoices/:id/mark-paid', function ($params) {
  * kann gemahnt werden.
  */
 $router->post('/portal/billing/invoices/:id/ruecklastschrift', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $inv = DB::fetchOne('SELECT * FROM invoices WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$inv) { http_response_code(404); echo 'Rechnung nicht gefunden'; return; }
@@ -4265,8 +4253,7 @@ $router->post('/portal/billing/invoices/:id/ruecklastschrift', function ($params
  * fehlgeschlagene Rechnungen mit Forderung (Saldo > 0).
  */
 $router->post('/portal/billing/invoices/:id/mahnung', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $inv = DB::fetchOne(
         'SELECT i.*, br.status AS run_status, c.name AS eeg_name, c.iban AS eeg_iban, c.mahngebuehr_eur,
@@ -4362,8 +4349,7 @@ $router->post('/portal/billing/invoices/:id/mahnung', function ($params) {
  * jeder Änderung neu berechnet.
  */
 $router->get('/portal/billing/invoices/:id/edit', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $invoice = DB::fetchOne(
         'SELECT i.*, br.status AS run_status, br.quartal, m.first_name, m.last_name, m.kundennummer, m.is_demo
@@ -4393,8 +4379,7 @@ function editableInvoiceOrNull(string $invoiceId, string $communityId): ?array
 }
 
 $router->post('/portal/billing/invoices/:id/items/add', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     if (!editableInvoiceOrNull($params['id'], $communityId)) {
         header('Location: /portal/billing?error=' . urlencode('Diese Rechnung kann nicht (mehr) bearbeitet werden.')); exit;
@@ -4416,8 +4401,7 @@ $router->post('/portal/billing/invoices/:id/items/add', function ($params) {
 });
 
 $router->post('/portal/billing/invoices/:id/items/:itemId/update', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     if (!editableInvoiceOrNull($params['id'], $communityId)) {
         header('Location: /portal/billing?error=' . urlencode('Diese Rechnung kann nicht (mehr) bearbeitet werden.')); exit;
@@ -4438,8 +4422,7 @@ $router->post('/portal/billing/invoices/:id/items/:itemId/update', function ($pa
 });
 
 $router->post('/portal/billing/invoices/:id/items/:itemId/delete', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     if (!editableInvoiceOrNull($params['id'], $communityId)) {
         header('Location: /portal/billing?error=' . urlencode('Diese Rechnung kann nicht (mehr) bearbeitet werden.')); exit;
@@ -4474,8 +4457,7 @@ $router->post('/portal/billing/:id/delete', function ($params) {
 
 // ─── Portal: Internes Postfach (Benachrichtigungen) ─────
 $router->get('/portal/postfach', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $notifications = DB::fetchAll(
         "SELECT * FROM notifications WHERE community_id = ? ORDER BY (status = 'offen') DESC, created_at DESC",
@@ -4486,8 +4468,7 @@ $router->get('/portal/postfach', function () {
 });
 
 $router->post('/portal/postfach/:id/erledigt', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     DB::execute(
         "UPDATE notifications SET status = 'erledigt', erledigt_am = now(), erledigt_von = ? WHERE id = ? AND community_id = ?",
@@ -4504,8 +4485,7 @@ $router->post('/portal/support/:id/reply', fn($params) => Services::supportContr
 
 // ─── Portal: Online-Beitrittserklärungen (Freigabe) ─────
 $router->get('/portal/applications', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     // Nur wirklich neue (unbearbeitete) Anfragen -- abgeschlossene (freigegeben/abgelehnt) sind
     // schon am jeweiligen Mitglied über den Online/Offline-Badge und den Formular-Ausdruck
@@ -4519,8 +4499,7 @@ $router->get('/portal/applications', function () {
 });
 
 $router->get('/portal/applications/:id', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $application = DB::fetchOne('SELECT * FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$application) { http_response_code(404); echo 'Nicht gefunden'; return; }
@@ -4652,8 +4631,7 @@ $router->get('/portal/applications/:id/formular', function ($params) {
 });
 
 $router->post('/portal/applications/:id/approve', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $application = DB::fetchOne(
         "SELECT * FROM membership_applications WHERE id = ? AND community_id = ? AND status = 'pending'",
@@ -4737,8 +4715,7 @@ $router->post('/portal/applications/:id/approve', function ($params) {
 });
 
 $router->post('/portal/applications/:id/reject', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $application = DB::fetchOne(
         "SELECT id, first_name, last_name FROM membership_applications WHERE id = ? AND community_id = ? AND status = 'pending'",
@@ -4774,8 +4751,7 @@ $router->post('/portal/applications/:id/reject', function ($params) {
  * freigegeben/abgelehnt), nicht nur 'pending' -- die Korrektur betrifft nur das Dokument selbst.
  */
 $router->post('/portal/applications/:id/zaehlpunkt', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
     if (!$application) { http_response_code(404); echo 'Nicht gefunden'; return; }
@@ -4965,18 +4941,66 @@ function edaIntervalGap(string $communityId): array
     return ['letzter' => $letzter, 'fehlende_tage' => $fehlendeTage];
 }
 
+/**
+ * Ergebnis eines EDA-Importjobs (Container eda-worker) für die Upload-Seite aufbereiten: fertig ->
+ * dieselben Variablen wie früher nach dem direkten Parser-Lauf ($result/$error bzw.
+ * $intervalResult/$intervalError), sonst der Job selbst für die Statusanzeige.
+ *
+ * @return array{result: ?array, error: ?string, pending: ?array}
+ */
+function edaJobView(?string $jobId, string $communityId): array
+{
+    $view = ['result' => null, 'error' => null, 'pending' => null];
+    if ($jobId === null || $jobId === '') return $view;
+    DB::setCommunity($communityId);
+    $job = \App\Support\Services::edaImportJobs()->find($jobId, $communityId);
+    if ($job === null) {
+        $view['error'] = 'Import nicht gefunden.';
+    } elseif (!\App\Domain\EdaImport\EdaImportJobs::isFinished($job)) {
+        $view['pending'] = $job;
+    } elseif ($job['status'] === 'done' && is_array($job['result'])) {
+        $view['result'] = $job['result'];
+    } else {
+        $diag = EdaParserRunner::diagnostics(\App\Domain\EdaImport\EdaImportJobs::runnerResult($job));
+        $view['error'] = 'Parser-Fehler: ' . htmlspecialchars(substr($diag, 0, 4000));
+    }
+    return $view;
+}
+
 $router->get('/portal/eda/upload', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    // Nach dem Hochladen leitet die Seite hierher um (?job=… bzw. ?interval_job=…) und zeigt den
+    // Fortschritt des Jobs; eda-job-status.js lädt nach, bis er fertig ist.
+    $monthly = edaJobView($_GET['job'] ?? null, $communityId);
+    $interval = edaJobView($_GET['interval_job'] ?? null, $communityId);
+    $result = $monthly['result'];
+    $error = $monthly['error'];
+    $intervalResult = $interval['result'];
+    $intervalError = $interval['error'];
+    $pendingJob = $monthly['pending'] ?? $interval['pending'];
+    // Sofortige Datenqualitäts-Übersicht direkt nach dem Import (Patrick, 01.10.2026).
+    if (!empty($result['period_from']) && !empty($result['period_to'])) {
+        $qualityReport = edaQualityReport($communityId, $result['period_from'], $result['period_to']);
+    }
     $imports = edaImportsForCommunity($communityId);
     $intervalImports = edaIntervalImportsForCommunity($communityId);
     $intervalGap = edaIntervalGap($communityId);
     require ROOT . '/src/views/pages/eda_upload.php';
 });
 
+/** Status eines Importjobs für die automatische Aktualisierung der Upload-Seite. */
+$router->get('/portal/eda/jobs/:id', function ($params) {
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    DB::setCommunity($communityId);
+    $job = \App\Support\Services::edaImportJobs()->find($params['id'], $communityId);
+    header('Content-Type: application/json; charset=UTF-8');
+    header('Cache-Control: no-store');
+    if ($job === null) { http_response_code(404); echo json_encode(['error' => 'Import nicht gefunden.']); return; }
+    echo json_encode(['status' => $job['status'], 'finished' => \App\Domain\EdaImport\EdaImportJobs::isFinished($job)]);
+});
+
 $router->post('/portal/eda/upload', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     $imports = edaImportsForCommunity($communityId);
     $intervalImports = edaIntervalImportsForCommunity($communityId);
     $intervalGap = edaIntervalGap($communityId);
@@ -4997,43 +5021,11 @@ $router->post('/portal/eda/upload', function () {
     $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . $origName;
     move_uploaded_file($_FILES['xlsx']['tmp_name'], $savePath);
 
-    $communitySlug = Auth::activeCommunitySlug();
-    $userId = Auth::userId();
-
-    $parserResult = EdaParserRunner::run($savePath, $communitySlug, $userId);
-    $result = json_decode($parserResult['stdout'], true);
-    if ($result === null) {
-        // stdout/stderr sauber getrennt (siehe EdaParserRunner.php) -- vorher landeten Logzeilen
-        // (stderr) und das JSON-Ergebnis (stdout) über ein simples "2>&1" in einem String, wodurch
-        // json_decode() auf dem kombinierten String IMMER fehlschlug, sobald der Parser
-        // mindestens eine Logzeile ausgegeben hatte (bei jedem Lauf der Fall) -- ein erfolgreicher
-        // Import wurde dadurch fälschlich als "Parser-Fehler" angezeigt.
-        $diag = EdaParserRunner::diagnostics($parserResult);
-        $error = 'Parser-Fehler: ' . htmlspecialchars(substr($diag, 0, 4000));
-        logAudit($communityId, 'eda.import', null, null, 'EDA-Import fehlgeschlagen: ' . substr($diag, 0, 4000), true);
-    } else {
-        logAudit($communityId, 'eda.import', null, null,
-            'EDA-Import: ' . ($result['records'] ?? '?') . ' Datensätze importiert' . (!empty($result['warnings']) ? ', ' . count($result['warnings']) . ' Warnung(en)' : ''));
-        // Je automatisch angelegtem Zählpunkt einen eigenen, gezielt auffindbaren Audit-Log-
-        // Eintrag -- wer/wann nachvollziehbar pro Zählpunkt statt nur in der Sammel-Zeile oben.
-        foreach ($result['neu_angelegt'] ?? [] as $neu) {
-            logAudit($communityId, 'eda.metering_point.autocreate', 'metering_point', $neu['metering_point_id'] ?? null,
-                'Zählpunkt ' . $neu['zaehlpunkt_nr'] . ' automatisch aus EDA-Import angelegt (Typ-Vermutung: '
-                . $neu['type_guess'] . '), noch keinem Mitglied zugeordnet.');
-        }
-    }
-
-    // Neu laden, damit der gerade eben erzeugte (oder bei einem Duplikat-Fehler eben NICHT
-    // erzeugte) Import sofort in der Liste unten auftaucht, statt erst nach einem Reload.
-    $imports = edaImportsForCommunity($communityId);
-
-    // Sofortige Datenqualitäts-Übersicht direkt nach dem Hochladen (Patrick, 01.10.2026) --
-    // nur möglich, wenn der Import erfolgreich war (sonst gibt es keinen period_from/period_to).
-    if (!empty($result['period_from']) && !empty($result['period_to'])) {
-        $qualityReport = edaQualityReport($communityId, $result['period_from'], $result['period_to']);
-    }
-
-    require ROOT . '/src/views/pages/eda_upload.php';
+    // Der Import selbst läuft im Container eda-worker; die Seite zeigt danach den Fortschritt.
+    // Audit-Einträge schreibt der Worker, sobald der Import fertig ist.
+    DB::setCommunity($communityId);
+    $jobId = \App\Support\Services::edaImportJobs()->queue($communityId, 'monthly', 'upload', $savePath, $origName, Auth::userId());
+    uploadRedirect('/portal/eda/upload?job=' . urlencode($jobId)); // ohne 3xx, siehe uploadRedirect()
 });
 
 /**
@@ -5060,8 +5052,7 @@ $router->get('/portal/eda/imports/:id/quality', function ($params) {
  *  Datei-Feld (xlsx_interval), damit beide Upload-Formulare unabhängig auf derselben Seite
  *  stehen können. */
 $router->post('/portal/eda/upload-interval', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     $imports = edaImportsForCommunity($communityId);
     $intervalImports = edaIntervalImportsForCommunity($communityId);
     $intervalGap = edaIntervalGap($communityId);
@@ -5081,27 +5072,9 @@ $router->post('/portal/eda/upload-interval', function () {
     $savePath = '/var/www/html/storage/uploads/' . uniqid() . '_' . $origName;
     move_uploaded_file($_FILES['xlsx_interval']['tmp_name'], $savePath);
 
-    $parserResult = EdaParserRunner::runInterval($savePath, Auth::activeCommunitySlug(), Auth::userId());
-    $intervalResult = json_decode($parserResult['stdout'], true);
-    if ($intervalResult === null) {
-        $diag = EdaParserRunner::diagnostics($parserResult);
-        $intervalError = 'Parser-Fehler: ' . htmlspecialchars(substr($diag, 0, 4000));
-        logAudit($communityId, 'eda.interval_import', null, null, 'Viertelstundenwerte-Import fehlgeschlagen: ' . substr($diag, 0, 4000), true);
-    } else {
-        logAudit($communityId, 'eda.interval_import', null, null,
-            'Viertelstundenwerte-Import: ' . ($intervalResult['records'] ?? '?') . ' Datensätze importiert'
-            . (!empty($intervalResult['warnings']) ? ', ' . count($intervalResult['warnings']) . ' Warnung(en)' : ''));
-        foreach ($intervalResult['neu_angelegt'] ?? [] as $neu) {
-            logAudit($communityId, 'eda.metering_point.autocreate', 'metering_point', $neu['metering_point_id'] ?? null,
-                'Zählpunkt ' . $neu['zaehlpunkt_nr'] . ' automatisch aus Viertelstundenwerte-Import angelegt (Typ-Vermutung: '
-                . $neu['type_guess'] . '), noch keinem Mitglied zugeordnet.');
-        }
-    }
-
-    $intervalImports = edaIntervalImportsForCommunity($communityId);
-    $intervalGap = edaIntervalGap($communityId);
-
-    require ROOT . '/src/views/pages/eda_upload.php';
+    DB::setCommunity($communityId);
+    $jobId = \App\Support\Services::edaImportJobs()->queue($communityId, 'interval', 'upload', $savePath, $origName, Auth::userId());
+    uploadRedirect('/portal/eda/upload?interval_job=' . urlencode($jobId)); // ohne 3xx, siehe uploadRedirect()
 });
 
 /**
@@ -5118,8 +5091,7 @@ $router->post('/portal/eda/upload-interval', function () {
  * statische Kopien, die durch das Löschen der Rohdaten nicht rückwirkend aktualisiert werden.
  */
 $router->post('/portal/eda/imports/:id/delete', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
 
     $imp = DB::fetchOne('SELECT * FROM eda_imports WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -5154,8 +5126,7 @@ $router->post('/portal/eda/imports/:id/delete', function ($params) {
  * hochlädt und ein doppelt entfernter Bereich beim nächsten Upload einfach wieder befüllt wird.
  */
 $router->post('/portal/eda/interval-imports/:id/delete', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
 
     $imp = DB::fetchOne('SELECT * FROM eda_interval_imports WHERE id = ? AND community_id = ?', [$params['id'], $communityId]);
@@ -5181,8 +5152,7 @@ $router->post('/portal/eda/interval-imports/:id/delete', function ($params) {
  * aktiviert den Zählpunkt (erst dann nimmt er an einer Abrechnung teil).
  */
 $router->get('/portal/metering-points/unassigned', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $unassigned = DB::fetchAll(
         'SELECT * FROM metering_points WHERE community_id = ? AND member_id IS NULL ORDER BY registered_at DESC',
@@ -5196,8 +5166,7 @@ $router->get('/portal/metering-points/unassigned', function () {
 });
 
 $router->post('/portal/metering-points/:id/assign', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
 
     $mp = DB::fetchOne('SELECT * FROM metering_points WHERE id = ? AND community_id = ? AND member_id IS NULL', [$params['id'], $communityId]);
@@ -5250,16 +5219,16 @@ function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity): array
 /** Prüft Zugriff und liefert [$community|null, $isPlatform] für eine Speicher-Aktion -- bricht sonst ab. */
 function legalDocEditContext(string $tabId): array
 {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $community = communityById(Auth::activeCommunityId());
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    $community = communityById($communityId);
     $docs = editableLegalDocs(Auth::isPlatformAdmin(), $community !== null);
     if (!isset($docs[$tabId])) { http_response_code(403); echo 'Kein Zugriff'; exit; }
     return [$docs[$tabId]['platform'] ? null : $community, $docs[$tabId]['doc_key']];
 }
 
 $router->get('/portal/dokumente', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $community = communityById(Auth::activeCommunityId());
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    $community = communityById($communityId);
     $isPlatformAdmin = Auth::isPlatformAdmin();
     $editDocs = [];
     foreach (editableLegalDocs($isPlatformAdmin, $community !== null) as $tabId => $def) {
@@ -5299,8 +5268,8 @@ $router->get('/portal/dokumente', function () {
 /** Zustimmungstexte der EEG als neue Fassung speichern (gilt ab sofort für neue Beitritte).
  *  Muss VOR /portal/dokumente/:tab/save stehen, sonst fängt jene Route "zustimmungen" ab. */
 $router->post('/portal/dokumente/zustimmungen/save', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $community = communityById(Auth::activeCommunityId());
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    $community = communityById($communityId);
     if (!$community) { http_response_code(403); echo 'Keine Energiegemeinschaft aktiv'; return; }
     $texts = [];
     foreach (array_keys(consentFields()) as $field) {
@@ -5371,8 +5340,8 @@ $router->post('/portal/dokumente/:tab/restore', function ($params) {
 });
 
 $router->post('/portal/dokumente/infoblatt', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $community = communityById(Auth::activeCommunityId());
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    $community = communityById($communityId);
     if (!$community) { http_response_code(403); echo 'Keine Energiegemeinschaft aktiv'; return; }
     $dir = communityDocDir($community['id']);
     $target = $dir . '/infoblatt.pdf';
@@ -5395,8 +5364,7 @@ $router->post('/portal/dokumente/infoblatt', function () {
 });
 
 $router->get('/portal/settings', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $community = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     $tariff    = DB::fetchOne('SELECT * FROM tariff_config WHERE community_id = ? ORDER BY valid_from DESC LIMIT 1', [$communityId]);
@@ -5424,8 +5392,7 @@ $router->get('/portal/settings', function () {
 /** Neuen Community-weiten Live-Daten-API-Key anlegen (Obmann/Platform-Admin) -- Gegenstück zu
  *  POST /portal/my/api-keys, nur ohne member_id. */
 $router->post('/portal/settings/live-api-keys', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
 
     $name = trim($_POST['name'] ?? '');
@@ -5450,8 +5417,7 @@ $router->post('/portal/settings/live-api-keys', function () {
 });
 
 $router->post('/portal/settings/live-api-keys/:id/revoke', function ($params) {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     DB::execute(
         'UPDATE member_api_keys SET revoked_at = now() WHERE id = ? AND community_id = ? AND member_id IS NULL AND revoked_at IS NULL',
@@ -5468,8 +5434,7 @@ $router->post('/portal/settings/live-api-keys/:id/revoke', function ($params) {
  * communityLogoPath()/communityLogoAsset().
  */
 $router->post('/portal/settings/logo', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     if (empty($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
         uploadRedirect('/portal/settings?error=' . urlencode('Logo-Upload fehlgeschlagen.'));
     }
@@ -5498,8 +5463,7 @@ $router->get('/portal/settings/logo/preview', function () {
 });
 
 $router->post('/portal/settings/logo/delete', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     @unlink('/var/www/html/latex-templates/community-logos/' . $communityId . '.png');
     logAudit($communityId, 'community.logo.delete', 'community', $communityId, 'EEG-Logo entfernt (Standard-Logo wirkt wieder)');
     header('Location: /portal/settings?success=1');
@@ -5527,8 +5491,7 @@ $router->post('/portal/settings/signature/delete', function () {
 });
 
 $router->post('/portal/settings/community', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     $auditBefore = DB::fetchOne('SELECT * FROM communities WHERE id = ?', [$communityId]);
     DB::execute(
@@ -5583,8 +5546,7 @@ $router->post('/portal/settings/community', function () {
 });
 
 $router->post('/portal/settings/tariff', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
     DB::execute(
         'INSERT INTO tariff_config (community_id, valid_from, bezug_ct_kwh, einspeisung_ct_kwh, mitgliedsbeitrag_eur)
@@ -5607,8 +5569,7 @@ $router->post('/portal/settings/tariff', function () {
 });
 
 $router->post('/portal/settings/tax', function () {
-    Auth::requireLogin(); Auth::requireRole('manager');
-    $communityId = Auth::activeCommunityId();
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     DB::setCommunity($communityId);
 
     $taxModel = $_POST['tax_model'] ?? '';

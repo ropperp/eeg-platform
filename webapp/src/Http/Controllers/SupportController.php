@@ -143,8 +143,7 @@ final class SupportController
     private static function requireManagerCommunity(): string
     {
         \Auth::requireLogin();
-        \Auth::requireRole('manager');
-        $communityId = \Auth::activeCommunityId();
+        $communityId = \Auth::requireManagerCommunity();
         \DB::setCommunity($communityId);
         return $communityId;
     }

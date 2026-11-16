@@ -1,5 +1,5 @@
 .PHONY: setup up down build build-clean prod update logs logs-web logs-latex logs-db \
-        ps shell-db shell-web backup backup-storage backup-all sync-nas restore migrate schema demo-db verify test test-integration
+        ps shell-db shell-web backup backup-storage backup-all sync-nas restore migrate schema demo-db verify test test-integration test-e2e
 
 # ─── Ersteinrichtung (einmalig, siehe SETUP.md) ───────────────────────────────
 setup:
@@ -8,6 +8,10 @@ setup:
 # ─── Automatisierte Tests (abhängigkeitsfrei, läuft auch in der CI) ───────────
 test:
 	php tests/run.php
+
+# End-to-End: ganzer Stack in Docker (Webapp, eda-worker, DB, Redis), siehe tests/e2e/run.sh.
+test-e2e:
+	bash tests/e2e/run.sh
 
 # Integrationstests gegen eine frische Wegwerf-TimescaleDB (Docker, Port 55432). Prüft u. a. die
 # RLS-Mandantentrennung mit der echten Laufzeit-Rolle. Läuft auch in der CI (Job "integration").
