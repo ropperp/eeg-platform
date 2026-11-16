@@ -126,9 +126,11 @@ jobs:
           DB_HOST: localhost
           DB_USER: eeg_worker
           DB_PASSWORD: worker
+        # Nacheinander installieren: beide Dienste pinnen eigene Versionen (eigene Container).
         run: |
-          pip install -q -r mqtt-subscriber/requirements.txt -r eda-parser/requirements.txt
+          pip install -q -r mqtt-subscriber/requirements.txt
           python tests/python/test_measurement_buffer.py
+          pip install -q -r eda-parser/requirements.txt
           python tests/python/test_eda_worker.py
 
   e2e:
