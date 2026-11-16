@@ -1,0 +1,83 @@
+# nginx-Proxy & Netzwerk-Architektur
+
+> Ausgelagert aus `CLAUDE.md` (16.11.2026). Die Kurzfassung steht dort unter „Netzwerk“. Der nginx-Proxy (10.0.0.144) ist ein eigener Host, seine Config liegt **nicht** im Repo.
+
+## Netzwerk-Architektur
+
+```
+Internet
+   │
+   ▼ Port 443 (HTTPS)
+nginx-Proxy (10.0.0.144 / öffentliche IP: 80.122.212.226)
+   │  SSL-Terminierung via Certbot/Let's Encrypt
+   │  Zertifikat: /etc/letsencrypt/live/stromfueralle.at/
+   │
+   ▼ HTTP Port 80 (intern: 10.0.0.250)
+Traefik (Docker, Port 80)
+   │  Routing per Host-Header
+   │
+   ▼
+webapp (nginx + PHP 8.4, internes Docker-Netz)
+```
+
+### nginx-Proxy-Config (auf 10.0.0.144)
+Datei: `/etc/nginx/sites-available/70_stromfueralle.conf`
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name stromfueralle.at www.stromfueralle.at;
+    ssl_certificate     /etc/letsencrypt/live/stromfueralle.at/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/stromfueralle.at/privkey.pem;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+    client_max_body_size 20M;
+    include             snippets/eeg-maintenance.conf;
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_pass         http://10.0.0.250;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_intercept_errors on;
+        proxy_connect_timeout 5s;
+    }
+}
+server {
+    listen 80;
+    server_name stromfueralle.at www.stromfueralle.at;
+    return 301 https://$host$request_uri;
+}
+```
+Derselbe `include snippets/eeg-maintenance.conf;` + `proxy_intercept_errors on;` steht auch im
+`portal.stromfueralle.at`-Block weiter unten in derselben Datei.
+
+> `client_max_body_size 20M;` muss hier gesetzt sein (Standard-Limit von nginx ist nur 1 MB) — sonst
+> liefert **dieser** nginx-Proxy bei Datei-Uploads (z. B. Ausweis-Scan, Beitrittserklärung-PDF) einen
+> `413 Request Entity Too Large`, obwohl `webapp/docker/nginx.conf` und `php.ini` im Repo bereits
+> korrekt auf 20M stehen. Nach Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
+
+> `www.stromfueralle.at` muss als SAN im Zertifikat enthalten sein (siehe "www-Subdomain hinzufügen" unten), sonst liefert nginx für www das Default-Zertifikat aus und Browser zeigen einen SSL-Fehler.
+
+### Eigene Wartungsseite bei Serverausfall (seit 25.09.2026)
+Statt nginx' eigener hässlicher Standard-Fehlerseite bzw. eines nackten Verbindungsfehlers im
+Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende Seite
+("Kurzschluss" — animierte durchhängende/reißende Stromleitung zwischen zwei Masten), sobald
+`10.0.0.250` (Traefik/Pi) ein 502/503/504 liefert oder gar nicht erreichbar ist:
+- `/etc/nginx/error_pages/wartung.html` — eigenständige, selbst-enthaltene HTML-Datei (kein
+  externes CSS/JS/Font, läuft auch wenn sonst alles down ist), `<meta http-equiv="refresh"
+  content="30">` prüft automatisch alle 30s neu. Nur auf dem nginx-Proxy-Host abgelegt, nicht im
+  Git-Repo (reiner Deploy-Artefakt für einen anderen Host, wie die restliche nginx-Proxy-Config).
+- `/etc/nginx/snippets/eeg-maintenance.conf` — der wiederverwendbare `error_page`/`location`-Block,
+  in beide `server{}`-Blöcke (Hauptdomain + `portal`) eingebunden.
+- `proxy_intercept_errors on;` ist nötig, sonst reicht nginx Traefiks eigene 502/503/504-Antwort
+  roh durch statt der eigenen Seite. `proxy_connect_timeout 5s;` sorgt dafür, dass ein komplett
+  unerreichbarer Pi (nicht nur ein toter Webserver dahinter) schneller erkannt wird als mit
+  nginx' Standard-Timeout.
+- **Bewusst NICHT auf HTTP 404 erweitert:** die Wartungsseite fängt nur 502/503/504 ab. 404 lässt
+  die App selbst über ihre eigene, echte `404.php`-Seite beantworten -- ein pauschales Abfangen
+  aller 404 würde die auch überdecken.
+- Voraussetzung dafür, dass ein nur gestopptes/abgestürztes `webapp` (nicht der ganze Pi) überhaupt
+  ein 502/503/504 statt eines nackten Traefik-404 liefert: siehe "Webapp-Router" weiter oben

@@ -102,7 +102,7 @@ wartung.html` (eigenständig, kein externes CSS/JS, `<meta refresh>` alle 30s) +
 snippets/eeg-maintenance.conf` (der `error_page`/`location`-Block, in beide server{}-Blöcke
 eingebunden) -- nur auf dem nginx-Proxy-Host, nicht im Git-Repo. `proxy_intercept_errors on;`
 nötig, sonst reicht nginx Traefiks eigene 5xx-Antwort roh durch. Bewusst NICHT auf 404 erweitert
-(die App hat eine echte eigene 404-Seite, die soll nicht überdeckt werden). Voraussetzung, dass
+(die App hat eine echte eigene 404-Seite, die soll nicht überdeckt werden). Vollständige nginx-Config und Details: `docs/NGINX_PROXY.md`. Voraussetzung, dass
 ein nur gestopptes `webapp` (nicht der ganze Pi) überhaupt 502/503/504 statt eines nackten
 Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Docker-Labels).
 
@@ -224,10 +224,7 @@ erste Blick bei DB-/Daten-„weg"-Symptomen.
 
 ## Messe-/Präsentations-Demo (simulierte Werte, 02.10.2026)
 
-Patrick wollte zunächst nur eine Messe-Vorführung ("8 Einspeiser und 12 Verbraucher [...] über
-mqtt"), dann aber einen dauerhaften Hintergrund-Schalter statt Kommandozeile: "Ich möchte es
-nicht in der Kommandozeile laufen lassen [...] Bitte lass es im Hintergrund laufen [...] einen
-kleinen Schalter [...] unter den Einstellungen." Jetzt: Checkbox "Simulierte Werte anzeigen" in
+Zweck: glaubwürdiger Energiefluss für Messe/Präsentationen, bis echte Ausleseeinheiten verbaut sind, als dauerhafter Hintergrund-Schalter statt Kommandozeile. Checkbox "Simulierte Werte anzeigen" in
 den Obmann-Einstellungen (ganz oben) -- läuft als Daemon-Thread dauerhaft im
 `mqtt-subscriber`-Container, legt bei Bedarf automatisch 20 fiktive Zählpunkte (8 Einspeiser,
 12 Verbraucher, nie abrechnungsrelevant) an und publiziert echte MQTT-Werte mit echtem,
@@ -237,7 +234,7 @@ Open-Meteo, alle 10 min; Nebel gedrosselt) und dem echten Sonnenstand, nachts ex
 Standort über `MESSE_DEMO_LAT`/`MESSE_DEMO_LON` in der `.env`. Bei 0 W zeigt die Oberfläche
 „aktuell keine Einspeisung“. Läuft über den kompletten echten Pfad bis zur
 Live-Anzeige, kein Frontend-Fake -- dort erscheint dafür ein deutlicher Hinweis, dass die Werte
-teilweise simuliert sind, solange der Schalter an ist. Details: `CLAUDE.md`.
+teilweise simuliert sind, solange der Schalter an ist. Details: `docs/MESSE_DEMO.md` (Kurzfassung in `CLAUDE.md`).
 
 ## Claude-Sitzungslog (Selbstdokumentation)
 
@@ -252,7 +249,7 @@ Details: Abschnitt „Selbstdokumentation" in `CLAUDE.md`.
 
 ---
 
-## Frontend-Regeln (Content-Security-Policy, seit 17.11.2026)
+## Frontend-Regeln (Content-Security-Policy)
 
 Die Plattform sendet `script-src 'self' 'nonce-…'` und `script-src-attr 'none'` (PHP: `cspPolicy()` in
 `webapp/src/functions.php`; **nicht** in nginx setzen). Für neuen Code heißt das:

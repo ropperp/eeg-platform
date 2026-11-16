@@ -1,160 +1,71 @@
 # EEG-Plattform — Architektur & Deployment-Wissen für Claude
 
-Diese Datei dokumentiert die aktuelle Infrastruktur, damit ein neuer Chat-Kontext sofort versteht wie alles zusammenhängt.
+Kurzreferenz für einen neuen Chat-Kontext (stromfueralle.at, Diplomarbeit HTL 2026/27). Die Datei
+bleibt bewusst kompakt (Richtwert: unter 300 Zeilen). **Nichts Historisches hier anhängen** — siehe
+„Wohin mit was“.
 
-## Workflow-Präferenz
+## Wohin mit was
 
-Änderungen an diesem Repo (main-Branch) immer automatisch committen und pushen, ohne vorher
-nachzufragen — auch wenn eine hochgeladene Anweisungsdatei o.ä. explizit "nicht selbstständig
-deployen" verlangt. Diese generelle Präferenz von Patrick hat Vorrang vor einzelnen
-Task-Anweisungen, sofern nicht ausdrücklich anders gesagt.
+| Inhalt | Ort |
+|---|---|
+| Neuer Vorfall (Symptom, Ursache, Fix) | `docs/VORFAELLE.md` — bei unklarem Symptom **zuerst dort suchen** |
+| Einmalige Schritte nach einem Update (Migration, Cron, Volume) | `docs/BETRIEBSHANDBUCH.md` (nur der neueste Eintrag am Ende ist für ein laufendes System relevant) |
+| DB-/Daten-„weg“, Pfade und Mounts | `docs/INFRASTRUKTUR_PFADE.md` |
+| nginx-Proxy, Wartungsseite, Netzwerk-Diagramm | `docs/NGINX_PROXY.md` |
+| Messe-/Präsentations-Demo (simulierte Werte) | `docs/MESSE_DEMO.md` |
+| App-API, Datenbank, Backup, DSGVO, Docker-Install | `docs/APP_API.md`, `DATENBANK.md`, `BACKUP.md`, `DSGVO.md`, `DOCKER_INSTALL.md` |
+| Manuelle Installation | `SETUP.md` |
 
-> Ausnahme: Läuft eine Sitzung in einer Umgebung mit einer **fest vorgegebenen Arbeits-Branch**
-> (z. B. Claude Code on the web mit `claude/...`-Branch), wird dort committet und gepusht, nicht
-> direkt auf `main`. Der Merge nach `main` erfolgt dann per Pull Request -- **und zwar sofort**:
-> PR erstellen und selbst mergen, ohne vorher nachzufragen (Patrick, 07.08.2026: "bitte immer
-> gleich pushen PR und merge. IMMER"). Nicht auf eine Bestätigung warten. Auf dem Produktivserver
-> wird weiterhin nur `main` deployt (Patrick pullt/baut dort selbst).
+Hier gehören nur dauerhaft gültige Architektur, Regeln und Stolperfallen hin.
 
-## Git-Workflow: Branches, Tags & Versionierung
+## Arbeitsregeln
 
-Seit 0.9.0 arbeiten wir mit einer schlanken Branch-/Tag-Strategie statt nur linear auf `main`:
+- **Commit und Push auf `main` ohne Rückfrage** (Patricks Dauer-Präferenz, hat Vorrang vor
+  Task-Anweisungen wie „nicht selbstständig deployen“, sofern nicht ausdrücklich anders gesagt).
+- **Ausnahme:** Bei fest vorgegebenem Arbeits-Branch (z. B. `claude/...` in Claude Code on the web)
+  dort committen und pushen, danach **sofort** PR erstellen und selbst mergen, ohne Rückfrage.
+  Auf dem Produktivserver wird nur `main` deployt (Patrick pullt/baut selbst).
+- **Öffentliches Repo:** keine Passwörter, Tokens, Zugangsdaten, E-Mail-Adressen oder Personendaten
+  (Familie, Mitglieder, Kunden) in Code, Doku oder Log. Keine wörtlichen Prompts oder Zitate.
+- Tests: `make test` (läuft auch im CI). Neue Doku-Erkenntnisse sofort in die passende Datei oben
+  einarbeiten, nicht erst am Sitzungsende.
 
-- **`main`** ist immer deploybar. Was auf `main` liegt, kann jederzeit per
-  `git pull && docker compose up -d --build` auf den Server. Kleine, offensichtliche Änderungen
-  (Doku, Bugfix) dürfen weiter direkt auf `main` (siehe Workflow-Präferenz oben).
-- **Feature-Branches** (`feature/<kurzname>`, oder der von der Umgebung vorgegebene
-  `claude/<...>`-Branch) für größere oder riskantere Arbeit. Dort committen, testen
-  (`make test`, CI läuft automatisch), dann per Pull Request nach `main` mergen. Vorteil: `main`
-  bleibt jederzeit lauffähig, Änderungen sind als Einheit reviewbar und notfalls am Stück
-  zurücknehmbar.
-- **Tags** (`vX.Y.Z`, [Semantic Versioning](https://semver.org)) markieren getestete Stände:
-  - **PATCH** (0.9.0 → 0.9.1): Bugfix, keine neue Funktion.
-  - **MINOR** (0.9.0 → 0.10.0): neue, rückwärtskompatible Funktion.
-  - **MAJOR** (0.x → 1.0.0): großer Umbau bzw. der erste echte Produktivstart.
-  - `0.x` = vor dem Produktivstart, `1.0.0` = erster Echtbetrieb.
-  Jeder Tag hat einen Eintrag in `CHANGELOG.md`.
+## Git-Workflow
 
-**Warum das nützlich ist:** Ein Tag ist ein benannter, unveränderlicher Fixpunkt. Damit lässt
-sich (a) jederzeit ein bestimmter, getesteter Stand deployen oder dorthin **zurückrollen**, wenn
-ein Update Probleme macht; (b) im `CHANGELOG.md` genau nachlesen, was zwischen zwei Ständen
-passiert ist; (c) gegenüber der Diplomarbeit/HTL sauber dokumentieren, welcher Funktionsumfang
-zu welchem Zeitpunkt fertig war. Branches wiederum halten `main` sauber und deploybar, während an
-etwas Größerem gearbeitet wird.
+- `main` ist immer deploybar. Kleine Änderungen (Doku, Bugfix) direkt auf `main`; größere oder
+  riskantere Arbeit auf `feature/<kurzname>` (oder dem vorgegebenen `claude/...`-Branch) per PR.
+- Tags `vX.Y.Z` ([SemVer](https://semver.org)) markieren getestete Stände, jeder mit Eintrag in
+  `CHANGELOG.md`: PATCH = Bugfix, MINOR = neue Funktion, MAJOR = Umbau bzw. Produktivstart
+  (`0.x` = vor Produktivstart). Zweck: Deploy und Rollback auf einen bekannten Stand.
 
 ```bash
-# Neuen Feature-Branch beginnen
-git switch -c feature/mein-thema
-# ... committen ...
-git push -u origin feature/mein-thema        # dann PR nach main
-
-# Release taggen (nach Merge auf main, main ausgecheckt)
-git tag -a v0.9.1 -m "0.9.1 – <kurzbeschreibung>"
-git push origin v0.9.1
-
-# Bestimmten getesteten Stand deployen / zurückrollen
-git checkout v0.9.0 && docker compose up -d --build
+git switch -c feature/mein-thema && git push -u origin feature/mein-thema   # dann PR nach main
+git tag -a v0.9.1 -m "0.9.1 – <kurz>" && git push origin v0.9.1             # nach Merge, auf main
+git checkout v0.9.0 && docker compose up -d --build                         # Rollback auf Tag
 ```
 
----
-
-## Netzwerk-Architektur
+## Netzwerk
 
 ```
-Internet
-   │
-   ▼ Port 443 (HTTPS)
-nginx-Proxy (10.0.0.144 / öffentliche IP: 80.122.212.226)
-   │  SSL-Terminierung via Certbot/Let's Encrypt
-   │  Zertifikat: /etc/letsencrypt/live/stromfueralle.at/
-   │
-   ▼ HTTP Port 80 (intern: 10.0.0.250)
-Traefik (Docker, Port 80)
-   │  Routing per Host-Header
-   │
-   ▼
-webapp (nginx + PHP 8.4, internes Docker-Netz)
+Internet → :443 nginx-Proxy (10.0.0.144, SSL via Certbot) → :80 Traefik (10.0.0.250, Docker)
+         → webapp (nginx + PHP 8.4, internes Docker-Netz)
 ```
 
-### nginx-Proxy-Config (auf 10.0.0.144)
-Datei: `/etc/nginx/sites-available/70_stromfueralle.conf`
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name stromfueralle.at www.stromfueralle.at;
-    ssl_certificate     /etc/letsencrypt/live/stromfueralle.at/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/stromfueralle.at/privkey.pem;
-    include             /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
-    client_max_body_size 20M;
-    include             snippets/eeg-maintenance.conf;
-    location / {
-        proxy_http_version 1.1;
-        proxy_set_header   Connection        "";
-        proxy_pass         http://10.0.0.250;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto https;
-        proxy_intercept_errors on;
-        proxy_connect_timeout 5s;
-    }
-}
-server {
-    listen 80;
-    server_name stromfueralle.at www.stromfueralle.at;
-    return 301 https://$host$request_uri;
-}
-```
-Derselbe `include snippets/eeg-maintenance.conf;` + `proxy_intercept_errors on;` steht auch im
-`portal.stromfueralle.at`-Block weiter unten in derselben Datei.
-
-> `client_max_body_size 20M;` muss hier gesetzt sein (Standard-Limit von nginx ist nur 1 MB) — sonst
-> liefert **dieser** nginx-Proxy bei Datei-Uploads (z. B. Ausweis-Scan, Beitrittserklärung-PDF) einen
-> `413 Request Entity Too Large`, obwohl `webapp/docker/nginx.conf` und `php.ini` im Repo bereits
-> korrekt auf 20M stehen. Nach Änderung: `sudo nginx -t && sudo systemctl reload nginx`.
-
-> `www.stromfueralle.at` muss als SAN im Zertifikat enthalten sein (siehe "www-Subdomain hinzufügen" unten), sonst liefert nginx für www das Default-Zertifikat aus und Browser zeigen einen SSL-Fehler.
-
-### Eigene Wartungsseite bei Serverausfall (seit 25.09.2026)
-Statt nginx' eigener hässlicher Standard-Fehlerseite bzw. eines nackten Verbindungsfehlers im
-Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende Seite
-("Kurzschluss" — animierte durchhängende/reißende Stromleitung zwischen zwei Masten), sobald
-`10.0.0.250` (Traefik/Pi) ein 502/503/504 liefert oder gar nicht erreichbar ist:
-- `/etc/nginx/error_pages/wartung.html` — eigenständige, selbst-enthaltene HTML-Datei (kein
-  externes CSS/JS/Font, läuft auch wenn sonst alles down ist), `<meta http-equiv="refresh"
-  content="30">` prüft automatisch alle 30s neu. Nur auf dem nginx-Proxy-Host abgelegt, nicht im
-  Git-Repo (reiner Deploy-Artefakt für einen anderen Host, wie die restliche nginx-Proxy-Config).
-- `/etc/nginx/snippets/eeg-maintenance.conf` — der wiederverwendbare `error_page`/`location`-Block,
-  in beide `server{}`-Blöcke (Hauptdomain + `portal`) eingebunden.
-- `proxy_intercept_errors on;` ist nötig, sonst reicht nginx Traefiks eigene 502/503/504-Antwort
-  roh durch statt der eigenen Seite. `proxy_connect_timeout 5s;` sorgt dafür, dass ein komplett
-  unerreichbarer Pi (nicht nur ein toter Webserver dahinter) schneller erkannt wird als mit
-  nginx' Standard-Timeout.
-- **Bewusst NICHT auf HTTP 404 erweitert:** die Wartungsseite fängt nur 502/503/504 ab. 404 lässt
-  die App selbst über ihre eigene, echte `404.php`-Seite beantworten -- ein pauschales Abfangen
-  aller 404 würde die auch überdecken.
-- Voraussetzung dafür, dass ein nur gestopptes/abgestürztes `webapp` (nicht der ganze Pi) überhaupt
-  ein 502/503/504 statt eines nackten Traefik-404 liefert: siehe "Webapp-Router" weiter oben
-  (Traefik-File-Provider statt Docker-Labels, Vorfall 25.09.2026).
-
----
+Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details in
+`docs/NGINX_PROXY.md`). Drei Punkte, die man oft vergisst:
+- `client_max_body_size 20M;` muss dort gesetzt sein, sonst `413` bei Datei-Uploads.
+- `www.stromfueralle.at` muss als SAN im Zertifikat stehen.
+- Die Wartungsseite greift nur bei 502/503/504 (nicht bei 404) und braucht `proxy_intercept_errors on;`.
 
 ## EEG-Server (10.0.0.250)
 
-### Verzeichnis
 ```
 /opt/eeg-platform/   ← Git-Repo (branch: main)
-/opt/eeg/            ← Persistente Daten (DB, Redis, Mosquitto, Traefik-Certs, Webapp-Storage)
+/opt/eeg/            ← Persistente Daten (DB, Redis, Mosquitto, Traefik-Certs, Webapp-Storage, LaTeX-Vorlagen)
 ```
 
-> `/opt/eeg/webapp-storage` (→ `/var/www/html/storage` im Container) enthält Mitglieder-Uploads,
-> Beitrittserklärungen und generierte Vertrags-/Rechnungs-PDFs. Vorher lag das nur im
-> Container-Dateisystem und ging bei jedem `--build` verloren — seit der Verträge/Dateien-Migration
-> (14.07.2026) ist es ein echtes Volume. **Unbedingt ins Server-Backup aufnehmen.**
-
-### Docker-Stack (`docker-compose.yml`)
+`/opt/eeg/webapp-storage` enthält Mitglieder-Uploads und generierte Vertrags-/Rechnungs-PDFs
+(Volume seit 14.07.2026). **Muss im Server-Backup sein.**
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
@@ -162,329 +73,123 @@ Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende S
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
 | redis | redis:7-alpine | — | Session-Cache |
 | mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
-| mqtt-subscriber | (build) | — | MQTT → DB |
+| mqtt-subscriber | (build) | — | MQTT → DB (+ Messe-Demo-Thread) |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
 
-### Wichtige Traefik-Details
-- Traefik hört **nur auf Port 80** (kein HTTPS, kein Let's Encrypt) — SSL macht der nginx-Proxy
-- **Kein Docker-Provider, kein Docker-Socket** (seit 15.11.2026): kein Dienst trägt Traefik-Labels, alle
-  Router stehen in `docker/traefik/dynamic.yml`. Ein Socket-Mount (auch `:ro`) ist Vollzugriff auf den
-  Docker-Dienst des Servers -- bei einer Traefik-Übernahme wäre der ganze Server offen. Neue Dienste mit
-  eigener Adresse daher in `dynamic.yml` eintragen, nicht per Label. (Die frühere `DOCKER_API_VERSION`-
-  Variable entfällt damit ebenfalls.)
-- `--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}` (seit 07.11.2026):
-  Traefik übernimmt `X-Forwarded-For`/`X-Real-IP` NUR vom nginx-Proxy, sonst verwirft er sie --
-  ohne das speicherte die webapp bei Beitritt/Vertragsunterschrift immer `172.19.0.x` statt der
-  echten Client-IP. Die webapp liest die IP über `clientIp()` (`webapp/src/functions.php`):
-  `X-Forwarded-For` nur hinter einem vertrauenswürdigen Proxy und von RECHTS gelesen (der erste
-  Eintrag ist vom Client fälschbar). Ändert sich die Proxy-IP: `TRUSTED_PROXY_IP` in der `.env`.
-- Zusätzlich zum Docker-Provider läuft seit 25.09.2026 ein **File-Provider**
-  (`--providers.file.filename=/etc/traefik/dynamic.yml`, Datei im Repo: `docker/traefik/dynamic.yml`)
-  für die webapp-Router — Grund siehe "Webapp-Router" unten.
+### Traefik
+- Hört **nur auf Port 80**; SSL macht der nginx-Proxy.
+- **Kein Docker-Provider, kein Docker-Socket** (seit 15.11.2026; ein Socket-Mount wäre
+  Vollzugriff auf den Docker-Dienst). Alle Router stehen in `docker/traefik/dynamic.yml`. Neue
+  Dienste mit eigener Adresse dort eintragen, nicht per Label.
+- Die Domain ist dort **hart eingetragen** (`stromfueralle.at`); der File-Provider kennt keine
+  `${DOMAIN}`-Substitution. Bei Domain-Änderung von Hand mitziehen.
+- Router: `stromfueralle.at`/`www`, `live.`, `portal.`, `admin.stromfueralle.at` und
+  `webapp.mechtronix.at` (legacy) → Service `webapp` (`http://webapp:80`).
+- Warum File-Provider statt Labels (Router verschwanden mit dem gestoppten Container → nacktes
+  Traefik-404 statt 502): `docs/VORFAELLE.md`, Vorfall 25.09.2026.
+- `--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}`: `X-Forwarded-For`
+  wird nur vom nginx-Proxy übernommen. Die webapp liest die Client-IP über `clientIp()`
+  (`webapp/src/functions.php`, von rechts). Ändert sich die Proxy-IP: `TRUSTED_PROXY_IP` in der `.env`.
 
-### Webapp-Router
-Seit 25.09.2026 **nicht mehr** als Docker-Labels auf dem `webapp`-Container, sondern als
-Traefik-File-Provider-Konfiguration in `docker/traefik/dynamic.yml` (ins Repo eingecheckt,
-in den `traefik`-Container gemountet):
-```yaml
-http:
-  routers:
-    webapp:        { rule: "Host(`stromfueralle.at`) || Host(`www.stromfueralle.at`)", entryPoints: [web], service: webapp }
-    live:          { rule: "Host(`live.stromfueralle.at`)",   entryPoints: [web], service: webapp }
-    portal:        { rule: "Host(`portal.stromfueralle.at`)", entryPoints: [web], service: webapp }
-    admin:         { rule: "Host(`admin.stromfueralle.at`)",  entryPoints: [web], service: webapp }
-    webapp-legacy: { rule: "Host(`webapp.mechtronix.at`)",    entryPoints: [web], service: webapp }
-  services:
-    webapp:
-      loadBalancer:
-        servers: [{ url: "http://webapp:80" }]
-```
-**Warum die Umstellung (Vorfall 25.09.2026):** Solange die Router nur als Labels AUF dem
-`webapp`-Container selbst standen, verschwanden sie zusammen mit dem Container, sobald er
-gestoppt wurde (z. B. `docker compose stop webapp`, oder ein echter Absturz) — Traefik
-antwortete dann kurz nach dem Stop nicht mehr mit einem aussagekräftigen 502/503/504
-("Backend nicht erreichbar"), sondern mit seinem eigenen, nackten `404 page not found`
-(`Content-Type: text/plain`, kein Router matcht mehr). Entdeckt beim Testen der neuen
-nginx-Wartungsseite (siehe unten) — die fängt bei 502/503/504 eine eigene Seite ab, griff
-bei nur gestopptem `webapp` (Traefik selbst lief noch) deshalb nie, weil kein 5xx
-zurückkam (404 wird bewusst NICHT abgefangen, sonst würde die Wartungsseite auch echte
-Anwendungs-404-Seiten überdecken). Mit dem File-Provider bleibt der Router jetzt bestehen,
-egal ob nur `webapp` oder Traefik selbst fehlt — nur der Backend-Server wird dann
-unerreichbar → korrektes 502/503/504, Wartungsseite greift zuverlässig in beiden Fällen.
-`http://webapp:80` als Backend-URL funktioniert dabei ganz normal über Dockers eingebautes
-DNS im gemeinsamen `eeg-net`-Netzwerk, unabhängig von Docker-Label-Discovery.
-> **DOMAIN dort ist hart eingetragen** (`stromfueralle.at`) — der File-Provider kennt keine
-> `${DOMAIN}`-Variablensubstitution aus der `.env` wie `docker-compose.yml` selbst. Bei
-> einer Domain-Änderung `docker/traefik/dynamic.yml` von Hand mitziehen.
-
-### LaTeX-Vorlagen: persistentes Volume überdeckt jeden Git-Deploy (Vorfall 18.10.2026)
-`/opt/eeg/latex-templates` (→ `/app/templates` im `latex-service`-Container, siehe
-`docker-compose.yml`) ist ein **persistentes** Volume für `/admin/templates` (Platform-Admin:
-LaTeX-Vorlagen/Infoblatt/Logo herunter-/hochladen, Änderungen sollen einen `--build` überleben).
-Liegt dort eine Datei (egal ob bewusst über `/admin/templates` hochgeladen, oder ein Überbleibsel
-des alten, VOR dem 04.10.2026-Fix blind kopierenden `entrypoint.sh`, siehe
-`docs/VORFAELLE.md`), **gewinnt sie IMMER gegen die im Image mitgelieferte, aktuelle Version**
-(`resolveTemplatePath()` in `latex-service/service.js` prüft zuerst das Volume) — ein
-`git pull && docker compose up -d --build` ändert an dieser einen Datei dann GAR NICHTS, ohne
-jede Fehlermeldung. Am 18.10.2026 dadurch mehrere PRs zum Rechnungslayout (`rechnung.tex`) auf
-Patricks Server scheinbar wirkungslos geblieben, bis klar wurde: nicht der Code war falsch,
-sondern eine alte Kopie im Volume hat ihn nie erreicht.
-
-**Bei JEDEM "meine Vorlagen-Änderung kommt auf dem Server nicht an"-Symptom zuerst prüfen:**
-```bash
-# Auf dem Server -- zeigt, ob z.B. rechnung.tex im Volume liegt (dann überdeckt sie alles)
-ls -la /opt/eeg/latex-templates/
-```
-Liegt die betroffene Datei dort und war sie nie bewusst individuell angepasst (häufigster Fall,
-reines Überbleibsel): **löschen** (`rm /opt/eeg/latex-templates/<datei>.tex`) -- danach greift ab
-dem nächsten Request automatisch wieder die im Image mitgelieferte, stets aktuelle Version, ganz
-ohne erneuten Upload und dauerhaft bei jedem künftigen Deploy. War die Datei bewusst angepasst
-(z. B. individuelles Logo/Footer-Text einer bestimmten EEG), stattdessen über `/admin/templates`
-die aktuelle Fassung mit der gewünschten Anpassung neu hochladen, statt sie zu löschen.
-
----
+### Typische Stolperfallen
+- **Kein `docker-compose.override.yml` auf dem Produktivserver** (deaktiviert Traefik, mappt Port 80
+  direkt auf die webapp; nur für lokale Entwicklung).
+- **LaTeX-Vorlagen:** `/opt/eeg/latex-templates` ist ein persistentes Volume (für `/admin/templates`)
+  und **gewinnt immer** gegen die im Image mitgelieferte Version. „Meine Vorlagen-Änderung kommt
+  auf dem Server nicht an“ → zuerst `ls -la /opt/eeg/latex-templates/`. Liegt die Datei dort und war
+  nie bewusst angepasst: löschen (`rm …/<datei>.tex`), dann greift die Image-Version wieder. Bewusst
+  angepasste Dateien stattdessen über `/admin/templates` neu hochladen. Hintergrund: `docs/VORFAELLE.md`.
+- **Neues Storage-Volume vor `up --build` anlegen**, sonst gehört es root und PHP (www-data, UID 82)
+  kann nicht schreiben: `sudo mkdir -p <pfad> && sudo chown -R 82:82 <pfad>`.
 
 ## .env auf dem Server
 
-Datei: `/opt/eeg-platform/.env` (nicht in Git, nie committen)
+Datei `/opt/eeg-platform/.env` (nicht in Git, nie committen). Pflichtfelder: `DB_USER`, `DB_PASSWORD`,
+`DB_NAME`, `DOMAIN`, `APP_SECRET` (64 Zeichen zufällig), `LATEX_API_KEY`, `SMTP_HOST`, `SMTP_USER`,
+`SMTP_PASSWORD`. Optional: `TRUSTED_PROXY_IP`, `MESSE_DEMO_LAT`/`MESSE_DEMO_LON`. Kein `ACME_EMAIL`
+nötig (Traefik macht kein Let's Encrypt mehr).
 
-```env
-DB_USER=eeg
-DB_PASSWORD=<sicheres Passwort>
-DB_NAME=eeg_platform
-DOMAIN=stromfueralle.at
-APP_SECRET=<64-Zeichen zufällig>
-LATEX_API_KEY=<random>
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_USER=<email>
-SMTP_PASSWORD=<passwort>
-```
-
-> Kein `ACME_EMAIL` nötig — Traefik macht kein Let's Encrypt mehr.
-
----
-
-## Neuinstallation (Fresh Deploy)
-
-Seit dem Setup-Skript (Stand 18.07.2026) reicht ein Befehl -- `.env` (mit zufälligen Secrets),
-`/opt/eeg`-Verzeichnisse (inkl. korrekter `82:82`-Rechte), Container, alle Migrationen UND der
-erste Platform-Admin-Zugang (interaktiv nach E-Mail/Passwort gefragt, kein fest im Repo
-eingetragener Account mehr) werden automatisch erledigt:
+## Neuinstallation und Update
 
 ```bash
-git clone https://github.com/ropperp/eeg-platform.git /opt/eeg-platform
-cd /opt/eeg-platform
+# Neuinstallation: .env mit Zufalls-Secrets, /opt/eeg (inkl. 82:82-Rechte), Container, Migrationen,
+# erster Platform-Admin (interaktiv)
+git clone https://github.com/ropperp/eeg-platform.git /opt/eeg-platform && cd /opt/eeg-platform
 ./scripts/setup.sh
-```
+docker compose ps && curl -H "Host: stromfueralle.at" http://localhost/
 
-Danach:
-```bash
-docker compose ps
-curl -H "Host: stromfueralle.at" http://localhost/
-```
+# Update (laufendes System)
+cd /opt/eeg-platform && git pull origin main && docker compose up -d --build
 
-Manuelle Schritt-für-Schritt-Variante (falls das Skript nicht genutzt werden soll/kann) →
-`SETUP.md`. Docker-Installation (macOS/Windows/Linux) → `docs/DOCKER_INSTALL.md`.
-
-> **Kein `docker-compose.override.yml`** auf dem Produktivserver anlegen — diese Datei deaktiviert Traefik und mappt Port 80 direkt auf webapp (nur für lokale Entwicklung).
-
----
-
-## Bekannte Probleme & Lösungen
-
-**Ausgelagert nach `docs/VORFAELLE.md`** (am 02.10.2026, die Datei war über 2000 Zeilen
-angewachsen). Enthält das vollständige Vorfallstagebuch -- Symptom, gefundene Ursache, Fix --
-u. a. zu: DB-Mount/PGDATA, Traefik-Routing/404, MQTT-Fernzugriff, Live-Anzeige/SkipScan/CSP,
-ESP32-OTA-Update, Datei-Upload-Berechtigungen (nginx/Safari), Logo-Schattendateien,
-SSL-Zertifikats-Lineages, Raspberry-Pi-Stabilität (Watchdog, Stromversorgung), EDA-Datenqualität/
-Abrechnung, externer Sicherheits-Scan (OWASP-Nachtests).
-
-**Bei einem neuen, noch unklaren Symptom IMMER zuerst dort nachsehen** -- die Pfad-/Mount-
-Übersicht (`docs/INFRASTRUKTUR_PFADE.md`) bleibt der erste Blick bei DB-/Daten-„weg"-Symptomen,
-sonst `docs/VORFAELLE.md` durchsuchen, bevor eine neue Diagnose von vorne beginnt.
-
----
-
-## Update (laufendes System)
-
-```bash
-cd /opt/eeg-platform
-git pull origin main
-docker compose up -d --build
-```
-
-**Historie der einmaligen "Einmalig nach dem Update vom ..."-Anleitungen (Migrationen,
-Setup-Skripte, Cron-Einträge) ausgelagert nach `docs/BETRIEBSHANDBUCH.md`** (am 02.10.2026,
-die Datei war über 2000 Zeilen angewachsen). Für ein bereits laufendes, aktuelles System ist nur
-der jeweils NEUESTE Eintrag dort (am Dateiende) noch relevant -- ältere sind auf Patricks
-Produktivserver längst angewendet. Bei einer Neuinstallation von einem alten Tag/Backup aus,
-oder um nachzuvollziehen, warum ein bestimmter Schritt nötig war: dort nachsehen.
-
-Bei neuen DB-Migrations:
-```bash
+# Neue DB-Migration
 docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_YYYYMMDD.sql
 ```
 
----
+Manuelle Variante: `SETUP.md`. Docker-Installation: `docs/DOCKER_INSTALL.md`. Einmalige Schritte
+nach einzelnen Updates: `docs/BETRIEBSHANDBUCH.md`.
 
 ## Container-Healthchecks & Selbstheilung
 
-Jeder Container hat einen `healthcheck` (in `docker-compose.yml`), damit `docker compose ps` für
-alle `healthy`/`unhealthy` statt nur „Up" zeigt — inkl. `traefik` (via `--ping`) und
-`mqtt-subscriber` (schreibt eine Heartbeat-Datei `/tmp/mqtt_subscriber_healthy`, solange die
-MQTT-Verbindung steht).
+Jeder Container hat einen `healthcheck` (`docker-compose.yml`), `mqtt-subscriber` schreibt dazu
+`/tmp/mqtt_subscriber_healthy`. `scripts/health_monitor.sh` läuft als Host-Cron: findet es einen
+Dienst `unhealthy`/gestoppt, startet es ihn 1–2× neu und schickt sonst eine Alarm-Mail
+(`scripts/health_alert.php`, Cooldown 6 h je Dienst in `/opt/eeg/health-monitor/`).
 
-`scripts/health_monitor.sh` ist der Wächter (läuft als Host-Cron, nicht im Container): findet er
-einen Dienst `unhealthy`/gestoppt, startet er ihn **1–2× automatisch neu**; bleibt es dabei, geht
-eine Alarm-Mail ans Admin-Postfach (`scripts/health_alert.php`, gleiche Microsoft-Graph-Anbindung
-wie der Backup-Alarm — Empfänger = `backup_alert_email_1/2` bzw. erster Platform-Admin). Eine
-Cooldown-Datei je Dienst (`/opt/eeg/health-monitor/<svc>.alerted`, Standard 6 h) verhindert
-Neustart-/Mail-Fluten.
-
-Einrichten (einmalig, auf dem Host):
 ```bash
-# alle 5 Minuten prüfen
 ( crontab -l 2>/dev/null; echo "*/5 * * * * cd /opt/eeg-platform && bash scripts/health_monitor.sh >> /var/log/eeg-health.log 2>&1" ) | crontab -
 ```
-Manuell testen: `cd /opt/eeg-platform && bash scripts/health_monitor.sh`.
 
----
+## Messe-/Präsentations-Demo
 
-## Messe-/Präsentations-Demo (simulierte Werte, 02.10.2026)
+Checkbox „Simulierte Werte anzeigen“ in den Obmann-Einstellungen. Ein Thread im `mqtt-subscriber`
+legt 20 fiktive Zählpunkte (`is_demo=true`, nie abrechnungsrelevant) an und publiziert echte
+MQTT-Werte (echtzeit-synchrones Tagesprofil, Einspeisung nach echtem Wetter von Open-Meteo). Solange
+aktiv, zeigt die Oberfläche einen Hinweis auf fiktive Werte. Vollständige Beschreibung:
+`docs/MESSE_DEMO.md`.
 
-Patrick, 02.10.2026: "brauch [...] einen guten Energiefluss um auf einer Messe eine Simulation
-zu zeigen [...] 8 Einspeiser und 12 Verbraucher [...] über mqtt trotzdem" -- später am selben
-Tag weiterentwickelt zu einem dauerhaften Hintergrund-Schalter statt eines manuell gestarteten
-Kommandozeilen-Skripts: "Ich möchte es nicht in der Kommandozeile laufen lassen [...] Bitte lass
-es im Hintergrund laufen [...] einen kleinen Schalter [...] unter den Einstellungen [...] Ich
-werde diesen [...] generell mal laufen lassen [...] bis ich wirklich [...] Mitglieder mit den
-Ausleseeinheiten ausstatten werde."
-
-**Bedienung (Obmann-Einstellungen, ganz oben bei "Stammdaten"):** Checkbox "Simulierte Werte
-anzeigen (Messe-/Präsentations-Demo)" -- einfach an-/abschalten, kein Server-/
-Kommandozeilenzugriff nötig (`communities.messe_demo_enabled`, siehe `migrate_20261005.sql`).
-
-**Technisch:** läuft als Daemon-Thread direkt im ohnehin dauerhaft laufenden
-`mqtt-subscriber`-Container (`demo_simulation_loop()` in `mqtt-subscriber/main.py`) -- kein
-separater Prozess, übersteht Reboots/Abstürze wie jeder andere Thread dieses Containers. Pollt
-alle 5s, welche EEGs `messe_demo_enabled = true` haben, legt bei Bedarf automatisch (idempotent)
-20 fiktive Zählpunkte (8 Einspeiser, 12 Verbraucher) unter einem eigenen `is_demo=true`-Mitglied
-an und publiziert echte MQTT-Live-Nachrichten im exakten Firmware-Format -- läuft also über den
-kompletten echten Pfad (mqtt-subscriber -> esp_measurements -> Energiefluss/Live-Dashboard/
-öffentliche Live-Anzeige), kein Frontend-Fake. `is_demo=true` schließt sie wie die bestehenden
-Demo-Login-Zählpunkte automatisch von jedem echten Abrechnungslauf aus
-(`Billing::generateDrafts()` filtert `m.is_demo = false`) -- ohne jede Auswirkung auf
-Abrechnungen.
-
-**Tagesprofil, echtzeit-synchron** (Nachbesserung 02.10.2026, erst 20-Minuten-Raffung probiert,
-dann von Patrick verworfen: "Das möchte ich nicht haben. Es soll schon sein, dass der ganze
-Verlauf richtig funktioniert"): Einspeiser liefern 0 W vor 06:00/nach 20:00, dazwischen eine
-Sinuskurve mit Höchstwert um 13:00; Verbraucher haben nachts eine Kühlschrank-/Standby-Grundlast
-(nie 0) und je einen Buckel morgens, mittags und (am stärksten) abends -- 1:1 mit der echten
-Uhrzeit, kein Zeitraffer, weil der Schalter wochenlang durchlaufen soll.
-
-**Einspeisung nach echtem Wetter** (seit 08.11.2026, Patrick: im November bei Nebel passten
-11-12 kW Einspeisung nicht mehr): die Einspeiser rechnen mit der aktuellen Einstrahlung auf eine
-30° nach Süden geneigte Fläche vom kostenlosen Wetterdienst **Open-Meteo** (kein API-Schlüssel,
-Abruf alle 10 min aus dem `mqtt-subscriber`-Container, braucht also ausgehendes HTTPS zu
-`api.open-meteo.com`) -- Leistung = Nennleistung × Einstrahlung/1000 × 0,85, bei gemeldetem Nebel
-zusätzlich × 0,3. Sonnenauf-/-untergang aus dem echten Sonnenstand statt fix 06/20 Uhr; nachts
-exakt 0 W. Standort per `MESSE_DEMO_LAT`/`MESSE_DEMO_LON` in der `.env` (leer = Feldkirchen in
-Kärnten). Ist Open-Meteo nicht erreichbar: Schätzung aus dem Sonnenstand (halbe
-Schönwetter-Leistung) und Warnung im Log (`docker compose logs mqtt-subscriber | grep Wetter`).
-Die Oberfläche zeigt bei 0 W Einspeisung „aktuell keine Einspeisung“ statt „0 W“.
-
-**Sichtbarer Hinweis, wenn aktiv** (Patrick: "mach mir [...] einen Hinweis [...] dass diese
-Werte fiktive Werte sind [...] und diese jetzt noch nicht stimmen"): sowohl auf dem
-Energiefluss im Obmann-/Mitglied-Dashboard (`energy_flow.php`) als auch auf der öffentlichen
-Live-Anzeige (`/live/:slug`, über `demo_simulation` im `/api/live/:slug`-JSON) erscheint ein
-deutlicher gelber Hinweistext, solange der Schalter an ist.
-
-**Zum Ausschalten:** Checkbox einfach wieder abwählen -- die 20 Zählpunkte bleiben als
-"registrierte Zählpunkte" bestehen (für ein schnelles Wieder-Einschalten später), zählen aber
-nach dem Abschalten innerhalb von ~2 Minuten nicht mehr in die Live-Summe mit
-(`communityLivePower()`/`/api/live/:slug` zählen nur Messungen der letzten 2 Minuten).
-
----
-
-## Frontend-Regeln (Content-Security-Policy, seit 17.11.2026)
+## Frontend-Regeln (Content-Security-Policy)
 
 Die Plattform sendet `script-src 'self' 'nonce-…'` und `script-src-attr 'none'` (PHP: `cspPolicy()` in
-`webapp/src/functions.php`; **nicht** in nginx setzen). Für neuen Code heißt das:
-- **Kein** `onclick=`/`onchange=`/`onsubmit=`/… in Templates und kein `javascript:`-Link. Stattdessen die
+`webapp/src/functions.php`; **nicht** in nginx setzen). Für neuen Code:
+- **Kein** `onclick=`/`onchange=`/`onsubmit=`/… und kein `javascript:`-Link. Stattdessen die
   `data-`-Attribute aus `webapp/public/assets/js/ui-actions.js` (`data-confirm`, `data-danger-confirm`,
   `data-onclick="funktion" data-arg-0=…`, `data-dialog-open`, `data-print`, …).
-- Jedes Inline-`<script>` braucht `nonce="<?= cspNonce() ?>"` (außer `application/ld+json`). Größere Skripte
-  besser als Datei unter `assets/js/` ablegen.
-- `tests/csp_static_test.php` (läuft im CI) schlägt bei jedem Verstoß an; `tests/browser/csp.js` prüft im Browser.
+- Jedes Inline-`<script>` braucht `nonce="<?= cspNonce() ?>"` (außer `application/ld+json`); größere
+  Skripte als Datei unter `assets/js/`.
+- `tests/csp_static_test.php` (CI) und `tests/browser/csp.js` schlagen bei Verstößen an.
 
----
+## Doku-Pflege (Obsidian-Spiegel)
 
-## Obsidian-Sync
-
-`/obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks lokalen Obsidian-Vault
-(Sync-Workflow: `/obsidian/README.md`). **Bei jeder inhaltlichen Änderung an diesem `CLAUDE.md`
-auch `/obsidian/Infrastruktur.md` entsprechend aktualisieren.**
-
-> `docs/VORFAELLE.md` und `docs/BETRIEBSHANDBUCH.md` (siehe oben) sind bewusst NICHT Teil dieses
-> Spiegels -- sie liegen unter `docs/`, nicht `obsidian/`, und werden vom täglichen Sync nicht
-> erfasst. `/obsidian/Infrastruktur.md` übernimmt bei inhaltlichen Vorfällen/Update-Schritten
-> weiterhin nur eine knappe Zusammenfassung (wie bisher schon üblich), nicht die volle Historie.
-
----
+`obsidian/Infrastruktur.md` ist ein Spiegel dieser Datei für Patricks Vault (Workflow:
+`obsidian/README.md`). **Bei jeder inhaltlichen Änderung an dieser Datei die Spiegelnotiz mit
+anpassen.** `docs/VORFAELLE.md`, `docs/BETRIEBSHANDBUCH.md`, `docs/NGINX_PROXY.md` und
+`docs/MESSE_DEMO.md` gehören bewusst nicht zum Spiegel; dort steht nur eine knappe Zusammenfassung.
 
 ## Selbstdokumentation (Claude-Sitzungslog)
 
-Patrick möchte nachvollziehen können, welches Claude-Modell wann mit welchem Auftrag
-gearbeitet hat — er braucht das für die Dokumentation seiner Diplomarbeit. Deshalb schreibt
-**jede** Claude-Arbeitssitzung (Claude Code, Claude Chat, Cowork) am Ende einen kurzen
-Log-Eintrag mit Datum, Modell, zusammengefasstem Auftrag und verbessertem Prompt.
+Patrick braucht für die Diplomarbeit nachvollziehbar, welches Modell wann welchen Auftrag bearbeitet
+hat. **Jede** Claude-Sitzung (Claude Code, Chat, Cowork) schreibt am Ende einen Eintrag.
 
-> **Datenschutz (Patrick, 10.10.2026):** Dieses Repo ist **öffentlich**. Deshalb steht im Log
-> **kein wörtlicher Prompt** mehr (Spracheingaben enthalten Satzfetzen, Namen, Privates), sondern
-> nur eine **Zusammenfassung** und ein **verbesserter Prompt**. Keine Passwörter, Tokens,
-> Zugangsdaten, E-Mail-Adressen oder Personendaten (Familie, Mitglieder, Kunden) eintragen.
-> Ältere Einträge mit wörtlichem Prompt bleiben unverändert stehen.
-
-### Vor jeder Recherche zuerst nachsehen
-
-Bevor Claude für eine Frage im Web oder im Code recherchiert, durchsucht es zuerst die
-bisherigen Einträge (`obsidian/Claude-Sitzungslog.md`, `obsidian/Problemstellungen.md`):
-
-1. **Treffer:** Datum und Kurzinhalt des alten Eintrags nennen (ein Satz), dann die neue Frage
-   darauf aufbauend beantworten, statt neu zu recherchieren.
-2. **Kein Treffer:** normal recherchieren.
-
-### Format je Eintrag (neueste zuerst)
+- **Vorher suchen:** vor jeder Recherche zuerst `obsidian/Claude-Sitzungslog.md` und
+  `obsidian/Problemstellungen.md` durchsuchen. Treffer: Datum und Kurzinhalt in einem Satz nennen,
+  darauf aufbauen. Kein Treffer: normal recherchieren.
+- **Datenschutz (Repo ist öffentlich, 10.10.2026):** kein wörtlicher Prompt, keine Personendaten,
+  Zugangsdaten oder E-Mail-Adressen. Ältere Einträge bleiben unverändert.
+- **Format** (neueste zuerst):
 
 ```markdown
 ## JJJJ-MM-TT HH:MM — <Werkzeug> — <Modell>
-**Auftrag:** <Anliegen des Nutzers, sprachlich geglättet und professionell zusammengefasst;
-1–3 Sätze, KEIN wörtliches Zitat>
-**Verbesserter Prompt:** <so hätte man den Auftrag formulieren können, um direkt zum Ergebnis
-zu kommen; knapp, präzise, ohne Privates>
-**Ergebnis:** <was gemacht wurde: Commits, Dateien, offene Punkte; 1–3 Sätze>
-**Fehler/Lehre:** <nur falls etwas schiefging: was, warum, wie man es beim nächsten Mal
-vermeidet; sonst weglassen>
+**Auftrag:** <Anliegen, geglättet zusammengefasst, 1–3 Sätze, kein wörtliches Zitat>
+**Verbesserter Prompt:** <so hätte man direkt zum Ergebnis kommen können; knapp, ohne Privates>
+**Ergebnis:** <Commits, Dateien, offene Punkte; 1–3 Sätze>
+**Fehler/Lehre:** <nur falls etwas schiefging; sonst weglassen>
 ```
 
-- Werkzeug: `Claude Code` / `Claude Chat` / `Cowork`
-- Modell: so genau wie bekannt, z. B. `Claude Sonnet 5.5`, `Claude Fable 5.1`
-
-### Wann speichern
-
-Wenn eine Aufgabe abgeschlossen wirkt, Patrick kurz fragen, ob der Eintrag jetzt gespeichert
-werden soll oder ob noch weitergearbeitet wird. Wird nach dem Speichern weitergearbeitet, den
-**bestehenden** Eintrag der Sitzung auf den neuen Stand bringen (nicht neu anlegen).
-
-### Wohin schreiben
-- **Claude Code** (arbeitet in diesem Repo): Eintrag oben in `obsidian/Claude-Sitzungslog.md`
-  einfügen und zusammen mit den übrigen Änderungen committen/pushen. Die Datei liegt bewusst
-  unter `obsidian/` und wird dadurch per täglichem Sync automatisch in Patricks
-  Obsidian-Vault gespiegelt. Zusätzlich legt eine geplante Aufgabe täglich aus diesem Log je
-  Tag eine eigene Notiz im Vault an (`Claude Chats/Einträge/`, verlinkt mit `Claude Hub`).
-- **Cowork / Claude Chat** (haben Obsidian-Zugriff, committen/pushen NICHT in dieses Repo):
-  Eintrag direkt in den Vault schreiben: `eeg-platform-notes/logs/JJJJ-MM-TT.md`
-  (eine Datei pro Tag; existiert sie schon, Eintrag anhängen). Der Ordner `logs/` existiert
-  nur im Vault und wird vom Doku-Sync nie überschrieben.
+- Werkzeug: `Claude Code` / `Claude Chat` / `Cowork`. Modell so genau wie bekannt.
+- **Wann:** Wirkt eine Aufgabe abgeschlossen, Patrick fragen, ob jetzt gespeichert werden soll.
+  Wird danach weitergearbeitet, den **bestehenden** Eintrag aktualisieren.
+- **Wohin:** Claude Code → oben in `obsidian/Claude-Sitzungslog.md` (mit committen; wird in den Vault
+  gespiegelt, eine geplante Aufgabe legt daraus täglich Notizen in `Claude Chats/Einträge/` an).
+  Cowork/Chat → direkt in den Vault: `eeg-platform-notes/logs/JJJJ-MM-TT.md` (eine Datei pro Tag,
+  anhängen); `logs/` wird vom Doku-Sync nie überschrieben.
