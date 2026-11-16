@@ -51,3 +51,5 @@ node_modules/
 /obsidian/.trash/
 # Composer (Autoloader wird bei Bedarf erzeugt, siehe webapp/src/autoload.php)
 webapp/vendor/
+# Office-Sperrdateien (enthalten den Namen der öffnenden Person)
+~$*
