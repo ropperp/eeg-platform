@@ -1,5 +1,5 @@
 .PHONY: setup up down build build-clean prod update logs logs-web logs-latex logs-db \
-        ps shell-db shell-web backup backup-storage backup-all sync-nas restore migrate schema demo-db verify test
+        ps shell-db shell-web backup backup-storage backup-all sync-nas restore migrate schema demo-db verify test test-integration
 
 # ─── Ersteinrichtung (einmalig, siehe SETUP.md) ───────────────────────────────
 setup:
@@ -8,6 +8,20 @@ setup:
 # ─── Automatisierte Tests (abhängigkeitsfrei, läuft auch in der CI) ───────────
 test:
 	php tests/run.php
+
+# Integrationstests gegen eine frische Wegwerf-TimescaleDB (Docker, Port 55432). Prüft u. a. die
+# RLS-Mandantentrennung mit der echten Laufzeit-Rolle. Läuft auch in der CI (Job "integration").
+TEST_PG_IMAGE ?= timescale/timescaledb:2.17.2-pg16
+test-integration:
+	-docker rm -f eeg-pgtest >/dev/null 2>&1
+	docker run -d --name eeg-pgtest -e POSTGRES_USER=eeg -e POSTGRES_PASSWORD=test \
+	  -e POSTGRES_DB=eeg_platform -p 55432:5432 $(TEST_PG_IMAGE) >/dev/null
+	until docker exec eeg-pgtest pg_isready -U eeg -d eeg_platform -h 127.0.0.1 >/dev/null 2>&1; do sleep 1; done
+	PSQL="docker exec -i eeg-pgtest psql -U eeg -d eeg_platform" bash tests/integration/prepare_db.sh
+	TEST_DB_HOST=127.0.0.1 TEST_DB_PORT=55432 TEST_DB_NAME=eeg_platform \
+	  TEST_DB_OWNER=eeg TEST_DB_OWNER_PASSWORD=test TEST_APP_USER=eeg_app TEST_APP_USER_PASSWORD=app \
+	  TEST_WORKER_USER=eeg_worker TEST_WORKER_USER_PASSWORD=worker php tests/integration/run.php; \
+	  rc=$$?; docker rm -f eeg-pgtest >/dev/null; exit $$rc
 
 # ─── Starten ──────────────────────────────────────────────────────────────────
 up:

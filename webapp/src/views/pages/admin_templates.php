@@ -85,7 +85,7 @@
       </div>
       <button type="submit" class="btn btn-primary" style="font-size:.85rem">Speichern</button>
     </form>
-    <script src="/assets/js/rect-crop.js"></script>
+    <script src="<?= htmlspecialchars(assetUrl('/assets/js/rect-crop.js')) ?>"></script>
     <script nonce="<?= cspNonce() ?>">
       initRectCropper({
         fileInputId: 'hero-file-input',

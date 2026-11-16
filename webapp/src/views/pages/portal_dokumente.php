@@ -196,7 +196,7 @@ require __DIR__ . '/../partials/tabs_nav.php';
 </section>
 <?php endif; ?>
 
-<script src="/assets/js/rich-editor.js?v=<?= @filemtime(ROOT . '/public/assets/js/rich-editor.js') ?: time() ?>"></script>
-<script src="/assets/js/tabs.js?v=<?= @filemtime(ROOT . '/public/assets/js/tabs.js') ?: time() ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/rich-editor.js')) ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/tabs.js')) ?>"></script>
 
 <?php $content = ob_get_clean(); require __DIR__ . '/../layouts/portal.php';

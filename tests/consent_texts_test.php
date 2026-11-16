@@ -145,6 +145,10 @@ test('Zustimmungstexte stehen in keiner Vorlage/View fest codiert (nur in consen
     $root = __DIR__ . '/..';
     $files = [
         'webapp/public/index.php',
+        'webapp/routes/public.php',
+        'webapp/routes/portal.php',
+        'webapp/routes/admin.php',
+        'webapp/routes/api.php',
         'webapp/src/views/pages/beitreten_formular.php',
         'webapp/src/views/pages/member_form.php',
         'latex-service/templates/beitrittserklaerung_formular.tex',

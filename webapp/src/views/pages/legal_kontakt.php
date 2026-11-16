@@ -1,7 +1,7 @@
 <?php
 // Kontaktseite einer EEG -- Daten aus den Stammdaten (Einstellungen -> Kontakt-E-Mail/-Telefon).
 $rc = strtolower($community['marktpartner_id']);
-$kontaktEmail = trim((string)($community['contact_email'] ?? '')) ?: 'office@stromfueralle.at';
+$kontaktEmail = trim((string)($community['contact_email'] ?? '')) ?: AppConfig::get()->contactEmail;
 $kontaktTel = trim((string)($community['contact_phone'] ?? ''));
 $pageTitle = 'Kontakt — ' . $community['name'];
 $pageDescription = 'Kontaktmöglichkeiten der ' . $community['name'] . ' für Interessierte und Mitglieder.';

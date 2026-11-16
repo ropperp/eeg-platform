@@ -58,14 +58,10 @@ import psycopg2.extras
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-# BEWUSST weiterhin DB_USER (Schema-Besitzer), NICHT die eingeschränkte APP_DB_USER-Rolle aus
-# scripts/db_runtime_role_setup.sh (gleicher Grund wie mqtt-subscriber/main.py, Vorfall
-# 17.08.2026: Row-Level Security blockierte dort jede Abfrage, weil app.community_id nie
-# gesetzt wurde). Dieser Import läuft als vertrauenswürdiger Batch-Prozess (von PHP via
-# EdaParserRunner.php gestartet, kein direkter HTTP-Zugriff von außen) und schreibt u.a. neue
-# metering_points-Zeilen für noch unbekannte Zählpunkte -- RLS böte hier keinen zusätzlichen
-# Schutz gegen eine realistische Bedrohung, würde aber ohne ein SET app.community_id vor jeder
-# einzelnen Abfrage denselben Ausfall verursachen wie beim MQTT-Dienst.
+# DB_USER/DB_PASSWORD erbt der Parser von der Webapp (EdaParserRunner.php, proc_open); dort sind sie
+# laut docker-compose.yml das Dienstkonto WORKER_DB_USER (BYPASSRLS, kein Superuser). Der Import
+# schreibt community-übergreifend (u. a. neue metering_points) -- RLS würde ihn ohne
+# SET app.community_id vor jeder Abfrage blockieren (gleicher Grund wie mqtt-subscriber/main.py).
 _DB_USER = os.environ.get("DB_USER", "eeg")
 _DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
 

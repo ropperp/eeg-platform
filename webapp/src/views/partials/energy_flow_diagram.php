@@ -54,4 +54,4 @@ $efNetzLabel    = $efNetzW > 0 ? 'Netz (Einspeisung)' : ($efNetzW < 0 ? 'Netz (B
     </div>
   </div>
 </div>
-<script src="/assets/js/energy-flow.js?v=<?= @filemtime(ROOT . '/public/assets/js/energy-flow.js') ?: time() ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/energy-flow.js')) ?>"></script>

@@ -122,10 +122,12 @@ Traefik-404 liefert: siehe "Webapp-Router" weiter unten (File-Provider statt Doc
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:v3 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
+| traefik | traefik:v3.7.19 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
-| redis | redis:7-alpine | — | Session-Cache |
-| mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
+| redis | redis:7.4.12-alpine | — | Session-Cache |
+| mosquitto | eclipse-mosquitto:2 (2.1.2) | 1883, 8883 | MQTT-Broker |
+
+Alle Images mit Version und Digest gepinnt; Updates nur als Dependabot-PR (seit 16.11.2026).
 | mqtt-subscriber | (build) | — | MQTT → DB |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
@@ -195,7 +197,27 @@ LATEX_API_KEY=<random>
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_USER=<email>
 SMTP_PASSWORD=<passwort>
+APP_ENV=production          # Standard; ohne APP_DB_USER startet die Webapp dann nicht
+APP_DB_USER=eeg_app         # + APP_DB_PASSWORD, generiert von scripts/db_runtime_role_setup.sh
+WORKER_DB_USER=eeg_worker   # + WORKER_DB_PASSWORD, ebenso generiert
 ```
+
+**Datenbank-Rollen (seit 16.11.2026):** `DB_USER` (`eeg`) ist Superuser und Schema-Besitzer (nur
+Migrationen/Backup). Die Webapp verbindet als `eeg_app` (nur Daten, Row-Level Security greift), der
+mqtt-subscriber und der EDA-Parser als `eeg_worker` (nur Daten, `BYPASSRLS`, kein Superuser). Der
+Webapp-Healthcheck (`webapp/bin/db_role_check.php`) meldet `unhealthy`, wenn die Rolle zu viele Rechte hat.
+
+**Zentrale Konfiguration (seit 16.11.2026):** Domain, Portal-Host, öffentliche Links und
+Kontakt-Rückfalladresse kommen aus `webapp/src/AppConfig.php` (aus `DOMAIN`, optional `PORTAL_HOST`/
+`CONTACT_EMAIL`). Die Fehlerseite zeigt nur eine Fehlernummer; Details stehen im Log
+(`docker compose logs webapp | grep <nummer>`) oder mit `APP_DEBUG=1` auf der Seite.
+
+**Assets und Caching:** Skripte/Styles immer über `assetUrl('/assets/…')` einbinden (`?v=<mtime>`); nur
+versionierte Assets cached nginx ein Jahr als `immutable`. Security-Header stehen in
+`webapp/docker/security-headers.conf`. Dynamisches HTML/JSON wird nie gzip-komprimiert (BREACH).
+
+**Tests:** `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS-Trennung),
+`tests/http/headers_test.sh` (Header gegen laufenden Container), PHPStan (`phpstan.neon`). Alles läuft in der CI.
 
 ## Update (laufendes System)
 
@@ -246,6 +268,15 @@ Claude Code schreibt in `obsidian/Claude-Sitzungslog.md` im Repo (wird in den Va
 gespiegelt), Cowork/Chat direkt in den Vault unter `eeg-platform-notes/logs/JJJJ-MM-TT.md`.
 Eine geplante Aufgabe legt täglich je Tag eine Notiz in `Claude Chats/Einträge/` an.
 Details: Abschnitt „Selbstdokumentation" in `CLAUDE.md`.
+
+---
+
+## Code-Struktur der Webapp (seit 16.11.2026)
+
+`webapp/public/index.php` ist nur noch der Bootstrap (~1.400 statt ~11.900 Zeilen). Die Routen liegen in
+`webapp/routes/` (public, portal, admin, api – die Reihenfolge ist die Priorität). Neuer Code kommt nach
+PSR-4 in den Namensraum `App\` (Controller, Domain-Service, Repository); Vorlage ist der Bereich
+Support-Tickets. Überblick: `docs/ARCHITEKTUR.md`, Entscheidungen: `docs/adr/` im Repo.
 
 ---
 

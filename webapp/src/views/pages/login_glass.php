@@ -81,7 +81,7 @@ ob_start();
 <?php
 $authStage = ob_get_clean();
 $authScripts = str_replace('<script>', '<script nonce="' . cspNonce() . '">', <<<'JS'
-<script src="/assets/js/passkey.js" defer></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/passkey.js')) ?>" defer></script>
 <script>
 // Karte umdrehen (Anmelden <-> Registrieren), auch per #registrieren in der Adresse aufrufbar.
 (function () {

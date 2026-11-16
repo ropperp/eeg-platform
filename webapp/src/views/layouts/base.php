@@ -11,8 +11,8 @@
   // keine Seite diese Tags komplett vergisst. $pageCanonical ohne Query-String (z.B. ?success=...
   // nach einem Formular-Submit soll nicht als eigene, separat indexierbare URL gelten).
   $pageDescription = $pageDescription ?? 'Strom für alle -- die Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung und Echtzeit-Energiedaten.';
-  $pageCanonical = $pageCanonical ?? ('https://stromfueralle.at' . strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
-  $pageOgImage = $pageOgImage ?? 'https://stromfueralle.at/assets/images/og-image.png';
+  $pageCanonical = $pageCanonical ?? (AppConfig::get()->marketingBaseUrl() . strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
+  $pageOgImage = $pageOgImage ?? AppConfig::get()->marketingBaseUrl() . '/assets/images/og-image.png';
   ?>
   <meta name="description" content="<?= htmlspecialchars($pageDescription) ?>">
   <link rel="canonical" href="<?= htmlspecialchars($pageCanonical) ?>">
@@ -43,19 +43,22 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/favicon-16.png">
   <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/assets/css/app.css?v=<?= @filemtime(ROOT . '/public/assets/css/app.css') ?: time() ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/assets/css/app.css')) ?>">
   <?php if ($siteDesign === 'glas'): ?>
-  <link rel="stylesheet" href="/assets/css/site-glass.css?v=<?= @filemtime(ROOT . '/public/assets/css/site-glass.css') ?: time() ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/assets/css/site-glass.css')) ?>">
   <?php endif; ?>
   <script nonce="<?= cspNonce() ?>">(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
   <!-- Markiert synchron (vor dem ersten Malen), dass JS verfügbar ist -- app.css nutzt das,
        um z.B. den Hero-Text erst dann per CSS auszublenden, wenn tatsächlich eine Animation
        (site-animations.js, unten) übernehmen wird. Ohne JS bleibt alles normal sichtbar. -->
+  <?php $pageNeeds = pageScriptNeeds($content ?? ''); ?>
+  <?php if ($pageNeeds['animations']): ?>
   <script nonce="<?= cspNonce() ?>">document.documentElement.classList.add('js-anim');</script>
+  <?php endif; ?>
   <?php if (!empty($extraHead)): ?>
   <?= $extraHead ?>
   <?php endif; ?>
-  <script src="/assets/js/ui-actions.js?v=<?= @filemtime(ROOT . '/public/assets/js/ui-actions.js') ?: time() ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('/assets/js/ui-actions.js')) ?>" defer></script>
 </head>
 <body>
 
@@ -124,11 +127,18 @@
   </div>
 </footer>
 
-<script src="/assets/js/vendor/gsap.min.js"></script>
-<script src="/assets/js/vendor/ScrollTrigger.min.js"></script>
-<script src="/assets/js/site-animations.js"></script>
-<script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
-<script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
+<?php // Optionale Skripte nur bei Bedarf (pageScriptNeeds() in functions.php). ?>
+<?php if ($pageNeeds['animations']): ?>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/vendor/gsap.min.js')) ?>" defer></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/vendor/ScrollTrigger.min.js')) ?>" defer></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/site-animations.js')) ?>" defer></script>
+<?php endif; ?>
+<?php if ($pageNeeds['password']): ?>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/password-toggle.js')) ?>" defer></script>
+<?php endif; ?>
+<?php if ($pageNeeds['signature']): ?>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/signature-pad-trim.js')) ?>"></script>
+<?php endif; ?>
 <script nonce="<?= cspNonce() ?>">
 // CSRF-Schutz (OWASP-Audit 13.08.2026): fügt automatisch ein verstecktes Token-Feld in jedes
 // method="post"-Formular der Seite ein, statt jede der ~70 Formular-Views einzeln anzufassen.

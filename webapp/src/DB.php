@@ -21,13 +21,7 @@ class DB
                 getenv('DB_PORT') ?: '5432',
                 getenv('DB_NAME') ?: 'eeg_platform'
             );
-            // Bevorzugt APP_DB_USER/APP_DB_PASSWORD (eingeschränkte Rolle ohne Tabellenbesitz,
-            // siehe scripts/db_runtime_role_setup.sh -- nur für sie greifen die RLS-Policies
-            // unten überhaupt, DB_USER als Tabellenbesitzer ist von RLS immer ausgenommen).
-            // Fallback auf DB_USER/DB_PASSWORD, solange das Skript noch nicht gelaufen ist, damit
-            // die Plattform ohne Zutun in ihrem bisherigen Zustand funktionsfähig bleibt.
-            $dbUser = getenv('APP_DB_USER') ?: getenv('DB_USER');
-            $dbPassword = getenv('APP_DB_USER') ? getenv('APP_DB_PASSWORD') : getenv('DB_PASSWORD');
+            [$dbUser, $dbPassword] = self::credentials();
             self::$pdo = new PDO($dsn, $dbUser, $dbPassword, [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -35,6 +29,86 @@ class DB
             ]);
         }
         return self::$pdo;
+    }
+
+    /**
+     * Zugangsdaten der Webapp. Row-Level Security greift nur für die eingeschränkte Rolle
+     * APP_DB_USER (kein Superuser, kein Tabellenbesitzer, kein BYPASSRLS; siehe
+     * scripts/db_runtime_role_setup.sh). In Produktion (APP_ENV=production, Standard in
+     * docker-compose.yml) ist sie Pflicht: fehlt sie, bricht die Verbindung mit klarer Meldung ab,
+     * statt still als privilegierte Rolle weiterzulaufen. Nur in der Entwicklung bleibt der
+     * Rückfall auf DB_USER erlaubt.
+     *
+     * @param array<string, string|false>|null $env nur für Tests; null = echte Umgebung
+     * @return array{0: string, 1: string}
+     */
+    public static function credentials(?array $env = null): array
+    {
+        $get = static fn(string $k): string => (string) ($env === null ? getenv($k) : ($env[$k] ?? ''));
+        $appUser = $get('APP_DB_USER');
+        $appPassword = $get('APP_DB_PASSWORD');
+
+        if (self::isProduction($env === null ? null : (string) ($env['APP_ENV'] ?? ''))) {
+            if ($appUser === '' || $appPassword === '') {
+                throw new RuntimeException(
+                    'APP_ENV=production: APP_DB_USER und APP_DB_PASSWORD fehlen. Ohne eingeschränkte '
+                    . 'Datenbank-Rolle greift die Mandantentrennung (RLS) nicht. Abhilfe: '
+                    . './scripts/db_runtime_role_setup.sh ausführen.'
+                );
+            }
+            if ($appUser === $get('DB_USER')) {
+                throw new RuntimeException(
+                    'APP_ENV=production: APP_DB_USER darf nicht dieselbe Rolle wie DB_USER sein.'
+                );
+            }
+            return [$appUser, $appPassword];
+        }
+
+        if ($appUser !== '') {
+            return [$appUser, $appPassword];
+        }
+        return [$get('DB_USER'), $get('DB_PASSWORD')];
+    }
+
+    /** Produktion ist der Normalfall; nur APP_ENV=development/test schaltet die Prüfungen ab. */
+    public static function isProduction(?string $appEnv = null): bool
+    {
+        $appEnv = strtolower(trim($appEnv ?? (string) getenv('APP_ENV')));
+        return !in_array($appEnv, ['development', 'dev', 'local', 'test', 'testing'], true);
+    }
+
+    /**
+     * Prüft die tatsächlich verbundene Rolle: Superuser, BYPASSRLS oder Besitz einer Tabelle mit
+     * RLS hebeln die Mandantentrennung aus. Leeres Ergebnis = in Ordnung. Wird vom Healthcheck
+     * (webapp/bin/db_role_check.php) und vom RLS-Integrationstest benutzt.
+     *
+     * @return list<string>
+     */
+    public static function runtimeRoleProblems(?PDO $pdo = null): array
+    {
+        $pdo ??= self::get();
+        $role = $pdo->query(
+            "SELECT current_user AS name, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+        )->fetch(PDO::FETCH_ASSOC);
+        $problems = [];
+        if (!$role) {
+            return ['Rolle nicht gefunden'];
+        }
+        if ($role['rolsuper']) {
+            $problems[] = "Rolle {$role['name']} ist Superuser";
+        }
+        if ($role['rolbypassrls']) {
+            $problems[] = "Rolle {$role['name']} hat BYPASSRLS";
+        }
+        $owned = $pdo->query(
+            "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = 'public' AND c.relrowsecurity
+               AND pg_get_userbyid(c.relowner) = current_user ORDER BY 1"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        if ($owned) {
+            $problems[] = "Rolle {$role['name']} besitzt RLS-Tabellen: " . implode(', ', $owned);
+        }
+        return $problems;
     }
 
     /**

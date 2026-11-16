@@ -19,6 +19,67 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Weniger JavaScript, responsive Hero-Bilder, gepinnte Images (16.11.2026)
+- **Skripte nur bei Bedarf:** GSAP + ScrollTrigger + Animationen (~120 KB) nur noch auf Seiten mit Hero
+  (Startseite), Passwort-Skript nur bei Passwortfeldern, Unterschrift-Skript nur bei Unterschrift. Die
+  Layouts entscheiden anhand des Seiteninhalts (`pageScriptNeeds()`), keine Kennzeichen pro Seite nötig.
+  Nicht kritische Skripte mit `defer`. Alle Layout-Assets über `assetUrl()` (kein `time()`-Cache-Busting).
+- **Hero-Bild responsiv:** `/hero-banner-image?w=960|1920&f=webp|jpg` (feste Varianten), Startseite per
+  Media-Query + `image-set()` mit JPEG-Rückfall, responsives Preload. Handy lädt ~60 KB WebP statt
+  ~380 KB JPEG. gd im Image jetzt mit WebP (`libwebp`).
+- **Images gepinnt:** PHP 8.4.27, Python 3.12.16, Node 20.20.2, Traefik v3.7.19, Redis 7.4.12, Mosquitto 2.1.2
+  jeweils mit Digest. Python-Pakete des EDA-Parsers aus `eda-parser/requirements.txt` (vorher ungepinnt,
+  die Datei war veraltet). Dependabot schlägt monatlich gruppierte Updates vor (Docker, Compose, pip, npm,
+  GitHub Actions).
+- **Geprüft im Browser** (Playwright, `tests/browser/csp.js`): alle Rollen und ~60 Seiten ohne
+  CSP-Verletzung/JS-Fehler; Hero-Variante je Bildschirmbreite, Animation und Passwort-Auge funktionieren.
+
+### Neue Code-Struktur: Routendateien, Controller/Service/Repository, ADRs (16.11.2026)
+- **Routen ausgelagert:** `webapp/public/index.php` 11.907 → 1.363 Zeilen; die 273 Routen liegen in
+  `webapp/routes/{public,portal,admin,api}.php`. Rein mechanisch verschoben, mit Vorher/Nachher-Vergleich
+  aller 105 parameterlosen GET-Seiten (anonym + angemeldet, echte DB): identisch.
+- **Support-Tickets als Vorlage extrahiert:** `SupportController` (Web), `Api\SupportApiController` (App),
+  `Domain\Support\SupportTicketService` (Regeln), `Infrastructure\Database\PdoSupportTicketRepository`
+  (SQL), `Infrastructure\Mail\MailSupportNotifier`. Anlegen/Antworten war zwischen Web und App doppelt
+  implementiert, jetzt eine Stelle. Ablauf-Vergleich (Web Mitglied + Verwaltung + App-API, Fehlerfälle,
+  DB-Endzustand) vorher/nachher identisch. 5 Unit- und 2 RLS-Integrationstests.
+- **Composer/PSR-4** (`webapp/composer.json`, `App\` → `src/`) ohne Laufzeit-Abhängigkeiten; Fallback-Loader
+  `src/autoload.php`, CI prüft `composer validate` und den echten Composer-Autoloader.
+- **Doku:** `docs/ARCHITEKTUR.md` (Datenfluss, Struktur, Regeln für neuen Code), `docs/adr/` (5 ADRs).
+- CSP- und Zustimmungstext-Tests prüfen jetzt auch `webapp/routes/`.
+
+### Zentrale Konfiguration und Fehlerseite ohne technische Details (16.11.2026)
+- **`webapp/src/AppConfig.php`** ist die einzige Quelle für Hauptdomain, Portal-Host, öffentliche URLs,
+  Session-Cookie-Domain und Kontakt-Rückfalladresse (aus `DOMAIN`, optional `PORTAL_HOST`/`CONTACT_EMAIL`).
+  `portalUrl()`, `marketingUrl()`, Passwort-Reset-Link, Domain-Weiterleitungen, Canonical-/OG-URLs und
+  sieben `office@…`-Rückfälle nutzen sie. Mit `DOMAIN=stromfueralle.at` unverändertes Verhalten; mit
+  `DOMAIN=localhost` keine Domain-Trennung (lokale Entwicklung). Cookie-Domain prüft jetzt exakt
+  (`evilstromfueralle.at` bekam vorher ebenfalls `.stromfueralle.at`). Rechts- und Zustimmungstexte
+  bleiben bewusst unverändert (versionierte Fassungen).
+- **Fehlerseite:** zeigt nur noch eine Fehlernummer, die auch im Log steht (`docker compose logs webapp |
+  grep <nummer>`). Die rohe Meldung (SQL, Pfade) bekamen vorher alle angemeldeten Nutzer; jetzt nur mit
+  `APP_ENV=development` oder `APP_DEBUG=1`.
+
+### Mandantentrennung erzwungen, eigenes DB-Dienstkonto, gzip/Cache korrigiert, CI ausgebaut (16.11.2026)
+- **RLS in Produktion Pflicht:** neues `APP_ENV` (Standard `production`). Ohne `APP_DB_USER`/`APP_DB_PASSWORD`
+  bricht die Webapp mit klarer Meldung ab, statt still als Superuser `DB_USER` zu verbinden (RLS wäre dann
+  wirkungslos). Lokal setzt `docker-compose.override.yml` `APP_ENV=development`.
+- **Healthcheck prüft die Rolle:** `webapp/bin/db_role_check.php` meldet `unhealthy`, wenn die Laufzeit-Rolle
+  Superuser ist, `BYPASSRLS` hat, RLS-Tabellen besitzt oder sich nicht anmelden kann (health_monitor alarmiert).
+- **Dienstkonto `eeg_worker`** für mqtt-subscriber und EDA-Parser: `BYPASSRLS`, aber kein Superuser und keine
+  Schema-Änderungen. Vorher liefen beide als `DB_USER`, der im Postgres-Image Superuser ist; die
+  Superuser-Zugangsdaten lagen dadurch auch im Webapp-Container. Rollen-SQL jetzt in
+  `scripts/sql/runtime_roles.sql` (Setup-Skript und Tests nutzen dieselbe Datei).
+- **gzip:** nginx komprimierte dynamisches HTML trotz gegenteiligem Kommentar (text/html wird bei `gzip on`
+  immer komprimiert) -- jetzt `gzip off` für PHP (BREACH), statische Dateien weiter komprimiert.
+- **Cache:** `immutable` (1 Jahr) nur noch für Assets mit `?v=`; ohne Versionsparameter 1 h mit
+  Nachfrage. Vorher blieben z. B. `passkey.js` oder GSAP bis zu 30 Tage veraltet. Neuer Helfer `assetUrl()`.
+- **Security-Header auf statischen Dateien:** nginx erbt `add_header` nicht in locations mit eigenem
+  `add_header` -- CSS/JS kamen ohne `nosniff`/HSTS. Header jetzt in `webapp/docker/security-headers.conf`.
+- **CI:** neue Jobs `static` (PHPStan Level 5 mit Baseline, `docker compose config`, Shell-Syntax),
+  `integration` (echte TimescaleDB: 8 RLS-Tests + Python-Messwertpuffer als `eeg_worker`) und `http`
+  (Image bauen, 11 Header-Tests). Lokal: `make test-integration`, `tests/http/headers_test.sh`.
+
 ### Strengere Content-Security-Policy: keine Inline-Skripte mehr ohne Nonce (17.11.2026)
 - **Vorher:** `script-src 'unsafe-inline'` -- jedes eingeschleuste `<script>` oder `<img onerror=…>` wäre
   gelaufen, sobald irgendwo ein Text unmaskiert ausgegeben worden wäre (klassischer XSS-Weg).

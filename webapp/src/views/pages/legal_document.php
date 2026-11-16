@@ -15,7 +15,7 @@ if ($docKey === 'impressum' && $community) {
         '@type'         => 'NGO',
         'name'          => $community['name'],
         'alternateName' => 'Strom für alle',
-        'url'           => 'https://stromfueralle.at/' . strtolower($community['marktpartner_id']) . '/impressum',
+        'url'           => AppConfig::get()->marketingBaseUrl() . '/' . strtolower($community['marktpartner_id']) . '/impressum',
         'identifier'    => array_values(array_filter([
             !empty($community['zvr_number']) ? ['@type' => 'PropertyValue', 'name' => 'ZVR-Zahl', 'value' => $community['zvr_number']] : null,
             ['@type' => 'PropertyValue', 'name' => 'Marktpartner-ID (E-Control)', 'value' => $community['marktpartner_id']],

@@ -7,6 +7,9 @@ services:
       - production   # nur mit --profile production starten
 
   webapp:
+    environment:
+      # Lokal darf die Webapp ohne eingeschränkte DB-Rolle laufen (siehe webapp/src/DB.php).
+      APP_ENV: development
     ports:
       - "80:80"
     labels:

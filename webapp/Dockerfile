@@ -1,4 +1,5 @@
-FROM php:8.4-fpm-alpine
+# Version + Digest fest (reproduzierbare Builds); Updates schlägt Dependabot vor (.github/dependabot.yml).
+FROM php:8.4.27-fpm-alpine@sha256:511af6fa3ef55c4ea0c68bb47096ba4b81771ab4949bde7813807bf177efda11
 
 # PHP Extensions + Python für EDA-Parser
 # tzdata: Alpine liefert von sich aus KEINE IANA-Zeitzonendatenbank (/usr/share/zoneinfo) mit --
@@ -7,7 +8,7 @@ FROM php:8.4-fpm-alpine
 # Parser-Fehler beim EDA-Import ("zoneinfo/_common.py, load_tzdata"). apk-Paket statt separatem
 # pip-Paket "tzdata", weil es zusätzlich PHP-Datumsfunktionen (date_default_timezone_set u.ä.)
 # zugutekommt, die dieselbe Systemdatenbank verwenden.
-# libjpeg-turbo/libpng/freetype (ohne -dev) bleiben dauerhaft im Image -- Laufzeit-Bibliotheken,
+# libjpeg-turbo/libpng/freetype/libwebp (ohne -dev) bleiben dauerhaft im Image -- Laufzeit-Bibliotheken,
 # die die gd-Extension (s.u.) zum Lesen/Schreiben von JPEG/PNG braucht. Die -dev-Varianten
 # (Header/.so-Symlinks zum Kompilieren) landen bewusst in .build-deps und werden danach wieder
 # gelöscht (Vorfall 29.10.2026: Server lieferte /hero-banner-image mit HTTP 500 aus, weil Code
@@ -15,22 +16,28 @@ FROM php:8.4-fpm-alpine
 # war -- ein Fatal Error durch einen Aufruf einer undefinierten Funktion, den @ NICHT
 # unterdrückt, anders als eine Warning/einen Notice).
 RUN apk add --no-cache nginx libpq-dev curl-dev libzip-dev python3 py3-pip tzdata \
-        libjpeg-turbo libpng freetype \
-    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS libjpeg-turbo-dev libpng-dev freetype-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+        libjpeg-turbo libpng freetype libwebp \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS libjpeg-turbo-dev libpng-dev freetype-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install pdo pdo_pgsql curl zip gd opcache \
     && pecl install redis \
     && docker-php-ext-enable redis \
-    && apk del .build-deps \
-    && pip3 install --break-system-packages pandas openpyxl psycopg2-binary
+    && apk del .build-deps
+
+# Python-Pakete für den EDA-Parser, feste Versionen aus eda-parser/requirements.txt
+COPY eda-parser/requirements.txt /tmp/eda-requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/eda-requirements.txt && rm /tmp/eda-requirements.txt
 
 # nginx Konfiguration
 COPY webapp/docker/nginx.conf /etc/nginx/nginx.conf
+COPY webapp/docker/security-headers.conf /etc/nginx/security-headers.conf
 COPY webapp/docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 # App-Code + EDA-Parser
 COPY webapp/public/ /var/www/html/public/
 COPY webapp/src/ /var/www/html/src/
+COPY webapp/bin/ /var/www/html/bin/
+COPY webapp/routes/ /var/www/html/routes/
 COPY eda-parser/ /var/www/html/eda-parser/
 
 # Read-only Rückfallebene für /admin/templates (Platform-Admin: LaTeX-Vorlagen + Infoblatt

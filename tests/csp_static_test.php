@@ -9,7 +9,7 @@ declare(strict_types=1);
 function csp_view_files(): array
 {
     $root = __DIR__ . '/../webapp';
-    $files = [$root . '/public/index.php'];
+    $files = array_merge([$root . '/public/index.php'], glob($root . '/routes/*.php'));
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/src/views'));
     foreach ($it as $f) {
         if ($f->isFile() && str_ends_with($f->getFilename(), '.php')) $files[] = $f->getPathname();

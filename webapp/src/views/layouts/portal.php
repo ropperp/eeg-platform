@@ -10,12 +10,12 @@
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/favicon-32.png">
   <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
-  <link rel="stylesheet" href="/assets/css/app.css?v=<?= @filemtime(ROOT . '/public/assets/css/app.css') ?: time() ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/assets/css/app.css')) ?>">
   <?php if ($portalDesign === 'glas'): ?>
-  <link rel="stylesheet" href="/assets/css/glass.css?v=<?= @filemtime(ROOT . '/public/assets/css/glass.css') ?: time() ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/assets/css/glass.css')) ?>">
   <?php endif; ?>
   <script nonce="<?= cspNonce() ?>">(function(){if(localStorage.getItem('darkMode')==='1')document.documentElement.setAttribute('data-theme','dark');})()</script>
-  <script src="/assets/js/ui-actions.js?v=<?= @filemtime(ROOT . '/public/assets/js/ui-actions.js') ?: time() ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('/assets/js/ui-actions.js')) ?>" defer></script>
 </head>
 <body>
 
@@ -445,8 +445,13 @@
 </div>
 <?php endif; ?>
 
-<script src="/assets/js/password-toggle.js?v=<?= @filemtime(ROOT . '/public/assets/js/password-toggle.js') ?: time() ?>"></script>
-<script src="/assets/js/signature-pad-trim.js?v=<?= @filemtime(ROOT . '/public/assets/js/signature-pad-trim.js') ?: time() ?>"></script>
+<?php $pageNeeds = pageScriptNeeds($content ?? ''); // Optionale Skripte nur bei Bedarf ?>
+<?php if ($pageNeeds['password']): ?>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/password-toggle.js')) ?>" defer></script>
+<?php endif; ?>
+<?php if ($pageNeeds['signature']): ?>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/signature-pad-trim.js')) ?>"></script>
+<?php endif; ?>
 <script nonce="<?= cspNonce() ?>">
 // ─── Sidebar toggle ───────────────────────────────────────────────
 const SIDEBAR_KEY = 'sidebarCollapsed';

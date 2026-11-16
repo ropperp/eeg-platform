@@ -1,0 +1,33 @@
+# Automatische Update-Vorschläge als Pull Requests (nie automatisch gemergt). Jeder PR läuft durch die
+# CI; Patrick gibt frei. Monatlich und gruppiert, damit es überschaubar bleibt.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories: ["/webapp", "/mqtt-subscriber", "/latex-service"]
+    schedule: { interval: monthly }
+    groups:
+      basis-images: { patterns: ["*"] }
+
+  - package-ecosystem: docker-compose
+    directory: "/"
+    schedule: { interval: monthly }
+    groups:
+      compose-images: { patterns: ["*"] }
+
+  - package-ecosystem: pip
+    directories: ["/mqtt-subscriber", "/eda-parser"]
+    schedule: { interval: monthly }
+    groups:
+      python: { patterns: ["*"] }
+
+  - package-ecosystem: npm
+    directory: "/latex-service"
+    schedule: { interval: monthly }
+    groups:
+      npm: { patterns: ["*"] }
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ["*"] }

@@ -27,8 +27,9 @@ Hier gehören nur dauerhaft gültige Architektur, Regeln und Stolperfallen hin.
   Auf dem Produktivserver wird nur `main` deployt (Patrick pullt/baut selbst).
 - **Öffentliches Repo:** keine Passwörter, Tokens, Zugangsdaten, E-Mail-Adressen oder Personendaten
   (Familie, Mitglieder, Kunden) in Code, Doku oder Log. Keine wörtlichen Prompts oder Zitate.
-- Tests: `make test` (läuft auch im CI). Neue Doku-Erkenntnisse sofort in die passende Datei oben
-  einarbeiten, nicht erst am Sitzungsende.
+- Tests: `make test` (Unit), `make test-integration` (echte TimescaleDB, RLS), `tests/http/headers_test.sh`
+  (gegen laufenden Container); alles auch im CI, dazu PHPStan (`phpstan.neon`, Baseline nur abbauen, nicht
+  erweitern). Neue Doku-Erkenntnisse sofort in die passende Datei oben einarbeiten.
 
 ## Git-Workflow
 
@@ -69,13 +70,16 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
 
 | Service | Image | Ports (Host) | Zweck |
 |---------|-------|-------------|-------|
-| traefik | traefik:v3 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
+| traefik | traefik:v3.7.19 | 80:80 | Reverse Proxy, nur File-Provider (kein Docker-Socket) |
 | timescaledb | timescale/timescaledb-ha:pg16 | — | PostgreSQL + TimescaleDB |
-| redis | redis:7-alpine | — | Session-Cache |
-| mosquitto | eclipse-mosquitto:2 | 1883, 8883 | MQTT-Broker |
+| redis | redis:7.4.12-alpine | — | Session-Cache |
+| mosquitto | eclipse-mosquitto:2 (2.1.2) | 1883, 8883 | MQTT-Broker |
 | mqtt-subscriber | (build) | — | MQTT → DB (+ Messe-Demo-Thread) |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
+
+Alle Images sind mit Version **und Digest** gepinnt (Compose + Dockerfiles); Updates kommen als
+Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
 
 ### Traefik
 - Hört **nur auf Port 80**; SSL macht der nginx-Proxy.
@@ -100,6 +104,9 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
   auf dem Server nicht an“ → zuerst `ls -la /opt/eeg/latex-templates/`. Liegt die Datei dort und war
   nie bewusst angepasst: löschen (`rm …/<datei>.tex`), dann greift die Image-Version wieder. Bewusst
   angepasste Dateien stattdessen über `/admin/templates` neu hochladen. Hintergrund: `docs/VORFAELLE.md`.
+- **Assets immer mit `assetUrl('/assets/…')` einbinden** (hängt `?v=<mtime>` an). nginx cached nur
+  versionierte Assets lange (`immutable`); Security-Header stehen in `webapp/docker/security-headers.conf`
+  und müssen in jeder location mit eigenem `add_header` erneut per `include` eingebunden werden.
 - **Neues Storage-Volume vor `up --build` anlegen**, sonst gehört es root und PHP (www-data, UID 82)
   kann nicht schreiben: `sudo mkdir -p <pfad> && sudo chown -R 82:82 <pfad>`.
 
@@ -109,6 +116,23 @@ Datei `/opt/eeg-platform/.env` (nicht in Git, nie committen). Pflichtfelder: `DB
 `DB_NAME`, `DOMAIN`, `APP_SECRET` (64 Zeichen zufällig), `LATEX_API_KEY`, `SMTP_HOST`, `SMTP_USER`,
 `SMTP_PASSWORD`. Optional: `TRUSTED_PROXY_IP`, `MESSE_DEMO_LAT`/`MESSE_DEMO_LON`. Kein `ACME_EMAIL`
 nötig (Traefik macht kein Let's Encrypt mehr).
+
+**Datenbank-Rollen** (`scripts/db_runtime_role_setup.sh` erzeugt `APP_DB_*` und `WORKER_DB_*`, SQL in
+`scripts/sql/runtime_roles.sql`):
+
+| Rolle | Wer | Rechte |
+|---|---|---|
+| `DB_USER` (`eeg`) | Migrationen, Backup | Superuser (Postgres-Image), Schema-Besitzer |
+| `APP_DB_USER` (`eeg_app`) | Webapp | nur Daten, **RLS greift**; in Produktion Pflicht |
+| `WORKER_DB_USER` (`eeg_worker`) | mqtt-subscriber, EDA-Parser | nur Daten, `BYPASSRLS`, kein Superuser |
+
+Domain, Portal-Host, öffentliche URLs und Kontakt-Rückfall kommen aus `webapp/src/AppConfig.php`
+(`DOMAIN`, optional `PORTAL_HOST`/`CONTACT_EMAIL`) -- keine neuen fest codierten `stromfueralle.at` im Code.
+Fehlerseite zeigt nur eine Fehlernummer (Log: `grep <nummer>`), Details nur mit `APP_DEBUG=1`.
+
+`APP_ENV` (Standard `production`): ohne `APP_DB_USER` startet die Webapp nicht, der Healthcheck
+(`webapp/bin/db_role_check.php`) meldet eine falsch privilegierte Rolle als `unhealthy`. Lokal setzt
+`docker-compose.override.yml` `APP_ENV=development`.
 
 ## Neuinstallation und Update
 
@@ -147,6 +171,13 @@ legt 20 fiktive Zählpunkte (`is_demo=true`, nie abrechnungsrelevant) an und pub
 MQTT-Werte (echtzeit-synchrones Tagesprofil, Einspeisung nach echtem Wetter von Open-Meteo). Solange
 aktiv, zeigt die Oberfläche einen Hinweis auf fiktive Werte. Vollständige Beschreibung:
 `docs/MESSE_DEMO.md`.
+
+## Code-Struktur (Webapp)
+
+`public/index.php` = Bootstrap; Routen in `webapp/routes/{public,portal,admin,api}.php` (Reihenfolge =
+Priorität). Neuer Code nach PSR-4 im Namensraum `App\` (`src/Http`, `src/Domain`, `src/Infrastructure`),
+Vorlage: Support-Tickets. Keine neue Fachlogik als Closure-Block, SQL nur in Repositories.
+Details und Regeln: `docs/ARCHITEKTUR.md`, Entscheidungen: `docs/adr/`.
 
 ## Frontend-Regeln (Content-Security-Policy)
 

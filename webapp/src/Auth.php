@@ -69,14 +69,10 @@ class Auth
             }
             ini_set('session.save_path', $redisPath);
 
-            // Cookie-Domain explizit auf .stromfueralle.at setzen, damit sich Hauptdomain und
-            // portal.stromfueralle.at (beide dieselbe App/DB) dieselbe Session teilen -- ohne
-            // das bleibt eine auf einer Domain begonnene Session der jeweils anderen Domain
-            // unbekannt (eigener Cookie pro exaktem Host ist PHPs Default), was nach einem
-            // Domain-Wechsel wie ein ungewolltes Ausloggen wirkt. Für lokale Tests/andere
-            // Domains (Host ohne "stromfueralle.at") bleibt der Default (nur exakter Host).
-            $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-            $cookieDomain = str_ends_with($host, 'stromfueralle.at') ? '.stromfueralle.at' : '';
+            // Cookie-Domain ".<DOMAIN>", damit sich Hauptdomain und Portal-Subdomain (dieselbe
+            // App/DB) dieselbe Session teilen -- sonst wirkt ein Domain-Wechsel wie ein
+            // ungewolltes Ausloggen. Lokal/andere Hosts: nur exakter Host (siehe AppConfig).
+            $cookieDomain = AppConfig::get()->cookieDomainFor((string)($_SERVER['HTTP_HOST'] ?? ''));
 
             session_set_cookie_params([
                 'lifetime' => 0,

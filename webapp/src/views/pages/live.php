@@ -119,7 +119,7 @@ ob_start();
   </div>
 </div>
 
-<script src="/assets/js/vendor/chart.umd.min.js"></script>
+<script src="<?= htmlspecialchars(assetUrl('/assets/js/vendor/chart.umd.min.js')) ?>"></script>
 <script nonce="<?= cspNonce() ?>">
 let currentSlug = null;
 let chart = null;
