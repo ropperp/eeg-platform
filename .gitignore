@@ -53,3 +53,5 @@ node_modules/
 webapp/vendor/
 # Office-Sperrdateien (enthalten den Namen der öffnenden Person)
 ~$*
+# Lokale Entwicklung (Vorlage: docker-compose.dev.yml) -- nie auf dem Produktivserver
+docker-compose.override.yml

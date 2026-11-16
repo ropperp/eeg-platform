@@ -1,0 +1,22 @@
+# VORLAGE für die lokale Entwicklung: webapp direkt auf Port 80, kein Traefik, APP_ENV=development.
+# Benutzen:  cp docker-compose.dev.yml docker-compose.override.yml
+# docker-compose.override.yml steht in .gitignore und darf auf dem Produktivserver NIE existieren
+# (Vorfall 16.11.2026: als versionierte Datei kam sie per git pull auf den Server zurück -> webapp
+# wollte Port 80 belegen, den Traefik schon hat, und wäre im Entwicklungsmodus gelaufen).
+
+services:
+  traefik:
+    profiles:
+      - production   # nur mit --profile production starten
+
+  webapp:
+    environment:
+      # Lokal darf die Webapp ohne eingeschränkte DB-Rolle laufen (siehe webapp/src/DB.php).
+      APP_ENV: development
+      # Rückfall-Zugang für die Entwicklung, falls APP_DB_USER (noch) fehlt.
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "80:80"
+    labels:
+      - "traefik.enable=false"

@@ -70,7 +70,9 @@ jobs:
         run: |
           cp .env.example .env
           docker compose -f docker-compose.yml config --quiet
-          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+          # Die Entwicklungsdatei darf nie wieder versioniert werden (Vorfall 16.11.2026)
+          if git ls-files --error-unmatch docker-compose.override.yml 2>/dev/null; then echo '::error::docker-compose.override.yml ist versioniert'; exit 1; fi
 
       - name: Shell-Skripte (bash -n)
         run: for f in scripts/*.sh tests/integration/*.sh tests/http/*.sh tests/e2e/*.sh; do bash -n "$f" || exit 1; done

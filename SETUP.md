@@ -43,7 +43,7 @@ Berechtigungs-Klimmzüge, kein Passwort-Hash von Hand erzeugen.
 > Durchlauf des Admin-Schritts setzt nur das Passwort des bestehenden Accounts neu.
 
 **Lokale Entwicklung ohne Traefik** (webapp direkt auf Port 80 statt über den Reverse-Proxy):
-vor dem Skript-Aufruf eine `docker-compose.override.yml` anlegen -- siehe Abschnitt
+vor dem Skript-Aufruf `cp docker-compose.dev.yml docker-compose.override.yml` -- siehe Abschnitt
 ["Lokale Entwicklung"](#lokale-entwicklung) unten. Auf dem Produktivserver darf diese Datei
 **nicht** existieren.
 
@@ -135,18 +135,10 @@ docker compose up -d --build
 
 **Lokale Entwicklung** (webapp direkt auf Port 80, kein Traefik): <a name="lokale-entwicklung"></a>
 
-Datei `docker-compose.override.yml` im Projektverzeichnis anlegen:
+Vorlage kopieren (die Kopie ist in `.gitignore` und kommt nie per `git pull` auf einen Server):
 
-```yaml
-services:
-  traefik:
-    profiles:
-      - production
-  webapp:
-    ports:
-      - "80:80"
-    labels:
-      - "traefik.enable=false"
+```bash
+cp docker-compose.dev.yml docker-compose.override.yml
 ```
 
 Dann normal `docker compose up -d --build` — Traefik startet nicht, webapp ist direkt auf

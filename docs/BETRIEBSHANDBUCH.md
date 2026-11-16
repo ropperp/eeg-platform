@@ -1451,3 +1451,15 @@ docker compose up -d --build
 > Der Cron für den Postfach-Abruf bleibt unverändert. **Rückfall:** `git revert` des Commits und
 > `docker compose up -d --build` (die Tabelle bleibt harmlos bestehen; `docker compose rm -sf eda-worker`).
 
+> **Nachtrag zum Update vom 16.11.2026 -- webapp startete nicht (Port 80 belegt)**: Ursache und Hintergrund in
+> `docs/VORFAELLE.md`. Behebung:
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main                                  # entfernt docker-compose.override.yml
+> ls docker-compose.override.yml                        # muss "No such file" melden
+> sudo chown -R 1883:1883 /opt/eeg/mosquitto/data /opt/eeg/mosquitto/log
+> docker compose up -d --build --remove-orphans
+> sleep 60 && docker compose ps                         # alle healthy, traefik jetzt v3.7.19
+> docker compose exec webapp php /var/www/html/bin/db_role_check.php && echo "Rolle OK"
+> ```
+

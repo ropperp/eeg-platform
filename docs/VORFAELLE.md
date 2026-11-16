@@ -2156,3 +2156,25 @@ ohne erneuten Upload und dauerhaft bei jedem künftigen Deploy. War die Datei be
 die aktuelle Fassung mit der gewünschten Anpassung neu hochladen, statt sie zu löschen.
 
 ---
+
+### Update 16.11.2026: webapp startet nicht – „Bind for 0.0.0.0:80 failed: port is already allocated“
+
+**Symptom:** Beim `docker compose up -d --build` startet `webapp` nicht (Port 80 belegt); `traefik` wird
+nicht aktualisiert (läuft weiter als `traefik:v3`). Zusätzlich meldet Mosquitto „Unable to open log file
+/mosquitto/log/mosquitto.log for writing“.
+
+**Ursache:** `docker-compose.override.yml` (nur für lokale Entwicklung: Traefik aus, webapp direkt auf Port 80,
+`APP_ENV=development`) war seit Juni versioniert. Auf dem Server war sie gelöscht; weil das Update die Datei
+änderte, hat `git pull` sie wiederhergestellt (git legt eine lokal gelöschte, upstream geänderte Datei
+kommentarlos neu an). Mosquitto 2.1 läuft als Benutzer `mosquitto` (UID 1883) und darf den alten Log-Ordner
+nicht beschreiben.
+
+**Fix:** Datei aus Git entfernt, Vorlage heißt jetzt `docker-compose.dev.yml`, `docker-compose.override.yml`
+steht in `.gitignore`, die CI schlägt an, falls sie wieder versioniert wird. Server: `git pull` löscht die
+Datei, danach `docker compose up -d --build --remove-orphans`; Mosquitto-Ordner per
+`sudo chown -R 1883:1883 /opt/eeg/mosquitto/data /opt/eeg/mosquitto/log`. Die Webapp lief zu keinem Zeitpunkt
+im Entwicklungsmodus (Container ist nie gestartet).
+
+**Lehre:** Dateien, die es auf dem Server nicht geben darf, gehören nicht ins Repo (nur als Vorlage unter
+anderem Namen).
+

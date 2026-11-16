@@ -99,7 +99,8 @@ Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
 
 ### Typische Stolperfallen
 - **Kein `docker-compose.override.yml` auf dem Produktivserver** (deaktiviert Traefik, mappt Port 80
-  direkt auf die webapp; nur für lokale Entwicklung).
+  direkt auf die webapp, `APP_ENV=development`). Seit 16.11.2026 nicht mehr versioniert: Vorlage
+  `docker-compose.dev.yml`, lokal `cp docker-compose.dev.yml docker-compose.override.yml`.
 - **LaTeX-Vorlagen:** `/opt/eeg/latex-templates` ist ein persistentes Volume (für `/admin/templates`)
   und **gewinnt immer** gegen die im Image mitgelieferte Version. „Meine Vorlagen-Änderung kommt
   auf dem Server nicht an“ → zuerst `ls -la /opt/eeg/latex-templates/`. Liegt die Datei dort und war
@@ -133,7 +134,7 @@ Fehlerseite zeigt nur eine Fehlernummer (Log: `grep <nummer>`), Details nur mit 
 
 `APP_ENV` (Standard `production`): ohne `APP_DB_USER` startet die Webapp nicht, der Healthcheck
 (`webapp/bin/db_role_check.php`) meldet eine falsch privilegierte Rolle als `unhealthy`. Lokal setzt
-`docker-compose.override.yml` `APP_ENV=development`.
+`docker-compose.override.yml` (Kopie von `docker-compose.dev.yml`) `APP_ENV=development`.
 
 ## Neuinstallation und Update
 
