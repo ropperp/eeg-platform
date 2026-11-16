@@ -33,6 +33,7 @@ COPY webapp/docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 COPY webapp/public/ /var/www/html/public/
 COPY webapp/src/ /var/www/html/src/
 COPY webapp/bin/ /var/www/html/bin/
+COPY webapp/routes/ /var/www/html/routes/
 COPY eda-parser/ /var/www/html/eda-parser/
 
 # Read-only Rückfallebene für /admin/templates (Platform-Admin: LaTeX-Vorlagen + Infoblatt

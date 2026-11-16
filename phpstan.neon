@@ -8,10 +8,13 @@ includes:
 parameters:
     level: 5
     phpVersion: 80400
+    bootstrapFiles:
+        - phpstan-bootstrap.php
     paths:
         - webapp/src
         - webapp/bin
         - webapp/public/index.php
+        - webapp/routes
     excludePaths:
         # Templates: werden von index.php mit lokalen Variablen eingebunden (extract), das kann
         # PHPStan nicht nachvollziehen.
