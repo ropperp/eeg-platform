@@ -55,7 +55,8 @@ echo '@media (min-width: 961px) { ', $heroCss('.hero', $heroLight, 1920), ' ', $
     <h1>Erneuerbare Energie gemeinsam nutzen</h1>
     <p>Die Plattform für Erneuerbare-Energie-Gemeinschaften in Österreich – aus Kärnten.<br>
        Mitgliederverwaltung, Abrechnung mit EDA-Daten und Echtzeit-Daten vom Smart Meter.</p>
-    <a href="/funktionen" class="btn btn-white btn-lg">Funktionen ansehen</a>
+    <!-- Anmelden bleibt im Hero: am Handy steckt der Login sonst im Burger-Menü (Patrick, 17.11.2026). -->
+    <a href="<?= htmlspecialchars(portalUrl('/portal/login')) ?>" class="btn btn-white btn-lg">Anmelden</a>
     <a href="/live" class="btn btn-outline btn-lg">Live-Anzeige</a>
   </div>
 </section>
