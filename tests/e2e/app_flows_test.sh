@@ -40,6 +40,8 @@ login() { # login <sitzung> <email>
 
 echo "Anmeldung und Sitzung"
 req anon $PORTAL GET /portal/login; before=$(cat "$T/anon.ck")
+contains "Login-Seite lädt passkey.js (Button \"Mit Passkey anmelden\")" "$BODY" 'src="/assets/js/passkey.js?v='
+if grep -qF '<?=' <<<"$BODY"; then bad "  ... kein unausgeführter PHP-Code im HTML"; else ok "  ... kein unausgeführter PHP-Code im HTML"; fi
 req anon $PORTAL POST /portal/login --data-urlencode "csrf_token=$(token anon)" --data-urlencode "email=e2e-manager@example.invalid" --data-urlencode "password=falsch"
 check "falsches Passwort: keine Weiterleitung ins Portal" "$([ "$LOC" = /portal/dashboard ] && echo ja || echo nein)" "nein"
 login mgr e2e-manager@example.invalid

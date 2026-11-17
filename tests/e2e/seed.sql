@@ -25,3 +25,7 @@ INSERT INTO user_roles (user_id, community_id, role, member_id) VALUES
 INSERT INTO support_tickets (id, community_id, member_id, subject, category) VALUES
   ('e2e00000-0000-0000-0000-0000000000c9', 'e2e00000-0000-0000-0000-00000000000b', 'e2e00000-0000-0000-0000-0000000000b1', 'Fremdes Ticket', 'problem')
   ON CONFLICT DO NOTHING;
+
+-- Glas-Design wie auf dem Produktivserver: die Login-Tests laufen damit gegen login_glass.php
+-- (Vorfall 17.11.2026: dort fehlte der Passkey-Button, im klassischen Design nicht).
+UPDATE platform_settings SET portal_design = 'glas' WHERE id = 1;

@@ -19,6 +19,10 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Fix: Passkey-Button im Portal-Login (17.11.2026)
+- „Mit Passkey anmelden“ fehlte im Glas-Login: `passkey.js` wurde wegen eines PHP-Tags in einem Nowdoc nie
+  geladen (Fehler aus #296). Behoben; neuer statischer Test und E2E-Check, E2E läuft im Glas-Design.
+
 ### Sichtbarkeit bei Suchmaschinen und KI (17.11.2026)
 Umsetzung der Befunde eines externen Sichtbarkeits-Checks (SEO 90, GEO 73, AEO 11):
 - **Eigene Seiten pro Funktion:** `/funktionen` mit Abrechnung, Mitgliederverwaltung, Echtzeit-Daten, Umstieg;

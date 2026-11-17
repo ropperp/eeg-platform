@@ -2191,3 +2191,17 @@ sudo grep -a "Startup finished" /var/log/journal-persist.log | tail          # j
 sudo nvme smart-log /dev/nvme0n1 | grep -E "power_cycles|unsafe_shutdowns"     # steigt unsafe -> Stromverlust
 ```
 
+### 17.11.2026: „Mit Passkey anmelden“ fehlt im Portal-Login (Glas-Design)
+
+**Symptom:** Auf portal.stromfueralle.at fehlte der Passkey-Button, in der Steuerzentrale (admin.) war er da.
+
+**Ursache:** Bei der Umstellung aller Assets auf `assetUrl()` (PR #296) wurde in `login_glass.php` auch eine
+Zeile innerhalb eines Nowdoc-Blocks (`<<<'JS'`) ersetzt. In Nowdoc/Heredoc wird PHP nicht ausgeführt: der
+Browser bekam wörtlich ein PHP-Tag als `src`, `passkey.js` lud nie, der Button blieb versteckt. Das klassische
+Login (`login.php`) war nicht betroffen, die Steuerzentrale hat ein eigenes Skript.
+
+**Fix:** Skript-Tag außerhalb des Nowdoc. Neu: `tests/views_static_test.php` (keine PHP-Tags in
+Heredoc/Nowdoc), E2E prüft den Login auf `passkey.js` und läuft jetzt im Glas-Design wie der Server.
+
+**Lehre:** Automatische Ersetzungen in Templates nicht blind über Zeichenketten-Blöcke laufen lassen; E2E im
+Design testen, das produktiv eingestellt ist.

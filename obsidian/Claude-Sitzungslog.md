@@ -9,6 +9,8 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-11-17 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
+**Nachtrag Bugfix:** Passkey-Button fehlte im Glas-Login (PHP-Tag in Nowdoc durch eigene Ersetzung in #296);
+behoben, statischer Test + E2E im Glas-Design. Website-Texte als Dokument zum Gegenlesen für das Team bereitgestellt.
 **Nachtrag Sichtbarkeit:** Externer Sichtbarkeits-Check (SEO/GEO/AEO) ausgewertet und die im Code lösbaren
 Punkte umgesetzt: Funktionsseiten, FAQ, Seite der Pilot-EEG, serverseitige Kennzahlen, getrennte schema.org-Daten
 für Plattform und Verein, neue `llms.txt` und Sitemap. Offen (nur durch Patrick): Google-Unternehmensprofil,

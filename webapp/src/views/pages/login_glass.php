@@ -80,8 +80,10 @@ ob_start();
 
 <?php
 $authStage = ob_get_clean();
-$authScripts = str_replace('<script>', '<script nonce="' . cspNonce() . '">', <<<'JS'
-<script src="<?= htmlspecialchars(assetUrl('/assets/js/passkey.js')) ?>" defer></script>
+// passkey.js AUSSERHALB des Nowdoc: darin wird PHP nicht ausgeführt -- ein PHP-Ausgabe-Tag mit assetUrl()
+// landete wörtlich im HTML, passkey.js lud nie und "Mit Passkey anmelden" blieb versteckt (Fehler aus #296).
+$authScripts = '<script src="' . htmlspecialchars(assetUrl('/assets/js/passkey.js')) . '" defer></script>' . "\n"
+    . str_replace('<script>', '<script nonce="' . cspNonce() . '">', <<<'JS'
 <script>
 // Karte umdrehen (Anmelden <-> Registrieren), auch per #registrieren in der Adresse aufrufbar.
 (function () {
