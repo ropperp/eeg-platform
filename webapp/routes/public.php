@@ -23,6 +23,32 @@ $router->get('/', function () {
     require ROOT . '/src/views/pages/home.php';
 });
 
+// ─── Info-Seiten (Inhalte: src/content/marketing_pages.php) ─────────────
+// Sichtbarkeits-Check 17.11.2026: eigene Seite pro Funktion, FAQ, Seite der Pilot-EEG.
+$router->get('/funktionen', function () {
+    $kind = 'overview';
+    require ROOT . '/src/views/pages/marketing_page.php';
+});
+$router->get('/funktionen/:slug', function ($params) {
+    $slug = $params['slug'];
+    if ($slug === 'energiegemeinschaft-feldkirchen' || !isset(marketingPages()[$slug])) {
+        http_response_code(404);
+        require ROOT . '/src/views/pages/404.php';
+        return;
+    }
+    $kind = 'page';
+    require ROOT . '/src/views/pages/marketing_page.php';
+});
+$router->get('/energiegemeinschaft-feldkirchen', function () {
+    $kind = 'page';
+    $slug = 'energiegemeinschaft-feldkirchen';
+    require ROOT . '/src/views/pages/marketing_page.php';
+});
+$router->get('/faq', function () {
+    $kind = 'faq';
+    require ROOT . '/src/views/pages/marketing_page.php';
+});
+
 // ─── Informieren und Beitreten: Auswahl der Energiegemeinschaft ─────────
 $router->get('/beitreten', function () {
     $communities = DB::fetchAll('SELECT * FROM communities WHERE active = true ORDER BY name');

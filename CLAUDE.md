@@ -199,6 +199,9 @@ aktiv, zeigt die Oberfläche einen Hinweis auf fiktive Werte. Vollständige Besc
 Priorität). Neuer Code nach PSR-4 im Namensraum `App\` (`src/Http`, `src/Domain`, `src/Infrastructure`),
 Vorlage: Support-Tickets. Keine neue Fachlogik als Closure-Block, SQL nur in Repositories.
 Details und Regeln: `docs/ARCHITEKTUR.md`, Entscheidungen: `docs/adr/`.
+Öffentliche Info-Seiten (`/funktionen…`, `/faq`, `/energiegemeinschaft-feldkirchen`): Texte nur in
+`webapp/src/content/marketing_pages.php`, eine Vorlage `views/pages/marketing_page.php`. FAQPage-Daten
+nur auf `/faq`; `public/sitemap.xml` und `public/llms.txt` bei neuen Seiten mitziehen.
 
 ## Frontend-Regeln (Content-Security-Policy)
 

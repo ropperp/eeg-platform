@@ -250,6 +250,12 @@ dieser Vault-Spiegel war auf über 1000 Zeilen angewachsen). Bei einem neuen, no
 Symptom dort nachsehen -- die Pfad-/Mount-Übersicht (`docs/INFRASTRUKTUR_PFADE.md`) bleibt der
 erste Blick bei DB-/Daten-„weg"-Symptomen.
 
+## Öffentliche Info-Seiten (17.11.2026)
+
+`/funktionen…`, `/faq`, `/energiegemeinschaft-feldkirchen`: Texte nur in `webapp/src/content/marketing_pages.php`,
+eine Vorlage `views/pages/marketing_page.php`. FAQPage-Daten nur auf `/faq`; `public/sitemap.xml` und
+`public/llms.txt` bei neuen Seiten mitziehen.
+
 ## Steuerzentrale (konsole, 17.11.2026)
 
 `admin.<DOMAIN>` → nginx-Proxy **direkt** auf Port 8090 (nicht über Traefik), eigener Container ohne

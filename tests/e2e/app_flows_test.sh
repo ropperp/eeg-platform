@@ -95,6 +95,21 @@ req api $MAIN GET /api/v1/support -H "Authorization: Bearer kaputt"
 check "ungültiger Token: 401" "$CODE" "401"
 
 echo "Öffentliche Seiten"
+req pub $MAIN GET /
+contains "Startseite: Kennzahl der Pilot-EEG serverseitig im HTML" "$BODY" "Aktuell <strong>1 Mitglied</strong>"
+contains "  ... Plattform und Verein als getrennte schema.org-Einträge" "$BODY" '"@type":"SoftwareApplication"'
+contains "  ... Verein mit ZVR aus der Datenbank" "$BODY" '"propertyID":"ZVR-Zahl"'
+if grep -q 'data-live-value="[a-z_]*"[^>]*>0<' <<<"$BODY"; then bad "  ... keine 0 als Platzhalter für Live-Werte"; else ok "  ... keine 0 als Platzhalter für Live-Werte"; fi
+for path in /funktionen /funktionen/abrechnung /funktionen/mitgliederverwaltung /funktionen/echtzeit-daten /funktionen/umstieg /energiegemeinschaft-feldkirchen /faq; do
+  req pub $MAIN GET "$path"
+  check "Info-Seite $path erreichbar" "$CODE $(grep -c '<h1>' <<<"$BODY")" "200 1"
+done
+contains "  ... FAQ als FAQPage ausgezeichnet" "$BODY" '"@type":"FAQPage"'
+contains "  ... Kosten-Antwort enthalten" "$BODY" "auf Anfrage"
+req pub $MAIN GET /funktionen/abrechnung
+if grep -q '"FAQPage"' <<<"$BODY"; then bad "  ... FAQPage nur auf /faq (nicht doppelt)"; else ok "  ... FAQPage nur auf /faq (nicht doppelt)"; fi
+req pub $MAIN GET /funktionen/gibtsnicht
+check "unbekannte Funktionsseite: 404" "$CODE" "404"
 req pub $MAIN GET /rc108175/beitreten/formular
 check "Beitrittsformular erreichbar" "$CODE" "200"
 contains "  ... mit Zustimmungstexten" "$BODY" "zustimmungen"

@@ -85,6 +85,8 @@
         <?= icon('moon', 'theme-icon-moon') ?><?= icon('sun', 'theme-icon-sun') ?>
       </button>
       <nav id="main-nav">
+      <a href="<?= htmlspecialchars(marketingUrl('/funktionen')) ?>">Funktionen</a>
+      <a href="<?= htmlspecialchars(marketingUrl('/faq')) ?>">FAQ</a>
       <a href="<?= htmlspecialchars(marketingUrl('/live')) ?>">Live-Anzeige</a>
       <a href="<?= htmlspecialchars(marketingUrl('/kontakt')) ?>">Kontakt</a>
       <?php if (Auth::check()): ?>
@@ -120,6 +122,9 @@
       <a href="/barrierefreiheit">Barrierefreiheit</a> ·
       <a href="/preisliste">Preisliste</a> ·
       <a href="/kontakt">Kontakt</a> ·
+      <a href="/funktionen">Funktionen</a> ·
+      <a href="/faq">Häufige Fragen</a> ·
+      <a href="/energiegemeinschaft-feldkirchen">EEG Feldkirchen</a> ·
       <a href="https://kaerntennetz.at/erneuerbare-energiegemeinschaften-eeg.htm" target="_blank" rel="noopener">Kärnten Netz: Netzgebiet prüfen</a>
     </div>
     Strom für alle · Diplomarbeit HTL Kärnten 2026/27 · Patrick Ropper, Fabian Amlacher, Alexander Brunner
