@@ -81,3 +81,60 @@ Browser zeigt der nginx-Proxy jetzt eine eigene, zum Corporate Design passende S
   aller 404 würde die auch überdecken.
 - Voraussetzung dafür, dass ein nur gestopptes/abgestürztes `webapp` (nicht der ganze Pi) überhaupt
   ein 502/503/504 statt eines nackten Traefik-404 liefert: siehe "Webapp-Router" weiter oben
+
+### Steuerzentrale `admin.stromfueralle.at` (seit 17.11.2026)
+Eigener Container `konsole` auf dem Pi, Port **8090**, direkt angesprochen (nicht über Traefik), damit
+sie auch bei hängendem Traefik erreichbar bleibt. Hintergrund: `docs/adr/0006-steuerzentrale.md`.
+
+Datei `/etc/nginx/sites-available/71_admin_stromfueralle.conf`, zuerst **nur Port 80**. HTTPS ergänzt
+danach `certbot --nginx -d admin.stromfueralle.at`, das ein eigenes Zertifikat holt und den 443-Block samt
+Weiterleitung selbst einträgt.
+
+```nginx
+server {
+    listen 80;
+    server_name admin.stromfueralle.at;
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_pass         http://10.0.0.250:8090;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        # Kein proxy_intercept_errors und keine Wartungsseite: die Konsole soll ihre eigenen
+        # Antworten zeigen, und auf die Wartungsseite umzuleiten wäre hier sinnlos.
+    }
+}
+```
+
+Aktivieren:
+```bash
+sudo ln -s /etc/nginx/sites-available/71_admin_stromfueralle.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d admin.stromfueralle.at        # danach https://admin.stromfueralle.at
+```
+
+Die Anmeldung (Passkey, `__Host-`-Cookie mit `Secure`) funktioniert **nur über HTTPS**, über reines
+`http://` erscheint nur die Login-Seite.
+
+**Wartungstext auch auf der statischen Wartungsseite** (`/etc/nginx/error_pages/wartung.html`, greift bei
+502/503/504 und damit auch im Wartungsmodus, weil die Konsole dort 503 liefert): an passender Stelle
+einfügen. Ist auch der Pi weg, bleibt der bisherige Standardtext stehen.
+```html
+<p id="wartung-text" style="white-space:pre-line"></p>
+<p id="wartung-bis"></p>
+<script>
+fetch('https://admin.stromfueralle.at/wartung.json', { cache: 'no-store' })
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    if (!d.active) return;
+    if (d.message) document.getElementById('wartung-text').textContent = d.message;
+    if (d.until) document.getElementById('wartung-bis').textContent =
+      'Voraussichtlich wieder erreichbar: ' + new Date(d.until).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' }) + ' Uhr';
+  })
+  .catch(function () {});
+</script>
+```

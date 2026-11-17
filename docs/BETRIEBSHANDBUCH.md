@@ -1478,3 +1478,21 @@ docker compose up -d --build
 > Unterzeichner eintragen, freigeben, „Jetzt vor Ort“ unterschreiben → PDF wird abgelegt
 > (`/opt/eeg/webapp-storage/assemblies/<EEG>/<Protokoll>.pdf`, im Backup enthalten).
 > **Rückfall:** `git revert` und `docker compose up -d --build`; die Tabellen bleiben harmlos bestehen.
+
+> **Einmalig nach dem Update vom 17.11.2026 (zweiter Teil) -- Steuerzentrale `admin.stromfueralle.at`**:
+> neuer Container `konsole` (Port 8090), Traefik liest jetzt den ganzen Ordner `docker/traefik/`.
+> Voraussetzung für die Anmeldung: ein Passkey im Portal (Profil → Passkeys) bei einem Platform-Admin-Konto.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> sudo mkdir -p /opt/eeg/konsole                     # Passkey-Kopie, Wartungszustand, Aktionsprotokoll
+> docker compose up -d --build                       # baut konsole, startet traefik mit neuer Ordner-Konfiguration
+> sleep 60 && docker compose ps                      # konsole + traefik "healthy"
+> curl -s http://localhost:8090/health; echo         # "OK"
+> curl -s -o /dev/null -w "%{http_code}\n" -H "Host: stromfueralle.at" http://localhost/   # 200 (Seite läuft weiter)
+> ```
+> Danach am nginx-Proxy (10.0.0.144) den Block aus `docs/NGINX_PROXY.md` („Steuerzentrale“) anlegen und
+> `sudo certbot --nginx -d admin.stromfueralle.at` ausführen. Test: https://admin.stromfueralle.at →
+> „Mit Passkey anmelden“. Den Wartungsmodus einmal ein- und ausschalten und die Hauptseite prüfen.
+> **Rückfall:** `git revert` und `docker compose up -d --build --remove-orphans`; danach liest Traefik wieder
+> nur `dynamic.yml`. Liegt noch `docker/traefik/maintenance.yml` herum, löschen.

@@ -19,9 +19,13 @@ unterschreiben vor Ort am Gerät oder per Einmal-Link; erst danach PDF mit gemei
 sperren und für Mitglieder freigeben. Alternativ PDF-Upload. Muster Support-Tickets, RLS, Tests auf allen Ebenen."
 **Ergebnis:** Paket A umgesetzt (Branch `feature/mitgliederversammlung`): `migrate_20261119.sql`,
 `App\Domain\Assembly`, Controller, 4 Ansichten, `briefkopf.tex` + `protokoll.tex`, Include-Mechanismus im
-latex-service; Unit-, Integrations- und E2E-Tests grün, PDF mit dem echten latex-service geprüft. Paket B
-(Steuerzentrale admin.stromfueralle.at) ist geplant und noch offen. Rechnung/Verträge auf den Briefkopf
-umstellen: eigener Schritt.
+latex-service; Unit-, Integrations- und E2E-Tests grün, PDF mit dem echten latex-service geprüft. PR #303.
+Paket B umgesetzt: Container `konsole` (admin.stromfueralle.at, Passkey-only, Wartungsmodus über eine
+Traefik-Datei, Status/Logs/Neustart aus fester Liste), ADR 0006, nginx-Block in `docs/NGINX_PROXY.md`;
+Unit-Tests und ein Test gegen echtes Docker + Traefik. Offen: Rechnung/Verträge auf den Briefkopf umstellen.
+**Fehler/Lehre:** Eine Datei lässt sich nicht in einen schreibgeschützt eingebundenen Ordner mounten
+(Traefik startete lokal nicht) -- deshalb wird der ganze Ordner `docker/traefik/` eingebunden. Auf dem Pi
+braucht die Konsole `DAC_OVERRIDE`, um in den Repo-Ordner des Server-Benutzers zu schreiben.
 
 ## 2026-11-16 15:00 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
 **Auftrag:** Einen extern erstellten Umsetzungsauftrag (Robustheit, Wartbarkeit, Ressourcen) Paket für

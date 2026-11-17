@@ -12,6 +12,7 @@ test:
 # End-to-End: ganzer Stack in Docker (Webapp, eda-worker, DB, Redis), siehe tests/e2e/run.sh.
 test-e2e:
 	bash tests/e2e/run.sh
+	bash tests/e2e/konsole_run.sh
 
 # Integrationstests gegen eine frische Wegwerf-TimescaleDB (Docker, Port 55432). Prüft u. a. die
 # RLS-Mandantentrennung mit der echten Laufzeit-Rolle. Läuft auch in der CI (Job "integration").

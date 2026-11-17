@@ -19,6 +19,18 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Steuerzentrale admin.stromfueralle.at (17.11.2026)
+- **Neuer Container `konsole`** (`konsole/`, Port 8090, direkt vom nginx-Proxy, nicht über Traefik): Status aller
+  Dienste, letzte Logzeilen, Neustart einzelner Dienste aus einer festen Liste, Aktionsprotokoll.
+- **Wartungsmodus mit Text und voraussichtlichem Ende:** Traefik schickt die öffentlichen Hosts dann auf eine
+  Wartungsseite (HTTP 503, `Retry-After`), unabhängig davon, ob die Webapp läuft. Den Text liefert
+  `/wartung.json` auch der Wartungsseite am nginx-Proxy.
+- **Anmeldung nur per Passkey** eines Platform-Admins (dieselben wie im Portal), funktioniert dank lokaler
+  Schlüssel-Kopie auch bei Datenbank-Ausfall. Signierte `__Host-`-Cookies, CSRF.
+- Traefik liest jetzt den Ordner `docker/traefik/` statt einer Einzeldatei; Router `admin.` entfernt.
+- Entscheidung: `docs/adr/0006-steuerzentrale.md`. Tests: `tests/konsole_test.php`, `tests/e2e/konsole_run.sh`
+  (echtes Docker + Traefik, auch in der CI).
+
 ### Protokolle von Mitgliederversammlungen (17.11.2026)
 - **Neuer Bereich „Mitgliederversammlungen“** für Obleute (`/portal/versammlungen`): Protokoll mit Datum der
   Versammlung (nicht Druckdatum), Uhrzeit, Ort, Anwesenden, Vorsitz, Protokollführung, Beschlussfähigkeit und

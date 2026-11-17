@@ -78,6 +78,7 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
 | eda-worker | (build, `eda-parser/`) | — | EDA-Import-Jobs (Upload + Postfach) → DB |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
+| konsole | (build, `konsole/`) | 8090 | Steuerzentrale `admin.<DOMAIN>`: Wartungsmodus, Status/Logs/Neustart |
 
 Alle Images sind mit Version **und Digest** gepinnt (Compose + Dockerfiles); Updates kommen als
 Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
@@ -89,8 +90,9 @@ Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
   Dienste mit eigener Adresse dort eintragen, nicht per Label.
 - Die Domain ist dort **hart eingetragen** (`stromfueralle.at`); der File-Provider kennt keine
   `${DOMAIN}`-Substitution. Bei Domain-Änderung von Hand mitziehen.
-- Router: `stromfueralle.at`/`www`, `live.`, `portal.`, `admin.stromfueralle.at` und
-  `webapp.mechtronix.at` (legacy) → Service `webapp` (`http://webapp:80`).
+- Router: `stromfueralle.at`/`www`, `live.`, `portal.` und `webapp.mechtronix.at` (legacy) → Service
+  `webapp` (`http://webapp:80`). Traefik liest den ganzen Ordner `docker/traefik/`; im Wartungsmodus legt
+  die Konsole dort `maintenance.yml` ab (in `.gitignore`).
 - Warum File-Provider statt Labels (Router verschwanden mit dem gestoppten Container → nacktes
   Traefik-404 statt 502): `docs/VORFAELLE.md`, Vorfall 25.09.2026.
 - `--entrypoints.web.forwardedHeaders.trustedIPs=${TRUSTED_PROXY_IP:-10.0.0.144}`: `X-Forwarded-For`
@@ -174,6 +176,14 @@ Parser auf und schreibt Ergebnis + Audit. Die Webapp enthält kein Python mehr. 
 `docker compose ps eda-worker`, `docker compose logs --tail=50 eda-worker`, Jobs:
 `SELECT status, count(*) FROM eda_import_jobs GROUP BY 1;`. Parser-Werkzeuge (z. B. `--resplit`) jetzt
 mit `docker compose exec eda-worker python parser.py …`. Entscheidung: `docs/adr/0005-eda-import-als-worker.md`.
+
+## Steuerzentrale (konsole)
+
+`admin.<DOMAIN>` → nginx-Proxy **direkt** auf Port 8090 (nicht über Traefik), eigener Container ohne
+`depends_on`. Anmeldung nur per Passkey eines Platform-Admins (Kopie in `/opt/eeg/konsole/passkeys.json`,
+damit sie auch bei DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeigen und Dienste aus einer
+festen Liste neu starten (Docker-Socket, nichts sonst). Aktionen in `/opt/eeg/konsole/audit.log`.
+Entscheidung und Restrisiko: `docs/adr/0006-steuerzentrale.md`, nginx-Block: `docs/NGINX_PROXY.md`.
 
 ## Messe-/Präsentations-Demo
 

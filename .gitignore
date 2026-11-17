@@ -55,3 +55,5 @@ webapp/vendor/
 ~$*
 # Lokale Entwicklung (Vorlage: docker-compose.dev.yml) -- nie auf dem Produktivserver
 docker-compose.override.yml
+# Wartungsmodus der Steuerzentrale (konsole), zur Laufzeit erzeugt
+docker/traefik/maintenance.yml

@@ -11,3 +11,4 @@ ADR xxxx“ markiert.
 | [0003](0003-rls-laufzeitrolle.md) | Eingeschränkte DB-Rollen, RLS in Produktion Pflicht | angenommen |
 | [0004](0004-eigener-auth-stack.md) | Eigener Auth-Stack statt externem Identity Provider | angenommen |
 | [0005](0005-eda-import-als-worker.md) | EDA-Import als eigener Worker mit Jobtabelle | angenommen |
+| [0006](0006-steuerzentrale.md) | Steuerzentrale als eigener Container mit Docker-Socket | angenommen |
