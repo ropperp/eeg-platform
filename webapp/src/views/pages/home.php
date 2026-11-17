@@ -1,6 +1,6 @@
 <?php
 $pageTitle = 'Strom für alle — Gemeinschaftlich Energie erzeugen & teilen';
-$pageDescription = 'Die Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung von Bezug und Einspeisung sowie Echtzeit-Energiedaten -- einfach, transparent, rechtssicher.';
+$pageDescription = 'Plattform für Energiegemeinschaften (EEG) in Österreich: Mitgliederverwaltung, Abrechnung mit EDA-Daten und Echtzeit-Daten vom Smart Meter.';
 // Eigenes Hero-Foto (unter /admin/templates hochgeladen, siehe /hero-banner-image) hat Vorrang
 // vor der mitgelieferten SVG-Illustration -- per Inline-<style>-Override, da app.css das Bild
 // nicht kennt (die Datei kann jederzeit ohne Deploy ausgetauscht werden).
@@ -25,25 +25,16 @@ if ($customHeroBanner) {
             . $heroUrl($w, 'jpg') . "') type(\"image/jpeg\")); }";
     };
 }
-// Organization-Schema (schema.org/JSON-LD): hilft Suchmaschinen (Google Knowledge-Panel/
-// Sitelinks) UND KI-Suchassistenten (Perplexity, ChatGPT-Search, Google AI Overviews), die
-// Plattform als eigenständige Organisation einzuordnen statt den Seiteninhalt nur als Fließtext
-// zu interpretieren. Bewusst nur auf der Startseite (nicht auf jeder Unterseite) -- das ist die
-// übliche Konvention, Suchmaschinen verknüpfen das Schema mit der gesamten Domain.
-$extraHead = ($extraHead ?? '') . '
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Strom für alle",
-  "alternateName": "EEG Strompool Feldkirchen Süd-West",
-  "url": ' . json_encode(AppConfig::get()->marketingBaseUrl() . '/', JSON_UNESCAPED_SLASHES) . ',
-  "logo": ' . json_encode(AppConfig::get()->marketingBaseUrl() . '/logo-light.png', JSON_UNESCAPED_SLASHES) . ',
-  "email": ' . json_encode(AppConfig::get()->contactEmail) . ',
-  "description": "Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, automatisierte Abrechnung, Echtzeit-Energiedaten.",
-  "areaServed": "AT"
+// Öffentliche Kennzahlen der Pilot-EEG serverseitig (Sichtbarkeits-Check 17.11.2026: KI-Crawler führen
+// kein JavaScript aus und lasen bisher "0 Mitglieder, 0 % Autarkie"). Fällt die Datenbank aus, bleibt
+// die Startseite trotzdem erreichbar -- dann ohne Zahlen.
+try {
+    $pilotFacts = (new App\Infrastructure\Database\PdoPublicFactsRepository())->forSlug('strompool-feldkirchen');
+} catch (\Throwable $e) {
+    $pilotFacts = null;
 }
-</script>';
+// schema.org: Plattform und Verein getrennt und verknüpft (marketingOrgJsonLd()).
+$extraHead = ($extraHead ?? '') . "\n" . jsonLdScript(marketingOrgJsonLd(AppConfig::get()->marketingBaseUrl(), $pilotFacts));
 ob_start();
 ?>
 
@@ -62,60 +53,68 @@ echo '@media (min-width: 961px) { ', $heroCss('.hero', $heroLight, 1920), ' ', $
 <section class="hero">
   <div class="container">
     <h1>Erneuerbare Energie gemeinsam nutzen</h1>
-    <p>Die einfachste Plattform zur Verwaltung Ihrer Erneuerbaren-Energie-Gemeinschaft.<br>
-       Echtzeit-Daten, automatische Abrechnung, volle Transparenz.</p>
-    <a href="/live" class="btn btn-white btn-lg">Live-Anzeige</a>
-    <a href="<?= htmlspecialchars(portalUrl('/portal/login')) ?>" class="btn btn-outline btn-lg">Anmelden</a>
+    <p>Die Plattform für Erneuerbare-Energie-Gemeinschaften in Österreich – aus Kärnten.<br>
+       Mitgliederverwaltung, Abrechnung mit EDA-Daten und Echtzeit-Daten vom Smart Meter.</p>
+    <a href="/funktionen" class="btn btn-white btn-lg">Funktionen ansehen</a>
+    <a href="/live" class="btn btn-outline btn-lg">Live-Anzeige</a>
   </div>
 </section>
 
 <!-- Features -->
 <section class="features">
   <div class="container">
-    <h2 class="reveal" style="text-align:center;font-size:1.75rem;margin-bottom:3rem">Was die Plattform bietet</h2>
+    <h2 class="reveal" style="text-align:center;font-size:1.75rem;margin-bottom:1rem">Was die Plattform bietet</h2>
+    <p class="reveal" style="text-align:center;color:var(--gray-600);max-width:680px;margin:0 auto 2.5rem">
+      Strom für alle deckt den Vereinsalltag einer Energiegemeinschaft ab: vom Online-Beitritt über Verträge mit
+      digitaler Unterschrift bis zur Abrechnung und zur Live-Anzeige – für Vorstand und Mitglieder.
+    </p>
     <div class="grid-3 reveal-grid">
-      <div class="card">
+      <a class="card info-card" href="/funktionen/echtzeit-daten">
         <div class="feature-icon"><?= icon('lightning') ?></div>
         <h3>Echtzeit-Monitoring</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
-          Sehen Sie live, wie viel Energie Ihre Gemeinschaft gerade erzeugt und verbraucht — direkt vom Smart Meter.
+          Live sehen, wie viel Energie die Gemeinschaft gerade erzeugt und verbraucht – direkt vom Smart Meter.
         </p>
-      </div>
-      <div class="card">
+        <span class="info-more">Mehr erfahren →</span>
+      </a>
+      <a class="card info-card" href="/funktionen/abrechnung">
         <div class="feature-icon"><?= icon('currency-eur') ?></div>
         <h3>Automatische Abrechnung</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
-          Quartalsabrechnung auf Basis offizieller EDA-Daten. PDF-Rechnungen werden automatisch generiert und versendet.
+          Abrechnung auf Basis der offiziellen EDA-Daten, Rechnungen als PDF, SEPA-Lastschrift und Mahnwesen.
         </p>
-      </div>
-      <div class="card">
+        <span class="info-more">Mehr erfahren →</span>
+      </a>
+      <a class="card info-card" href="/funktionen/mitgliederverwaltung">
         <div class="feature-icon"><?= icon('users-three') ?></div>
         <h3>Mitgliederverwaltung</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
-          Mitglieder anlegen, Zählpunkte zuordnen, Vertragsunterlagen per Knopfdruck generieren und versenden.
+          Online-Beitritt, Zählpunkte zuordnen, Verträge digital unterschreiben, Protokolle der Mitgliederversammlung.
         </p>
-      </div>
+        <span class="info-more">Mehr erfahren →</span>
+      </a>
       <div class="card">
         <div class="feature-icon"><?= icon('shield-check') ?></div>
         <h3>DSGVO-konform</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
-          Energiedaten sind personenbezogen — jeder sieht nur seine eigenen Daten. Hosting in Österreich/DACH.
+          Energiedaten sind personenbezogen – jedes Mitglied sieht nur die eigenen Daten. Betrieb in Österreich.
         </p>
       </div>
       <div class="card">
         <div class="feature-icon"><?= icon('buildings') ?></div>
-        <h3>Multi-EEG fähig</h3>
+        <h3>Mehrere EEGs</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
-          Eine Plattform für beliebig viele Gemeinschaften. Vollständige Datentrennung zwischen den Mandanten.
+          Eine Plattform für beliebig viele Gemeinschaften, mit vollständig getrennten Daten je Gemeinschaft.
         </p>
       </div>
-      <div class="card">
-        <div class="feature-icon"><?= icon('chart-bar') ?></div>
-        <h3>Öffentliches Dashboard</h3>
+      <a class="card info-card" href="/funktionen/umstieg">
+        <div class="feature-icon"><?= icon('arrow-right') ?></div>
+        <h3>Einfacher Umstieg</h3>
         <p style="color:var(--gray-600);margin-top:.5rem;font-size:.9rem">
-          Zeigen Sie der Öffentlichkeit Ihre Autarkie-Quote und Gesamterzeugung — ohne Personendaten.
+          Mitglieder per Import übernehmen, EDA-Datei einspielen, abrechnen. Importe passen wir für Sie an.
         </p>
-      </div>
+        <span class="info-more">Mehr erfahren →</span>
+      </a>
     </div>
   </div>
 </section>
@@ -123,50 +122,39 @@ echo '@media (min-width: 961px) { ', $heroCss('.hero', $heroLight, 1920), ' ', $
 <!-- Pilot EEG -->
 <section style="background:var(--white);padding:4rem 0;border-top:1px solid var(--gray-200)">
   <div class="container reveal" style="text-align:center">
-    <h2 style="font-size:1.5rem;margin-bottom:1rem">Unser Pilotprojekt</h2>
-    <p style="color:var(--gray-600);max-width:600px;margin:0 auto 2rem">
-      Die <strong>EEG Strompool Feldkirchen Süd-West</strong> (ZVR 1778816746) läuft als erste Gemeinschaft
-      auf dieser Plattform und liefert live Daten aus Kärnten.
+    <h2 style="font-size:1.5rem;margin-bottom:1rem">Unser Pilotprojekt in Feldkirchen (Kärnten)</h2>
+    <p style="color:var(--gray-600);max-width:620px;margin:0 auto 1rem">
+      Die <strong>EEG Strompool Feldkirchen Süd-West</strong> läuft als erste Gemeinschaft auf dieser Plattform
+      und liefert live Daten aus Kärnten.
     </p>
-    <!-- Live-Kennzahlen: bewusst per Client-Fetch (gleicher /api/live/:slug-Endpoint wie die
-         /live-Seite) statt einer direkten DB-Abfrage hier -- die Startseite bleibt so komplett
-         statisch/DB-unabhängig (robust, auch wenn die DB mal down ist); schlägt der Abruf fehl,
-         bleibt die Zeile einfach unsichtbar (kein kaputtes UI). Die Zahlen zählen beim
-         Erscheinen sanft hoch (siehe site-animations.js), respektiert prefers-reduced-motion. -->
+    <?php if ($pilotFacts && $pilotFacts['members'] > 0): ?>
+      <!-- Serverseitig, damit Suchmaschinen und KI-Crawler echte Zahlen lesen (kein JavaScript nötig). -->
+      <?php $nM = $pilotFacts['members']; $nZ = $pilotFacts['meters']; ?>
+      <p class="home-facts">
+        Aktuell <strong><?= number_format($nM, 0, ',', '.') ?> <?= $nM === 1 ? 'Mitglied' : 'Mitglieder' ?></strong><?php if ($nZ > 0): ?>
+        mit <strong><?= number_format($nZ, 0, ',', '.') ?> <?= $nZ === 1 ? 'Zählpunkt' : 'Zählpunkten' ?></strong><?php endif; ?>.
+      </p>
+    <?php endif; ?>
+    <!-- Live-Leistung: lädt site-animations.js nach (/api/live/:slug) und zählt hoch. Vorher steht "–"
+         statt "0", damit niemand (auch kein Crawler) eine leere Gemeinschaft liest. -->
     <div id="pilot-live-stats" style="max-width:640px;margin:0 auto 2rem;display:none">
       <div class="grid-3">
         <div>
-          <div class="stat-value" data-live-value="bezug_w" style="font-size:1.5rem;color:#dc2626">0</div>
+          <div class="stat-value" data-live-value="bezug_w" style="font-size:1.5rem;color:#dc2626">–</div>
           <div style="font-size:.78rem;color:var(--gray-600)">W Bezug gerade</div>
         </div>
         <div>
-          <div class="stat-value" data-live-value="einspeisung_w" style="font-size:1.5rem;color:#16a34a">0</div>
+          <div class="stat-value" data-live-value="einspeisung_w" style="font-size:1.5rem;color:#16a34a">–</div>
           <div style="font-size:.78rem;color:var(--gray-600)">W Einspeisung gerade</div>
         </div>
         <div>
-          <div class="stat-value" data-live-value="autarkie_pct" style="font-size:1.5rem;color:var(--green-dark)">0</div>
+          <div class="stat-value" data-live-value="autarkie_pct" style="font-size:1.5rem;color:var(--green-dark)">–</div>
           <div style="font-size:.78rem;color:var(--gray-600)">% Autarkie</div>
         </div>
       </div>
-      <!-- Mitglieder/Zählpunkte (Patrick, 01.11.2026: "wie viele Mitglieder wir sind [...]
-           einfach die Zählpunkte auflisten") -- bewusst nur die ANZAHL, keine Einzeldaten
-           (welche Zählpunkte, wie viel einzelne Mitglieder verbrauchen) -- das wäre
-           personenbezogen und hätte auf einer öffentlichen Seite nichts verloren, siehe
-           "DSGVO-konform"-Punkt weiter oben auf dieser Seite. Eigene, kleinere Zeile statt in
-           dieselbe grid-3 oben gequetscht -- andere Art Kennzahl (Mitgliederbestand statt
-           Live-Leistung), optisch leicht abgesetzt. -->
-      <div class="grid-2" style="max-width:360px;margin:1.5rem auto 0;padding-top:1.5rem;border-top:1px solid var(--gray-200)">
-        <div>
-          <div class="stat-value" data-live-value="member_count" style="font-size:1.5rem;color:var(--gray-800)">0</div>
-          <div style="font-size:.78rem;color:var(--gray-600)">Mitglieder</div>
-        </div>
-        <div>
-          <div class="stat-value" data-live-value="total_meters" style="font-size:1.5rem;color:var(--gray-800)">0</div>
-          <div style="font-size:.78rem;color:var(--gray-600)">Zählpunkte</div>
-        </div>
-      </div>
     </div>
-    <a href="/live?eeg=strompool-feldkirchen" class="btn btn-primary btn-lg">Echtzeit-Daten ansehen</a>
+    <a href="/energiegemeinschaft-feldkirchen" class="btn btn-primary btn-lg">Zur Energiegemeinschaft</a>
+    <a href="/live?eeg=strompool-feldkirchen" class="btn btn-secondary btn-lg">Echtzeit-Daten ansehen</a>
     <a href="/infoblatt.pdf" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">Infoblatt (PDF)</a>
   </div>
 </section>
@@ -179,28 +167,62 @@ echo '@media (min-width: 961px) { ', $heroCss('.hero', $heroLight, 1920), ' ', $
       <h2 style="font-size:1.5rem;margin-top:1rem">Echtzeit-Energie: sehen, wann Strom gebraucht wird</h2>
     </div>
     <p style="color:var(--gray-600);margin-bottom:1rem">
-      Als Mitglied der EEG Strompool Feldkirchen Süd-West erhältst du unsere eigene
-      <strong>Ausleseeinheit</strong> — entwickelt als Diplomarbeitsprojekt an der HTL1 Lastenstraße. Sie liest über
-      die P1-Schnittstelle deines Smart Meters (Kärnten Netz) die Verbrauchsdaten in Echtzeit aus.
+      Die offiziellen EDA-Daten kommen erst am nächsten Tag. Unsere eigene <strong>Ausleseeinheit</strong> –
+      entwickelt als Diplomarbeitsprojekt an der HTL1 Lastenstraße in Klagenfurt – liest über die
+      P1-Schnittstelle des Smart Meters die Werte in Echtzeit aus.
     </p>
-    <p style="color:var(--gray-600);margin-bottom:.5rem">Damit siehst du live:</p>
+    <p style="color:var(--gray-600);margin-bottom:.5rem">Damit sehen Mitglieder live:</p>
     <ul style="color:var(--gray-600);margin:0 0 1rem 1.25rem">
-      <li><strong>deinen eigenen</strong> Verbrauch und deine Einspeisung,</li>
-      <li><strong>die Gesamtbilanz der Gemeinschaft</strong> — wann in der EEG Energie benötigt wird
-        und wann Überschuss vorhanden ist.</li>
+      <li><strong>den eigenen</strong> Verbrauch und die eigene Einspeisung,</li>
+      <li><strong>die Gesamtbilanz der Gemeinschaft</strong> – wann Energie benötigt wird und wann Überschuss vorhanden ist.</li>
     </ul>
     <p style="color:var(--gray-600);margin-bottom:1rem">
-      So kannst du z. B. Waschmaschine oder E-Auto genau dann laufen lassen, wenn die Gemeinschaft
-      Überschuss hat — das erhöht die Eigenverbrauchsquote und senkt die Kosten für alle.
-    </p>
-    <p style="color:var(--gray-600);margin-bottom:1rem">
-      <strong>Deine Privatsphäre:</strong> Du siehst nur deine eigenen Daten und die Summe der
-      Gemeinschaft — niemals die Einzeldaten anderer Mitglieder.
+      So laufen Waschmaschine oder E-Auto genau dann, wenn die Gemeinschaft Überschuss hat. Das erhöht die
+      Eigenverbrauchsquote und senkt die Kosten für alle. Jedes Mitglied sieht dabei nur die eigenen Daten
+      und die Summe der Gemeinschaft, nie die Einzeldaten anderer.
     </p>
     <p style="color:var(--gray-600);font-size:.85rem;font-style:italic;text-align:center">
-      Die Ausleseeinheit ist derzeit in Entwicklung und wird in den kommenden Monaten an alle
-      Mitglieder ausgegeben (voraussichtlich ca. € 30,–, Preis noch nicht endgültig).
+      Die Ausleseeinheit läuft im Pilotbetrieb in Feldkirchen und wird schrittweise an die Mitglieder ausgegeben
+      (voraussichtlich ca. € 30,–, Preis noch nicht endgültig). <a href="/funktionen/echtzeit-daten">Mehr zu den Echtzeit-Daten</a>
     </p>
+  </div>
+</section>
+
+<!-- Umstieg und Mitgestalten -->
+<section style="padding:4rem 0;border-top:1px solid var(--gray-200)">
+  <div class="container reveal" style="max-width:860px">
+    <div class="grid-2">
+      <div>
+        <h2 style="font-size:1.35rem;margin-bottom:.75rem">Umstieg ohne Abtippen</h2>
+        <p style="color:var(--gray-600)">
+          Mitglieder werden über Importfunktionen angelegt, danach spielen Sie die EDA-Datei (XLSX) ein und erstellen
+          die Abrechnung. Für Ihre bisherigen Daten – Excel oder eine andere Software – programmieren wir die
+          Importfunktion bei Bedarf passend nach. <a href="/funktionen/umstieg">So läuft der Umstieg</a>
+        </p>
+      </div>
+      <div>
+        <h2 style="font-size:1.35rem;margin-bottom:.75rem">Gemeinsam weiterentwickeln</h2>
+        <p style="color:var(--gray-600)">
+          Strom für alle ist aus der Praxis einer Energiegemeinschaft entstanden. Vorstände, Betreiber und Mitglieder
+          sind herzlich eingeladen, ihre Ideen einzubringen – viele Funktionen gehen auf Wünsche aus dem Vereinsalltag
+          zurück.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Häufige Fragen (Kurzfassung; ausgezeichnet als FAQPage nur auf /faq) -->
+<section style="padding:4rem 0;background:var(--white);border-top:1px solid var(--gray-200)">
+  <div class="container reveal info-faq" style="max-width:860px">
+    <h2 style="font-size:1.5rem;margin-bottom:1rem;text-align:center">Häufige Fragen</h2>
+    <?php $homeFaq = marketingFaq(); foreach (['kosten', 'umstieg', 'abrechnung', 'oesterreich'] as $k): ?>
+      <details class="faq-item">
+        <summary><?= htmlspecialchars($homeFaq[$k]['q']) ?></summary>
+        <p><?= htmlspecialchars($homeFaq[$k]['a']) ?></p>
+      </details>
+    <?php endforeach; ?>
+    <p style="text-align:center"><a href="/faq">Alle häufigen Fragen ansehen →</a></p>
   </div>
 </section>
 
@@ -208,10 +230,12 @@ echo '@media (min-width: 961px) { ', $heroCss('.hero', $heroLight, 1920), ' ', $
 <section style="padding:4rem 0">
   <div class="container reveal" style="text-align:center">
     <h2 style="font-size:1.5rem;margin-bottom:1rem">Interesse an der Plattform?</h2>
-    <p style="color:var(--gray-600);margin-bottom:1.5rem">
-      Sie möchten Ihre EEG auf unserer Plattform verwalten? Kontaktieren Sie uns.
+    <p style="color:var(--gray-600);margin-bottom:1.5rem;max-width:640px;margin-left:auto;margin-right:auto">
+      Sie möchten Ihre Energiegemeinschaft auf Strom für alle verwalten? Die Kosten hängen vom Umfang ab – nur
+      Verwaltung und Abrechnung oder zusätzlich Echtzeit-Daten mit Ausleseeinheit. Wir melden uns mit einem Angebot.
     </p>
-    <a href="/kontakt" class="btn btn-secondary btn-lg">Kontakt aufnehmen</a>
+    <a href="/kontakt" class="btn btn-primary btn-lg">Kontakt aufnehmen</a>
+    <a href="<?= htmlspecialchars(portalUrl('/portal/login')) ?>" class="btn btn-secondary btn-lg">Anmelden</a>
   </div>
 </section>
 

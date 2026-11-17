@@ -1,22 +1,43 @@
 # Strom für alle
 
-> Plattform der Erneuerbaren-Energie-Gemeinschaft (EEG) Strompool Feldkirchen Süd-West
-> (ZVR 1778816746, Marktpartner-ID RC108175) in Kärnten, Österreich. Mitgliederverwaltung,
-> automatisierte Abrechnung von Bezug und Einspeisung sowie Echtzeit-Energiedaten.
+> Plattform für Erneuerbare-Energie-Gemeinschaften (EEG) in Österreich: Mitgliederverwaltung, Verträge mit
+> digitaler Unterschrift, Abrechnung auf Basis der EDA-Energiedaten (inkl. SEPA-Lastschrift und Mahnwesen)
+> und Echtzeit-Daten vom Smart Meter über eine eigene Ausleseeinheit. Entstanden aus der Praxis der
+> EEG Strompool Feldkirchen Süd-West in Kärnten, die als erste Gemeinschaft auf der Plattform läuft.
 
-## Wichtige Seiten
+Wichtig zur Einordnung:
+- Plattform und Verein sind zwei Dinge: „Strom für alle“ ist die Software-Plattform; betrieben wird sie vom
+  gemeinnützigen Verein EEG Strompool Feldkirchen Süd-West (ZVR 1778816746, Marktpartner-ID RC108175).
+- Zielgruppe: Vorstände und Betreiber von Energiegemeinschaften in ganz Österreich sowie deren Mitglieder.
+- Kosten: auf Anfrage, je nach Umfang (nur Verwaltung und Abrechnung oder zusätzlich Echtzeit-Ausleseeinheit
+  mit Visualisierung).
+- Umstieg: Mitglieder per Importfunktion übernehmen, EDA-Datei (XLSX) einspielen, abrechnen. Importfunktionen
+  werden beim Umstieg an die bisherigen Daten angepasst.
+- Die Ausleseeinheit für die P1-Schnittstelle der Smart Meter ist ein Diplomarbeitsprojekt der HTL1 Lastenstraße
+  (Klagenfurt) und läuft im Pilotbetrieb mit Smart Metern von Kärnten Netz.
 
-- [Startseite](https://stromfueralle.at/): Überblick über die Plattform und ihre Funktionen.
-- [Live-Anzeige](https://stromfueralle.at/live): Öffentliches Echtzeit-Dashboard der EEG (Erzeugung, Verbrauch, Autarkie-Quote).
-- [Beitreten](https://stromfueralle.at/beitreten): Informationen zum Mitgliedsbeitritt.
-- [Preisliste](https://stromfueralle.at/rc108175/preisliste): Mitgliedsbeitrag, Preise für Bezug/Einspeisung.
-- [Kontakt](https://stromfueralle.at/rc108175/kontakt): Kontaktformular und E-Mail-Adresse.
+## Funktionen
+
+- [Funktionen im Überblick](https://stromfueralle.at/funktionen)
+- [Abrechnung für Energiegemeinschaften](https://stromfueralle.at/funktionen/abrechnung): EDA-Daten, PDF-Rechnungen und Gutschriften, SEPA, Mahnwesen.
+- [Mitgliederverwaltung](https://stromfueralle.at/funktionen/mitgliederverwaltung): Online-Beitritt, digitale Verträge, Mitgliederportal, Protokolle der Mitgliederversammlung.
+- [Echtzeit-Daten vom Smart Meter](https://stromfueralle.at/funktionen/echtzeit-daten): Ausleseeinheit, Live-Bilanz und Autarkie-Quote der Gemeinschaft.
+- [Umstieg auf Strom für alle](https://stromfueralle.at/funktionen/umstieg): Import der Mitglieder, angepasste Importfunktionen.
+
+## Fragen und Antworten
+
+- [Häufige Fragen](https://stromfueralle.at/faq): Kosten, Umstieg, Abrechnung, Echtzeit-Daten, Datenschutz, Beitritt, Einsatz in ganz Österreich.
+
+## Energiegemeinschaft Feldkirchen (Kärnten)
+
+- [EEG Strompool Feldkirchen Süd-West](https://stromfueralle.at/energiegemeinschaft-feldkirchen): Was die Gemeinschaft bringt und wie man beitritt.
+- [Live-Anzeige](https://stromfueralle.at/live): Öffentliches Echtzeit-Dashboard (Erzeugung, Verbrauch, Autarkie-Quote).
+- [Beitreten](https://stromfueralle.at/beitreten): Online-Beitritt.
+- [Preisliste](https://stromfueralle.at/rc108175/preisliste): Mitgliedsbeitrag, Preise für Bezug und Einspeisung.
+- [Kontakt](https://stromfueralle.at/kontakt): Kontaktformular.
 
 ## Rechtliches
 
-- [Impressum](https://stromfueralle.at/rc108175/impressum): Vereinsdaten, Vertretung, Kontakt.
-- [Datenschutzerklärung](https://stromfueralle.at/rc108175/datenschutz): Informationen zur Datenverarbeitung gemäß DSGVO.
-- [AGB](https://stromfueralle.at/rc108175/agb): Allgemeine Geschäftsbedingungen.
-- [Widerrufsbelehrung](https://stromfueralle.at/rc108175/widerruf): Rücktrittsrecht beim Online-Beitritt.
-- [Barrierefreiheitserklärung](https://stromfueralle.at/rc108175/barrierefreiheit): Stand der Barrierefreiheit.
-- [Statuten](https://stromfueralle.at/rc108175/statuten): Vereinsstatuten.
+- [Impressum](https://stromfueralle.at/rc108175/impressum)
+- [Datenschutzerklärung](https://stromfueralle.at/rc108175/datenschutz)
+- [Statuten](https://stromfueralle.at/rc108175/statuten)

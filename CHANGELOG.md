@@ -19,6 +19,17 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Sichtbarkeit bei Suchmaschinen und KI (17.11.2026)
+Umsetzung der Befunde eines externen Sichtbarkeits-Checks (SEO 90, GEO 73, AEO 11):
+- **Eigene Seiten pro Funktion:** `/funktionen` mit Abrechnung, Mitgliederverwaltung, Echtzeit-Daten, Umstieg;
+  Seite der Pilot-EEG `/energiegemeinschaft-feldkirchen`; jeweils eigener Titel, Beschreibung, Brotkrümel.
+- **FAQ** (`/faq`, 11 Fragen inkl. Kosten auf Anfrage, Umstieg, Echtzeit in Kärnten, Beitritt), als FAQPage ausgezeichnet.
+- **Startseite:** echte Mitglieder- und Zählpunktzahl serverseitig im HTML (KI-Crawler lasen „0“), Live-Werte vor dem
+  Nachladen „–“ statt 0; Beschreibung auf 150 Zeichen; durchgehend „Sie“; neue Abschnitte Umstieg, Mitgestalten, FAQ.
+- **schema.org:** Plattform (SoftwareApplication) und Verein (NGO, Adresse/ZVR/Kontakt aus der DB) getrennt und verknüpft.
+- `llms.txt` neu (Einordnung Plattform/Verein, Kosten, Umstieg), Sitemap um 7 Seiten erweitert, Menü „Funktionen“/„FAQ“.
+- Tests: Längen/Verweise/Wortanzahl der Inhalte, schema.org, E2E aller neuen Seiten.
+
 ### Steuerzentrale admin.stromfueralle.at (17.11.2026)
 - **Neuer Container `konsole`** (`konsole/`, Port 8090, direkt vom nginx-Proxy, nicht über Traefik): Status aller
   Dienste, letzte Logzeilen, Neustart einzelner Dienste aus einer festen Liste, Aktionsprotokoll.

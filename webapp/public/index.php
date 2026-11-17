@@ -18,6 +18,7 @@ foreach (['AppConfig', 'DB', 'Auth', 'RateLimiter', 'LiveStatsCache', 'AppApiAut
 require ROOT . '/src/functions.php';
 // Einzige Quelle der Zustimmungstexte der Beitrittserklärung (siehe Dateikopf).
 require ROOT . '/src/consent_texts.php';
+require ROOT . '/src/content/marketing_pages.php';
 
 sendCspHeader(); // vor jeder Ausgabe; Routen mit eigener Policy (Dateiauslieferung) überschreiben sie
 Auth::start();

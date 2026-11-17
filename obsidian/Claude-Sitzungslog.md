@@ -9,6 +9,10 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 ---
 
 ## 2026-11-17 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
+**Nachtrag Sichtbarkeit:** Externer Sichtbarkeits-Check (SEO/GEO/AEO) ausgewertet und die im Code lösbaren
+Punkte umgesetzt: Funktionsseiten, FAQ, Seite der Pilot-EEG, serverseitige Kennzahlen, getrennte schema.org-Daten
+für Plattform und Verein, neue `llms.txt` und Sitemap. Offen (nur durch Patrick): Google-Unternehmensprofil,
+LinkedIn, Verzeichniseinträge, Presse, Kundenstimmen.
 **Auftrag:** Obleute sollen Protokolle der jährlichen Mitgliederversammlung direkt in der Plattform erstellen,
 von mehreren Personen unterschreiben lassen und für die Mitglieder ablegen; dazu ein gemeinsamer
 „Strom für alle“-Briefkopf. Als zweites Paket geplant: eine eigene Steuerzentrale (Wartungsmodus,
