@@ -33,10 +33,10 @@ http:
       rule: "Host(`portal.stromfueralle.at`)"
       entryPoints: ["web"]
       service: webapp
-    admin:
-      rule: "Host(`admin.stromfueralle.at`)"
-      entryPoints: ["web"]
-      service: webapp
+    # admin.stromfueralle.at geht seit 17.11.2026 NICHT mehr über Traefik: der nginx-Proxy leitet es
+    # direkt auf den Container "konsole" (Port 8090), damit die Steuerzentrale auch bei hängendem
+    # Traefik erreichbar bleibt. Der Wartungsmodus legt zusätzlich maintenance.yml neben diese
+    # Datei (Router "wartung" mit höherer Priorität).
     webapp-legacy:
       rule: "Host(`webapp.mechtronix.at`)"
       entryPoints: ["web"]

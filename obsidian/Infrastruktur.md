@@ -132,6 +132,7 @@ Alle Images mit Version und Digest gepinnt; Updates nur als Dependabot-PR (seit 
 | eda-worker | (build) | — | EDA-Import-Jobs (Upload + Postfach) → DB |
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
+| konsole | (build, `konsole/`) | 8090 | Steuerzentrale `admin.<DOMAIN>`: Wartungsmodus, Status/Logs/Neustart |
 
 ### Wichtige Traefik-Details
 - Traefik hört **nur auf Port 80** (kein HTTPS, kein Let's Encrypt) — SSL macht der nginx-Proxy
@@ -151,15 +152,15 @@ Alle Images mit Version und Digest gepinnt; Updates nur als Dependabot-PR (seit 
 
 ### Webapp-Router
 Seit 25.09.2026 **nicht mehr** als Docker-Labels auf dem `webapp`-Container, sondern als
-Traefik-File-Provider-Konfiguration in `docker/traefik/dynamic.yml` (im Repo, in den
-`traefik`-Container gemountet):
+Traefik-File-Provider-Konfiguration in `docker/traefik/dynamic.yml` (im Repo; seit 17.11.2026 wird der
+ganze Ordner `docker/traefik/` gemountet, im Wartungsmodus legt die Steuerzentrale dort `maintenance.yml`
+ab). `admin.stromfueralle.at` läuft nicht mehr über Traefik, sondern direkt zur Steuerzentrale:
 ```yaml
 http:
   routers:
     webapp:        { rule: "Host(`stromfueralle.at`) || Host(`www.stromfueralle.at`)", entryPoints: [web], service: webapp }
     live:          { rule: "Host(`live.stromfueralle.at`)",   entryPoints: [web], service: webapp }
     portal:        { rule: "Host(`portal.stromfueralle.at`)", entryPoints: [web], service: webapp }
-    admin:         { rule: "Host(`admin.stromfueralle.at`)",  entryPoints: [web], service: webapp }
     webapp-legacy: { rule: "Host(`webapp.mechtronix.at`)",    entryPoints: [web], service: webapp }
   services:
     webapp:
@@ -248,6 +249,14 @@ docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrat
 dieser Vault-Spiegel war auf über 1000 Zeilen angewachsen). Bei einem neuen, noch unklaren
 Symptom dort nachsehen -- die Pfad-/Mount-Übersicht (`docs/INFRASTRUKTUR_PFADE.md`) bleibt der
 erste Blick bei DB-/Daten-„weg"-Symptomen.
+
+## Steuerzentrale (konsole, 17.11.2026)
+
+`admin.<DOMAIN>` → nginx-Proxy **direkt** auf Port 8090 (nicht über Traefik), eigener Container ohne
+`depends_on`. Anmeldung nur per Passkey eines Platform-Admins (Kopie in `/opt/eeg/konsole/passkeys.json`,
+damit sie auch bei DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeigen und Dienste aus einer
+festen Liste neu starten (Docker-Socket, nichts sonst). Aktionen in `/opt/eeg/konsole/audit.log`.
+Entscheidung und Restrisiko: `docs/adr/0006-steuerzentrale.md`, nginx-Block: `docs/NGINX_PROXY.md`.
 
 ## Messe-/Präsentations-Demo (simulierte Werte, 02.10.2026)
 

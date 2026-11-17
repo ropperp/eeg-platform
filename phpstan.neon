@@ -15,7 +15,10 @@ parameters:
         - webapp/bin
         - webapp/public/index.php
         - webapp/routes
+        - konsole/src
+        - konsole/public/index.php
     excludePaths:
         # Templates: werden von index.php mit lokalen Variablen eingebunden (extract), das kann
         # PHPStan nicht nachvollziehen.
         - webapp/src/views
+        - konsole/src/views

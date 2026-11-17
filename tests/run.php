@@ -35,6 +35,12 @@ require __DIR__ . '/../webapp/src/WebAuthn.php';
 require __DIR__ . '/../webapp/src/DB.php';
 require __DIR__ . '/../webapp/src/AppConfig.php';
 require __DIR__ . '/../webapp/src/autoload.php';
+// Steuerzentrale (konsole/, eigener Container): Klassen im Namensraum Konsole\.
+spl_autoload_register(function (string $class): void {
+    if (str_starts_with($class, 'Konsole\\')) {
+        require __DIR__ . '/../konsole/src/' . substr($class, 8) . '.php';
+    }
+});
 
 foreach (glob(__DIR__ . '/*_test.php') as $file) {
     echo "\n" . basename($file) . "\n";

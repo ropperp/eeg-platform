@@ -143,6 +143,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: End-to-End-Abläufe
         run: bash tests/e2e/run.sh
+      - name: Steuerzentrale gegen echtes Docker und Traefik
+        run: bash tests/e2e/konsole_run.sh
 
   http:
     runs-on: ubuntu-latest
