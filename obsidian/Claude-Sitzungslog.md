@@ -8,6 +8,21 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-17 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
+**Auftrag:** Obleute sollen Protokolle der jährlichen Mitgliederversammlung direkt in der Plattform erstellen,
+von mehreren Personen unterschreiben lassen und für die Mitglieder ablegen; dazu ein gemeinsamer
+„Strom für alle“-Briefkopf. Als zweites Paket geplant: eine eigene Steuerzentrale (Wartungsmodus,
+Container-Neustart) in einem unabhängigen Container.
+**Verbesserter Prompt:** "Baue für Obleute einen Editor für Protokolle von Mitgliederversammlungen (Datum der
+Versammlung, Anwesende, Tagesordnungspunkte mit Beschluss und Abstimmung). Mehrere Unterzeichner
+unterschreiben vor Ort am Gerät oder per Einmal-Link; erst danach PDF mit gemeinsamem Briefkopf erzeugen,
+sperren und für Mitglieder freigeben. Alternativ PDF-Upload. Muster Support-Tickets, RLS, Tests auf allen Ebenen."
+**Ergebnis:** Paket A umgesetzt (Branch `feature/mitgliederversammlung`): `migrate_20261119.sql`,
+`App\Domain\Assembly`, Controller, 4 Ansichten, `briefkopf.tex` + `protokoll.tex`, Include-Mechanismus im
+latex-service; Unit-, Integrations- und E2E-Tests grün, PDF mit dem echten latex-service geprüft. Paket B
+(Steuerzentrale admin.stromfueralle.at) ist geplant und noch offen. Rechnung/Verträge auf den Briefkopf
+umstellen: eigener Schritt.
+
 ## 2026-11-16 15:00 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
 **Auftrag:** Einen extern erstellten Umsetzungsauftrag (Robustheit, Wartbarkeit, Ressourcen) Paket für
 Paket umsetzen, ohne den Stack zu wechseln; danach Server-Befehle liefern und mit EDA-Worker und

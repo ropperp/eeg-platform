@@ -97,6 +97,14 @@ app.post('/generate', requireApiKey, (req, res) => {
 
   let tex = fs.readFileSync(tplFile, 'utf8');
 
+  // Gemeinsame Bausteine (z. B. Briefkopf) einfügen: eine Zeile "%%INCLUDE:name%%" wird durch
+  // den Inhalt von name.tex ersetzt -- VOR dem Ersetzen der Platzhalter, damit die <<<...>>>
+  // im Baustein mitgefüllt werden. Gleiche Namensregel und Suchreihenfolge wie bei Vorlagen.
+  tex = tex.replace(/^%%INCLUDE:([a-z_]+)%%$/gm, (line, name) => {
+    const incFile = resolveTemplatePath(name);
+    return incFile ? fs.readFileSync(incFile, 'utf8') : line;
+  });
+
   // Replace all <<<VAR>>> placeholders — escape all values for LaTeX
   for (const [key, value] of Object.entries(vars)) {
     const placeholder = new RegExp(`<<<${key}>>>`, 'g');

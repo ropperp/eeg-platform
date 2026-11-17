@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Domain\Assembly\AssemblyService;
 use App\Domain\EdaImport\EdaImportJobs;
 use App\Domain\Support\SupportTicketService;
 use App\Http\Controllers\Api\SupportApiController;
+use App\Http\Controllers\AssemblyController;
 use App\Http\Controllers\SupportController;
+use App\Infrastructure\Database\PdoAssemblyRepository;
 use App\Infrastructure\Database\PdoEdaImportJobRepository;
 use App\Infrastructure\Database\PdoSupportTicketRepository;
+use App\Infrastructure\Mail\MailAssemblySignLinkMailer;
 use App\Infrastructure\Mail\MailSupportNotifier;
+use App\Infrastructure\Pdf\LatexAssemblyPdfRenderer;
 
 /**
  * Baut Controller und Services zusammen (einmal pro Anfrage). Bewusst ohne DI-Container: wenige,
@@ -44,5 +49,25 @@ final class Services
     public static function supportTickets(): PdoSupportTicketRepository
     {
         return self::$instances[__FUNCTION__] ??= new PdoSupportTicketRepository();
+    }
+
+    public static function assemblyController(): AssemblyController
+    {
+        return self::$instances[__FUNCTION__] ??= new AssemblyController(self::assemblies(), self::assemblyService());
+    }
+
+    public static function assemblyService(): AssemblyService
+    {
+        return self::$instances[__FUNCTION__] ??= new AssemblyService(
+            self::assemblies(),
+            new LatexAssemblyPdfRenderer(),
+            new MailAssemblySignLinkMailer(),
+            '/var/www/html/storage/assemblies'
+        );
+    }
+
+    public static function assemblies(): PdoAssemblyRepository
+    {
+        return self::$instances[__FUNCTION__] ??= new PdoAssemblyRepository();
     }
 }

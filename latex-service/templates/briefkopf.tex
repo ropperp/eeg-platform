@@ -1,0 +1,44 @@
+% ─────────────────────────────────────────────────────────────────────────────
+% Gemeinsamer "Strom für alle"-Briefkopf für Briefe/Dokumente einer EEG.
+% Wird NICHT allein übersetzt, sondern per Zeile
+%     %%INCLUDE:briefkopf%%
+% in eine andere Vorlage eingefügt (latex-service/service.js), VOR dem Ersetzen der
+% Platzhalter -- die <<<...>>>-Variablen unten füllt also das einbindende Dokument mit.
+%
+% Erwartet in der Präambel: graphicx, xcolor, tabularx. Liefert:
+%   Farben brandgreen/navy/teal/cardgray/midgray/rulegray
+%   \briefkopf          Logo links, EEG-Name/Adresse/ZVR rechts, grüne Linie
+%   \brieffuss          Fußzeile (für fancyhdr: \fancyfoot[C]{\brieffuss})
+% Variablen: EEG_NAME, EEG_ADRESSE, EEG_ZVR (leer = Zeile entfällt). Asset: brand.png
+% ─────────────────────────────────────────────────────────────────────────────
+\definecolor{brandgreen}{RGB}{22,163,74}
+\definecolor{navy}{RGB}{26,32,51}
+\definecolor{teal}{RGB}{20,148,166}
+\definecolor{cardgray}{RGB}{244,246,248}
+\definecolor{midgray}{RGB}{107,114,128}
+\definecolor{rulegray}{RGB}{229,231,235}
+
+\def\bkeegname{<<<EEG_NAME>>>}
+\def\bkeegadresse{<<<EEG_ADRESSE>>>}
+\def\bkeegzvr{<<<EEG_ZVR>>>}
+
+\newcommand{\briefkopf}{%
+  \noindent
+  \begin{minipage}[c]{0.48\textwidth}
+    \includegraphics[width=58mm]{brand.png}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.48\textwidth}
+    \raggedleft
+    {\large\bfseries\color{navy}\bkeegname}\\[1mm]
+    \ifx\bkeegadresse\empty\else{\small\color{midgray}\bkeegadresse}\\\fi
+    \ifx\bkeegzvr\empty\else{\small\color{midgray}ZVR-Zahl: \bkeegzvr}\\\fi
+  \end{minipage}\par
+  \vspace{3mm}
+  \noindent{\color{brandgreen}\rule{\textwidth}{1.5pt}}\par
+  \vspace{6mm}
+}
+
+\newcommand{\brieffuss}{%
+  {\scriptsize\color{midgray}\bkeegname\ $\cdot$ erstellt mit \textbf{strom für alle}}%
+}

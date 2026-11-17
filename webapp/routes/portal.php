@@ -1155,6 +1155,7 @@ $router->get('/portal/my/documents', function () {
     $hasProducer = !empty(array_filter($metering_points, fn($mp) => $mp['type'] === 'producer'));
     $member_files = DB::fetchAll('SELECT * FROM member_files WHERE member_id = ? ORDER BY created_at DESC', [$member['id']]);
     $application = DB::fetchOne('SELECT id FROM membership_applications WHERE member_id = ? AND community_id = ?', [$member['id'], $member['community_id']]);
+    $assemblies = Services::assemblies()->publishedForCommunity($member['community_id']);
     if (!empty($_GET['success'])) { $success = $_GET['success']; }
     if (!empty($_GET['error']))   { $error = $_GET['error']; }
     if (!empty($_GET['info']))    { $info = $_GET['info']; }
@@ -4482,6 +4483,43 @@ $router->post('/portal/postfach/:id/erledigt', function ($params) {
 $router->get('/portal/support', fn() => Services::supportController()->staffIndex($_GET)->send());
 $router->get('/portal/support/:id', fn($params) => Services::supportController()->staffShow($params['id'])->send());
 $router->post('/portal/support/:id/reply', fn($params) => Services::supportController()->staffReply($params['id'], $_POST)->send());
+
+// ─── Portal: Protokolle von Mitgliederversammlungen (AssemblyController) ───
+// Obmann/Manager der aktiven EEG; Mitglieder laden nur abgeschlossene, freigegebene PDFs;
+// Unterzeichner ohne Login über einen Einmal-Link (Token, 14 Tage gültig).
+$assemblyCtl = fn() => Services::assemblyController();
+$router->get('/portal/versammlungen', fn() => $assemblyCtl()->index($_GET)->send());
+$router->post('/portal/versammlungen', fn() => $assemblyCtl()->create($_POST)->send());
+$router->post('/portal/versammlungen/upload', fn() => $assemblyCtl()->upload($_POST, $_FILES['pdf'] ?? [])->send());
+$router->get('/portal/versammlungen/:id', fn($p) => $assemblyCtl()->show($p['id'], $_GET)->send());
+$router->get('/portal/versammlungen/:id/pdf', fn($p) => $assemblyCtl()->pdf($p['id'])->send());
+$router->get('/portal/versammlungen/:id/unterschreiben/:signerId', fn($p) => $assemblyCtl()->signOnSiteForm($p['id'], $p['signerId'])->send());
+$router->post('/portal/versammlungen/:id/unterschreiben/:signerId', fn($p) => $assemblyCtl()->signOnSite($p['id'], $p['signerId'], $_POST)->send());
+foreach ([
+    ''                    => 'header',
+    '/punkte'             => 'add_item',
+    '/unterzeichner'      => 'add_signer',
+    '/freigeben'          => 'start_signing',
+    '/entwurf'            => 'back_to_draft',
+    '/abschliessen'       => 'finalize',
+    '/sichtbarkeit'       => 'visibility',
+    '/loeschen'           => 'delete',
+] as $suffix => $action) {
+    $router->post('/portal/versammlungen/:id' . $suffix, fn($p) => $assemblyCtl()->act($p['id'], $action, $_POST)->send());
+}
+foreach ([
+    '/punkte/:subId'              => 'update_item',
+    '/punkte/:subId/loeschen'     => 'delete_item',
+    '/punkte/:subId/verschieben'  => 'move_item',
+    '/unterzeichner/:subId/loeschen' => 'delete_signer',
+    '/unterzeichner/:subId/link'  => 'send_link',
+] as $suffix => $action) {
+    $router->post('/portal/versammlungen/:id' . $suffix, fn($p) => $assemblyCtl()->act($p['id'], $action, $_POST, $p['subId'])->send());
+}
+$router->get('/portal/my/versammlungen/:id/pdf', fn($p) => $assemblyCtl()->memberPdf($p['id'])->send());
+$router->get('/portal/unterschrift/versammlung/:token', fn($p) => $assemblyCtl()->linkForm($p['token'])->send());
+$router->get('/portal/unterschrift/versammlung/:token/vorschau', fn($p) => $assemblyCtl()->linkPreview($p['token'])->send());
+$router->post('/portal/unterschrift/versammlung/:token', fn($p) => $assemblyCtl()->linkSign($p['token'], $_POST)->send());
 
 // ─── Portal: Online-Beitrittserklärungen (Freigabe) ─────
 $router->get('/portal/applications', function () {

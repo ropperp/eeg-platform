@@ -126,5 +126,28 @@ if [ -n "${E2E_EDA_FIXTURE:-}" ]; then
   contains "  ... und die Datenqualitäts-Übersicht" "$BODY" "Datenqualit"
 fi
 
+echo "Mitgliederversammlung (Protokoll)"
+req mem $PORTAL GET /portal/versammlungen
+check "Mitglied: Protokoll-Verwaltung verboten" "$CODE" "403"
+req mgr $PORTAL GET /portal/versammlungen
+check "Obmann: Liste erreichbar" "$CODE" "200"
+req mgr $PORTAL POST /portal/versammlungen --data-urlencode "csrf_token=$(token mgr)" --data-urlencode "held_on=2026-11-14" --data-urlencode "kind=ordentlich"
+ASM=$(grep -oE '[0-9a-f-]{36}$' <<<"$LOC")
+check "Protokoll anlegen leitet zum Editor" "$CODE $([ -n "$ASM" ] && echo id)" "302 id"
+req mgr $PORTAL GET "/portal/versammlungen/$ASM"
+check "  ... Editor erreichbar" "$CODE" "200"
+req mgr $PORTAL POST "/portal/versammlungen/$ASM/punkte" --data-urlencode "csrf_token=$(token mgr)" --data-urlencode "title=Kassabericht" --data-urlencode "votes_yes=5"
+req mgr $PORTAL POST "/portal/versammlungen/$ASM/unterzeichner" --data-urlencode "csrf_token=$(token mgr)" --data-urlencode "name=E2E Obmann" --data-urlencode "role_label=Obmann"
+req mgr $PORTAL POST "/portal/versammlungen/$ASM/freigeben" --data-urlencode "csrf_token=$(token mgr)"
+check "  ... zur Unterschrift freigegeben" "$CODE $(grep -c 'error=' <<<"$LOC")" "302 0"
+req mgr $PORTAL GET "/portal/versammlungen/$ASM"
+contains "  ... Status zeigt offene Unterschrift" "$BODY" "Unterschriften: 0 von 1"
+contains "  ... Unterschrift vor Ort möglich" "$BODY" "Jetzt vor Ort"
+req mem $PORTAL GET "/portal/my/versammlungen/$ASM/pdf"
+check "Mitglied: nicht abgeschlossenes Protokoll nicht abrufbar" "$CODE" "404"
+req anon3 $PORTAL GET "/portal/unterschrift/versammlung/$(printf '0%.0s' $(seq 1 64))"
+check "ungültiger Unterschrifts-Link: 404 mit Hinweis" "$CODE" "404"
+contains "  ... Hinweis auf abgelaufenen Link" "$BODY" "Link nicht mehr gültig"
+
 echo ""
 if [ "$fail" -eq 0 ]; then echo "✓ Alle ${pass} E2E-Tests bestanden"; else echo "✗ ${fail} von $((pass + fail)) E2E-Tests fehlgeschlagen"; exit 1; fi

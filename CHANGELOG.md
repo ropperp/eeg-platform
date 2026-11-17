@@ -19,6 +19,20 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Protokolle von Mitgliederversammlungen (17.11.2026)
+- **Neuer Bereich „Mitgliederversammlungen“** für Obleute (`/portal/versammlungen`): Protokoll mit Datum der
+  Versammlung (nicht Druckdatum), Uhrzeit, Ort, Anwesenden, Vorsitz, Protokollführung, Beschlussfähigkeit und
+  Tagesordnungspunkten mit Besprochenem, Beschluss und Abstimmung (dafür/dagegen/Enthaltung).
+- **Unterschriften vor Ort oder per Link:** nach der Freigabe ist der Inhalt gesperrt; jede eingetragene Person
+  unterschreibt am Gerät oder über einen persönlichen Einmal-Link (14 Tage, nur Hash gespeichert). Wenn alle
+  unterschrieben haben, wird das PDF erzeugt und abgelegt; Mitglieder laden es unter „Meine Dokumente“ (abschaltbar).
+- **Fertige Protokolle hochladen** (z. B. eingescannte Papierprotokolle) als PDF.
+- **Gemeinsamer „Strom für alle“-Briefkopf** (`latex-service/templates/briefkopf.tex`) mit Name, Adresse und
+  ZVR der EEG; Vorlagen binden ihn per `%%INCLUDE:briefkopf%%` ein (`service.js`). Rechnung und Verträge
+  folgen in einem eigenen Schritt.
+- Tabellen `assemblies`, `assembly_items`, `assembly_signers` mit RLS (`migrate_20261119.sql`); Tests: Unit,
+  Integration (Ablauf, Sperren, Mandantentrennung) und E2E.
+
 ### EDA-Import als eigener Container, End-to-End-Tests, Admin ohne EEG (16.11.2026)
 - **Container `eda-worker`** (`eda-parser/worker.py`, `eda-parser/Dockerfile`): Upload und Postfach-Abruf legen
   einen Job in `eda_import_jobs` an (`migrate_20261118.sql`), der Worker ruft die unveränderten Parser auf.

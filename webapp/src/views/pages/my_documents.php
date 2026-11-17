@@ -54,6 +54,20 @@
 </div>
 <?php endif; ?>
 
+<?php if (!empty($assemblies)): ?>
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:1rem"><?= icon('users-three') ?> Protokolle der Mitgliederversammlungen</h3>
+  <ul style="margin:0;padding-left:1.2rem">
+    <?php foreach ($assemblies as $asm): ?>
+      <li style="margin-bottom:.4rem">
+        <a href="/portal/my/versammlungen/<?= htmlspecialchars($asm['id']) ?>/pdf" target="_blank" rel="noopener">
+          <?= htmlspecialchars($asm['title']) ?> vom <?= date('d.m.Y', strtotime($asm['held_on'])) ?></a>
+      </li>
+    <?php endforeach; ?>
+  </ul>
+</div>
+<?php endif; ?>
+
 <div class="card">
   <h3 style="margin-bottom:1rem"><?= icon('paperclip') ?> Meine Dateien</h3>
   <?php if (empty($member_files)): ?>
