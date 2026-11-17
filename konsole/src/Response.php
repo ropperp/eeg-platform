@@ -40,7 +40,11 @@ final class Response
 
     public static function asset(string $file): self
     {
-        $type = str_ends_with($file, '.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
+        $type = match (pathinfo($file, PATHINFO_EXTENSION)) {
+            'css'   => 'text/css; charset=utf-8',
+            'png'   => 'image/png',
+            default => 'text/javascript; charset=utf-8',
+        };
         $r = new self(200, (string) @file_get_contents($file), $type);
         return $r->header('Cache-Control', 'public, max-age=300');
     }

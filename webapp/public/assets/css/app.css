@@ -1105,6 +1105,14 @@ footer {
 .admin-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .6rem; }
 .admin-quick a { display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem; border-radius: 10px; border: 1px solid var(--gray-200, #e5e7eb); text-decoration: none; color: inherit; font-weight: 500; font-size: .9rem; }
 .admin-quick a:hover, .admin-quick a:focus-visible { border-color: var(--primary, #16a34a); }
+.control-center-tile { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; text-decoration: none; color: #fff;
+  background: linear-gradient(120deg, #1a2033 0%, #14596a 60%, #16a34a 100%); border: 0; }
+.control-center-tile:hover, .control-center-tile:focus-visible { filter: brightness(1.08); }
+.control-center-icon { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 12px; background: rgba(255,255,255,.15); font-size: 1.5rem; flex: none; }
+.control-center-text { display: grid; gap: .15rem; flex: 1; }
+.control-center-text strong { font-size: 1.1rem; }
+.control-center-text span { opacity: .85; font-size: .9rem; }
+.control-center-go { font-size: 1.4rem; flex: none; }
 [data-design="glas"] .admin-quick a { border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.12); }
 
 /* ── Kundenansicht ("Ins Portal des Kunden", 14.11.2026) ── */

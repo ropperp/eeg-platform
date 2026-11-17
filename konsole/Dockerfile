@@ -16,6 +16,10 @@ WORKDIR /app
 COPY konsole/public/ /app/public/
 COPY konsole/src/ /app/src/
 COPY webapp/src/WebAuthn.php /app/src/WebAuthn.php
+# Logos für Kopfzeile, Anmeldung und Wartungsseite (gleiche Dateien wie die Webapp).
+COPY webapp/public/assets/images/logo-white.png /app/public/logo-white.png
+COPY webapp/public/assets/images/logo.png /app/public/logo.png
+COPY webapp/public/assets/images/logo-mark-color.png /app/public/favicon.png
 
 # Eingebauter PHP-Server: für 1-2 gleichzeitige Admins ausreichend, keine weiteren Prozesse.
 ENV PHP_CLI_SERVER_WORKERS=3

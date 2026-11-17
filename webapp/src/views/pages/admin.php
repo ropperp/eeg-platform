@@ -51,6 +51,16 @@
   </div>
 </div>
 
+<?php $dw->end(); $dw->start('steuerzentrale', 'Steuerzentrale'); ?>
+<a class="card control-center-tile" href="<?= htmlspecialchars(AppConfig::get()->controlCenterUrl()) ?>" target="_blank" rel="noopener">
+  <span class="control-center-icon"><?= icon('gear') ?></span>
+  <span class="control-center-text">
+    <strong>Steuerzentrale</strong>
+    <span>Wartungsmodus, Status und Neustart der Dienste, Logs. Öffnet in einem neuen Tab, Anmeldung mit Passkey.</span>
+  </span>
+  <span class="control-center-go"><?= icon('arrow-right') ?></span>
+</a>
+
 <?php $dw->end(); $dw->start('aufgaben', 'Offene Aufgaben je EEG'); ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.25rem"><?= icon('list-checks') ?> Offene Aufgaben je EEG</h3>
@@ -124,6 +134,7 @@
     <a href="/admin/templates"><?= icon('folder-simple') ?> Vorlagen &amp; Dateien</a>
     <a href="/portal/dokumente"><?= icon('file-text') ?> Rechtstexte</a>
     <a href="/admin/backups"><?= icon('floppy-disk') ?> Backups</a>
+    <a href="<?= htmlspecialchars(AppConfig::get()->controlCenterUrl()) ?>" target="_blank" rel="noopener"><?= icon('gear') ?> Steuerzentrale ↗</a>
   </div>
 </div>
 

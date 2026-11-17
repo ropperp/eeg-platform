@@ -1,11 +1,16 @@
 <?php
 $title = 'Anmelden – Steuerzentrale';
+$bare = true;
 ob_start(); ?>
-<section class="card narrow">
-  <h1>Anmelden</h1>
-  <p>Zugang nur für Platform-Admins, ausschließlich mit Passkey. Es gelten dieselben Passkeys wie im Portal
-     (einrichten unter Portal → Profil → Passkeys).</p>
-  <button type="button" class="btn primary" data-login>Mit Passkey anmelden</button>
-  <p class="msg" data-msg></p>
-</section>
+<div class="hero">
+  <section class="hero-card">
+    <img class="logo" src="/logo-white.png" alt="strom für alle">
+    <h1>Steuerzentrale</h1>
+    <p>Wartungsmodus, Dienste und Logs der Plattform.</p>
+    <button type="button" class="btn primary big" data-login>Mit Passkey anmelden</button>
+    <p class="msg" data-msg></p>
+    <p class="hint">Nur für Platform-Admins. Es gelten dieselben Passkeys wie im Portal
+      (einrichten unter Profil → Passkeys).</p>
+  </section>
+</div>
 <?php $inner = ob_get_clean(); require __DIR__ . '/layout.php';

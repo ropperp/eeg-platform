@@ -120,21 +120,7 @@ sudo certbot --nginx -d admin.stromfueralle.at        # danach https://admin.str
 Die Anmeldung (Passkey, `__Host-`-Cookie mit `Secure`) funktioniert **nur über HTTPS**, über reines
 `http://` erscheint nur die Login-Seite.
 
-**Wartungstext auch auf der statischen Wartungsseite** (`/etc/nginx/error_pages/wartung.html`, greift bei
-502/503/504 und damit auch im Wartungsmodus, weil die Konsole dort 503 liefert): an passender Stelle
-einfügen. Ist auch der Pi weg, bleibt der bisherige Standardtext stehen.
-```html
-<p id="wartung-text" style="white-space:pre-line"></p>
-<p id="wartung-bis"></p>
-<script>
-fetch('https://admin.stromfueralle.at/wartung.json', { cache: 'no-store' })
-  .then(function (r) { return r.json(); })
-  .then(function (d) {
-    if (!d.active) return;
-    if (d.message) document.getElementById('wartung-text').textContent = d.message;
-    if (d.until) document.getElementById('wartung-bis').textContent =
-      'Voraussichtlich wieder erreichbar: ' + new Date(d.until).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' }) + ' Uhr';
-  })
-  .catch(function () {});
-</script>
-```
+**Wartungsmodus und Kurzschluss-Seite:** Im Wartungsmodus liefert die Konsole ihre eigene Wartungsseite mit
+Text und voraussichtlichem Ende und dem Status **500**. Bei 502/503/504 würde dieser Proxy sie durch seine
+Ausfall-Seite („Kurzschluss“) ersetzen, 500 lässt er durch. Die Kurzschluss-Seite bleibt damit für echte,
+ungeplante Ausfälle reserviert. An der nginx-Konfiguration ist dafür nichts zu ändern.

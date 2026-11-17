@@ -83,10 +83,12 @@ test('Konsole: Health, Wartungstext mit CORS nur für eigene Hosts, fremde Hosts
     $evil = kz_req($env, 'GET', '/wartung.json', [], '', 'admin.stromfueralle.at', ['HTTP_ORIGIN' => 'https://boese.example']);
     assertSame(null, $evil->headerValue('Access-Control-Allow-Origin'));
     $page = kz_req($env, 'GET', '/', [], '', 'stromfueralle.at');
-    assertSame(503, $page->status);
+    assertSame(500, $page->status, '500, damit der nginx-Proxy nicht seine Ausfall-Seite davorsetzt');
     assertContains('Wartungsarbeiten', $page->body);
     assertSame('1800', $page->headerValue('Retry-After'));
     assertFalse(str_contains($page->body, 'Passkey'), 'keine Anmeldung auf fremdem Host');
+    assertContains('logo-white.png', $page->body);
+    assertSame('image/png', kz_req($env, 'GET', '/logo-white.png', [], '', 'stromfueralle.at')->headerValue('Content-Type'));
 });
 
 test('Konsole: ohne Anmeldung nur die Login-Seite, Aktionen 401', function () {
@@ -106,7 +108,7 @@ test('Konsole: Anmeldung per Passkey; fremder Schlüssel, falsche Herkunft und W
     assertSame(200, $ok->status);
     assertTrue(isset($env['cookies']['__Host-konsole_s']), 'Sitzungs-Cookie mit __Host-Präfix');
     $dash = kz_req($env, 'GET', '/');
-    assertContains('Angemeldet als <strong>Test Admin</strong>', $dash->body);
+    assertContains('<span>Test Admin</span>', $dash->body);
     assertContains('Docker nicht erreichbar', $dash->body, 'ohne Socket: Hinweis statt Absturz');
     unset($env['cookies']['__Host-konsole_s']);
     assertSame(401, kz_login($env, 5)->status, 'gleicher Zähler = kopierter Schlüssel/Wiederholung');

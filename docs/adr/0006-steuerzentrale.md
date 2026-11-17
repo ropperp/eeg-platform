@@ -24,9 +24,9 @@ Webapp, Datenbank oder Traefik hängen. Eine Seite innerhalb der Webapp fiele ge
   Dateisystem. Der Code ist klein und hat keine Fremdbibliotheken.
 - **Wartungsmodus:** Die Konsole legt `docker/traefik/maintenance.yml` ab. Traefik liest den ganzen Ordner
   (`providers.file.directory`, `watch`), und ein Router mit hoher Priorität schickt alle öffentlichen Hosts
-  auf die Wartungsseite der Konsole (HTTP 503, `Retry-After`). Beim Beenden wird die Datei gelöscht.
-  `GET /wartung.json` (CORS nur für die eigenen Hosts) liefert den Text auch der statischen Wartungsseite am
-  nginx-Proxy, die bei 502/503/504 greift.
+  auf die Wartungsseite der Konsole (HTTP 500, `Retry-After`; 503 würde der nginx-Proxy durch seine Ausfall-Seite ersetzen). Beim Beenden wird die Datei gelöscht.
+  `GET /wartung.json` (CORS nur für die eigenen Hosts) liefert Text und Ende maschinenlesbar, z. B. für die
+  statische Ausfall-Seite am nginx-Proxy.
 - Eingebauter PHP-Server (`php -S`, 3 Worker): genügt für ein bis zwei gleichzeitige Admins und braucht keine
   weiteren Prozesse.
 
