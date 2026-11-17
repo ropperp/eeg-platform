@@ -341,6 +341,9 @@
           <span class="badge badge-red" style="margin-left:.4rem"><?= $unreadSupportMessages ?></span>
         <?php endif; ?>
       </a>
+      <a href="/portal/versammlungen" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/versammlungen') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('users-three') ?></span><span class="sidebar-text">Mitgliederversammlungen</span>
+      </a>
       <a href="/portal/eda/upload" class="<?= str_contains($_SERVER['REQUEST_URI'], 'eda') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('folder-open') ?></span><span class="sidebar-text">EDA-Import</span>
       </a>

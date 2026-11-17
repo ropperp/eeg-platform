@@ -33,6 +33,11 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"app_user";
 -- werden muss.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app_user";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"app_user";
+-- Öffentlicher Unterschrifts-Link der Versammlungsprotokolle (migrate_20261119.sql): einzige
+-- Funktion, die die App-Rolle ausdrücklich braucht (PUBLIC ist dort entzogen).
+SELECT format('GRANT EXECUTE ON FUNCTION assembly_signer_by_token(TEXT) TO %I', :'app_user')
+WHERE EXISTS (SELECT FROM pg_proc WHERE proname = 'assembly_signer_by_token')
+\gexec
 
 GRANT CONNECT ON DATABASE :"dbname" TO :"worker_user";
 GRANT USAGE ON SCHEMA public TO :"worker_user";

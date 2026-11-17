@@ -1463,3 +1463,18 @@ docker compose up -d --build
 > docker compose exec webapp php /var/www/html/bin/db_role_check.php && echo "Rolle OK"
 > ```
 
+> **Einmalig nach dem Update vom 17.11.2026 -- Protokolle von Mitgliederversammlungen**: neue Tabellen und
+> eine Funktion für den Unterschrifts-Link (die Migration gibt sie der Webapp-Rolle `eeg_app` selbst frei).
+> **Reihenfolge:** erst die Migration, dann bauen -- der latex-service bekommt die neuen Vorlagen
+> `protokoll.tex`/`briefkopf.tex` und das Einbinden gemeinsamer Bausteine.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261119.sql
+> docker compose up -d --build
+> sleep 60 && docker compose ps                      # webapp + latex-service "healthy"
+> ```
+> Test: als Obmann → „Mitgliederversammlungen“ → Protokoll anlegen, einen Punkt und sich selbst als
+> Unterzeichner eintragen, freigeben, „Jetzt vor Ort“ unterschreiben → PDF wird abgelegt
+> (`/opt/eeg/webapp-storage/assemblies/<EEG>/<Protokoll>.pdf`, im Backup enthalten).
+> **Rückfall:** `git revert` und `docker compose up -d --build`; die Tabellen bleiben harmlos bestehen.
