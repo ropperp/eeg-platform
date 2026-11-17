@@ -60,6 +60,12 @@ final class AppConfig
             && filter_var($this->domain, FILTER_VALIDATE_IP) === false;
     }
 
+    /** Steuerzentrale (Container konsole, docs/adr/0006-steuerzentrale.md), eigene Subdomain admin.<DOMAIN>. */
+    public function controlCenterUrl(): string
+    {
+        return ($this->domainSplit() ? 'https://admin.' . $this->domain : 'http://' . $this->domain . ':8090') . '/';
+    }
+
     public function marketingBaseUrl(): string
     {
         return ($this->domainSplit() ? 'https://' : 'http://') . $this->domain;

@@ -23,9 +23,12 @@ latex-service; Unit-, Integrations- und E2E-Tests grün, PDF mit dem echten late
 Paket B umgesetzt: Container `konsole` (admin.stromfueralle.at, Passkey-only, Wartungsmodus über eine
 Traefik-Datei, Status/Logs/Neustart aus fester Liste), ADR 0006, nginx-Block in `docs/NGINX_PROXY.md`;
 Unit-Tests und ein Test gegen echtes Docker + Traefik. Offen: Rechnung/Verträge auf den Briefkopf umstellen.
-**Fehler/Lehre:** Eine Datei lässt sich nicht in einen schreibgeschützt eingebundenen Ordner mounten
+Nachtrag: Wartungsseite mit Status 500 (503 ersetzte der nginx-Proxy durch die Kurzschluss-Seite),
+Konsole im Plattform-Design, Kachel im Admin-Dashboard.
+**Fehler/Lehre:** Eine Datei lässt sich nicht in einen schreibgeschützt eingebundenen Ordner mounten (Fortsetzung unten)
 (Traefik startete lokal nicht) -- deshalb wird der ganze Ordner `docker/traefik/` eingebunden. Auf dem Pi
-braucht die Konsole `DAC_OVERRIDE`, um in den Repo-Ordner des Server-Benutzers zu schreiben.
+braucht die Konsole `DAC_OVERRIDE`, um in den Repo-Ordner des Server-Benutzers zu schreiben. Der nginx-Proxy
+fängt 502/503/504 ab, deshalb erschien im Wartungsmodus zuerst die Kurzschluss-Seite ohne Hinweis.
 
 ## 2026-11-16 15:00 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
 **Auftrag:** Einen extern erstellten Umsetzungsauftrag (Robustheit, Wartbarkeit, Ressourcen) Paket für

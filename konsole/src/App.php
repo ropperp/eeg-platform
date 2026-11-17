@@ -10,7 +10,7 @@ namespace Konsole;
  * Anmeldung nur per Passkey eines Platform-Admins (dieselben Passkeys wie im Portal).
  *
  * Auf allen anderen Hosts (Traefik leitet sie im Wartungsmodus hierher) zeigt sie nur die
- * Wartungsseite (HTTP 503).
+ * Wartungsseite (HTTP 500, siehe maintenancePage()).
  */
 final class App
 {
@@ -49,7 +49,7 @@ final class App
         if ($path === '/wartung.json' && $method === 'GET') {
             return $this->maintenanceJson((string) ($server['HTTP_ORIGIN'] ?? ''));
         }
-        if ($method === 'GET' && in_array($path, ['/konsole.js', '/konsole.css'], true)) {
+        if ($method === 'GET' && in_array($path, ['/konsole.js', '/konsole.css', '/logo-white.png', '/logo.png', '/favicon.png'], true)) {
             return Response::asset(__DIR__ . '/../public' . $path);
         }
         if ($host !== $this->config->adminHost) {
@@ -184,7 +184,7 @@ final class App
         } catch (\Throwable $e) {
             $text = 'Logs nicht lesbar: ' . $e->getMessage();
         }
-        return Response::html($this->render('logs', ['name' => $name, 'text' => $text, 'user' => (string) $s['name']]));
+        return Response::html($this->render('logs', ['name' => $name, 'text' => $text, 'user' => (string) $s['name'], 'csrf' => $this->csrf($s)]));
     }
 
     /** @param array<string, mixed> $s */
@@ -225,10 +225,15 @@ final class App
 
     // ─── Wartungsseite (öffentlich) ─────────────────────────────────────────
 
+    /**
+     * Status 500 statt 503: der nginx-Proxy fängt 502/503/504 ab und zeigt dann seine eigene
+     * Ausfall-Seite ("Kurzschluss") -- die geplante Wartung soll aber DIESE Seite mit Text und Ende
+     * zeigen. Für Suchmaschinen gilt jeder 5xx-Status gleich als "vorübergehend nicht verfügbar".
+     */
     private function maintenancePage(): Response
     {
         $state = $this->maintenance->state();
-        return Response::html($this->render('wartung', ['wartung' => $state]), 503)
+        return Response::html($this->render('wartung', ['wartung' => $state]), 500)
             ->header('Retry-After', (string) $this->maintenance->retryAfter())
             ->header('Cache-Control', 'no-store');
     }

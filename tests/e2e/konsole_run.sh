@@ -60,7 +60,7 @@ waitsite() { for _ in $(seq 1 20); do [ "$(site)" = "$1" ] && break; sleep 0.5; 
 echo "Steuerzentrale (echtes Docker + Traefik)"
 check "ohne Anmeldung: Login-Seite" "$(code "http://localhost:$K_PORT/")" "200"
 check "ohne Anmeldung: Neustart abgelehnt" "$(code -X POST -d "dienst=$P-web" "http://localhost:$K_PORT/neustart")" "401"
-check "Übersicht listet Dienst aus Docker" "$(curl -s -H "$C" "http://localhost:$K_PORT/" | grep -c "<strong>$P-web</strong>")" "1"
+check "Übersicht listet Dienst aus Docker" "$(curl -s -H "$C" "http://localhost:$K_PORT/" | grep -c "<span class=\"name\">$P-web</span>")" "1"
 check "Logs eines erlaubten Dienstes" "$(code -H "$C" "http://localhost:$K_PORT/logs?dienst=$P-web")" "200"
 check "Logs eines fremden Containers: 404" "$(code -H "$C" "http://localhost:$K_PORT/logs?dienst=$P-konsole")" "404"
 check "Neustart ohne CSRF: 403" "$(code -H "$C" -d "dienst=$P-web" "http://localhost:$K_PORT/neustart")" "403"
@@ -68,7 +68,7 @@ before=$(docker inspect -f '{{.State.StartedAt}}' $P-web)
 code -H "$C" -d "csrf=$CSRF&dienst=$P-web" "http://localhost:$K_PORT/neustart" >/dev/null; sleep 2
 check "Neustart startet den Container wirklich neu" "$([ "$(docker inspect -f '{{.State.StartedAt}}' $P-web)" != "$before" ] && echo ja)" "ja"
 code -H "$C" --data-urlencode "csrf=$CSRF" --data-urlencode "aktion=ein" --data-urlencode "text=E2E-Wartung" --data-urlencode "bis=2099-01-01T20:00" "http://localhost:$K_PORT/wartung" >/dev/null
-check "Wartung ein: Seite liefert 503" "$(waitsite 503)" "503"
+check "Wartung ein: Seite liefert 500 (nicht 503, sonst Proxy-Ausfallseite)" "$(waitsite 500)" "500"
 check "  ... mit dem eingegebenen Text" "$(curl -s -H "Host: stromfueralle.at" "http://localhost:$WEB_PORT/" | grep -c "E2E-Wartung")" "1"
 code -H "$C" -d "csrf=$CSRF&aktion=aus" "http://localhost:$K_PORT/wartung" >/dev/null
 check "Wartung aus: Seite wieder 200" "$(waitsite 200)" "200"

@@ -77,6 +77,7 @@ req adm $PORTAL GET /portal/members
 check "Platform-Admin ohne gewählte EEG: Hinweis statt Serverfehler" "$CODE $(cut -d'?' -f1 <<<"$LOC")" "302 /admin"
 req adm $PORTAL GET /admin
 check "Platform-Admin: Admin-Bereich erreichbar" "$CODE" "200"
+contains "  ... mit Kachel zur Steuerzentrale (neuer Tab)" "$BODY" 'class="card control-center-tile" href="https://admin.stromfueralle.at/" target="_blank" rel="noopener"'
 req mgr $PORTAL GET /admin
 check "Obmann: Admin-Bereich verboten" "$CODE" "403"
 

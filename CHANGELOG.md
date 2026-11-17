@@ -23,11 +23,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 - **Neuer Container `konsole`** (`konsole/`, Port 8090, direkt vom nginx-Proxy, nicht über Traefik): Status aller
   Dienste, letzte Logzeilen, Neustart einzelner Dienste aus einer festen Liste, Aktionsprotokoll.
 - **Wartungsmodus mit Text und voraussichtlichem Ende:** Traefik schickt die öffentlichen Hosts dann auf eine
-  Wartungsseite (HTTP 503, `Retry-After`), unabhängig davon, ob die Webapp läuft. Den Text liefert
+  Wartungsseite (HTTP 500, `Retry-After`; 503 würde der nginx-Proxy durch seine Ausfall-Seite ersetzen), unabhängig davon, ob die Webapp läuft. Den Text liefert
   `/wartung.json` auch der Wartungsseite am nginx-Proxy.
 - **Anmeldung nur per Passkey** eines Platform-Admins (dieselben wie im Portal), funktioniert dank lokaler
   Schlüssel-Kopie auch bei Datenbank-Ausfall. Signierte `__Host-`-Cookies, CSRF.
 - Traefik liest jetzt den Ordner `docker/traefik/` statt einer Einzeldatei; Router `admin.` entfernt.
+- Nachtrag: Wartungsseite antwortet mit 500 statt 503, sonst ersetzt der nginx-Proxy sie durch seine
+  Ausfall-Seite („Kurzschluss“). Konsole und Wartungsseite im Design der Plattform (Logo, Markenfarben,
+  Dienste als Karten mit Status). Kachel „Steuerzentrale“ im Admin-Dashboard (öffnet in neuem Tab).
 - Entscheidung: `docs/adr/0006-steuerzentrale.md`. Tests: `tests/konsole_test.php`, `tests/e2e/konsole_run.sh`
   (echtes Docker + Traefik, auch in der CI).
 
