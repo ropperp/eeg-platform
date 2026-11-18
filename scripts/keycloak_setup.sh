@@ -76,6 +76,19 @@ $COMPOSE up -d --build keycloak
 # und später die Anmeldung). Ohne diesen Schritt meldet der Import "KC_PORTAL_CLIENT_SECRET fehlt".
 $COMPOSE up -d webapp
 
+# master-Realm (nur Admin-Konsole) auf die Tunnel-Adresse legen. Sonst schickt sein Anmeldeformular an
+# https://auth.<DOMAIN>/realms/master/..., und genau das sperrt Traefik absichtlich (Login hängt).
+echo "Warte, bis keycloak bereit ist..."
+for _ in $(seq 1 60); do
+  [ "$($COMPOSE ps --format '{{.Health}}' keycloak 2>/dev/null)" = "healthy" ] && break
+  sleep 5
+done
+$COMPOSE exec -T keycloak bash -c '/opt/keycloak/bin/kcadm.sh config credentials --config /tmp/kcadm.config \
+    --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" >/dev/null \
+  && /opt/keycloak/bin/kcadm.sh update realms/master --config /tmp/kcadm.config -s attributes.frontendUrl=http://localhost:8081' \
+  && echo "✓ master-Realm nur über http://localhost:8081 (SSH-Tunnel)." \
+  || echo "! master-Realm nicht umgestellt (Bootstrap-Admin schon gelöscht?), siehe docs/BETRIEBSHANDBUCH.md."
+
 echo ""
 echo "─────────────────────────────────────────────────────────────"
 echo "Fertig. Noch nötig:"

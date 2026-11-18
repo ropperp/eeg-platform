@@ -1518,6 +1518,10 @@ docker compose up -d --build
 > `ssh -L 8081:127.0.0.1:8081 <server>`, dann `http://localhost:8081/admin` (Benutzer `admin`, Passwort
 > `KC_BOOTSTRAP_ADMIN_PASSWORD` aus der `.env`). Dort gleich einen dauerhaften Admin im `master`-Realm anlegen
 > und den Bootstrap-Admin löschen.
+> Hängt die Anmeldung dort (Formular schickt an `https://auth…/realms/master`), war der `master`-Realm noch nicht
+> auf die Tunnel-Adresse gestellt (vor dem Fix vom 18.11.2026). Einmalig nachholen:
+> `docker compose exec keycloak bash -c '/opt/keycloak/bin/kcadm.sh config credentials --config /tmp/k --server http://localhost:8080 --realm master --user admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" && /opt/keycloak/bin/kcadm.sh update realms/master --config /tmp/k -s attributes.frontendUrl=http://localhost:8081'`.
+> Browser für den Tunnel: Chrome oder Firefox. Safari behält die Anmelde-Cookies auf `http://localhost` nicht zuverlässig.
 > Google (optional, später): in der Google Cloud Console einen OAuth-Client „Webanwendung“ anlegen,
 > Weiterleitungs-URI `https://auth.stromfueralle.at/realms/stromfueralle/broker/google/endpoint`. Weil der
 > Realm bereits existiert, Client-ID und Secret in der Admin-Konsole unter *Identity providers → google*
