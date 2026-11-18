@@ -8,6 +8,21 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-19 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
+**Auftrag:** Portal-Anmeldung auf Keycloak umstellen (Schritt 2), mit Möglichkeit, zuerst nur mit dem eigenen
+Konto zu testen; vorher Deploy-Pannen von Schritt 1 behoben (Webapp ohne Secret, Admin-Konsole im Tunnel, Google
+ohne 2FA, Passwortabfrage im Update-Skript).
+**Verbesserter Prompt:** "Stelle die Portal-Anmeldung auf Keycloak um (OIDC/PKCE, Rücksprung unter /portal/, Login-Seite
+im Glas-Design), schaltbar mit Testmodus. Das Portal bleibt Quelle für Profil, Passwort, 2FA und Sperre: Änderungen
+per DB-Trigger in eine Warteschlange und nach jeder Anfrage an Keycloak übertragen. Abmelden überall inkl. Backchannel,
+Rückfall bei Keycloak-Ausfall, Google und Passkeys im Profil. Bestehenden Realm per idempotentem Skript nachziehen.
+E2E im Browser-Ablauf gegen echtes Keycloak."
+**Ergebnis:** Branch `feature/keycloak-login`: KeycloakAuthController/Oidc/Jwt/Sync, Migration `migrate_20261121.sql`,
+Theme `keycloak/themes/stromfueralle`, Realm-Update-Skript erweitert, Doku. Unit 383, E2E alt 63 und Keycloak 41
+grün, PHPStan ohne Fehler. Offen: Steuerzentrale über Keycloak (Schritt 4).
+**Fehler/Lehre:** Der Portal-Host leitet alles außer /portal/* um, Rücksprung deshalb /portal/auth/callback; nach
+fastcgi_finish_request() muss die Sitzung vorher geschrieben sein, sonst verliert die nächste Weiterleitung die Anmeldung.
+
 ## 2026-11-18 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
 **Auftrag:** Single Sign-on zwischen Portal und Steuerzentrale, Anmeldung mit Google, ohne dass Mitglieder ein
 neues Passwort setzen. Nach Abwägung bewusst auf einen bewährten Anmeldedienst (Keycloak) statt eigenen Code

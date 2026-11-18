@@ -16,10 +16,33 @@ use App\Support\Services;
 // ─── Portal: Login ──────────────────────────────────────
 $router->get('/portal/login', function () {
     if (Auth::check()) { header('Location: /portal/dashboard'); exit; }
+    // Anmeldung über Keycloak (AUTH_PROVIDER=keycloak, docs/adr/0007-keycloak.md). Ist Keycloak nicht
+    // erreichbar, bleibt es bei der bisherigen Login-Seite mit Hinweis.
+    Services::keycloakAuth()->login()?->send();
+    if (Services::keycloakAuth()->showOutageNotice()) {
+        $notice = 'Der Anmeldedienst ist gerade nicht erreichbar. Sie können sich hier wie gewohnt anmelden.';
+    }
     require ROOT . '/src/views/pages/' . (platformDesign() === 'glas' ? 'login_glass.php' : 'login.php');
 });
 
+// Bisherige Anmeldung (Formular, 2FA, Passkey): bei AUTH_PROVIDER=keycloak nur, solange Keycloak nicht
+// erreichbar ist. Sonst ginge sie an Brute-Force-Schutz und Google-Verknüpfung von Keycloak vorbei.
+function requireLocalLogin(): void
+{
+    if (!Services::keycloakAuth()->localLoginAllowed()) {
+        header('Location: /portal/login');
+        exit;
+    }
+}
+
+$router->get('/portal/auth/callback', fn() => Services::keycloakAuth()->callback($_GET)->send());
+$router->get('/portal/auth/google', fn() => Services::keycloakAuth()->action('google')->send());
+$router->get('/portal/auth/passkey', fn() => Services::keycloakAuth()->action('passkey')->send());
+$router->post('/portal/auth/google/unlink', fn() => Services::keycloakAuth()->unlinkGoogle()->send());
+$router->post('/portal/auth/passkey/delete', fn() => Services::keycloakAuth()->deletePasskey($_POST)->send());
+
 $router->post('/portal/login', function () {
+    requireLocalLogin();
     $email    = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     // Vor dem eigentlichen Passwort-Check gegen Brute-Force sperren (OWASP-Audit 13.08.2026) --
@@ -55,6 +78,7 @@ $router->get('/portal/login/2fa', function () {
 });
 
 $router->post('/portal/login/2fa', function () {
+    requireLocalLogin();
     $uid = $_SESSION['2fa_pending_user'] ?? null;
     if (!$uid) { header('Location: /portal/login'); exit; }
     // Brute-Force-Schutz für den 6-stelligen Code (OWASP-Audit 13.08.2026) -- ohne Sperre wären
@@ -125,6 +149,7 @@ function passkeyPostedData(): array
 }
 
 $router->post('/portal/login/passkey/options', function () {
+    requireLocalLogin();
     if (!RateLimiter::allow('passkey_opts', clientIp(), 60, 600)) {
         passkeyJson(['error' => 'Zu viele Versuche. Bitte später erneut versuchen.'], 429);
     }
@@ -138,6 +163,7 @@ $router->post('/portal/login/passkey/options', function () {
 });
 
 $router->post('/portal/login/passkey/verify', function () {
+    requireLocalLogin();
     $fail = fn(): never => passkeyJson(['error' => 'Passkey konnte nicht bestätigt werden. Bitte mit Passwort anmelden.'], 401);
     if (!RateLimiter::allow('passkey_login', clientIp(), 20, 900)) {
         passkeyJson(['error' => 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.'], 429);
@@ -233,11 +259,7 @@ $router->post('/portal/profile/passkeys/delete', function () {
     exit;
 });
 
-$router->get('/portal/logout', function () {
-    Auth::logout();
-    header('Location: /portal/login');
-    exit;
-});
+$router->get('/portal/logout', fn() => Services::keycloakAuth()->logout()->send());
 
 /**
  * Bestätigt das Pre-Launch-Hinweis-Popup (nur Mitglieder-Ansicht, siehe layouts/portal.php) --
@@ -3063,6 +3085,7 @@ $router->get('/portal/profile', function () {
     $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [Auth::userId()]);
     $profileMember = currentProfileMember();
     $profilePasskeys = DB::fetchAll('SELECT id, label, created_at, last_used_at FROM user_passkeys WHERE user_id = ? ORDER BY created_at', [Auth::userId()]);
+    $kcLogin = Services::keycloakAuth()->profileInfo();
     if (!empty($_GET['success'])) { $success = $_GET['success']; }
     if (!empty($_GET['error'])) { $error = $_GET['error']; }
     require ROOT . '/src/views/pages/profile.php';

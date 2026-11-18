@@ -1539,3 +1539,31 @@ docker compose up -d --build
 > ```
 > Künftige Realm-Korrekturen kommen ebenfalls in dieses Skript (mehrfach ausführbar).
 
+> **Einmalig nach dem Update vom 19.11.2026 -- Portal-Anmeldung über Keycloak (Schritt 2)**: Login-Seite im
+> Plattform-Design, gemeinsame Anmeldung, automatischer Abgleich Portal -> Keycloak. Erst im **Testmodus**
+> (nur über einen eigenen Link), dann für alle. Hintergrund: `docs/adr/0007-keycloak.md`.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261121.sql
+> docker compose up -d --build webapp keycloak          # Keycloak bekommt das Login-Theme
+> sleep 120 && docker compose ps keycloak                # "healthy"
+> ./scripts/keycloak_realm_update.sh                     # Admin im master-Realm; am Ende "Fertig."
+> docker compose exec -T webapp php /var/www/html/bin/keycloak_import_users.php --all   # alles einmal abgleichen
+> ( crontab -l 2>/dev/null; echo "* * * * * cd /opt/eeg-platform && docker compose exec -T webapp php /var/www/html/bin/keycloak_sync.php >> /var/log/eeg-keycloak-sync.log 2>&1" ) | crontab -
+> ```
+> Der Abgleich am Ende muss `fehler 0` zeigen. Ab jetzt landet jede Änderung im Portal (Passwort, E-Mail, Sperre,
+> 2FA, neues Konto, Löschen) automatisch in Keycloak.
+>
+> **Testmodus:** in der `.env` `AUTH_PROVIDER=keycloak-test`, dann `docker compose up -d webapp`. Alle melden sich
+> weiter wie bisher an. Nur `https://portal.stromfueralle.at/portal/login?keycloak=1` geht über Keycloak. Testen:
+> Anmeldung mit Passwort (und 2FA), Profil → „Anmeldung“ → „Mit Google verknüpfen“ bzw. „Passkey einrichten“,
+> Abmelden (danach muss Keycloak wieder nach dem Passwort fragen).
+>
+> **Für alle umschalten:** `AUTH_PROVIDER=keycloak` in der `.env`, `docker compose up -d webapp`. Ab dann leitet
+> „Anmelden“ zu `auth.stromfueralle.at`. Fällt Keycloak aus, zeigt das Portal automatisch die bisherige
+> Anmeldung mit Hinweis.
+>
+> **Rückfall:** `AUTH_PROVIDER` in der `.env` leeren, `docker compose up -d webapp`. Es geht nichts verloren;
+> der Abgleich läuft weiter.
+

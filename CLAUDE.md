@@ -187,15 +187,19 @@ damit sie auch bei DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeig
 festen Liste neu starten (Docker-Socket, nichts sonst). Aktionen in `/opt/eeg/konsole/audit.log`.
 Entscheidung und Restrisiko: `docs/adr/0006-steuerzentrale.md`, nginx-Block: `docs/NGINX_PROXY.md`.
 
-## Anmeldedienst (keycloak, in Umsetzung)
+## Anmeldedienst (keycloak)
 
 Keycloak unter `auth.<DOMAIN>` (Traefik-Router `auth`, öffentlich nur `/realms/stromfueralle/` und `/resources/`;
 Admin-Konsole nur per SSH-Tunnel auf `127.0.0.1:8081`). Startet nur mit `COMPOSE_PROFILES=keycloak`
 (setzt `scripts/keycloak_setup.sh`). Eigene DB `keycloak`. Keycloak sagt nur, **wer** jemand ist; Rollen, RLS und
 Fachlogik bleiben in der Plattform, Verknüpfung über `users.keycloak_id`, nie über die E-Mail. Passwörter
 werden still übernommen (Argon2id direkt, bcrypt über die Erweiterung `keycloak/providers`, Umstellung auf
-Argon2 beim ersten Login). Realm-Datei `keycloak/realm/` gilt nur beim **ersten** Start, spätere Änderungen
-in der Admin-Konsole nachziehen. Stand und nächste Schritte: `docs/adr/0007-keycloak.md`.
+Argon2 beim ersten Login). Realm-Datei `keycloak/realm/` gilt nur beim **ersten** Start; Änderungen am
+bestehenden Realm kommen in `scripts/keycloak_realm_update.sh` (idempotent).
+Portal-Anmeldung: Schalter `AUTH_PROVIDER` (`keycloak-test` = nur `/portal/login?keycloak=1`, `keycloak` = alle),
+Rücksprung `/portal/auth/callback`. **Das Portal bleibt Quelle** für Profil, Passwort, 2FA, Sperre: Trigger
+schreiben Änderungen in `keycloak_sync_queue`, die Webapp gleicht nach jeder Anfrage ab, Cron
+`bin/keycloak_sync.php` holt nach. Keycloak aus → automatisch bisherige Anmeldung. Details: `docs/adr/0007-keycloak.md`.
 
 ## Messe-/Präsentations-Demo
 

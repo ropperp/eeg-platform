@@ -19,6 +19,17 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Anmeldedienst Keycloak, Schritt 2: Portal-Anmeldung über Keycloak (19.11.2026)
+- Schalter `AUTH_PROVIDER` (`keycloak-test` nur über `/portal/login?keycloak=1`, `keycloak` für alle).
+  Anmeldung mit OIDC/PKCE, Login-Seite im Glas-Design (Theme `stromfueralle`), Abmelden überall inkl.
+  Backchannel, Rückfall auf die bisherige Anmeldung, wenn Keycloak ausfällt.
+- Automatischer Abgleich Portal -> Keycloak über Trigger und Warteschlange (`migrate_20261121.sql`,
+  `KeycloakSync`, Cron `bin/keycloak_sync.php`): Passwort, E-Mail, Sperre, 2FA, Neuanlage, Löschen, Admin-Rolle.
+- Profil: Karte „Anmeldung“ mit Google verknüpfen/lösen und Passkeys für die Anmeldung.
+- `scripts/keycloak_realm_update.sh` bringt den bestehenden Realm auf diesen Stand; Keycloak-Kontoseite aus.
+- Tests: `tests/keycloak_jwt_test.php`, E2E `tests/e2e/keycloak_run.sh` jetzt 41 Prüfungen (Browser-Ablauf,
+  Abgleich, Backchannel, Testmodus, Ausfall).
+
 ### Anmeldedienst Keycloak, Schritt 1: Dienst und Übernahme der Konten (18.11.2026)
 - Neuer Container `keycloak` (`auth.<DOMAIN>`, Compose-Profil `keycloak`, eigene Datenbank), Realm als Datei
   mit Clients für Portal, App und Steuerzentrale, Google-Login (standardmäßig aus), Brute-Force-Schutz.

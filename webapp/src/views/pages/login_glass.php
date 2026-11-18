@@ -21,6 +21,9 @@ ob_start();
           <h1 id="lg-login-title">Willkommen <span>zurück</span></h1>
           <p class="lg-sub">Melden Sie sich im Portal von „Strom für alle“ an.</p>
 
+          <?php if (!empty($notice)): ?>
+            <div class="lg-alert lg-alert-ok" role="status"><?= htmlspecialchars($notice) ?></div>
+          <?php endif; ?>
           <?php if (!empty($error)): ?>
             <div class="lg-alert lg-alert-error" role="alert"><?= htmlspecialchars($error) ?></div>
           <?php endif; ?>

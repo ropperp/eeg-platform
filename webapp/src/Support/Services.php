@@ -9,7 +9,10 @@ use App\Domain\EdaImport\EdaImportJobs;
 use App\Domain\Support\SupportTicketService;
 use App\Http\Controllers\Api\SupportApiController;
 use App\Http\Controllers\AssemblyController;
+use App\Http\Controllers\KeycloakAuthController;
 use App\Http\Controllers\SupportController;
+use App\Infrastructure\Auth\KeycloakConfig;
+use App\Infrastructure\Auth\KeycloakOidc;
 use App\Infrastructure\Database\PdoAssemblyRepository;
 use App\Infrastructure\Database\PdoEdaImportJobRepository;
 use App\Infrastructure\Database\PdoSupportTicketRepository;
@@ -25,6 +28,16 @@ final class Services
 {
     /** @var array<string, object> */
     private static array $instances = [];
+
+    public static function keycloakAuth(): KeycloakAuthController
+    {
+        if (!isset(self::$instances[__FUNCTION__])) {
+            $cfg = KeycloakConfig::fromEnv();
+            self::$instances[__FUNCTION__] = new KeycloakAuthController($cfg, new KeycloakOidc($cfg));
+        }
+        /** @var KeycloakAuthController */
+        return self::$instances[__FUNCTION__];
+    }
 
     public static function supportController(): SupportController
     {

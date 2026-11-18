@@ -9,9 +9,9 @@ declare(strict_types=1);
  * (bcrypt prüft die Erweiterung keycloak/providers, Keycloak stellt beim ersten Login still auf Argon2
  * um). Eingerichtete 2FA (TOTP) wird mit übernommen. Passkeys nicht: die richtet man in Keycloak neu ein.
  *
- * Sicher mehrfach ausführbar: Konten mit gesetzter users.keycloak_id werden übersprungen. Gibt es in
- * Keycloak schon ein Konto mit derselben E-Mail (z. B. abgebrochener Lauf), wird es verknüpft statt
- * doppelt angelegt.
+ * Sicher mehrfach ausführbar: Konten mit gesetzter users.keycloak_id werden übersprungen (mit --all
+ * abgeglichen). Gibt es in Keycloak schon ein Konto mit derselben E-Mail (z. B. abgebrochener Lauf), wird
+ * es verknüpft statt doppelt angelegt. Die Arbeit macht App\\Infrastructure\\Auth\\KeycloakSync.
  *
  * Aufruf (auf dem Server, im Repo-Root):
  *   docker compose exec -T webapp php /var/www/html/bin/keycloak_import_users.php --dry-run
@@ -19,8 +19,8 @@ declare(strict_types=1);
  * Ausgabe enthält nur Zähler und Benutzer-IDs, keine E-Mail-Adressen.
  */
 
-use App\Infrastructure\Auth\KeycloakAdminClient;
 use App\Infrastructure\Auth\KeycloakCredentialMapper;
+use App\Infrastructure\Auth\KeycloakSync;
 
 if (!defined('STDERR')) {
     define('STDERR', fopen('php://stderr', 'w'));
@@ -28,76 +28,57 @@ if (!defined('STDERR')) {
 
 require __DIR__ . '/../src/functions.php';
 require __DIR__ . '/../src/DB.php';
+require __DIR__ . '/../src/AppConfig.php';
 require __DIR__ . '/../src/autoload.php';
 
 $dryRun = in_array('--dry-run', $argv, true);
+// --all: auch bereits verknüpfte Konten abgleichen (z. B. beim Umschalten auf AUTH_PROVIDER=keycloak).
+$all = in_array('--all', $argv, true);
 $out = static fn(string $s) => fwrite(STDOUT, $s . "\n");
 
 $users = DB::fetchAll(
-    "SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.active, u.totp_enabled, u.totp_secret,
-            EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = 'platform_admin') AS is_platform_admin
-     FROM users u
-     WHERE u.keycloak_id IS NULL
-     ORDER BY u.created_at"
+    "SELECT u.id, u.password_hash, u.totp_enabled, u.totp_secret FROM users u"
+    . ($all ? '' : ' WHERE u.keycloak_id IS NULL') . ' ORDER BY u.created_at'
 );
 
-$stats = ['argon2' => 0, 'bcrypt' => 0, 'ohne_passwort' => 0, 'totp' => 0, 'verknuepft' => 0, 'angelegt' => 0, 'fehler' => 0];
-$client = $dryRun ? null : KeycloakAdminClient::fromEnv();
+$stats = ['argon2' => 0, 'bcrypt' => 0, 'ohne_passwort' => 0, 'totp' => 0, 'verknuepft' => 0, 'angelegt' => 0,
+          'aktualisiert' => 0, 'unveraendert' => 0, 'fehler' => 0];
+$sync = $dryRun ? null : KeycloakSync::fromEnv();
+if (!$dryRun && $sync === null) {
+    $out('Keycloak ist nicht eingerichtet (KC_PORTAL_CLIENT_SECRET fehlt). Erst ./scripts/keycloak_setup.sh, dann docker compose up -d webapp.');
+    exit(1);
+}
 
 foreach ($users as $u) {
     $hash = (string) $u['password_hash'];
-    $credentials = [];
-    $pw = KeycloakCredentialMapper::password($hash);
-    if ($pw !== null) {
-        $credentials[] = $pw;
+    if (KeycloakCredentialMapper::password($hash) !== null) {
         $stats[str_starts_with($hash, '$argon2') ? 'argon2' : 'bcrypt']++;
     } else {
         $stats['ohne_passwort']++;
         $out("  Hinweis: Benutzer {$u['id']} hat kein übernehmbares Passwort (setzt es über „Passwort vergessen“).");
     }
-    $totpEnabled = in_array($u['totp_enabled'], [true, 't', 'true', 1, '1'], true);
-    if ($totpEnabled) {
-        $otp = KeycloakCredentialMapper::totp(totpSecretFromStorage($u['totp_secret']));
-        if ($otp !== null) {
-            $credentials[] = $otp;
+    if (in_array($u['totp_enabled'], [true, 't', 'true', 1, '1'], true)) {
+        if (KeycloakCredentialMapper::totp(totpSecretFromStorage($u['totp_secret'])) !== null) {
             $stats['totp']++;
         } else {
             $out("  Hinweis: Benutzer {$u['id']}: 2FA-Secret nicht lesbar, 2FA muss neu eingerichtet werden.");
         }
     }
-    if ($dryRun || $client === null) {
+    if ($sync === null) {
         continue;
     }
-
     try {
-        $email = strtolower(trim((string) $u['email']));
-        $existing = $client->findUserByEmail($email);
-        if ($existing !== null) {
-            $kcId = (string) $existing['id'];
-            $stats['verknuepft']++;
-        } else {
-            $kcId = $client->createUser([
-                'username' => $email,
-                'email' => $email,
-                'emailVerified' => true,
-                'firstName' => (string) $u['first_name'],
-                'lastName' => (string) $u['last_name'],
-                'enabled' => in_array($u['active'], [true, 't', 'true', 1, '1'], true),
-                'credentials' => $credentials,
-            ]);
-            $stats['angelegt']++;
+        $action = $sync->syncUser((string) $u['id']);
+        if (isset($stats[$action])) {
+            $stats[$action]++;
         }
-        if (in_array($u['is_platform_admin'], [true, 't', 'true', 1, '1'], true)) {
-            $client->assignRealmRole($kcId, 'platform_admin');
-        }
-        DB::execute('UPDATE users SET keycloak_id = ?, keycloak_synced_at = now() WHERE id = ?', [$kcId, $u['id']]);
     } catch (\Throwable $e) {
         $stats['fehler']++;
         $out("  FEHLER bei Benutzer {$u['id']}: " . $e->getMessage());
     }
 }
 
-$out(($dryRun ? '[Probelauf] ' : '') . count($users) . ' Konto/Konten ohne Keycloak-Verknüpfung.');
+$out(($dryRun ? '[Probelauf] ' : '') . count($users) . ($all ? ' Konto/Konten geprüft.' : ' Konto/Konten ohne Keycloak-Verknüpfung.'));
 foreach ($stats as $k => $v) {
     $out(sprintf('  %-14s %d', $k, $v));
 }

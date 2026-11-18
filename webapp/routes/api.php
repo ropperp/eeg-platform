@@ -14,6 +14,10 @@ declare(strict_types=1);
 
 use App\Support\Services;
 
+// Backchannel-Abmeldung: Keycloak ruft das intern auf (http://webapp/api/kc/backchannel-logout), wenn die
+// gemeinsame Sitzung endet. Kein CSRF (/api/), geprüft wird das signierte Logout-Token.
+$router->post('/api/kc/backchannel-logout', fn() => \App\Support\Services::keycloakAuth()->backchannelLogout($_POST)->send());
+
 $router->get('/api/live/:slug', function ($params) {
     header('Content-Type: application/json');
     $slug = $params['slug'];

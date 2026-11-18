@@ -60,6 +60,18 @@ register_shutdown_function(function () {
     }
 });
 
+// Abgleich Portal -> Keycloak (docs/adr/0007-keycloak.md): nach der Antwort an den Browser die
+// Warteschlange abarbeiten (Trigger in migrate_20261121.sql), damit z. B. ein geändertes Passwort sofort
+// auch bei Keycloak gilt. Ohne eingerichtetes Keycloak passiert nichts (kein DB-Zugriff).
+register_shutdown_function(function () {
+    if (!getenv('KC_PORTAL_CLIENT_SECRET')) { return; }
+    // Erst die Sitzung speichern, dann die Antwort abschließen: sonst könnte der Browser der nächsten
+    // Weiterleitung (z. B. nach der Anmeldung) folgen, bevor die Sitzung geschrieben ist.
+    if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
+    if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+    \App\Infrastructure\Auth\KeycloakSync::afterRequest();
+});
+
 // validateIban / validateZaehlpunkt nach src/functions.php ausgelagert (testbar).
 
 /**

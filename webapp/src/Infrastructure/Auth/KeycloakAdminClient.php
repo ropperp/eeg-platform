@@ -26,16 +26,11 @@ final class KeycloakAdminClient
 
     public static function fromEnv(): self
     {
-        $secret = (string) getenv('KC_PORTAL_CLIENT_SECRET');
-        if ($secret === '') {
+        $cfg = KeycloakConfig::fromEnv();
+        if (!$cfg->syncEnabled()) {
             throw new \RuntimeException('Keycloak ist nicht eingerichtet (KC_PORTAL_CLIENT_SECRET fehlt, siehe scripts/keycloak_setup.sh).');
         }
-        return new self(
-            rtrim((string) (getenv('KEYCLOAK_INTERNAL_URL') ?: 'http://keycloak:8080'), '/'),
-            (string) (getenv('KEYCLOAK_REALM') ?: 'stromfueralle'),
-            'portal',
-            $secret
-        );
+        return new self($cfg->internalUrl, $cfg->realm, $cfg->clientId, $cfg->clientSecret);
     }
 
     /** @return array<string,mixed>|null */
@@ -82,12 +77,109 @@ final class KeycloakAdminClient
         }
     }
 
+    public function removeRealmRole(string $userId, string $roleName): void
+    {
+        $role = $this->request('GET', '/roles/' . rawurlencode($roleName));
+        if ($role['status'] !== 200) {
+            throw new \RuntimeException('Keycloak: Rolle ' . $roleName . ' nicht gefunden (HTTP ' . $role['status'] . ')');
+        }
+        $ref = ['id' => (string) $role['json']['id'], 'name' => (string) $role['json']['name']];
+        $res = $this->request('DELETE', '/users/' . rawurlencode($userId) . '/role-mappings/realm', [$ref]);
+        if ($res['status'] !== 204) {
+            throw new \RuntimeException('Keycloak: Rolle entfernen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+    }
+
+    /** @return array<string,mixed>|null null = Benutzer gibt es in Keycloak nicht (mehr) */
+    public function getUser(string $userId): ?array
+    {
+        $res = $this->request('GET', '/users/' . rawurlencode($userId));
+        if ($res['status'] === 404) {
+            return null;
+        }
+        if ($res['status'] !== 200) {
+            throw new \RuntimeException('Keycloak: Benutzer lesen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+        return (array) $res['json'];
+    }
+
+    /**
+     * Teil-Aktualisierung (nicht gesendete Felder bleiben). Enthält $rep "credentials" mit einem Passwort,
+     * ersetzt es das bisherige Passwort.
+     *
+     * @param array<string,mixed> $rep
+     */
+    public function updateUser(string $userId, array $rep): void
+    {
+        $res = $this->request('PUT', '/users/' . rawurlencode($userId), $rep);
+        if ($res['status'] !== 204) {
+            throw new \RuntimeException('Keycloak: Benutzer ändern fehlgeschlagen (HTTP ' . $res['status'] . ') ' . self::errorText($res));
+        }
+    }
+
+    public function deleteUser(string $userId): void
+    {
+        $res = $this->request('DELETE', '/users/' . rawurlencode($userId));
+        if ($res['status'] !== 204 && $res['status'] !== 404) {
+            throw new \RuntimeException('Keycloak: Benutzer löschen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function credentials(string $userId): array
+    {
+        $res = $this->request('GET', '/users/' . rawurlencode($userId) . '/credentials');
+        if ($res['status'] !== 200) {
+            throw new \RuntimeException('Keycloak: Anmeldedaten lesen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+        return array_values(array_filter((array) $res['json'], 'is_array'));
+    }
+
+    public function deleteCredential(string $userId, string $credentialId): void
+    {
+        $res = $this->request('DELETE', '/users/' . rawurlencode($userId) . '/credentials/' . rawurlencode($credentialId));
+        if ($res['status'] !== 204 && $res['status'] !== 404) {
+            throw new \RuntimeException('Keycloak: Anmeldedaten löschen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+    }
+
+    /** @return list<array<string,mixed>> verknüpfte Fremd-Logins (z. B. Google) */
+    public function federatedIdentities(string $userId): array
+    {
+        $res = $this->request('GET', '/users/' . rawurlencode($userId) . '/federated-identity');
+        if ($res['status'] !== 200) {
+            throw new \RuntimeException('Keycloak: Verknüpfungen lesen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+        return array_values(array_filter((array) $res['json'], 'is_array'));
+    }
+
+    public function removeFederatedIdentity(string $userId, string $provider): void
+    {
+        $res = $this->request('DELETE', '/users/' . rawurlencode($userId) . '/federated-identity/' . rawurlencode($provider));
+        if ($res['status'] !== 204 && $res['status'] !== 404) {
+            throw new \RuntimeException('Keycloak: Verknüpfung lösen fehlgeschlagen (HTTP ' . $res['status'] . ')');
+        }
+    }
+
+    /** Ist ein Fremd-Login (z. B. google) im Realm eingeschaltet? */
+    public function identityProviderEnabled(string $alias): bool
+    {
+        $res = $this->request('GET', '/identity-provider/instances/' . rawurlencode($alias));
+        return $res['status'] === 200 && is_array($res['json']) && !empty($res['json']['enabled']);
+    }
+
+    /** Beendet alle Keycloak-Sitzungen des Benutzers (z. B. nach Sperre oder Passwortänderung). */
+    public function logoutUser(string $userId): void
+    {
+        $this->request('POST', '/users/' . rawurlencode($userId) . '/logout');
+    }
+
     private function accessToken(): string
     {
         if ($this->token !== null && time() < $this->tokenExpires - 30) {
             return $this->token;
         }
-        $res = $this->http('POST', $this->baseUrl . '/realms/' . rawurlencode($this->realm) . '/protocol/openid-connect/token', [
+        $res = KeycloakHttp::request('POST', $this->baseUrl . '/realms/' . rawurlencode($this->realm) . '/protocol/openid-connect/token', [
             'Content-Type: application/x-www-form-urlencoded',
         ], http_build_query([
             'grant_type' => 'client_credentials',
@@ -118,43 +210,7 @@ final class KeycloakAdminClient
             $headers[] = 'Content-Type: application/json';
             $payload = json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
-        return $this->http($method, $this->baseUrl . '/admin/realms/' . rawurlencode($this->realm) . $path, $headers, $payload);
-    }
-
-    /**
-     * @param list<string> $headers
-     * @return array{status:int,json:mixed,location:string,body:string}
-     */
-    private function http(string $method, string $url, array $headers, ?string $payload): array
-    {
-        $location = '';
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$location): int {
-                if (stripos($line, 'Location:') === 0) {
-                    $location = trim(substr($line, 9));
-                }
-                return strlen($line);
-            },
-        ]);
-        if ($payload !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        }
-        $body = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-        if ($body === false) {
-            throw new \RuntimeException('Keycloak nicht erreichbar: ' . $error);
-        }
-        $body = (string) $body;
-        return ['status' => $status, 'json' => json_decode($body, true), 'location' => $location, 'body' => $body];
+        return KeycloakHttp::request($method, $this->baseUrl . '/admin/realms/' . rawurlencode($this->realm) . $path, $headers, $payload);
     }
 
     /** @param array{json:mixed,body:string} $res */

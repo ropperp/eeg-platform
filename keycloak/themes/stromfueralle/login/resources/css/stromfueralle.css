@@ -1,0 +1,80 @@
+/* Login auth.<DOMAIN> im Glas-Design der Plattform (Vorbild: webapp/public/assets/css/login-glass.css).
+   Kontraste wie dort: Text #e8f3ff/#b9cde2 auf ~#0b1a2c, Knopf #04121c auf #38bdf8, Links #7dd3fc. */
+:root {
+  --pf-v5-global--primary-color--100: #38bdf8;
+  --pf-v5-global--primary-color--200: #7dd3fc;
+  --pf-v5-global--link--Color: #7dd3fc;
+  --pf-v5-global--link--Color--hover: #bae6fd;
+  --sfa-cut: 32px;
+}
+html.login-pf, body#keycloak-bg {
+  min-height: 100%;
+  background:
+    radial-gradient(900px 600px at 85% 15%, rgba(14, 116, 180, .28), transparent 60%),
+    radial-gradient(800px 600px at 10% 90%, rgba(8, 80, 140, .3), transparent 60%),
+    #030b16 !important;
+  color: #e8f3ff;
+}
+.pf-v5-c-login { background: transparent; }
+.pf-v5-c-login__container { max-width: 460px; }
+
+/* Logo statt Realm-Name */
+#kc-header-wrapper {
+  font-size: 0; height: 40px; margin: 0 auto 1.25rem;
+  background: url("../img/logo-white.png") center / contain no-repeat;
+}
+
+/* Glas-Karte mit abgeschrägten Ecken */
+.pf-v5-c-login__main {
+  position: relative; isolation: isolate;
+  background: linear-gradient(150deg, rgba(125, 211, 252, .6), rgba(255, 255, 255, .1) 35%, rgba(255, 255, 255, .05) 65%, rgba(56, 189, 248, .5));
+  clip-path: polygon(var(--sfa-cut) 0, 100% 0, 100% calc(100% - var(--sfa-cut)), calc(100% - var(--sfa-cut)) 100%, 0 100%, 0 var(--sfa-cut));
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+.pf-v5-c-login__main::before {
+  content: ''; position: absolute; inset: 1px; z-index: -1;
+  clip-path: polygon(calc(var(--sfa-cut) - .5px) 0, 100% 0, 100% calc(100% - var(--sfa-cut) + .5px), calc(100% - var(--sfa-cut) + .5px) 100%, 0 100%, 0 calc(var(--sfa-cut) - .5px));
+  background:
+    radial-gradient(420px 260px at 85% 0%, rgba(56, 189, 248, .14), transparent 70%),
+    linear-gradient(165deg, rgba(16, 36, 58, .92) 0%, rgba(6, 15, 28, .95) 100%);
+}
+.pf-v5-c-login__main-header, .pf-v5-c-login__main-body, .pf-v5-c-login__main-footer { background: transparent; }
+.pf-v5-c-login__main-header { padding-top: 2.25rem; }
+#kc-page-title { color: #e8f3ff; font-weight: 600; letter-spacing: .01em; }
+
+/* Felder */
+.pf-v5-c-form__label-text, .pf-v5-c-check__label { color: #b9cde2; }
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: rgba(3, 11, 22, .55);
+  --pf-v5-c-form-control--before--BorderColor: rgba(125, 211, 252, .25);
+  --pf-v5-c-form-control--after--BorderColor: rgba(125, 211, 252, .35);
+  --pf-v5-c-form-control--hover--after--BorderBottomColor: #38bdf8;
+  --pf-v5-c-form-control--focus--after--BorderBottomColor: #38bdf8;
+  color: #e8f3ff;
+  border-radius: 8px;
+}
+
+/* Knöpfe */
+.pf-v5-c-button.pf-m-primary {
+  --pf-v5-c-button--m-primary--BackgroundColor: #38bdf8;
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: #7dd3fc;
+  --pf-v5-c-button--m-primary--Color: #04121c;
+  --pf-v5-c-button--m-primary--hover--Color: #04121c;
+  font-weight: 600; border-radius: 10px;
+  box-shadow: 0 0 22px rgba(56, 189, 248, .35);
+}
+.pf-v5-c-login__main-footer-links-item a, .pf-v5-c-button.pf-m-secondary {
+  --pf-v5-c-button--m-secondary--Color: #e8f3ff;
+  --pf-v5-c-button--m-secondary--after--BorderColor: rgba(125, 211, 252, .45);
+  --pf-v5-c-button--m-secondary--hover--after--BorderColor: #38bdf8;
+  border-radius: 10px;
+}
+
+/* Links zum Portal (login.ftl, Abschnitt info) */
+#sfa-links { display: flex; flex-direction: column; gap: .5rem; align-items: center; font-size: .9rem; color: #b9cde2; }
+#sfa-links a { color: #7dd3fc; }
+#sfa-links a:hover, #sfa-links a:focus { color: #bae6fd; }
+.pf-v5-c-login__main-footer-band { border-top-color: rgba(125, 211, 252, .18); background: transparent; }
+.pf-v5-c-alert.pf-m-inline { border-radius: 8px; }
