@@ -63,6 +63,20 @@ final class Config
         );
     }
 
+    /** Herkunft des Anmeldedienstes (z. B. https://auth.stromfueralle.at) für die CSP; leer ohne Keycloak. */
+    public function kcOrigin(): string
+    {
+        if ($this->kcClientSecret === '' || $this->kcPublicUrl === '') {
+            return '';
+        }
+        $p = parse_url($this->kcPublicUrl);
+        if (!is_array($p) || empty($p['scheme']) || empty($p['host']) || !in_array($p['scheme'], ['https', 'http'], true)
+            || !preg_match('/^[a-z0-9.-]+$/i', (string) $p['host'])) {
+            return '';
+        }
+        return $p['scheme'] . '://' . $p['host'] . (isset($p['port']) ? ':' . $p['port'] : '');
+    }
+
     /** Öffentliche Hosts der Plattform, die im Wartungsmodus auf die Wartungsseite zeigen. */
     public function publicHosts(): array
     {

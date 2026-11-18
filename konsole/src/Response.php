@@ -72,11 +72,22 @@ final class Response
         return $this->cookies;
     }
 
-    public function send(bool $secureCookies): void
+    /**
+     * Content-Security-Policy der Konsole. $formActionOrigin: weiteres erlaubtes Ziel für Formulare, nämlich
+     * der Anmeldedienst. "Abmelden" ist ein Formular, das zu Keycloak weiterleitet; mit nur 'self' blockiert
+     * der Browser diese Weiterleitung still, und die Keycloak-Sitzung bliebe bestehen (Vorfall 19.11.2026).
+     */
+    public static function csp(string $formActionOrigin = ''): string
+    {
+        $formAction = "'self'" . ($formActionOrigin !== '' ? ' ' . $formActionOrigin : '');
+        return "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action " . $formAction;
+    }
+
+    public function send(bool $secureCookies, string $formActionOrigin = ''): void
     {
         http_response_code($this->status);
         $security = [
-            'Content-Security-Policy' => "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+            'Content-Security-Policy' => self::csp($formActionOrigin),
             'X-Content-Type-Options'  => 'nosniff',
             'X-Frame-Options'         => 'DENY',
             'Referrer-Policy'         => 'no-referrer',

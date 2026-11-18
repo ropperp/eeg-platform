@@ -31,7 +31,7 @@ try {
         new AuditLog($config->dataDir . '/audit.log'),
         new Sso($config),
     );
-    $app->handle($_SERVER, $_POST, $_COOKIE, (string) file_get_contents('php://input'))->send(!$config->dev);
+    $app->handle($_SERVER, $_POST, $_COOKIE, (string) file_get_contents('php://input'))->send(!$config->dev, $config->kcOrigin());
 } catch (\Throwable $e) {
     error_log('[konsole] ' . $e->getMessage());
     http_response_code(500);

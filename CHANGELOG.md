@@ -20,6 +20,9 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
 ### Fix: Passkeys in Safari, Abmelden in der Steuerzentrale, Kachel-Kontrast (19.11.2026)
+- Steuerzentrale: „Abmelden“ kam nie bei Keycloak an. Die CSP `form-action 'self'` ließ den Browser die Weiterleitung des
+  Formulars zu `auth.` still blockieren; die Keycloak-Sitzung blieb, und die Konsole meldete sofort wieder an. Jetzt ist
+  die Keycloak-Adresse als Formularziel erlaubt.
 - Passkey-Knöpfe (Steuerzentrale, Portal-Login, Profil) holen die Challenge schon beim Laden: Safari startet
   die Abfrage nur direkt aus dem Klick, nach einer Server-Anfrage verwarf es den Aufruf manchmal still.
 - Steuerzentrale: Abmelden nach Passkey-Anmeldung meldete über die Keycloak-Sitzung sofort wieder an; jetzt Login-Seite.

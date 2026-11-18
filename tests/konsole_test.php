@@ -194,3 +194,16 @@ test('Konsole: Formulare aus veraltetem Tab ohne Sitzung führen zur Login-Seite
     assertContains('Sitzung ist abgelaufen', kz_req($env, 'GET', '/?abgelaufen=1')->body);
     assertSame(401, kz_req($env, 'POST', '/login/irgendwas')->status);
 });
+
+test('Konsole: CSP erlaubt das Abmelden-Formular zu Keycloak (sonst blockiert der Browser die Weiterleitung)', function () {
+    $mk = fn(string $secret, string $url) => new Config('stromfueralle.at', 'admin.stromfueralle.at', str_repeat('s', 64), '/tmp', '/tmp', [], false,
+        '10.0.0.144', '/x', 'pgsql:host=none', '', '', $secret, $url);
+    $origin = $mk('geheim', 'https://auth.stromfueralle.at')->kcOrigin();
+    assertSame('https://auth.stromfueralle.at', $origin);
+    assertContains("form-action 'self' https://auth.stromfueralle.at", Response::csp($origin));
+    // Ohne Keycloak bleibt es bei 'self'; kaputte Adressen landen nie in der Policy.
+    assertSame('', $mk('', 'https://auth.stromfueralle.at')->kcOrigin());
+    assertSame('', $mk('geheim', "javascript:alert(1)")->kcOrigin());
+    assertSame('', $mk('geheim', "https://a.b; script-src *")->kcOrigin());
+    assertTrue(str_ends_with(Response::csp(''), "form-action 'self'"));
+});
