@@ -37,6 +37,13 @@ http:
     # direkt auf den Container "konsole" (Port 8090), damit die Steuerzentrale auch bei hängendem
     # Traefik erreichbar bleibt. Der Wartungsmodus legt zusätzlich maintenance.yml neben diese
     # Datei (Router "wartung" mit höherer Priorität).
+    # Anmeldedienst Keycloak (docs/adr/0007-keycloak.md). Öffentlich nur der Plattform-Realm und die
+    # statischen Dateien der Login-Seite -- Admin-Konsole, Admin-API und master-Realm nie (die gibt
+    # es nur über 127.0.0.1:8081 am Server, per SSH-Tunnel).
+    auth:
+      rule: "Host(`auth.stromfueralle.at`) && (PathPrefix(`/realms/stromfueralle/`) || PathPrefix(`/resources/`))"
+      entryPoints: ["web"]
+      service: keycloak
     webapp-legacy:
       rule: "Host(`webapp.mechtronix.at`)"
       entryPoints: ["web"]
@@ -46,3 +53,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://webapp:80"
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"

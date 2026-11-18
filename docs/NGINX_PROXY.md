@@ -124,3 +124,44 @@ Die Anmeldung (Passkey, `__Host-`-Cookie mit `Secure`) funktioniert **nur über 
 Text und voraussichtlichem Ende und dem Status **500**. Bei 502/503/504 würde dieser Proxy sie durch seine
 Ausfall-Seite („Kurzschluss“) ersetzen, 500 lässt er durch. Die Kurzschluss-Seite bleibt damit für echte,
 ungeplante Ausfälle reserviert. An der nginx-Konfiguration ist dafür nichts zu ändern.
+
+### Anmeldedienst `auth.stromfueralle.at` (seit 18.11.2026)
+Keycloak, über Traefik wie `portal.` (Router `auth` in `docker/traefik/dynamic.yml`, der nur
+`/realms/stromfueralle/` und `/resources/` durchlässt). Hintergrund: `docs/adr/0007-keycloak.md`.
+
+Datei `/etc/nginx/sites-available/72_auth_stromfueralle.conf`, zuerst **nur Port 80**, HTTPS danach per
+`certbot --nginx -d auth.stromfueralle.at`.
+
+```nginx
+server {
+    listen 80;
+    server_name auth.stromfueralle.at;
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header   Connection        "";
+        proxy_pass         http://10.0.0.250:80;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   X-Forwarded-Host  $host;
+        proxy_set_header   X-Forwarded-Port  443;
+        # Keycloak schickt große Header/Cookies; mit den Standardpuffern antwortet nginx sonst mit 502.
+        proxy_buffer_size        128k;
+        proxy_buffers            4 256k;
+        proxy_busy_buffers_size  256k;
+    }
+}
+```
+
+Aktivieren:
+```bash
+sudo ln -s /etc/nginx/sites-available/72_auth_stromfueralle.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d auth.stromfueralle.at
+```
+
+Keycloak baut seine Adressen aus `KC_HOSTNAME=https://auth.<DOMAIN>`; `X-Forwarded-Proto https` ist trotzdem
+nötig, damit Cookies als `Secure` gesetzt werden.
+

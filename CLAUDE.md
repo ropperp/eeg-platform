@@ -79,6 +79,7 @@ Der nginx-Proxy ist ein eigener Host; seine Config liegt nicht im Repo (Details 
 | webapp | (build) | — | nginx + PHP 8.4 |
 | latex-service | (build) | — | PDF-Generator |
 | konsole | (build, `konsole/`) | 8090 | Steuerzentrale `admin.<DOMAIN>`: Wartungsmodus, Status/Logs/Neustart |
+| keycloak | (build, `keycloak/`, Profil `keycloak`) | 127.0.0.1:8081 | Anmeldedienst `auth.<DOMAIN>` (ADR 0007, in Umsetzung) |
 
 Alle Images sind mit Version **und Digest** gepinnt (Compose + Dockerfiles); Updates kommen als
 Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
@@ -118,7 +119,8 @@ Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
 
 Datei `/opt/eeg-platform/.env` (nicht in Git, nie committen). Pflichtfelder: `DB_USER`, `DB_PASSWORD`,
 `DB_NAME`, `DOMAIN`, `APP_SECRET` (64 Zeichen zufällig), `LATEX_API_KEY`, `SMTP_HOST`, `SMTP_USER`,
-`SMTP_PASSWORD`. Optional: `TRUSTED_PROXY_IP`, `MESSE_DEMO_LAT`/`MESSE_DEMO_LON`. Kein `ACME_EMAIL`
+`SMTP_PASSWORD`. Optional: `TRUSTED_PROXY_IP`, `MESSE_DEMO_LAT`/`MESSE_DEMO_LON`, Keycloak (`KC_*`, `COMPOSE_PROFILES`, `GOOGLE_*`;
+trägt `scripts/keycloak_setup.sh` ein). Kein `ACME_EMAIL`
 nötig (Traefik macht kein Let's Encrypt mehr).
 
 **Datenbank-Rollen** (`scripts/db_runtime_role_setup.sh` erzeugt `APP_DB_*` und `WORKER_DB_*`, SQL in
@@ -184,6 +186,16 @@ mit `docker compose exec eda-worker python parser.py …`. Entscheidung: `docs/a
 damit sie auch bei DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeigen und Dienste aus einer
 festen Liste neu starten (Docker-Socket, nichts sonst). Aktionen in `/opt/eeg/konsole/audit.log`.
 Entscheidung und Restrisiko: `docs/adr/0006-steuerzentrale.md`, nginx-Block: `docs/NGINX_PROXY.md`.
+
+## Anmeldedienst (keycloak, in Umsetzung)
+
+Keycloak unter `auth.<DOMAIN>` (Traefik-Router `auth`, öffentlich nur `/realms/stromfueralle/` und `/resources/`;
+Admin-Konsole nur per SSH-Tunnel auf `127.0.0.1:8081`). Startet nur mit `COMPOSE_PROFILES=keycloak`
+(setzt `scripts/keycloak_setup.sh`). Eigene DB `keycloak`. Keycloak sagt nur, **wer** jemand ist; Rollen, RLS und
+Fachlogik bleiben in der Plattform, Verknüpfung über `users.keycloak_id`, nie über die E-Mail. Passwörter
+werden still übernommen (Argon2id direkt, bcrypt über die Erweiterung `keycloak/providers`, Umstellung auf
+Argon2 beim ersten Login). Realm-Datei `keycloak/realm/` gilt nur beim **ersten** Start, spätere Änderungen
+in der Admin-Konsole nachziehen. Stand und nächste Schritte: `docs/adr/0007-keycloak.md`.
 
 ## Messe-/Präsentations-Demo
 
