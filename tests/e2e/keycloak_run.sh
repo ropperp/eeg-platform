@@ -168,6 +168,16 @@ check "Platform-Admin direkt an der Steuerzentrale" "$("${K[@]}" konsole-login a
 check "danach auch im Portal ohne Eingabe" "$("${B[@]}" login admin@e2e.test "$PW")" "ok"
 check "Abmelden in der Steuerzentrale" "$("${K[@]}" konsole-logout)" "ok"
 check "Portal danach auch abgemeldet" "$("${B[@]}" dashboard)" "draussen"
+check "Steuerzentrale danach: Keycloak fragt wieder (keine stille Neuanmeldung)" "$("${K[@]}" konsole)" "anmeldeseite"
+
+echo "Abmelden in der Steuerzentrale, während das Portal offen ist"
+rm -f "$COOKIES"
+check "Anmeldung im Portal" "$("${B[@]}" login admin@e2e.test "$PW")" "ok"
+check "Steuerzentrale ohne Eingabe" "$("${K[@]}" konsole)" "drin"
+check "im Portal etwas tun (Sitzung aktiv)" "$("${B[@]}" dashboard)" "drin"
+check "Abmelden in der Steuerzentrale" "$("${K[@]}" konsole-logout)" "ok"
+check "Steuerzentrale: Keycloak fragt wieder" "$("${K[@]}" konsole)" "anmeldeseite"
+check "Portal: abgemeldet" "$("${B[@]}" dashboard)" "draussen"
 check "Passkey-Notzugang bleibt erreichbar" "$(curl -s "$KZ/?passkey=1" | grep -c 'data-login')" "1"
 
 echo "Abgleich Portal -> Keycloak"
