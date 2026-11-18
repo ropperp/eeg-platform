@@ -145,6 +145,8 @@ jobs:
         run: bash tests/e2e/run.sh
       - name: Steuerzentrale gegen echtes Docker und Traefik
         run: bash tests/e2e/konsole_run.sh
+      - name: Anmeldedienst Keycloak (Übernahme der Konten, bcrypt-Erweiterung, 2FA)
+        run: bash tests/e2e/keycloak_run.sh
 
   http:
     runs-on: ubuntu-latest

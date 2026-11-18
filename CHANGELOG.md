@@ -19,6 +19,15 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Anmeldedienst Keycloak, Schritt 1: Dienst und Übernahme der Konten (18.11.2026)
+- Neuer Container `keycloak` (`auth.<DOMAIN>`, Compose-Profil `keycloak`, eigene Datenbank), Realm als Datei
+  mit Clients für Portal, App und Steuerzentrale, Google-Login (standardmäßig aus), Brute-Force-Schutz.
+- **Stille Übernahme der Passwörter:** Argon2id direkt, bcrypt über die eigene Erweiterung `bcrypt-legacy`
+  (BouncyCastle aus Keycloak, keine Fremdbibliothek); beim ersten Login stellt Keycloak auf Argon2 um.
+  2FA (TOTP) wird übernommen. `webapp/bin/keycloak_import_users.php`, `scripts/keycloak_setup.sh`.
+- Öffentlich nur Plattform-Realm und Login-Dateien, Admin-Konsole nur per SSH-Tunnel.
+- Für Mitglieder ändert sich noch nichts. ADR 0007 ersetzt ADR 0004. E2E-Test gegen echtes Keycloak in der CI.
+
 ### Fix: Passkey-Button im Portal-Login (17.11.2026)
 - „Mit Passkey anmelden“ fehlte im Glas-Login: `passkey.js` wurde wegen eines PHP-Tags in einem Nowdoc nie
   geladen (Fehler aus #296). Behoben; neuer statischer Test und E2E-Check, E2E läuft im Glas-Design.

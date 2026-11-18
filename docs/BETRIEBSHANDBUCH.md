@@ -1496,3 +1496,31 @@ docker compose up -d --build
 > „Mit Passkey anmelden“. Den Wartungsmodus einmal ein- und ausschalten und die Hauptseite prüfen.
 > **Rückfall:** `git revert` und `docker compose up -d --build --remove-orphans`; danach liest Traefik wieder
 > nur `dynamic.yml`. Liegt noch `docker/traefik/maintenance.yml` herum, löschen.
+
+> **Einmalig nach dem Update vom 18.11.2026 -- Anmeldedienst Keycloak (Schritt 1)**: neuer Container
+> `keycloak` (nur mit Compose-Profil `keycloak`, ohne Setup startet er nicht), Spalte `users.keycloak_id`.
+> Für Mitglieder ändert sich noch nichts; die Anmeldung läuft weiter über das Portal. Hintergrund:
+> `docs/adr/0007-keycloak.md`.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261120.sql
+> docker compose up -d --build                       # traefik kennt jetzt den Router auth.
+> ./scripts/keycloak_setup.sh                        # .env-Werte, DB "keycloak", Container starten
+> sleep 120 && docker compose ps keycloak            # "healthy" (erster Start auf dem Pi dauert)
+> docker compose exec -T webapp php /var/www/html/bin/keycloak_import_users.php --dry-run   # nur zählen
+> docker compose exec -T webapp php /var/www/html/bin/keycloak_import_users.php             # übernehmen
+> ```
+> Danach am nginx-Proxy den Block „Anmeldedienst“ aus `docs/NGINX_PROXY.md` anlegen und
+> `sudo certbot --nginx -d auth.stromfueralle.at` ausführen. Test: `https://auth.stromfueralle.at/realms/stromfueralle/account`
+> zeigt die Keycloak-Anmeldung; mit dem eigenen Konto und dem **bisherigen** Passwort anmelden.
+> `https://auth.stromfueralle.at/admin/` muss **404** liefern. Admin-Konsole nur per SSH-Tunnel:
+> `ssh -L 8081:127.0.0.1:8081 <server>`, dann `http://localhost:8081/admin` (Benutzer `admin`, Passwort
+> `KC_BOOTSTRAP_ADMIN_PASSWORD` aus der `.env`). Dort gleich einen dauerhaften Admin im `master`-Realm anlegen
+> und den Bootstrap-Admin löschen.
+> Google (optional, später): in der Google Cloud Console einen OAuth-Client „Webanwendung“ anlegen,
+> Weiterleitungs-URI `https://auth.stromfueralle.at/realms/stromfueralle/broker/google/endpoint`. Weil der
+> Realm bereits existiert, Client-ID und Secret in der Admin-Konsole unter *Identity providers → google*
+> eintragen und den Anbieter einschalten (die `.env`-Werte `GOOGLE_*` gelten nur für eine Neuinstallation).
+> **Rückfall:** `COMPOSE_PROFILES` in der `.env` ohne `keycloak`, `docker compose up -d --remove-orphans`.
+> Die Plattform nutzt Keycloak in diesem Schritt noch nicht, es geht nichts verloren.

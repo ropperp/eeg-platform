@@ -1,6 +1,6 @@
 # ADR 0004: Eigener Auth-Stack statt externem Identity Provider
 
-**Status:** angenommen (16.11.2026)
+**Status:** ersetzt durch [ADR 0007](0007-keycloak.md) (18.11.2026), vorher angenommen (16.11.2026)
 
 ## Kontext
 Die Anmeldung umfasst Argon2id, Redis-Sessions, Rate Limiting, TOTP, Passkeys (WebAuthn), CSRF und

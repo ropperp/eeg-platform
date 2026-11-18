@@ -3,7 +3,7 @@
 version: 2
 updates:
   - package-ecosystem: docker
-    directories: ["/webapp", "/mqtt-subscriber", "/latex-service", "/eda-parser"]
+    directories: ["/webapp", "/mqtt-subscriber", "/latex-service", "/eda-parser", "/keycloak"]
     schedule: { interval: monthly }
     groups:
       basis-images: { patterns: ["*"] }

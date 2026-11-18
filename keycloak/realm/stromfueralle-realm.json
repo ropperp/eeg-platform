@@ -1,0 +1,215 @@
+{
+  "realm": "stromfueralle",
+  "displayName": "strom für alle",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginWithEmailAllowed": true,
+  "registrationEmailAsUsername": true,
+  "duplicateEmailsAllowed": false,
+  "registrationAllowed": false,
+  "editUsernameAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["de"],
+  "defaultLocale": "de",
+  "passwordPolicy": "length(8) and maxLength(128) and hashAlgorithm(argon2) and notEmail and passwordHistory(3)",
+  "bruteForceProtected": true,
+  "bruteForceStrategy": "MULTIPLE",
+  "permanentLockout": false,
+  "failureFactor": 10,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
+  "ssoSessionIdleTimeout": 7200,
+  "ssoSessionMaxLifespan": 43200,
+  "ssoSessionIdleTimeoutRememberMe": 2592000,
+  "ssoSessionMaxLifespanRememberMe": 2592000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessTokenLifespan": 300,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyLookAheadWindow": 1,
+  "webAuthnPolicyPasswordlessRpEntityName": "strom für alle",
+  "webAuthnPolicyPasswordlessRpId": "${DOMAIN}",
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+  "webAuthnPolicyPasswordlessResidentKey": "Required",
+  "webAuthnPolicyPasswordlessPasskeysEnabled": true,
+  "webAuthnPolicyRpEntityName": "strom für alle",
+  "webAuthnPolicyRpId": "${DOMAIN}",
+  "eventsEnabled": true,
+  "eventsExpiration": 7776000,
+  "enabledEventTypes": [
+    "LOGIN", "LOGIN_ERROR", "LOGOUT", "IDENTITY_PROVIDER_LOGIN", "IDENTITY_PROVIDER_LOGIN_ERROR",
+    "IDENTITY_PROVIDER_LINK_ACCOUNT", "FEDERATED_IDENTITY_LINK", "UPDATE_PASSWORD", "UPDATE_CREDENTIAL",
+    "REMOVE_CREDENTIAL", "RESET_PASSWORD", "CODE_TO_TOKEN_ERROR"
+  ],
+  "adminEventsEnabled": true,
+  "roles": {
+    "realm": [
+      { "name": "platform_admin", "description": "Platform-Admin der EEG-Plattform (aus user_roles gespiegelt)" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "portal",
+      "name": "Portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_PORTAL_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "frontchannelLogout": false,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "basic", "email"],
+      "optionalClientScopes": ["kc-admin-api", "offline_access"],
+      "rootUrl": "https://${PORTAL_HOST}",
+      "redirectUris": ["https://${PORTAL_HOST}/auth/callback"],
+      "webOrigins": ["https://${PORTAL_HOST}"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://${PORTAL_HOST}/*##https://${DOMAIN}/*",
+        "backchannel.logout.url": "http://webapp/auth/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true"
+      }
+    },
+    {
+      "clientId": "app",
+      "name": "Handy-App (Übergang: Passwort-Login über /api/v1/login)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_APP_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "konsole",
+      "name": "Steuerzentrale",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_KONSOLE_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "rootUrl": "https://admin.${DOMAIN}",
+      "redirectUris": ["https://admin.${DOMAIN}/auth/callback"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://admin.${DOMAIN}/*"
+      }
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": ${GOOGLE_LOGIN_ENABLED:false},
+      "trustEmail": true,
+      "storeToken": false,
+      "linkOnly": false,
+      "hideOnLogin": false,
+      "firstBrokerLoginFlowAlias": "nur bestehende Konten verknuepfen",
+      "postBrokerLoginFlowAlias": "nach Fremd-Login 2FA",
+      "config": {
+        "clientId": "${GOOGLE_CLIENT_ID:unset}",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET:unset}",
+        "defaultScope": "openid email profile",
+        "syncMode": "IMPORT",
+        "guiOrder": "1"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-portal",
+      "enabled": true,
+      "serviceAccountClientId": "portal",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users", "view-realm"]
+      }
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "nach Fremd-Login 2FA",
+      "description": "Nach Google-Login: wer 2FA (TOTP oder Passkey) eingerichtet hat, muss sie auch hier bestätigen.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "flowAlias": "nach Fremd-Login 2FA - bedingt",
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "authenticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "nach Fremd-Login 2FA - bedingt",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "nur bestehende Konten verknuepfen",
+      "description": "Google-Login: nur mit einem bestehenden Konto gleicher (von Google bestätigter) E-Mail verknüpfen, nie ein neues Konto anlegen. Mitglied wird man über die Beitrittserklärung.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-detect-existing-broker-user",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "idp-auto-link",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ]
+}

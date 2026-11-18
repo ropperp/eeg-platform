@@ -8,6 +8,21 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-18 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
+**Auftrag:** Single Sign-on zwischen Portal und Steuerzentrale, Anmeldung mit Google, ohne dass Mitglieder ein
+neues Passwort setzen. Nach Abwägung bewusst auf einen bewährten Anmeldedienst (Keycloak) statt eigenen Code
+gesetzt; Apple entfällt. Passwörter sollen still übernommen werden.
+**Verbesserter Prompt:** "Führe Keycloak (selbst betrieben, eigener Container und eigene DB) als Anmeldedienst für
+Portal, App und Steuerzentrale ein, mit Google-Login nur für bestehende Konten. Übernimm Argon2id- und bcrypt-Hashes
+sowie TOTP ohne Passwort-Reset (bcrypt über eine kleine Keycloak-Erweiterung, Umstellung beim ersten Login).
+Admin-Konsole nicht öffentlich. In Schritten liefern, Schritt 1 ohne sichtbare Änderung, mit E2E-Test gegen echtes Keycloak."
+**Ergebnis:** Schritt 1 umgesetzt (Branch `feature/keycloak`): `keycloak/` (Dockerfile, Erweiterung `bcrypt-legacy`,
+Realm), Compose-Dienst mit Profil, Traefik-Router `auth`, `scripts/keycloak_setup.sh`, Migration `users.keycloak_id`,
+Import-Skript, ADR 0007, Doku. Unit-Tests, PHPStan und `tests/e2e/keycloak_run.sh` (15 Prüfungen) grün.
+Offen: Schritt 2-5 (Portal-Login über Keycloak, App, Steuerzentrale, Aufräumen), Google-OAuth-Client durch Patrick.
+**Fehler/Lehre:** Seit Keycloak 26.8 braucht die Admin-API den Scope `kc-admin-api`, sonst HTTP 401; leere JSON-Objekte
+aus `json_decode(..., true)` werden beim Zurücksenden zu `[]` (HTTP 400), deshalb nur benötigte Felder senden.
+
 ## 2026-11-17 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
 **Nachtrag Bugfix:** Passkey-Button fehlte im Glas-Login (PHP-Tag in Nowdoc durch eigene Ersetzung in #296);
 behoben, statischer Test + E2E im Glas-Design. Website-Texte als Dokument zum Gegenlesen für das Team bereitgestellt.

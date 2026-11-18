@@ -336,6 +336,10 @@ services:
       # Derselbe nginx-Proxy, dem Traefik oben vertraut -- clientIp() (functions.php)
       # überspringt ihn beim Auslesen von X-Forwarded-For.
       TRUSTED_PROXY_IP: ${TRUSTED_PROXY_IP:-10.0.0.144}
+      # Anmeldedienst Keycloak (docs/adr/0007-keycloak.md). Leer = Keycloak noch nicht eingerichtet.
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: stromfueralle
+      KC_PORTAL_CLIENT_SECRET: ${KC_PORTAL_CLIENT_SECRET:-}
     volumes:
       # Persistente Ablage für Mitglieder-Uploads, Verträge, Beitrittserklärungen etc.
       # (vorher nur im Container — ging bei jedem --build verloren!)
@@ -363,6 +367,66 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    networks:
+      - eeg-net
+
+  # ─────────────────────────────────────────
+  # Anmeldedienst auth.<DOMAIN> (keycloak/, docs/adr/0007-keycloak.md)
+  # Nur mit Profil "keycloak" (COMPOSE_PROFILES in .env, setzt scripts/keycloak_setup.sh), damit
+  # ein Update ohne vorheriges Setup nichts verändert. Eigene Datenbank "keycloak" mit eigener Rolle
+  # in der bestehenden TimescaleDB. Öffentlich über Traefik nur /realms/stromfueralle und /resources
+  # (docker/traefik/dynamic.yml); Admin-Konsole und master-Realm nur über 127.0.0.1:8081 (SSH-Tunnel).
+  # ─────────────────────────────────────────
+  keycloak:
+    profiles: ["keycloak"]
+    build: ./keycloak
+    container_name: keycloak
+    restart: always
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      KC_DB_URL: jdbc:postgresql://timescaledb:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-}
+      KC_HOSTNAME: https://auth.${DOMAIN}
+      # Admin-Konsole nur über den SSH-Tunnel (Port 8081 nur auf 127.0.0.1 des Servers).
+      KC_HOSTNAME_ADMIN: http://localhost:8081
+      # Die Webapp spricht Keycloak intern unter http://keycloak:8080 an (Token, Admin-API).
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      # SSL endet am nginx-Proxy; X-Forwarded-* setzt Traefik (vertraut nur dem nginx-Proxy).
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: 172.16.0.0/12,10.0.0.0/8
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-}
+      KC_LOG_LEVEL: info
+      # Pi: Heap begrenzen (Keycloak braucht so ca. 400-700 MB RAM insgesamt).
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=10
+      # Platzhalter in keycloak/realm/stromfueralle-realm.json (nur beim ersten Start gelesen).
+      DOMAIN: ${DOMAIN}
+      PORTAL_HOST: ${PORTAL_HOST:-portal.${DOMAIN}}
+      KC_PORTAL_CLIENT_SECRET: ${KC_PORTAL_CLIENT_SECRET:-}
+      KC_APP_CLIENT_SECRET: ${KC_APP_CLIENT_SECRET:-}
+      KC_KONSOLE_CLIENT_SECRET: ${KC_KONSOLE_CLIENT_SECRET:-}
+      GOOGLE_LOGIN_ENABLED: ${GOOGLE_LOGIN_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-unset}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-unset}
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      # Kein curl im Image: Bereitschaft über den Management-Port 9000 per bash /dev/tcp abfragen.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
     networks:
       - eeg-net
 
