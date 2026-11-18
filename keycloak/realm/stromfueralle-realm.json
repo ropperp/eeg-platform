@@ -11,6 +11,7 @@
   "resetPasswordAllowed": false,
   "rememberMe": true,
   "verifyEmail": false,
+  "loginTheme": "stromfueralle",
   "internationalizationEnabled": true,
   "supportedLocales": ["de"],
   "defaultLocale": "de",
@@ -73,13 +74,15 @@
       "frontchannelLogout": false,
       "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "basic", "email"],
       "optionalClientScopes": ["kc-admin-api", "offline_access"],
-      "rootUrl": "https://${PORTAL_HOST}",
-      "redirectUris": ["https://${PORTAL_HOST}/auth/callback"],
-      "webOrigins": ["https://${PORTAL_HOST}"],
+      "rootUrl": "${KC_PORTAL_URL}",
+      "redirectUris": ["${KC_PORTAL_URL}/portal/auth/callback"],
+      "webOrigins": ["${KC_PORTAL_URL}"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://${PORTAL_HOST}/*##https://${DOMAIN}/*",
-        "backchannel.logout.url": "http://webapp/auth/backchannel-logout",
+        "post.logout.redirect.uris": "${KC_PORTAL_URL}/*##${KC_SITE_URL}/*",
+        "sfa.forgot.url": "${KC_PORTAL_URL}/portal/forgot-password",
+        "sfa.join.url": "${KC_SITE_URL}/beitreten",
+        "backchannel.logout.url": "http://webapp/api/kc/backchannel-logout",
         "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "true"
       }
@@ -145,7 +148,7 @@
       "enabled": true,
       "serviceAccountClientId": "portal",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-users", "query-users", "view-realm"]
+        "realm-management": ["manage-users", "view-users", "query-users", "view-realm", "view-identity-providers"]
       }
     }
   ],

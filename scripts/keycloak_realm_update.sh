@@ -7,6 +7,11 @@
 #   18.11.2026  Google-Login ohne 2FA scheiterte ("Ungültiger Benutzername oder Passwort"): Der Ablauf
 #               "nach Fremd-Login 2FA" hatte für Konten ohne 2FA keinen erfolgreichen Schritt. Neu: am
 #               Ende "Allow access" (REQUIRED). Wer 2FA hat, muss den Code weiterhin eingeben.
+#   19.11.2026  Portal-Anmeldung über Keycloak (Schritt 2): Rücksprung /portal/auth/callback (der Portal-Host
+#               leitet alles außer /portal/* um), Backchannel-Abmeldung /api/kc/backchannel-logout, Links
+#               "Passwort vergessen"/"Mitglied werden" auf der Login-Seite, Theme "stromfueralle", Dienstkonto
+#               darf sehen, ob Google eingeschaltet ist, Keycloak-Kontoseite aus (Profil, Passwort und 2FA
+#               verwaltet das Portal; Google und Passkeys über das Portal-Profil).
 #
 # Aufruf (auf dem Server, im Repo-Root):  ./scripts/keycloak_realm_update.sh
 # Fragt nach Benutzername und Passwort eines Admins im master-Realm (wie in der Admin-Konsole).
@@ -14,6 +19,15 @@
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+if [ -f .env ] && [ -z "${KC_SKIP_ENV:-}" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+: "${DOMAIN:?DOMAIN fehlt (.env)}"
+PORTAL_URL="${KC_PORTAL_URL:-https://${PORTAL_HOST:-portal.${DOMAIN}}}"
+SITE_URL="${KC_SITE_URL:-https://${DOMAIN}}"
 
 EXEC=(${KC_EXEC:-docker compose exec})      # für Tests: KC_EXEC="docker exec", KC_SERVICE=<container>
 SVC="${KC_SERVICE:-keycloak}"
@@ -52,5 +66,27 @@ else
   kc update "authentication/flows/$FLOW/executions" -r "$REALM" -b "{\"id\":\"$ID\",\"requirement\":\"REQUIRED\"}"
   echo "✓ Google-Login ohne 2FA: korrigiert."
 fi
+
+# --- 19.11.2026: Portal-Anmeldung über Keycloak ------------------------------------------------------
+PORTAL_ID=$(kc get clients -r "$REALM" -q clientId=portal --fields id --format csv --noquotes | tr -d '\r')
+kc update "clients/$PORTAL_ID" -r "$REALM" \
+  -s "rootUrl=$PORTAL_URL" \
+  -s "redirectUris=[\"$PORTAL_URL/portal/auth/callback\"]" \
+  -s "webOrigins=[\"$PORTAL_URL\"]" \
+  -s "attributes.\"post.logout.redirect.uris\"=$PORTAL_URL/*##$SITE_URL/*" \
+  -s "attributes.\"sfa.forgot.url\"=$PORTAL_URL/portal/forgot-password" \
+  -s "attributes.\"sfa.join.url\"=$SITE_URL/beitreten" \
+  -s 'attributes."backchannel.logout.url"=http://webapp/api/kc/backchannel-logout' \
+  -s 'attributes."backchannel.logout.session.required"=true'
+echo "✓ Client portal: Rücksprung, Abmeldung und Links aktualisiert."
+kc update "realms/$REALM" -s loginTheme=stromfueralle
+echo "✓ Login-Seite im Plattform-Design."
+kc add-roles -r "$REALM" --uusername service-account-portal --cclientid realm-management --rolename view-identity-providers >/dev/null
+echo "✓ Dienstkonto portal sieht, ob Google eingeschaltet ist."
+for c in account-console account; do
+  CID=$(kc get clients -r "$REALM" -q clientId=$c --fields id --format csv --noquotes | tr -d '\r')
+  [ -n "$CID" ] && kc update "clients/$CID" -r "$REALM" -s enabled=false
+done
+echo "✓ Keycloak-Kontoseite aus (Verwaltung im Portal-Profil)."
 
 echo "Fertig."

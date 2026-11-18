@@ -89,6 +89,10 @@ $COMPOSE exec -T keycloak bash -c '/opt/keycloak/bin/kcadm.sh config credentials
   && echo "✓ master-Realm nur über http://localhost:8081 (SSH-Tunnel)." \
   || echo "! master-Realm nicht umgestellt (Bootstrap-Admin schon gelöscht?), siehe docs/BETRIEBSHANDBUCH.md."
 
+# Korrekturen am bestehenden Realm (Realm-Datei gilt nur beim ersten Start), mit dem Bootstrap-Admin.
+KC_ADMIN_USER=admin KC_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD" ./scripts/keycloak_realm_update.sh \
+  || echo "! Realm-Korrekturen nicht ausgeführt, später: ./scripts/keycloak_realm_update.sh"
+
 echo ""
 echo "─────────────────────────────────────────────────────────────"
 echo "Fertig. Noch nötig:"

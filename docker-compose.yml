@@ -340,6 +340,8 @@ services:
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       KEYCLOAK_REALM: stromfueralle
       KC_PORTAL_CLIENT_SECRET: ${KC_PORTAL_CLIENT_SECRET:-}
+      # "keycloak" = Portal-Anmeldung über Keycloak (sonst wie bisher). Umschalten: docs/BETRIEBSHANDBUCH.md
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-}
     volumes:
       # Persistente Ablage für Mitglieder-Uploads, Verträge, Beitrittserklärungen etc.
       # (vorher nur im Container — ging bei jedem --build verloren!)
@@ -408,6 +410,8 @@ services:
       # Platzhalter in keycloak/realm/stromfueralle-realm.json (nur beim ersten Start gelesen).
       DOMAIN: ${DOMAIN}
       PORTAL_HOST: ${PORTAL_HOST:-portal.${DOMAIN}}
+      KC_PORTAL_URL: https://${PORTAL_HOST:-portal.${DOMAIN}}
+      KC_SITE_URL: https://${DOMAIN}
       KC_PORTAL_CLIENT_SECRET: ${KC_PORTAL_CLIENT_SECRET:-}
       KC_APP_CLIENT_SECRET: ${KC_APP_CLIENT_SECRET:-}
       KC_KONSOLE_CLIENT_SECRET: ${KC_KONSOLE_CLIENT_SECRET:-}

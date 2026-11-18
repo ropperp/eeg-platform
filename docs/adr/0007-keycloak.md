@@ -38,12 +38,29 @@ Verglichen: eigener Stack erweitern, Keycloak, Zitadel (selbst betrieben, kosten
   Admin-Konsole nachziehen (und in der Datei, damit eine Neuinstallation gleich ist).
 
 ## Schritte
-1. **Dienst und Übernahme** (dieser Stand): Container (Compose-Profil `keycloak`), Realm, Erweiterung,
+1. **Dienst und Übernahme** (18.11.2026): Container (Compose-Profil `keycloak`), Realm, Erweiterung,
    `scripts/keycloak_setup.sh`, `webapp/bin/keycloak_import_users.php`, Migration `users.keycloak_id`.
-   Für Mitglieder ändert sich noch nichts.
-2. Portal-Anmeldung über Keycloak (OIDC mit PKCE), eigene Login-Seite im Plattform-Design,
-   Abgleich bei Änderungen (Neuanlage, E-Mail, Sperre, Löschen, Passwort), Abmelden überall, Google.
-3. App-API: `/api/v1/login` prüft das Passwort über Keycloak (Client `app`), App bleibt unverändert.
+2. **Portal-Anmeldung über Keycloak** (19.11.2026), Schalter `AUTH_PROVIDER` (`keycloak-test` = nur über
+   `/portal/login?keycloak=1`, `keycloak` = für alle):
+   - OIDC mit PKCE (`KeycloakAuthController`, `KeycloakOidc`, `Jwt`): Rücksprung `/portal/auth/callback`
+     (der Portal-Host leitet alles außer `/portal/*` um), ID-Token voll geprüft (RS256, iss, aud, exp, nonce).
+     Danach baut das Portal seine Sitzung wie bisher (`Auth::establishSession`).
+   - Abmelden beendet Portal- und Keycloak-Sitzung; Backchannel `/api/kc/backchannel-logout` beendet die
+     Portal-Sitzung, wenn Keycloak die gemeinsame Sitzung beendet (sid -> PHP-Sitzung in Redis).
+   - **Das Portal bleibt die Quelle** für Profil, Sperre, Passwort, 2FA und `platform_admin`. Trigger auf
+     `users`/`user_roles` schreiben jede Änderung in `keycloak_sync_queue`; die Webapp arbeitet sie nach jeder
+     Anfrage ab (`KeycloakSync`, bricht beim ersten Fehler ab), ein Cron (`bin/keycloak_sync.php`) holt
+     Liegengebliebenes nach. Passwörter gehen als Hash, nie im Klartext. Die Keycloak-Kontoseite ist aus,
+     damit dort nichts abweicht. Google verknüpfen/lösen und Keycloak-Passkeys gibt es im Portal-Profil
+     (Anwendungs-Aktionen `idp_link:google`, `webauthn-register-passwordless`).
+   - Login-Seite: Theme `keycloak/themes/stromfueralle` (Glas-Design), Links „Passwort vergessen“ und
+     „Mitglied werden“ zum Portal über Client-Attribute `sfa.forgot.url`/`sfa.join.url`.
+   - Rückfall: Ist Keycloak nicht erreichbar, zeigt `/portal/login` die bisherige Anmeldung mit Hinweis.
+     Sonst ist die bisherige Anmeldung (Formular, 2FA, Portal-Passkey) gesperrt. Die Portal-Passkeys bleiben
+     für den Notzugang (Rückfall, Steuerzentrale).
+   - Die App meldet sich weiter am Portal an (`/api/v1/login`); weil die Passwörter im Portal gepflegt
+     werden, bleibt das stimmig.
+3. App-API über Keycloak (optional, nur wenn die App später echtes OIDC bekommt).
 4. Steuerzentrale über Keycloak (nur `platform_admin`, mit zweitem Faktor), Passkey-Notzugang bleibt.
 5. Alte Anmelde-Wege und `users.password_hash`/`totp_secret` entfernen, wenn alles über Keycloak läuft.
 

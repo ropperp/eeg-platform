@@ -85,8 +85,49 @@
   <?php endif; ?>
 </div>
 
+<?php if (!empty($kcLogin)): ?>
+<div class="card" style="max-width:480px;margin-bottom:1.5rem" id="anmeldung">
+  <h3 style="margin-bottom:.5rem"><?= icon('lock-key') ?> Anmeldung</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Mit einer Anmeldung sind Sie im Portal und in allen Bereichen von „Strom für alle“ angemeldet.
+  </p>
+  <?php if ($kcLogin['google_available']): ?>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem 0;border-top:1px solid var(--gray-200)">
+      <span style="font-size:.9rem"><strong>Google</strong><br>
+        <span style="color:var(--gray-600);font-size:.8rem"><?= $kcLogin['google_linked'] !== null ? 'verbunden: ' . htmlspecialchars($kcLogin['google_linked']) : 'nicht verbunden' ?></span>
+      </span>
+      <?php if ($kcLogin['google_linked'] !== null): ?>
+        <form method="post" action="/portal/auth/google/unlink" data-confirm="Google-Anmeldung für dieses Konto lösen?">
+          <?= csrfField() ?><button type="submit" class="btn btn-tint-red">Lösen</button>
+        </form>
+      <?php else: ?>
+        <a href="/portal/auth/google" class="btn btn-primary">Mit Google verknüpfen</a>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
+  <?php foreach ($kcLogin['passkeys'] as $pk): ?>
+    <form method="post" action="/portal/auth/passkey/delete" data-confirm="Passkey wirklich entfernen?"
+          style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem 0;border-top:1px solid var(--gray-200)">
+      <?= csrfField() ?><input type="hidden" name="id" value="<?= htmlspecialchars($pk['id']) ?>">
+      <span style="font-size:.9rem"><strong><?= htmlspecialchars($pk['label']) ?></strong><br>
+        <span style="color:var(--gray-600);font-size:.8rem">Passkey<?= $pk['created'] !== '' ? ', angelegt ' . htmlspecialchars($pk['created']) : '' ?></span>
+      </span>
+      <button type="submit" class="btn btn-tint-red">Entfernen</button>
+    </form>
+  <?php endforeach; ?>
+  <div style="padding-top:.75rem;border-top:1px solid var(--gray-200)">
+    <a href="/portal/auth/passkey" class="btn btn-secondary"><?= icon('key') ?> Passkey für die Anmeldung einrichten</a>
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="card" style="max-width:480px;margin-bottom:1.5rem" id="passkeys">
-  <h3 style="margin-bottom:.5rem"><?= icon('key') ?> Passkeys</h3>
+  <h3 style="margin-bottom:.5rem"><?= icon('key') ?> <?= !empty($kcLogin) ? 'Passkeys für den Notzugang' : 'Passkeys' ?></h3>
+  <?php if (!empty($kcLogin)): ?>
+    <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:.5rem">
+      Diese Passkeys gelten nur, wenn der Anmeldedienst ausfällt, und für den Notzugang der Steuerzentrale.
+    </p>
+  <?php endif; ?>
   <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
     Anmelden ohne Passwort mit Fingerabdruck, Gesicht oder Geräte-PIN (z.&nbsp;B. iPhone, MacBook,
     Windows&nbsp;Hello oder Sicherheitsschlüssel). Ein Passkey ersetzt Passwort und 2FA und lässt sich

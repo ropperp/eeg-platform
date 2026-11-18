@@ -9,6 +9,9 @@ ob_start();
     <h1 style="font-size:1.5rem;margin-bottom:.25rem">Anmelden</h1>
     <p style="color:var(--gray-600);font-size:.875rem;margin-bottom:1.5rem">EEG-Mitgliederportal</p>
 
+    <?php if (!empty($notice)): ?>
+      <div class="alert alert-info"><?= htmlspecialchars($notice) ?></div>
+    <?php endif; ?>
     <?php if (!empty($error)): ?>
       <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>

@@ -7,13 +7,14 @@
 # Admin-Konsole zeigt. Lokal: bash tests/e2e/keycloak_run.sh
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-P=kc-e2e; NET=$P-net; KC_PORT="${KC_E2E_PORT:-18280}"
+P=kc-e2e; NET=$P-net; KC_PORT="${KC_E2E_PORT:-18280}"; WEB_PORT="${KC_E2E_WEB_PORT:-18290}"
+WEB=http://localhost:$WEB_PORT
 DB_IMAGE="${TEST_PG_IMAGE:-timescale/timescaledb:2.17.2-pg16}"
 REALM=stromfueralle; PORTAL_SECRET=portal-e2e-secret; APP_SECRET_KC=app-e2e-secret
 
 cleanup() {
   if [ "${E2E_KEEP:-}" != 1 ]; then
-    docker rm -f $P-db $P-kc >/dev/null 2>&1 || true
+    docker rm -f $P-db $P-kc $P-redis $P-web >/dev/null 2>&1 || true
     docker network rm $NET >/dev/null 2>&1 || true
   fi
 }
@@ -36,7 +37,7 @@ docker run -d --name $P-kc --network $NET --network-alias keycloak -p "$KC_PORT:
   -e KC_DB_URL=jdbc:postgresql://$P-db:5432/keycloak -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=kc-test \
   -e KC_HOSTNAME=http://localhost:$KC_PORT -e KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true -e KC_HTTP_ENABLED=true \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-  -e DOMAIN=stromfueralle.test -e PORTAL_HOST=portal.stromfueralle.test \
+  -e DOMAIN=stromfueralle.test -e PORTAL_HOST=portal.stromfueralle.test -e KC_PORTAL_URL=$WEB -e KC_SITE_URL=$WEB \
   -e KC_PORTAL_CLIENT_SECRET=$PORTAL_SECRET -e KC_APP_CLIENT_SECRET=$APP_SECRET_KC -e KC_KONSOLE_CLIENT_SECRET=k \
   $P-kc >/dev/null
 
@@ -104,6 +105,98 @@ ROLES=$(curl -s "$TOKEN_URL" -d grant_type=password -d client_id=app -d client_s
 check "Platform-Admin bekommt Rolle platform_admin" "$ROLES" "True"
 check "Dienstkonto portal darf keine Realm-Einstellungen ändern" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -H "Authorization: Bearer $SA" -H 'Content-Type: application/json' -d '{"bruteForceProtected":false}' "http://localhost:$KC_PORT/admin/realms/$REALM")" "403"
+
+echo "Keycloak: Realm-Update-Skript (bestehender Realm)"
+UPD=$(KC_SKIP_ENV=1 DOMAIN=stromfueralle.test KC_PORTAL_URL=$WEB KC_SITE_URL=$WEB KC_EXEC="docker exec" KC_NOTTY=-i \
+  KC_SERVICE=$P-kc KC_ADMIN_USER=admin KC_ADMIN_PASSWORD=admin ./scripts/keycloak_realm_update.sh 2>&1) || { echo "$UPD"; exit 1; }
+check "Update-Skript läuft durch" "$(echo "$UPD" | tail -1)" "Fertig."
+UPD=$(KC_SKIP_ENV=1 DOMAIN=stromfueralle.test KC_PORTAL_URL=$WEB KC_SITE_URL=$WEB KC_EXEC="docker exec" KC_NOTTY=-i \
+  KC_SERVICE=$P-kc KC_ADMIN_USER=admin KC_ADMIN_PASSWORD=admin ./scripts/keycloak_realm_update.sh 2>&1) || { echo "$UPD"; exit 1; }
+check "Update-Skript ein zweites Mal (idempotent)" "$(echo "$UPD" | tail -1)" "Fertig."
+check "Keycloak-Kontoseite ist aus" "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$KC_PORT/realms/$REALM/account/")" "404"
+
+echo "Portal-Anmeldung über Keycloak (AUTH_PROVIDER=keycloak)"
+docker run -d --name $P-redis --network $NET redis:7.4.12-alpine >/dev/null
+start_web() {
+  docker rm -f $P-web >/dev/null 2>&1 || true
+  docker run -d --name $P-web --network $NET --network-alias webapp -p "$WEB_PORT:80" \
+    -e DB_HOST=$P-db -e DB_NAME=eeg_platform -e APP_ENV=production -e APP_DB_USER=eeg_app -e APP_DB_PASSWORD=app \
+    -e REDIS_HOST=$P-redis -e APP_SECRET=e2e -e DOMAIN=localhost -e AUTH_PROVIDER="$1" \
+    -e KEYCLOAK_INTERNAL_URL=http://keycloak:8080 -e KC_PORTAL_CLIENT_SECRET=$PORTAL_SECRET \
+    -e KEYCLOAK_PUBLIC_URL=http://localhost:$KC_PORT -e KEYCLOAK_PORTAL_URL=$WEB -e KEYCLOAK_POST_LOGOUT_URL=$WEB/ \
+    $P-webapp >/dev/null
+  for _ in $(seq 1 30); do curl -fs "$WEB/health" >/dev/null && break; sleep 1; done
+}
+start_web keycloak
+# Wie auf dem Server: vor dem Umschalten importierte Konten haben noch keinen Abgleich-Stand.
+docker exec $P-db psql -q -U eeg -d eeg_platform -c 'UPDATE users SET keycloak_state = NULL' >/dev/null
+SYNC=(docker exec $P-web php /var/www/html/bin/keycloak_sync.php)
+IMPORT_ALL=(docker exec $P-web php /var/www/html/bin/keycloak_import_users.php --all)
+OUT=$("${IMPORT_ALL[@]}") || { echo "$OUT"; exit 1; }
+check "Umschalten: alle Konten einmal abgeglichen" "$(echo "$OUT" | awk '$1=="aktualisiert"{print $2}')" "5"
+OUT=$("${IMPORT_ALL[@]}")
+check "zweiter Abgleich: nichts zu tun" "$(echo "$OUT" | awk '$1=="unveraendert"{print $2}')" "5"
+
+export COOKIES=$(mktemp)
+B=(python3 tests/e2e/keycloak_browser.py "$WEB")
+PAGE=$("${B[@]}" loginpage)
+check "Login-Seite im Plattform-Design" "$(echo "$PAGE" | grep -q 'css/stromfueralle.css' && echo ja)" "ja"
+check "Login-Seite: Passwort vergessen führt ins Portal" "$(echo "$PAGE" | grep -o "href=\"$WEB/portal/forgot-password\"" | head -1)" "href=\"$WEB/portal/forgot-password\""
+rm -f "$COOKIES"
+# Konto mit Rolle (ohne Rolle hat das Dashboard nichts zu zeigen): der Platform-Admin.
+check "Anmeldung über Keycloak" "$("${B[@]}" login admin@e2e.test "$PW")" "ok"
+check "danach im Dashboard" "$("${B[@]}" dashboard)" "drin"
+check "Abmelden (Portal und Keycloak)" "$("${B[@]}" logout)" "ok"
+check "nach dem Abmelden draußen" "$("${B[@]}" dashboard)" "draussen"
+check "Keycloak fragt nach dem Abmelden wieder" "$("${B[@]}" loginpage | grep -c 'id="kc-form-login"')" "1"
+
+echo "Abgleich Portal -> Keycloak"
+psql_e2e() { docker exec -i $P-db psql -tA -U eeg -d eeg_platform -v ON_ERROR_STOP=1 "$@"; }
+NEWPW='Neues-Passwort-2'
+NEWHASH=$("${PHPRUN[@]}" -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$NEWPW")
+psql_e2e -c "UPDATE users SET password_hash = '$NEWHASH' WHERE email = 'argon@e2e.test'" >/dev/null
+"${SYNC[@]}" >/dev/null
+check "Passwort im Portal geändert: neues gilt"   "$(login argon@e2e.test "$NEWPW")" "ok"
+check "Passwort im Portal geändert: altes nicht"  "$(login argon@e2e.test "$PW")" "invalid_grant"
+psql_e2e -c "UPDATE users SET active = false WHERE email = 'bcrypt@e2e.test'" >/dev/null
+"${SYNC[@]}" >/dev/null
+check "Konto gesperrt: Keycloak lehnt ab" "$(login bcrypt@e2e.test "$PW")" "invalid_grant"
+psql_e2e -c "UPDATE users SET email = 'neu@e2e.test' WHERE email = 'admin@e2e.test'" >/dev/null
+"${SYNC[@]}" >/dev/null
+check "E-Mail geändert: Anmeldung mit neuer Adresse" "$(login neu@e2e.test "$PW")" "ok"
+psql_e2e -c "INSERT INTO users (email, password_hash, first_name, last_name) VALUES ('frisch@e2e.test', '$NEWHASH', 'Fr', 'Isch')" >/dev/null
+"${SYNC[@]}" >/dev/null
+check "neues Konto im Portal: sofort in Keycloak" "$(login frisch@e2e.test "$NEWPW")" "ok"
+GONE=$(psql_e2e -c "SELECT keycloak_id FROM users WHERE email = 'frisch@e2e.test'")
+psql_e2e -c "DELETE FROM users WHERE email = 'frisch@e2e.test'" >/dev/null
+"${SYNC[@]}" >/dev/null
+check "Konto im Portal gelöscht: auch in Keycloak weg" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(curl -s "$TOKEN_URL" -d grant_type=client_credentials -d client_id=portal -d client_secret=$PORTAL_SECRET -d scope=kc-admin-api | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')" "http://localhost:$KC_PORT/admin/realms/$REALM/users/$GONE")" "404"
+check "Warteschlange leer" "$(psql_e2e -c 'SELECT count(*) FROM keycloak_sync_queue')" "0"
+
+echo "Abmelden von außen (Backchannel)"
+rm -f "$COOKIES"
+check "Anmeldung (Platform-Admin mit neuer E-Mail)" "$("${B[@]}" login neu@e2e.test "$PW")" "ok"
+SA=$(curl -s "$TOKEN_URL" -d grant_type=client_credentials -d client_id=portal -d client_secret=$PORTAL_SECRET -d scope=kc-admin-api | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+AID=$(psql_e2e -c "SELECT keycloak_id FROM users WHERE email = 'neu@e2e.test'")
+curl -s -o /dev/null -X POST -H "Authorization: Bearer $SA" "http://localhost:$KC_PORT/admin/realms/$REALM/users/$AID/logout"
+sleep 1
+check "Keycloak-Sitzung beendet: Portal-Sitzung auch" "$("${B[@]}" dashboard)" "draussen"
+
+echo "Testmodus (AUTH_PROVIDER=keycloak-test)"
+start_web keycloak-test
+check "normaler Login bleibt der bisherige" "$(curl -s -o /dev/null -w '%{http_code}' "$WEB/portal/login")" "200"
+check "mit ?keycloak=1 zu Keycloak" "$(curl -s -o /dev/null -w '%{redirect_url}' "$WEB/portal/login?keycloak=1" | grep -c "localhost:$KC_PORT/realms/$REALM/")" "1"
+rm -f "$COOKIES"
+check "Anmeldung im Testmodus über Keycloak" "$(LOGIN_PATH='/portal/login?keycloak=1' "${B[@]}" login neu@e2e.test "$PW")" "ok"
+start_web keycloak
+
+echo "Rückfall, wenn Keycloak ausfällt"
+docker stop $P-kc >/dev/null
+check "Login-Seite des Portals mit Hinweis" "$(curl -s "$WEB/portal/login" | grep -c 'Anmeldedienst ist gerade nicht erreichbar')" "1"
+check "Sync bei ausgefallenem Keycloak hängt nicht und behält die Arbeit" \
+  "$(psql_e2e -c "UPDATE users SET first_name = 'Neu' WHERE email = 'argon@e2e.test'" >/dev/null; timeout 30 "${SYNC[@]}" >/dev/null 2>&1; psql_e2e -c 'SELECT count(*) FROM keycloak_sync_queue')" "1"
+rm -f "$COOKIES"
 
 echo ""
 echo "Keycloak-E2E: $pass bestanden, $fail fehlgeschlagen"
