@@ -7,7 +7,8 @@ namespace Konsole;
 /**
  * Steuerzentrale (admin.<DOMAIN>): Status und Neustart der Plattform-Container, Logs, Wartungsmodus.
  * Läuft als eigener Container ohne Abhängigkeit von Webapp, Datenbank, Redis oder Traefik.
- * Anmeldung nur per Passkey eines Platform-Admins (dieselben Passkeys wie im Portal).
+ * Anmeldung über Keycloak (gemeinsame Sitzung mit dem Portal, nur Rolle platform_admin, Klasse Sso) oder
+ * als Notzugang per Passkey eines Platform-Admins (dieselben Passkeys wie im Portal).
  *
  * Auf allen anderen Hosts (Traefik leitet sie im Wartungsmodus hierher) zeigt sie nur die
  * Wartungsseite (HTTP 500, siehe maintenancePage()).
@@ -19,6 +20,7 @@ final class App
 
     private Tokens $sessions;
     private Tokens $challenges;
+    private Tokens $oidcStates;
 
     public function __construct(
         private readonly Config $config,
@@ -26,9 +28,11 @@ final class App
         private readonly Docker $docker,
         private readonly Maintenance $maintenance,
         private readonly AuditLog $audit,
+        private readonly ?Sso $sso = null,
     ) {
         $this->sessions = new Tokens($config->key('session'));
         $this->challenges = new Tokens($config->key('challenge'));
+        $this->oidcStates = new Tokens($config->key('oidc'));
     }
 
     /**
@@ -52,12 +56,24 @@ final class App
         if ($method === 'GET' && in_array($path, ['/konsole.js', '/konsole.css', '/logo-white.png', '/logo.png', '/favicon.png'], true)) {
             return Response::asset(__DIR__ . '/../public' . $path);
         }
+        // Keycloak meldet intern (http://konsole:8090), dass eine gemeinsame Sitzung beendet wurde.
+        if ($path === '/kc/backchannel-logout' && $method === 'POST') {
+            return $this->backchannelLogout((string) ($post['logout_token'] ?? ''));
+        }
         if ($host !== $this->config->adminHost) {
             return $this->maintenancePage();
         }
 
         $session = $this->session($cookies);
         $ip = $this->clientIp($server);
+
+        if ($path === '/anmelden/sso' && $method === 'GET') {
+            return $this->ssoStart();
+        }
+        if ($path === '/auth/callback' && $method === 'GET') {
+            parse_str((string) ($server['QUERY_STRING'] ?? ''), $q);
+            return $this->ssoCallback($q, $cookies, $ip);
+        }
 
         if ($path === '/login/options' && $method === 'POST') {
             return $this->loginOptions();
@@ -66,9 +82,25 @@ final class App
             return $this->loginVerify($body, $cookies, $ip);
         }
         if ($session === null) {
-            return $method === 'GET' && $path === '/'
-                ? Response::html($this->render('login', []))
-                : ($method === 'GET' ? Response::redirect('/') : Response::json(['error' => 'Nicht angemeldet'], 401));
+            if ($method !== 'GET') {
+                return Response::json(['error' => 'Nicht angemeldet'], 401);
+            }
+            if ($path !== '/') {
+                return Response::redirect('/');
+            }
+            parse_str((string) ($server['QUERY_STRING'] ?? ''), $q);
+            // Gemeinsame Anmeldung: direkt zu Keycloak (wer im Portal angemeldet ist, ist sofort drin).
+            // Nicht nach dem Abmelden, nicht bei ?passkey (Notzugang) und nicht, wenn Keycloak weg ist.
+            $ssoUp = $this->sso?->enabled() === true && $this->sso->reachable();
+            if ($ssoUp && !isset($q['abgemeldet']) && !isset($q['passkey'])) {
+                return $this->ssoStart();
+            }
+            return Response::html($this->render('login', [
+                'sso' => $ssoUp,
+                'ssoDown' => $this->sso?->enabled() === true && !$ssoUp,
+                'abgemeldet' => isset($q['abgemeldet']),
+                'fehler' => '',
+            ]));
         }
         if ($method === 'POST' && !hash_equals($this->csrf($session), (string) ($post['csrf'] ?? ''))) {
             return Response::text('Sicherheits-Token ungültig. Bitte Seite neu laden.', 403);
@@ -84,7 +116,9 @@ final class App
         };
         // Sitzung bei jeder Aktivität verlängern (gleitend 30 Minuten), außer beim Abmelden.
         if ($path !== '/abmelden') {
-            $response->cookie($this->cookieName('s'), $this->sessions->issue(['uid' => $session['uid'], 'name' => $session['name'], 'sid' => $session['sid']], self::SESSION_TTL), self::SESSION_TTL);
+            $keep = $session;
+            unset($keep['exp']);
+            $response->cookie($this->cookieName('s'), $this->sessions->issue($keep, self::SESSION_TTL), self::SESSION_TTL);
         }
         return $response;
     }
@@ -145,7 +179,66 @@ final class App
     private function logout(array $s, string $ip): Response
     {
         $this->audit->write((string) $s['name'], 'abmeldung', '', $ip);
-        return Response::redirect('/')->cookie($this->cookieName('s'), '', -1);
+        // Über Keycloak angemeldet: dort abmelden, das beendet auch die Portal-Sitzung (Backchannel).
+        $target = $this->sso !== null && !empty($s['kc']) ? $this->sso->endSessionUrl(is_string($s['idt'] ?? null) ? $s['idt'] : null) : '/';
+        return Response::redirect($target)->cookie($this->cookieName('s'), '', -1);
+    }
+
+    // ─── Anmeldung über Keycloak ────────────────────────────────────────────
+
+    private function ssoStart(): Response
+    {
+        if ($this->sso === null || !$this->sso->enabled()) {
+            return Response::redirect('/?passkey=1');
+        }
+        $state = [];
+        $url = $this->sso->authorizationUrl($state);
+        return Response::redirect($url)->cookie($this->cookieName('o'), $this->oidcStates->issue($state, 600), 600);
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, string> $cookies
+     */
+    private function ssoCallback(array $query, array $cookies, string $ip): Response
+    {
+        $loginPage = fn(string $msg): Response => Response::html($this->render('login', [
+            'sso' => true, 'ssoDown' => false, 'abgemeldet' => false, 'fehler' => $msg,
+        ]), 403)->cookie($this->cookieName('o'), '', -1);
+        if ($this->sso === null || !$this->sso->enabled()) {
+            return Response::redirect('/');
+        }
+        try {
+            $state = $this->oidcStates->read((string) ($cookies[$this->cookieName('o')] ?? ''));
+            $u = $this->sso->callback($state, $query);
+        } catch (NotAdminException $e) {
+            $this->audit->write('-', 'anmeldung_fehlgeschlagen', 'keine Rolle platform_admin', $ip);
+            return $loginPage($e->getMessage());
+        } catch (\Throwable $e) {
+            $this->audit->write('-', 'anmeldung_fehlgeschlagen', 'Keycloak: ' . $e->getMessage(), $ip);
+            return $loginPage('Anmeldung über Keycloak fehlgeschlagen. Bitte noch einmal versuchen oder den Passkey nutzen.');
+        }
+        $this->audit->write($u['name'], 'anmeldung', 'Keycloak', $ip);
+        $session = ['uid' => 'kc:' . $u['sub'], 'name' => $u['name'], 'sid' => $u['sid'] !== '' ? $u['sid'] : bin2hex(random_bytes(16)),
+                    'kc' => 1, 'idt' => $u['id_token']];
+        return Response::redirect('/')
+            ->cookie($this->cookieName('o'), '', -1)
+            ->cookie($this->cookieName('s'), $this->sessions->issue($session, self::SESSION_TTL), self::SESSION_TTL);
+    }
+
+    private function backchannelLogout(string $token): Response
+    {
+        if ($this->sso === null || !$this->sso->enabled()) {
+            return Response::text('', 404);
+        }
+        try {
+            $sid = $this->sso->logoutSid($token);
+        } catch (\Throwable $e) {
+            error_log('[konsole] Backchannel: ' . $e->getMessage());
+            return Response::text('invalid logout token', 400);
+        }
+        $this->sso->revoke($sid);
+        return Response::text('')->header('Cache-Control', 'no-store');
     }
 
     // ─── Seiten und Aktionen ────────────────────────────────────────────────
@@ -259,7 +352,14 @@ final class App
     private function session(array $cookies): ?array
     {
         $s = $this->sessions->read((string) ($cookies[$this->cookieName('s')] ?? ''));
-        return $s !== null && is_string($s['uid'] ?? null) && is_string($s['sid'] ?? null) ? $s : null;
+        if ($s === null || !is_string($s['uid'] ?? null) || !is_string($s['sid'] ?? null)) {
+            return null;
+        }
+        // Über Keycloak angemeldet und die gemeinsame Sitzung wurde beendet (z. B. Abmelden im Portal).
+        if (!empty($s['kc']) && $this->sso !== null && $this->sso->isRevoked($s['sid'])) {
+            return null;
+        }
+        return $s;
     }
 
     /** @param array<string, mixed> $s */

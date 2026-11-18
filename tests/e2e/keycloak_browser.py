@@ -66,7 +66,9 @@ if ACTION == "login":
     url, status, body = follow(PORTAL + os.environ.get("LOGIN_PATH", "/portal/login"))
     m = re.search(r'<form id="kc-form-login"[^>]*action="([^"]+)"', body)
     if not m:
-        print("keine Keycloak-Anmeldeseite (" + url + ")")
+        # Gemeinsame Keycloak-Sitzung: ohne Eingabe direkt zurück ins Portal.
+        ok = status == 200 and (url.startswith(PORTAL + "/portal/dashboard") or url.startswith(PORTAL + "/admin"))
+        print("ok" if ok else "keine Keycloak-Anmeldeseite (" + url + ")")
         save()
         sys.exit(0)
     action = m.group(1).replace("&amp;", "&")
@@ -85,6 +87,30 @@ elif ACTION == "logout":
     url, status, _ = follow(PORTAL + "/portal/logout")
     save()
     print("ok" if status == 200 and "/realms/" not in url else "fehlgeschlagen: %s %s" % (status, url))
+elif ACTION in ("konsole", "konsole-login"):
+    # Steuerzentrale: PORTAL ist hier die Adresse der Konsole. "konsole" = ohne Eingabe (gemeinsame
+    # Sitzung), "konsole-login" = bei Bedarf mit E-Mail/Passwort an der Keycloak-Seite.
+    url, status, body = follow(PORTAL + "/")
+    m = re.search(r'<form id="kc-form-login"[^>]*action="([^"]+)"', body)
+    if m and ACTION == "konsole-login":
+        url, status, body = follow(m.group(1).replace("&amp;", "&"),
+                                   urllib.parse.urlencode({"username": sys.argv[3], "password": sys.argv[4]}).encode())
+        m = None
+    save()
+    if m:
+        print("anmeldeseite")
+    elif status == 200 and 'action="/abmelden"' in body:
+        print("drin")
+    elif "Kein Zugang" in body:
+        print("kein-zugang")
+    else:
+        print("anders: %s %s" % (status, url))
+elif ACTION == "konsole-logout":
+    status, loc, body = fetch(PORTAL + "/")
+    csrf = re.search(r'name="csrf" value="([0-9a-f]{64})"', body)
+    url, status, _ = follow(PORTAL + "/abmelden", urllib.parse.urlencode({"csrf": csrf.group(1) if csrf else ""}).encode())
+    save()
+    print("ok" if status == 200 and "abgemeldet" in url else "fehlgeschlagen: %s %s" % (status, url))
 elif ACTION == "loginpage":
     url, status, body = follow(PORTAL + "/portal/login")
     save()

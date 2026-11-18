@@ -24,6 +24,12 @@ final class Config
         public readonly string $dbDsn,
         public readonly string $dbUser,
         public readonly string $dbPassword,
+        // Anmeldung über Keycloak (docs/adr/0007-keycloak.md). Leeres Secret = nur Passkey wie bisher.
+        public readonly string $kcClientSecret = '',
+        public readonly string $kcPublicUrl = '',
+        public readonly string $kcInternalUrl = 'http://keycloak:8080',
+        public readonly string $kcRealm = 'stromfueralle',
+        public readonly string $baseUrl = '',
     ) {
         if (strlen($secret) < 32) {
             throw new \RuntimeException('APP_SECRET fehlt oder ist zu kurz (mind. 32 Zeichen).');
@@ -49,6 +55,11 @@ final class Config
             dbDsn: sprintf('pgsql:host=%s;port=%s;dbname=%s;connect_timeout=3', $env('DB_HOST', 'timescaledb'), $env('DB_PORT', '5432'), $env('DB_NAME', 'eeg_platform')),
             dbUser: $env('APP_DB_USER'),
             dbPassword: $env('APP_DB_PASSWORD'),
+            kcClientSecret: $env('KC_KONSOLE_CLIENT_SECRET'),
+            kcPublicUrl: rtrim($env('KEYCLOAK_PUBLIC_URL', 'https://auth.' . $domain), '/'),
+            kcInternalUrl: rtrim($env('KEYCLOAK_INTERNAL_URL', 'http://keycloak:8080'), '/'),
+            kcRealm: $env('KEYCLOAK_REALM', 'stromfueralle'),
+            baseUrl: rtrim($env('KONSOLE_BASE_URL', 'https://' . strtolower($env('KONSOLE_HOST', 'admin.' . $domain))), '/'),
         );
     }
 

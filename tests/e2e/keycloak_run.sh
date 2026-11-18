@@ -8,13 +8,13 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 P=kc-e2e; NET=$P-net; KC_PORT="${KC_E2E_PORT:-18280}"; WEB_PORT="${KC_E2E_WEB_PORT:-18290}"
-WEB=http://localhost:$WEB_PORT
+WEB=http://localhost:$WEB_PORT; KZ_PORT="${KC_E2E_KZ_PORT:-18295}"; KZ=http://localhost:$KZ_PORT
 DB_IMAGE="${TEST_PG_IMAGE:-timescale/timescaledb:2.17.2-pg16}"
 REALM=stromfueralle; PORTAL_SECRET=portal-e2e-secret; APP_SECRET_KC=app-e2e-secret
 
 cleanup() {
   if [ "${E2E_KEEP:-}" != 1 ]; then
-    docker rm -f $P-db $P-kc $P-redis $P-web >/dev/null 2>&1 || true
+    docker rm -f $P-db $P-kc $P-redis $P-web $P-kz >/dev/null 2>&1 || true
     docker network rm $NET >/dev/null 2>&1 || true
   fi
 }
@@ -24,6 +24,7 @@ cleanup
 echo "Images bauen ..."
 docker build -q -t $P-kc ./keycloak >/dev/null
 docker build -q -f webapp/Dockerfile -t $P-webapp . >/dev/null
+docker build -q -f konsole/Dockerfile -t $P-konsole . >/dev/null
 
 docker network create $NET >/dev/null
 docker run -d --name $P-db --network $NET -e POSTGRES_USER=eeg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=eeg_platform "$DB_IMAGE" >/dev/null
@@ -37,8 +38,8 @@ docker run -d --name $P-kc --network $NET --network-alias keycloak -p "$KC_PORT:
   -e KC_DB_URL=jdbc:postgresql://$P-db:5432/keycloak -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=kc-test \
   -e KC_HOSTNAME=http://localhost:$KC_PORT -e KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true -e KC_HTTP_ENABLED=true \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-  -e DOMAIN=stromfueralle.test -e PORTAL_HOST=portal.stromfueralle.test -e KC_PORTAL_URL=$WEB -e KC_SITE_URL=$WEB \
-  -e KC_PORTAL_CLIENT_SECRET=$PORTAL_SECRET -e KC_APP_CLIENT_SECRET=$APP_SECRET_KC -e KC_KONSOLE_CLIENT_SECRET=k \
+  -e DOMAIN=stromfueralle.test -e PORTAL_HOST=portal.stromfueralle.test -e KC_PORTAL_URL=$WEB -e KC_SITE_URL=$WEB -e KC_KONSOLE_URL=$KZ \
+  -e KC_PORTAL_CLIENT_SECRET=$PORTAL_SECRET -e KC_APP_CLIENT_SECRET=$APP_SECRET_KC -e KC_KONSOLE_CLIENT_SECRET=konsole-e2e-secret \
   $P-kc >/dev/null
 
 # Testkonten: Hashes und 2FA-Secret mit dem PHP der Plattform erzeugen (wie im echten Betrieb).
@@ -107,10 +108,10 @@ check "Dienstkonto portal darf keine Realm-Einstellungen ändern" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -H "Authorization: Bearer $SA" -H 'Content-Type: application/json' -d '{"bruteForceProtected":false}' "http://localhost:$KC_PORT/admin/realms/$REALM")" "403"
 
 echo "Keycloak: Realm-Update-Skript (bestehender Realm)"
-UPD=$(KC_SKIP_ENV=1 DOMAIN=stromfueralle.test KC_PORTAL_URL=$WEB KC_SITE_URL=$WEB KC_EXEC="docker exec" KC_NOTTY=-i \
+UPD=$(KC_SKIP_ENV=1 DOMAIN=stromfueralle.test KC_PORTAL_URL=$WEB KC_SITE_URL=$WEB KC_KONSOLE_URL=$KZ KC_EXEC="docker exec" KC_NOTTY=-i \
   KC_SERVICE=$P-kc KC_ADMIN_USER=admin KC_ADMIN_PASSWORD=admin ./scripts/keycloak_realm_update.sh 2>&1) || { echo "$UPD"; exit 1; }
 check "Update-Skript läuft durch" "$(echo "$UPD" | tail -1)" "Fertig."
-UPD=$(KC_SKIP_ENV=1 DOMAIN=stromfueralle.test KC_PORTAL_URL=$WEB KC_SITE_URL=$WEB KC_EXEC="docker exec" KC_NOTTY=-i \
+UPD=$(KC_SKIP_ENV=1 DOMAIN=stromfueralle.test KC_PORTAL_URL=$WEB KC_SITE_URL=$WEB KC_KONSOLE_URL=$KZ KC_EXEC="docker exec" KC_NOTTY=-i \
   KC_SERVICE=$P-kc KC_ADMIN_USER=admin KC_ADMIN_PASSWORD=admin ./scripts/keycloak_realm_update.sh 2>&1) || { echo "$UPD"; exit 1; }
 check "Update-Skript ein zweites Mal (idempotent)" "$(echo "$UPD" | tail -1)" "Fertig."
 check "Keycloak-Kontoseite ist aus" "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$KC_PORT/realms/$REALM/account/")" "404"
@@ -128,6 +129,12 @@ start_web() {
   for _ in $(seq 1 30); do curl -fs "$WEB/health" >/dev/null && break; sleep 1; done
 }
 start_web keycloak
+docker run -d --name $P-kz --network $NET --network-alias konsole -p "$KZ_PORT:8090" --tmpfs /data \
+  -e APP_SECRET="$(printf 'k%.0s' $(seq 1 64))" -e DOMAIN=localhost -e KONSOLE_HOST=localhost -e KONSOLE_DEV=1 \
+  -e KONSOLE_BASE_URL=$KZ -e KC_KONSOLE_CLIENT_SECRET=konsole-e2e-secret -e KEYCLOAK_PUBLIC_URL=http://localhost:$KC_PORT \
+  -e KEYCLOAK_INTERNAL_URL=http://keycloak:8080 -e DB_HOST=$P-db -e DB_NAME=eeg_platform -e APP_DB_USER=eeg_app -e APP_DB_PASSWORD=app \
+  -e KONSOLE_SERVICES=$P-web $P-konsole >/dev/null
+for _ in $(seq 1 30); do curl -fs "$KZ/health" >/dev/null && break; sleep 1; done
 # Wie auf dem Server: vor dem Umschalten importierte Konten haben noch keinen Abgleich-Stand.
 docker exec $P-db psql -q -U eeg -d eeg_platform -c 'UPDATE users SET keycloak_state = NULL' >/dev/null
 SYNC=(docker exec $P-web php /var/www/html/bin/keycloak_sync.php)
@@ -146,9 +153,22 @@ rm -f "$COOKIES"
 # Konto mit Rolle (ohne Rolle hat das Dashboard nichts zu zeigen): der Platform-Admin.
 check "Anmeldung über Keycloak" "$("${B[@]}" login admin@e2e.test "$PW")" "ok"
 check "danach im Dashboard" "$("${B[@]}" dashboard)" "drin"
+K=(python3 tests/e2e/keycloak_browser.py "$KZ")
+check "Steuerzentrale: ohne erneute Anmeldung drin" "$("${K[@]}" konsole)" "drin"
 check "Abmelden (Portal und Keycloak)" "$("${B[@]}" logout)" "ok"
 check "nach dem Abmelden draußen" "$("${B[@]}" dashboard)" "draussen"
 check "Keycloak fragt nach dem Abmelden wieder" "$("${B[@]}" loginpage | grep -c 'id="kc-form-login"')" "1"
+check "Abmelden im Portal: Steuerzentrale auch abgemeldet" "$("${K[@]}" konsole)" "anmeldeseite"
+
+echo "Steuerzentrale über Keycloak"
+rm -f "$COOKIES"
+check "ohne Rolle platform_admin kein Zugang" "$("${K[@]}" konsole-login argon@e2e.test "$PW")" "kein-zugang"
+rm -f "$COOKIES"
+check "Platform-Admin direkt an der Steuerzentrale" "$("${K[@]}" konsole-login admin@e2e.test "$PW")" "drin"
+check "danach auch im Portal ohne Eingabe" "$("${B[@]}" login admin@e2e.test "$PW")" "ok"
+check "Abmelden in der Steuerzentrale" "$("${K[@]}" konsole-logout)" "ok"
+check "Portal danach auch abgemeldet" "$("${B[@]}" dashboard)" "draussen"
+check "Passkey-Notzugang bleibt erreichbar" "$(curl -s "$KZ/?passkey=1" | grep -c 'data-login')" "1"
 
 echo "Abgleich Portal -> Keycloak"
 psql_e2e() { docker exec -i $P-db psql -tA -U eeg -d eeg_platform -v ON_ERROR_STOP=1 "$@"; }

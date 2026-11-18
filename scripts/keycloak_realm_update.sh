@@ -12,6 +12,8 @@
 #               "Passwort vergessen"/"Mitglied werden" auf der Login-Seite, Theme "stromfueralle", Dienstkonto
 #               darf sehen, ob Google eingeschaltet ist, Keycloak-Kontoseite aus (Profil, Passwort und 2FA
 #               verwaltet das Portal; Google und Passkeys über das Portal-Profil).
+#   19.11.2026  Steuerzentrale über Keycloak (Schritt 4): Client konsole bekommt Rücksprung, Backchannel-
+#               Abmeldung (http://konsole:8090/kc/backchannel-logout) und die Realm-Rollen im ID-Token.
 #
 # Aufruf (auf dem Server, im Repo-Root):  ./scripts/keycloak_realm_update.sh
 # Fragt nach Benutzername und Passwort eines Admins im master-Realm (wie in der Admin-Konsole).
@@ -28,6 +30,7 @@ fi
 : "${DOMAIN:?DOMAIN fehlt (.env)}"
 PORTAL_URL="${KC_PORTAL_URL:-https://${PORTAL_HOST:-portal.${DOMAIN}}}"
 SITE_URL="${KC_SITE_URL:-https://${DOMAIN}}"
+KONSOLE_URL="${KC_KONSOLE_URL:-https://admin.${DOMAIN}}"
 
 EXEC=(${KC_EXEC:-docker compose exec})      # für Tests: KC_EXEC="docker exec", KC_SERVICE=<container>
 SVC="${KC_SERVICE:-keycloak}"
@@ -88,5 +91,21 @@ for c in account-console account; do
   [ -n "$CID" ] && kc update "clients/$CID" -r "$REALM" -s enabled=false
 done
 echo "✓ Keycloak-Kontoseite aus (Verwaltung im Portal-Profil)."
+
+# --- 19.11.2026: Steuerzentrale über Keycloak ----------------------------------------------------------
+KZ_ID=$(kc get clients -r "$REALM" -q clientId=konsole --fields id --format csv --noquotes | tr -d '\r')
+kc update "clients/$KZ_ID" -r "$REALM" \
+  -s "rootUrl=$KONSOLE_URL" \
+  -s "redirectUris=[\"$KONSOLE_URL/auth/callback\"]" \
+  -s "attributes.\"post.logout.redirect.uris\"=$KONSOLE_URL/*" \
+  -s 'attributes."backchannel.logout.url"=http://konsole:8090/kc/backchannel-logout' \
+  -s 'attributes."backchannel.logout.session.required"=true'
+if ! kc get "clients/$KZ_ID/protocol-mappers/models" -r "$REALM" --fields name --format csv --noquotes | grep -q '^realm-rollen'; then
+  kc create "clients/$KZ_ID/protocol-mappers/models" -r "$REALM" -s name=realm-rollen -s protocol=openid-connect \
+    -s protocolMapper=oidc-usermodel-realm-role-mapper \
+    -s 'config."claim.name"=roles' -s 'config.multivalued=true' -s 'config."jsonType.label"=String' \
+    -s 'config."id.token.claim"=true' -s 'config."access.token.claim"=false' -s 'config."userinfo.token.claim"=false' >/dev/null
+fi
+echo "✓ Client konsole: Rücksprung, Abmeldung und Rollen im ID-Token."
 
 echo "Fertig."

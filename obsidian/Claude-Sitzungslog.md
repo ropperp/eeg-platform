@@ -20,6 +20,8 @@ E2E im Browser-Ablauf gegen echtes Keycloak."
 **Ergebnis:** Branch `feature/keycloak-login`: KeycloakAuthController/Oidc/Jwt/Sync, Migration `migrate_20261121.sql`,
 Theme `keycloak/themes/stromfueralle`, Realm-Update-Skript erweitert, Doku. Unit 383, E2E alt 63 und Keycloak 41
 grün, PHPStan ohne Fehler. Offen: Steuerzentrale über Keycloak (Schritt 4).
+**Nachtrag Schritt 4:** Steuerzentrale über Keycloak (Branch `feature/keycloak-konsole`): `Konsole\Sso`, Rollen-Claim
+im ID-Token, Backchannel-Abmeldung mit Sperrliste, Passkey als Notzugang. E2E Keycloak 49/49, Konsole 13/13 grün.
 **Fehler/Lehre:** Der Portal-Host leitet alles außer /portal/* um, Rücksprung deshalb /portal/auth/callback; nach
 fastcgi_finish_request() muss die Sitzung vorher geschrieben sein, sonst verliert die nächste Weiterleitung die Anmeldung.
 

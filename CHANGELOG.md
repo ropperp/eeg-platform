@@ -19,6 +19,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Anmeldedienst Keycloak, Schritt 4: Steuerzentrale über Keycloak (19.11.2026)
+- `admin.<DOMAIN>` meldet über Keycloak an: wer im Portal angemeldet ist, ist ohne Eingabe drin (nur `platform_admin`).
+- Abmelden in Portal oder Steuerzentrale meldet überall ab (Backchannel, Sperrliste in `/data/revoked.json`).
+- Passkey bleibt Notzugang (`/?passkey=1`, automatisch bei Keycloak-Ausfall). Ohne `KC_KONSOLE_CLIENT_SECRET` wie bisher.
+- E2E Keycloak jetzt 49 Prüfungen (SSO Portal → Konsole und zurück, keine Rolle → kein Zugang, Abmelden beidseitig).
+
 ### Anmeldedienst Keycloak, Schritt 2: Portal-Anmeldung über Keycloak (19.11.2026)
 - Schalter `AUTH_PROVIDER` (`keycloak-test` nur über `/portal/login?keycloak=1`, `keycloak` für alle).
   Anmeldung mit OIDC/PKCE, Login-Seite im Glas-Design (Theme `stromfueralle`), Abmelden überall inkl.

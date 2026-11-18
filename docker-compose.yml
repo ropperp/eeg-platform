@@ -412,6 +412,7 @@ services:
       PORTAL_HOST: ${PORTAL_HOST:-portal.${DOMAIN}}
       KC_PORTAL_URL: https://${PORTAL_HOST:-portal.${DOMAIN}}
       KC_SITE_URL: https://${DOMAIN}
+      KC_KONSOLE_URL: https://admin.${DOMAIN}
       KC_PORTAL_CLIENT_SECRET: ${KC_PORTAL_CLIENT_SECRET:-}
       KC_APP_CLIENT_SECRET: ${KC_APP_CLIENT_SECRET:-}
       KC_KONSOLE_CLIENT_SECRET: ${KC_KONSOLE_CLIENT_SECRET:-}
@@ -469,6 +470,9 @@ services:
       APP_DB_USER: ${APP_DB_USER:-}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
       TRUSTED_PROXY_IP: ${TRUSTED_PROXY_IP:-10.0.0.144}
+      # Anmeldung über Keycloak (gemeinsam mit dem Portal). Leer = nur Passkey wie bisher.
+      KC_KONSOLE_CLIENT_SECRET: ${KC_KONSOLE_CLIENT_SECRET:-}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
     ports:
       - "8090:8090"
     volumes:
