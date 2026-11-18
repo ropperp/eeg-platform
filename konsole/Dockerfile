@@ -16,6 +16,7 @@ WORKDIR /app
 COPY konsole/public/ /app/public/
 COPY konsole/src/ /app/src/
 COPY webapp/src/WebAuthn.php /app/src/WebAuthn.php
+COPY webapp/src/Infrastructure/Auth/Jwt.php /app/src/Jwt.php
 # Logos für Kopfzeile, Anmeldung und Wartungsseite (gleiche Dateien wie die Webapp).
 COPY webapp/public/assets/images/logo-white.png /app/public/logo-white.png
 COPY webapp/public/assets/images/logo.png /app/public/logo.png

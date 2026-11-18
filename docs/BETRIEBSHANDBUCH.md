@@ -1567,3 +1567,17 @@ docker compose up -d --build
 > **Rückfall:** `AUTH_PROVIDER` in der `.env` leeren, `docker compose up -d webapp`. Es geht nichts verloren;
 > der Abgleich läuft weiter.
 
+> **Einmalig nach dem Update vom 19.11.2026 (zweiter Teil) -- Steuerzentrale über Keycloak (Schritt 4)**: Wer im
+> Portal angemeldet ist, kommt ohne erneute Eingabe in `admin.stromfueralle.at` (nur Platform-Admins). Abmelden in
+> einem der beiden meldet überall ab. Der Passkey bleibt als Notzugang.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose up -d --build konsole                  # bekommt KC_KONSOLE_CLIENT_SECRET aus der .env
+> ./scripts/keycloak_realm_update.sh                     # Client konsole; am Ende "Fertig."
+> ```
+> Test: im Portal anmelden (über Keycloak), dann `https://admin.stromfueralle.at` öffnen → Dashboard ohne Eingabe.
+> In der Steuerzentrale „Abmelden“ → auch das Portal ist abgemeldet. Notzugang: `https://admin.stromfueralle.at/?passkey=1`.
+> **Wichtig:** Für das eigene Platform-Admin-Konto 2FA oder einen Passkey einrichten (Portal → Profil).
+> **Rückfall:** `KC_KONSOLE_CLIENT_SECRET` in der `.env` auskommentieren, `docker compose up -d konsole` → nur Passkey wie bisher.
+

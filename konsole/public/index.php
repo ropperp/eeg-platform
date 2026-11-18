@@ -11,6 +11,7 @@ spl_autoload_register(function (string $class): void {
     }
 });
 require __DIR__ . '/../src/WebAuthn.php'; // aus webapp/src beim Bauen kopiert (gleiche Prüf-Logik wie das Portal)
+require __DIR__ . '/../src/Jwt.php';      // aus webapp/src/Infrastructure/Auth kopiert (Token-Prüfung wie das Portal)
 
 use Konsole\App;
 use Konsole\AuditLog;
@@ -18,6 +19,7 @@ use Konsole\Config;
 use Konsole\Docker;
 use Konsole\Maintenance;
 use Konsole\PasskeyStore;
+use Konsole\Sso;
 
 try {
     $config = Config::fromEnv();
@@ -27,6 +29,7 @@ try {
         new Docker($config->dockerSocket, $config->services),
         new Maintenance($config->dataDir . '/maintenance.json', $config->traefikDir . '/maintenance.yml', $config),
         new AuditLog($config->dataDir . '/audit.log'),
+        new Sso($config),
     );
     $app->handle($_SERVER, $_POST, $_COOKIE, (string) file_get_contents('php://input'))->send(!$config->dev);
 } catch (\Throwable $e) {

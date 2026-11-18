@@ -260,8 +260,9 @@ eine Vorlage `views/pages/marketing_page.php`. FAQPage-Daten nur auf `/faq`; `pu
 ## Steuerzentrale (konsole, 17.11.2026)
 
 `admin.<DOMAIN>` → nginx-Proxy **direkt** auf Port 8090 (nicht über Traefik), eigener Container ohne
-`depends_on`. Anmeldung nur per Passkey eines Platform-Admins (Kopie in `/opt/eeg/konsole/passkeys.json`,
-damit sie auch bei DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeigen und Dienste aus einer
+`depends_on`. Anmeldung über Keycloak (gemeinsame Sitzung mit dem Portal, nur `platform_admin`), Notzugang per
+Passkey eines Platform-Admins (`/?passkey=1`, Kopie in `/opt/eeg/konsole/passkeys.json`, damit er auch bei
+DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeigen und Dienste aus einer
 festen Liste neu starten (Docker-Socket, nichts sonst). Aktionen in `/opt/eeg/konsole/audit.log`.
 Entscheidung und Restrisiko: `docs/adr/0006-steuerzentrale.md`, nginx-Block: `docs/NGINX_PROXY.md`.
 

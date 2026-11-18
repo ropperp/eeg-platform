@@ -91,3 +91,5 @@ th { color: var(--gray); font-weight: 600; font-size: .8rem; text-transform: upp
   .form .two { grid-template-columns: 1fr; }
   .top .title { display: none; }
 }
+.hero-card .msg.info { color: #bae6fd; }
+.hero-card a.btn { display: inline-block; text-decoration: none; }

@@ -10,7 +10,10 @@ Webapp, Datenbank oder Traefik hängen. Eine Seite innerhalb der Webapp fiele ge
 ## Entscheidung
 - Eigener Container `konsole` (`konsole/`), erreichbar unter `admin.<DOMAIN>`. Der nginx-Proxy spricht ihn
   **direkt** auf Port 8090 an, nicht über Traefik. Keine `depends_on`-Abhängigkeit.
-- Anmeldung **nur per Passkey** eines Platform-Admins. Es sind dieselben Passkeys wie im Portal: rpId ist
+- **Nachtrag 19.11.2026:** Anmeldung jetzt in erster Linie über Keycloak (gemeinsame Sitzung mit dem
+  Portal, nur Realm-Rolle `platform_admin`, ADR 0007 Schritt 4). Der Passkey bleibt als **Notzugang**
+  (`/?passkey=1` oder automatisch, wenn Keycloak nicht erreichbar ist).
+- Anmeldung **nur per Passkey** eines Platform-Admins (seit 19.11.2026: Notzugang, siehe oben). Es sind dieselben Passkeys wie im Portal: rpId ist
   `<DOMAIN>`, damit gelten sie auf allen Subdomains. Die Prüfung nutzt `webapp/src/WebAuthn.php` (beim Bauen
   kopiert). Die öffentlichen Schlüssel kommen aus `user_passkeys` und werden in `/opt/eeg/konsole/passkeys.json`
   gespiegelt. Fällt die Datenbank aus, gilt die letzte Kopie.

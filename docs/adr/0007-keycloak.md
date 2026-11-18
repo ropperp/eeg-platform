@@ -61,7 +61,14 @@ Verglichen: eigener Stack erweitern, Keycloak, Zitadel (selbst betrieben, kosten
    - Die App meldet sich weiter am Portal an (`/api/v1/login`); weil die Passwörter im Portal gepflegt
      werden, bleibt das stimmig.
 3. App-API über Keycloak (optional, nur wenn die App später echtes OIDC bekommt).
-4. Steuerzentrale über Keycloak (nur `platform_admin`, mit zweitem Faktor), Passkey-Notzugang bleibt.
+4. **Steuerzentrale über Keycloak** (19.11.2026): Client `konsole` (`Konsole\Sso`), wer im Portal angemeldet
+   ist, kommt ohne Eingabe hinein; Zugang nur mit Realm-Rolle `platform_admin` (Claim `roles` im ID-Token).
+   Weiter ohne Datenbank und Redis: Anmeldezustand im signierten Cookie, Backchannel-Abmeldung
+   (`http://konsole:8090/kc/backchannel-logout`) sperrt die Sitzung über `/data/revoked.json`. Abmelden in
+   der Konsole meldet überall ab. Passkey-Notzugang bleibt (`/?passkey=1`, automatisch bei Keycloak-Ausfall).
+   **Restrisiko:** Die Konsole prüft nicht selbst, ob die Keycloak-Anmeldung mit zweitem Faktor war. Wer
+   2FA oder einen Passkey eingerichtet hat, muss ihn bei jeder Keycloak-Anmeldung nutzen (auch nach Google).
+   Deshalb: **Platform-Admins richten 2FA oder einen Passkey ein.**
 5. Alte Anmelde-Wege und `users.password_hash`/`totp_secret` entfernen, wenn alles über Keycloak läuft.
 
 ## Folgen

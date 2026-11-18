@@ -113,12 +113,29 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "frontchannelLogout": false,
-      "rootUrl": "https://admin.${DOMAIN}",
-      "redirectUris": ["https://admin.${DOMAIN}/auth/callback"],
+      "rootUrl": "${KC_KONSOLE_URL}",
+      "redirectUris": ["${KC_KONSOLE_URL}/auth/callback"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://admin.${DOMAIN}/*"
-      }
+        "post.logout.redirect.uris": "${KC_KONSOLE_URL}/*",
+        "backchannel.logout.url": "http://konsole:8090/kc/backchannel-logout",
+        "backchannel.logout.session.required": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm-rollen",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "identityProviders": [
