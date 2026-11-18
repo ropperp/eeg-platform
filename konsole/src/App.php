@@ -82,6 +82,14 @@ final class App
             return $this->loginVerify($body, $cookies, $ip);
         }
         if ($session === null) {
+            // Formulare aus einem veralteten Tab (Sitzung abgelaufen oder überall abgemeldet): lesbare Seite
+            // statt JSON. Abmelden ist dann schon erledigt.
+            if ($method === 'POST' && $path === '/abmelden') {
+                return Response::redirect('/?abgemeldet=1')->cookie($this->cookieName('s'), '', -1);
+            }
+            if ($method === 'POST' && in_array($path, ['/neustart', '/wartung'], true)) {
+                return Response::redirect('/?abgelaufen=1');
+            }
             if ($method !== 'GET') {
                 return Response::json(['error' => 'Nicht angemeldet'], 401);
             }
@@ -92,13 +100,14 @@ final class App
             // Gemeinsame Anmeldung: direkt zu Keycloak (wer im Portal angemeldet ist, ist sofort drin).
             // Nicht nach dem Abmelden, nicht bei ?passkey (Notzugang) und nicht, wenn Keycloak weg ist.
             $ssoUp = $this->sso?->enabled() === true && $this->sso->reachable();
-            if ($ssoUp && !isset($q['abgemeldet']) && !isset($q['passkey'])) {
+            if ($ssoUp && !isset($q['abgemeldet']) && !isset($q['passkey']) && !isset($q['abgelaufen'])) {
                 return $this->ssoStart();
             }
             return Response::html($this->render('login', [
                 'sso' => $ssoUp,
                 'ssoDown' => $this->sso?->enabled() === true && !$ssoUp,
                 'abgemeldet' => isset($q['abgemeldet']),
+                'abgelaufen' => isset($q['abgelaufen']),
                 'fehler' => '',
             ]));
         }

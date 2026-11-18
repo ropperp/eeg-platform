@@ -3,7 +3,7 @@
 // $abgemeldet, $fehler.
 $title = 'Anmelden – Steuerzentrale';
 $bare = true;
-$sso ??= false; $ssoDown ??= false; $abgemeldet ??= false; $fehler ??= '';
+$sso ??= false; $ssoDown ??= false; $abgemeldet ??= false; $abgelaufen ??= false; $fehler ??= '';
 ob_start(); ?>
 <div class="hero">
   <section class="hero-card">
@@ -12,6 +12,7 @@ ob_start(); ?>
     <p>Wartungsmodus, Dienste und Logs der Plattform.</p>
     <?php if ($fehler !== ''): ?><p class="msg err"><?= $h($fehler) ?></p><?php endif; ?>
     <?php if ($abgemeldet): ?><p class="msg info">Sie sind abgemeldet.</p><?php endif; ?>
+    <?php if ($abgelaufen): ?><p class="msg info">Ihre Sitzung ist abgelaufen. Die Aktion wurde nicht ausgeführt, bitte neu anmelden.</p><?php endif; ?>
     <?php if ($sso): ?>
       <a class="btn primary big" href="/anmelden/sso">Mit strom für alle anmelden</a>
       <p class="hint">Wer im Portal angemeldet ist, kommt ohne erneute Eingabe hinein. Nur für Platform-Admins.</p>

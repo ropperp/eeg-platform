@@ -96,7 +96,10 @@ test('Konsole: ohne Anmeldung nur die Login-Seite, Aktionen 401', function () {
     $r = kz_req($env, 'GET', '/');
     assertSame(200, $r->status);
     assertContains('Mit Passkey anmelden', $r->body);
-    assertSame(401, kz_req($env, 'POST', '/neustart', ['dienst' => 'webapp'])->status);
+    // Formular ohne Sitzung: nicht ausgeführt, Weiterleitung zur Login-Seite (statt JSON-401 im Browser).
+    $r = kz_req($env, 'POST', '/neustart', ['dienst' => 'webapp']);
+    assertSame(303, $r->status);
+    assertSame('/?abgelaufen=1', $r->headerValue('Location'));
     assertSame(303, kz_req($env, 'GET', '/logs?dienst=webapp')->status);
 });
 
@@ -180,4 +183,14 @@ test('Konsole: Abmelden nach Passkey-Anmeldung landet auf der Login-Seite (keine
     assertSame('/?abgemeldet=1', $r->headerValue('Location'));
     assertTrue(!isset($env['cookies']['__Host-konsole_s']), 'Sitzungs-Cookie gelöscht');
     assertSame(200, kz_req($env, 'GET', '/?abgemeldet=1')->status);
+});
+
+test('Konsole: Formulare aus veraltetem Tab ohne Sitzung führen zur Login-Seite statt JSON', function () {
+    $env = kz_env();
+    $r = kz_req($env, 'POST', '/abmelden', ['csrf' => 'x']);
+    assertSame('/?abgemeldet=1', $r->headerValue('Location'));
+    $r = kz_req($env, 'POST', '/neustart', ['csrf' => 'x', 'dienst' => 'webapp']);
+    assertSame('/?abgelaufen=1', $r->headerValue('Location'));
+    assertContains('Sitzung ist abgelaufen', kz_req($env, 'GET', '/?abgelaufen=1')->body);
+    assertSame(401, kz_req($env, 'POST', '/login/irgendwas')->status);
 });

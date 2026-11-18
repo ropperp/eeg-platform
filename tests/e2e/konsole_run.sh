@@ -59,7 +59,7 @@ waitsite() { for _ in $(seq 1 20); do [ "$(site)" = "$1" ] && break; sleep 0.5; 
 
 echo "Steuerzentrale (echtes Docker + Traefik)"
 check "ohne Anmeldung: Login-Seite" "$(code "http://localhost:$K_PORT/")" "200"
-check "ohne Anmeldung: Neustart abgelehnt" "$(code -X POST -d "dienst=$P-web" "http://localhost:$K_PORT/neustart")" "401"
+check "ohne Anmeldung: Neustart abgelehnt (zur Login-Seite)" "$(code -X POST -d "dienst=$P-web" "http://localhost:$K_PORT/neustart")" "303"
 check "Übersicht listet Dienst aus Docker" "$(curl -s -H "$C" "http://localhost:$K_PORT/" | grep -c "<span class=\"name\">$P-web</span>")" "1"
 check "Logs eines erlaubten Dienstes" "$(code -H "$C" "http://localhost:$K_PORT/logs?dienst=$P-web")" "200"
 check "Logs eines fremden Containers: 404" "$(code -H "$C" "http://localhost:$K_PORT/logs?dienst=$P-konsole")" "404"

@@ -23,6 +23,7 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 - Passkey-Knöpfe (Steuerzentrale, Portal-Login, Profil) holen die Challenge schon beim Laden: Safari startet
   die Abfrage nur direkt aus dem Klick, nach einer Server-Anfrage verwarf es den Aufruf manchmal still.
 - Steuerzentrale: Abmelden nach Passkey-Anmeldung meldete über die Keycloak-Sitzung sofort wieder an; jetzt Login-Seite.
+- Steuerzentrale: Formulare aus einem veralteten Tab (Sitzung abgelaufen oder im Portal abgemeldet) zeigten `{"error":"Nicht angemeldet"}`; jetzt Login-Seite mit Hinweis, die Aktion wird nicht ausgeführt.
 - Admin-Dashboard: Kachel „Steuerzentrale“ im Glas-Design (hell) wieder lesbar, Text an die neue Anmeldung angepasst.
 
 ### Anmeldedienst Keycloak, Schritt 4: Steuerzentrale über Keycloak (19.11.2026)
