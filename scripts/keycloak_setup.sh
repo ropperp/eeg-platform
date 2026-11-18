@@ -72,6 +72,9 @@ esac
 
 echo "Baue und starte keycloak (der erste Start dauert auf dem Pi 1-2 Minuten)..."
 $COMPOSE up -d --build keycloak
+# Die Webapp neu erzeugen, damit sie KC_PORTAL_CLIENT_SECRET aus der .env bekommt (für das Import-Skript
+# und später die Anmeldung). Ohne diesen Schritt meldet der Import "KC_PORTAL_CLIENT_SECRET fehlt".
+$COMPOSE up -d webapp
 
 echo ""
 echo "─────────────────────────────────────────────────────────────"

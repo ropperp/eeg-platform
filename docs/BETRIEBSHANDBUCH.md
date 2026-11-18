@@ -1506,7 +1506,7 @@ docker compose up -d --build
 > git pull origin main
 > docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261120.sql
 > docker compose up -d --build                       # traefik kennt jetzt den Router auth.
-> ./scripts/keycloak_setup.sh                        # .env-Werte, DB "keycloak", Container starten
+> ./scripts/keycloak_setup.sh                        # .env-Werte, DB "keycloak", keycloak starten, webapp neu erzeugen
 > sleep 120 && docker compose ps keycloak            # "healthy" (erster Start auf dem Pi dauert)
 > docker compose exec -T webapp php /var/www/html/bin/keycloak_import_users.php --dry-run   # nur zählen
 > docker compose exec -T webapp php /var/www/html/bin/keycloak_import_users.php             # übernehmen
