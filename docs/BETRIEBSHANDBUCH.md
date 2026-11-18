@@ -1528,3 +1528,14 @@ docker compose up -d --build
 > eintragen und den Anbieter einschalten (die `.env`-Werte `GOOGLE_*` gelten nur für eine Neuinstallation).
 > **Rückfall:** `COMPOSE_PROFILES` in der `.env` ohne `keycloak`, `docker compose up -d --remove-orphans`.
 > Die Plattform nutzt Keycloak in diesem Schritt noch nicht, es geht nichts verloren.
+
+> **Einmalig nach dem Update vom 18.11.2026 (Nachtrag) -- Google-Login ohne 2FA**: Für Konten ohne 2FA endete
+> der Google-Login mit „Ungültiger Benutzername oder Passwort“ (Keycloak-Log: `IDENTITY_PROVIDER_POST_LOGIN_ERROR`,
+> `invalid_user_credentials`). Weil Keycloak die Realm-Datei nur beim ersten Start liest, korrigiert ein Skript
+> den bestehenden Realm (fragt nach einem Admin des master-Realms):
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> ./scripts/keycloak_realm_update.sh
+> ```
+> Künftige Realm-Korrekturen kommen ebenfalls in dieses Skript (mehrfach ausführbar).
+

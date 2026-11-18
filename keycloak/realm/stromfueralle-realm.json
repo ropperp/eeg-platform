@@ -152,7 +152,7 @@
   "authenticationFlows": [
     {
       "alias": "nach Fremd-Login 2FA",
-      "description": "Nach Google-Login: wer 2FA (TOTP oder Passkey) eingerichtet hat, muss sie auch hier bestätigen.",
+      "description": "Nach Google-Login: wer 2FA (TOTP) eingerichtet hat, muss sie auch hier bestätigen. Allow access am Ende, sonst scheitert der Ablauf für Konten ohne 2FA.",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -162,6 +162,13 @@
           "requirement": "CONDITIONAL",
           "priority": 10,
           "authenticatorFlow": true,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "allow-access-authenticator",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
           "userSetupAllowed": false
         }
       ]
