@@ -10,6 +10,7 @@
 #
 # Aufruf (auf dem Server, im Repo-Root):  ./scripts/keycloak_realm_update.sh
 # Fragt nach Benutzername und Passwort eines Admins im master-Realm (wie in der Admin-Konsole).
+# Ohne Rückfrage (z. B. Tests): KC_ADMIN_USER und KC_ADMIN_PASSWORD setzen.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -27,12 +28,14 @@ else
   read -r -p "Admin-Benutzer im master-Realm: " ADMIN
 fi
 if [ -n "${KC_ADMIN_PASSWORD:-}" ]; then
-  kc config credentials --server http://localhost:8080 --realm master --user "$ADMIN" --password "$KC_ADMIN_PASSWORD" >/dev/null
+  PW="$KC_ADMIN_PASSWORD"
 else
-  # Passwort fragt kcadm selbst ab (braucht ein Terminal, deshalb ohne -T).
-  "${EXEC[@]}" "$SVC" /opt/keycloak/bin/kcadm.sh config credentials --config "$CFG" \
-    --server http://localhost:8080 --realm master --user "$ADMIN" >/dev/null
+  read -r -s -p "Passwort: " PW; echo
 fi
+# Passwort über stdin in den Container, nicht als Argument (sonst stünde es in der Prozessliste des Hosts).
+printf '%s\n' "$PW" | "${EXEC[@]}" $NOTTY "$SVC" bash -c 'read -r PW; /opt/keycloak/bin/kcadm.sh config credentials \
+  --config "$1" --server http://localhost:8080 --realm master --user "$2" --password "$PW"' _ "$CFG" "$ADMIN" >/dev/null
+unset PW
 trap '"${EXEC[@]}" $NOTTY "$SVC" rm -f "$CFG" >/dev/null 2>&1 || true' EXIT
 echo "✓ Angemeldet."
 
