@@ -19,6 +19,12 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+### Fix: Passkeys in Safari, Abmelden in der Steuerzentrale, Kachel-Kontrast (19.11.2026)
+- Passkey-Knöpfe (Steuerzentrale, Portal-Login, Profil) holen die Challenge schon beim Laden: Safari startet
+  die Abfrage nur direkt aus dem Klick, nach einer Server-Anfrage verwarf es den Aufruf manchmal still.
+- Steuerzentrale: Abmelden nach Passkey-Anmeldung meldete über die Keycloak-Sitzung sofort wieder an; jetzt Login-Seite.
+- Admin-Dashboard: Kachel „Steuerzentrale“ im Glas-Design (hell) wieder lesbar, Text an die neue Anmeldung angepasst.
+
 ### Anmeldedienst Keycloak, Schritt 4: Steuerzentrale über Keycloak (19.11.2026)
 - `admin.<DOMAIN>` meldet über Keycloak an: wer im Portal angemeldet ist, ist ohne Eingabe drin (nur `platform_admin`).
 - Abmelden in Portal oder Steuerzentrale meldet überall ab (Backchannel, Sperrliste in `/data/revoked.json`).

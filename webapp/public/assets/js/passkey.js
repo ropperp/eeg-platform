@@ -44,17 +44,45 @@
     return 'Passkey nicht möglich: ' + (err && err.message ? err.message : 'unbekannter Fehler');
   }
 
+  /* Safari startet Passkey-Abfragen nur direkt aus dem Klick heraus. Wird vorher noch auf den Server
+     gewartet, verwirft Safari den Aufruf manchmal still ("es passiert nichts"). Deshalb die Optionen schon
+     beim Laden holen und alle 2 Minuten erneuern (die Challenge gilt 5 Minuten); der Klick ruft sofort auf.
+     Die Challenge liegt in der Sitzung und gilt einmal: nach jedem Versuch neu holen. */
+  var ready = {};
+  function prefetch(kind, url, csrf) {
+    post(url, csrf).then(function (o) {
+      ready[kind] = o.challenge ? { o: o, t: Date.now() } : null;
+    }).catch(function () { ready[kind] = null; });
+  }
+  function take(kind) {
+    var r = ready[kind];
+    ready[kind] = null;
+    return r && Date.now() - r.t < 150000 ? r.o : null;
+  }
+  function cancelText(err, slowPath, btnText) {
+    if (err && (err.name === 'NotAllowedError' || err.name === 'AbortError') && slowPath) {
+      return 'Bitte noch einmal auf „' + btnText + '“ tippen.';
+    }
+    return friendly(err);
+  }
+
+  function askGet(o) {
+    return navigator.credentials.get({ publicKey: {
+      challenge: b64uToBuf(o.challenge), rpId: o.rpId, timeout: o.timeout,
+      userVerification: o.userVerification, allowCredentials: []
+    } });
+  }
+
   function login(btn) {
     var msg = document.querySelector('[data-passkey-msg]');
     var csrf = btn.getAttribute('data-csrf');
     btn.disabled = true; say(msg, '');
-    post('/portal/login/passkey/options', csrf).then(function (o) {
+    var pre = take('login');
+    var slowPath = !pre;
+    (pre ? askGet(pre) : post('/portal/login/passkey/options', csrf).then(function (o) {
       if (!o.challenge) throw new Error(o.error || 'Keine Challenge erhalten');
-      return navigator.credentials.get({ publicKey: {
-        challenge: b64uToBuf(o.challenge), rpId: o.rpId, timeout: o.timeout,
-        userVerification: o.userVerification, allowCredentials: []
-      } });
-    }).then(function (c) {
+      return askGet(o);
+    })).then(function (c) {
       return post('/portal/login/passkey/verify', csrf, {
         id: c.id,
         response: {
@@ -68,9 +96,20 @@
       if (r.ok) { window.location.href = r.redirect || '/portal/dashboard'; return; }
       throw new Error(r.error || 'Anmeldung fehlgeschlagen');
     }).catch(function (e) {
-      say(msg, e.name ? friendly(e) : String(e), true);
+      say(msg, e.name ? cancelText(e, slowPath, 'Mit Passkey anmelden') : String(e), true);
       btn.disabled = false;
+      prefetch('login', '/portal/login/passkey/options', csrf);
     });
+  }
+
+  function askCreate(o) {
+    return navigator.credentials.create({ publicKey: {
+      challenge: b64uToBuf(o.challenge), rp: o.rp, timeout: o.timeout,
+      user: { id: b64uToBuf(o.user.id), name: o.user.name, displayName: o.user.displayName },
+      pubKeyCredParams: o.pubKeyCredParams, authenticatorSelection: o.authenticatorSelection,
+      attestation: o.attestation,
+      excludeCredentials: (o.excludeCredentials || []).map(function (c) { return { type: c.type, id: b64uToBuf(c.id) }; })
+    } });
   }
 
   function register(btn) {
@@ -78,16 +117,12 @@
     var csrf = btn.getAttribute('data-csrf');
     var label = (document.getElementById('passkey-label') || {}).value || '';
     btn.disabled = true; say(msg, '');
-    post('/portal/profile/passkeys/options', csrf).then(function (o) {
+    var pre = take('create');
+    var slowPath = !pre;
+    (pre ? askCreate(pre) : post('/portal/profile/passkeys/options', csrf).then(function (o) {
       if (!o.challenge) throw new Error(o.error || 'Keine Challenge erhalten');
-      return navigator.credentials.create({ publicKey: {
-        challenge: b64uToBuf(o.challenge), rp: o.rp, timeout: o.timeout,
-        user: { id: b64uToBuf(o.user.id), name: o.user.name, displayName: o.user.displayName },
-        pubKeyCredParams: o.pubKeyCredParams, authenticatorSelection: o.authenticatorSelection,
-        attestation: o.attestation,
-        excludeCredentials: (o.excludeCredentials || []).map(function (c) { return { type: c.type, id: b64uToBuf(c.id) }; })
-      } });
-    }).then(function (c) {
+      return askCreate(o);
+    })).then(function (c) {
       return post('/portal/profile/passkeys/verify', csrf, {
         id: c.id, label: label,
         response: {
@@ -99,22 +134,38 @@
       if (r.ok) { window.location.href = '/portal/profile?success=' + encodeURIComponent('Passkey wurde hinzugefügt.') + '#passkeys'; return; }
       throw new Error(r.error || 'Speichern fehlgeschlagen');
     }).catch(function (e) {
-      say(msg, e.name ? friendly(e) : String(e), true);
+      say(msg, e.name ? cancelText(e, slowPath, 'Passkey hinzufügen') : String(e), true);
       btn.disabled = false;
+      prefetch('create', '/portal/profile/passkeys/options', csrf);
     });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     var ok = supported();
     var l = document.querySelector('[data-passkey-login]');
-    if (l) { if (ok) { l.hidden = false; l.addEventListener('click', function () { login(l); }); } }
+    if (l) {
+      if (ok) {
+        l.hidden = false;
+        l.addEventListener('click', function () { login(l); });
+        var lc = l.getAttribute('data-csrf');
+        prefetch('login', '/portal/login/passkey/options', lc);
+        setInterval(function () { prefetch('login', '/portal/login/passkey/options', lc); }, 120000);
+      }
+    }
     var wrap = document.querySelector('[data-passkey-login-wrap]');
     if (wrap && ok) wrap.hidden = false;
     var r = document.querySelector('[data-passkey-register]');
     if (r) {
       var box = document.getElementById('passkey-register-box');
       var un = document.getElementById('passkey-unsupported');
-      if (ok) { if (box) box.hidden = false; if (un) un.hidden = true; r.addEventListener('click', function () { register(r); }); }
+      if (ok) {
+        if (box) box.hidden = false;
+        if (un) un.hidden = true;
+        r.addEventListener('click', function () { register(r); });
+        var rc = r.getAttribute('data-csrf');
+        prefetch('create', '/portal/profile/passkeys/options', rc);
+        setInterval(function () { prefetch('create', '/portal/profile/passkeys/options', rc); }, 120000);
+      }
     }
   });
 })();

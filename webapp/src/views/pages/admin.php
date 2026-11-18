@@ -56,7 +56,7 @@
   <span class="control-center-icon"><?= icon('gear') ?></span>
   <span class="control-center-text">
     <strong>Steuerzentrale</strong>
-    <span>Wartungsmodus, Status und Neustart der Dienste, Logs. Öffnet in einem neuen Tab, Anmeldung mit Passkey.</span>
+    <span>Wartungsmodus, Status und Neustart der Dienste, Logs. Öffnet in einem neuen Tab; angemeldet sind Sie dort mit Ihrer Portal-Anmeldung.</span>
   </span>
   <span class="control-center-go"><?= icon('arrow-right') ?></span>
 </a>

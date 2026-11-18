@@ -171,3 +171,13 @@ test('Konsole: Docker-Logformat (Multiplex) wird korrekt zerlegt', function () {
     assertSame("Klartext von TTY\n", Docker::demux("Klartext von TTY\n"));
     assertSame('', Docker::demux(''));
 });
+
+test('Konsole: Abmelden nach Passkey-Anmeldung landet auf der Login-Seite (keine sofortige Neuanmeldung)', function () {
+    $env = kz_env();
+    kz_login($env);
+    $page = kz_req($env, 'GET', '/');
+    $r = kz_req($env, 'POST', '/abmelden', ['csrf' => kz_csrf($page)]);
+    assertSame('/?abgemeldet=1', $r->headerValue('Location'));
+    assertTrue(!isset($env['cookies']['__Host-konsole_s']), 'Sitzungs-Cookie gelöscht');
+    assertSame(200, kz_req($env, 'GET', '/?abgemeldet=1')->status);
+});

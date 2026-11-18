@@ -180,7 +180,9 @@ final class App
     {
         $this->audit->write((string) $s['name'], 'abmeldung', '', $ip);
         // Über Keycloak angemeldet: dort abmelden, das beendet auch die Portal-Sitzung (Backchannel).
-        $target = $this->sso !== null && !empty($s['kc']) ? $this->sso->endSessionUrl(is_string($s['idt'] ?? null) ? $s['idt'] : null) : '/';
+        // Mit Passkey angemeldet: nur hier abmelden. /?abgemeldet=1, damit die Startseite nicht sofort wieder
+        // über die (noch bestehende) Keycloak-Sitzung des Portals anmeldet.
+        $target = $this->sso !== null && !empty($s['kc']) ? $this->sso->endSessionUrl(is_string($s['idt'] ?? null) ? $s['idt'] : null) : '/?abgemeldet=1';
         return Response::redirect($target)->cookie($this->cookieName('s'), '', -1);
     }
 

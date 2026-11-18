@@ -417,3 +417,12 @@
 [data-design="glas"][data-theme="dark"] .dash-widget-bar { background: rgba(20, 30, 45, .85); border-color: rgba(255, 255, 255, .15); }
 [data-design="glas"][data-theme="dark"] .dash-widgets.is-editing .dash-widget { outline-color: rgba(255, 255, 255, .3); }
 [data-design="glas"] .dash-widgets.is-editing .dash-widget .card:hover { transform: none; }
+
+/* Steuerzentrale-Kachel im Admin-Dashboard: die Glas-Karte (weiß, 60 %) überdeckte sonst den dunklen
+   Verlauf, die weiße Schrift war kaum lesbar (19.11.2026). */
+[data-design="glas"] .portal-content .card.control-center-tile {
+  background: linear-gradient(120deg, #1a2033 0%, #14596a 60%, #16a34a 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
