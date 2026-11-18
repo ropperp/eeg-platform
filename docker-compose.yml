@@ -103,7 +103,7 @@ services:
     # zeigte ins Leere, die DB lief auf flüchtigem Container-Speicher und war nach dem nächsten
     # Neu-Erstellen des Containers "weg" (Details: docs/INFRASTRUKTUR_PFADE.md). Feste Digest +
     # korrekter Mount unten verhindern das. Zum bewussten Aktualisieren: Digest neu setzen.
-    image: timescale/timescaledb-ha:pg16@sha256:cbc43994559f407ebdf360f5254da044b05c65a2f8a8d18bc8119eef35ca5803
+    image: timescale/timescaledb-ha:pg16@sha256:5d1a6980aa255b5035e24e0de6808c134bf2bf19cf551571acbd092ad38a4b8d
     container_name: timescaledb
     restart: always
     logging: *default-logging
@@ -132,7 +132,7 @@ services:
   # Session-Cache
   # ─────────────────────────────────────────
   redis:
-    image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+    image: redis:8.10.3-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
     container_name: redis
     restart: always
     logging: *default-logging
