@@ -179,7 +179,6 @@ Alle mandantenspezifischen Tabellen haben RLS aktiviert. Vor jeder DB-Abfrage se
 | `live.php` | `/live` | öffentlich | Live-Dashboard (aggregiert, kein Login) |
 | `login.php` | `/portal/login` | — | Login-Formular |
 | `forgot_password.php` | `/portal/forgot-password` | — | Passwort-Reset per E-Mail |
-| `password_change.php` | `/portal/password` | alle | Passwort ändern |
 | `profile.php` | `/portal/profile` | member/manager | Profildaten ändern |
 | `member_dashboard.php` | `/portal/dashboard` | member | Eigener Verbrauch + Zählpunkt |
 | `manager_dashboard.php` | `/portal/dashboard` | manager | Übersicht: Mitglieder, Abrechnungsstatus |

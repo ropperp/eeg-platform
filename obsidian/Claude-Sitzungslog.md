@@ -8,6 +8,12 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-19 — Claude Code — Claude Sonnet 5.5 (claude-sonnet-5-5)
+**Auftrag:** Portal-Profil überarbeiten: Menü nur „Profil“ und „Abmelden“, Passwort ändern als Abschnitt im Profil, Karten sauber untereinander. E-Mail-Änderung nur mit 6-stelligem Code an die neue Adresse; sie ändert dann Login-Adresse und Mitglieds-E-Mail. Dazu Klärung, wie Google-Verknüpfung mit abweichender Adresse funktioniert.
+**Verbesserter Prompt:** „Profil-Menü auf Profil/Abmelden reduzieren, Passwort ändern ins Profil, Karten in einer Spalte. E-Mail-Änderung per Code an die neue Adresse, danach users.email und members.email (alle EEGs) ändern, mit Hinweistext. Erkläre, ob Google-Anmeldung mit anderer Adresse geht.“
+**Ergebnis:** `portal.php`-Layout, `profile.php`, Routen `/portal/profile/email/{request,confirm,cancel}`, `/portal/password` leitet ins Profil; `password_change.php` entfernt. Code nur als HMAC in der Sitzung (15 min, 5 Versuche, 5 Anfragen/Stunde), keine Migration nötig.
+**Fehler/Lehre:** Auto-Modus blockierte zunächst den Commit; erst nach ausdrücklicher Freigabe gepusht. Lokal kein `php`, Prüfung über `php:8.4-cli`-Container.
+
 ## 2026-11-19 — Claude Code — Claude Opus 5.5 (claude-opus-5-5)
 **Auftrag:** Portal-Anmeldung auf Keycloak umstellen (Schritt 2), mit Möglichkeit, zuerst nur mit dem eigenen
 Konto zu testen; vorher Deploy-Pannen von Schritt 1 behoben (Webapp ohne Secret, Admin-Konsole im Tunnel, Google

@@ -145,7 +145,7 @@ const calls = (page, n) => page.evaluate(k => (window.__calls || {})[k] || 0, n)
   await p.goto(B + '/portal/eda/upload');
   const [fc] = await Promise.all([p.waitForEvent('filechooser', { timeout: 3000 }).catch(() => null), p.click('#upload-zone')]);
   ok(!!fc, 'Upload-Fläche öffnet die Dateiauswahl (data-click-target)');
-  await p.goto(B + '/portal/password');
+  await p.goto(B + '/portal/profile');
   await spy(p, 'checkStrength'); await p.fill('input[data-oninput="checkStrength"]', 'abcDEF123!');
   ok(await calls(p, 'checkStrength') >= 1, 'Passwortstärke (data-oninput + @value)');
   await p.goto(B + '/portal/settings');

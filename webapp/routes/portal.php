@@ -3091,25 +3091,114 @@ $router->get('/portal/profile', function () {
     require ROOT . '/src/views/pages/profile.php';
 });
 
+// Name ändern. Die E-Mail-Adresse wird NICHT hier geändert, sondern nur mit Bestätigungscode
+// (/portal/profile/email/request + /confirm), damit keine fremde Adresse eingetragen werden kann.
 $router->post('/portal/profile', function () {
     Auth::requireLogin();
-    $email     = trim($_POST['email'] ?? '');
     $firstName = trim($_POST['first_name'] ?? '');
     $lastName  = trim($_POST['last_name'] ?? '');
-    if (!$email || !$firstName || !$lastName) {
-        $error = 'Alle Felder sind Pflichtfelder.';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = 'Ungültige E-Mail-Adresse.';
-    } else {
-        DB::execute('UPDATE users SET email=?, first_name=?, last_name=? WHERE id=?',
-            [$email, $firstName, $lastName, Auth::userId()]);
-        $_SESSION['user_email'] = $email;
-        $success = 'Daten wurden gespeichert.';
+    if (!$firstName || !$lastName) {
+        header('Location: /portal/profile?error=' . urlencode('Vor- und Nachname sind Pflichtfelder.'));
+        exit;
     }
-    $profileUser = DB::fetchOne('SELECT id, email, first_name, last_name, photo_path, totp_enabled FROM users WHERE id = ?', [Auth::userId()]);
-    $profileMember = currentProfileMember();
-    $profilePasskeys = DB::fetchAll('SELECT id, label, created_at, last_used_at FROM user_passkeys WHERE user_id = ? ORDER BY created_at', [Auth::userId()]);
-    require ROOT . '/src/views/pages/profile.php';
+    DB::execute('UPDATE users SET first_name=?, last_name=? WHERE id=?', [$firstName, $lastName, Auth::userId()]);
+    header('Location: /portal/profile?success=' . urlencode('Daten wurden gespeichert.'));
+    exit;
+});
+
+/**
+ * E-Mail-Adresse ändern, Schritt 1: Code (6 Ziffern) an die NEUE Adresse senden. Der Zustand liegt
+ * nur in der Sitzung (Code als HMAC, 15 Minuten gültig, höchstens 5 Eingaben), keine Migration nötig.
+ */
+$router->post('/portal/profile/email/request', function () {
+    Auth::requireLogin();
+    $back = function (string $key, string $msg): never {
+        header('Location: /portal/profile?' . $key . '=' . urlencode($msg) . '#email');
+        exit;
+    };
+    $email = strtolower(trim($_POST['new_email'] ?? ''));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
+        $back('error', 'Ungültige E-Mail-Adresse.');
+    }
+    $own = DB::fetchOne('SELECT email FROM users WHERE id = ?', [Auth::userId()]);
+    if (strtolower((string)($own['email'] ?? '')) === $email) {
+        $back('error', 'Das ist bereits Ihre aktuelle E-Mail-Adresse.');
+    }
+    if (!RateLimiter::allow('email_change', Auth::userId(), 5, 3600)) {
+        $back('error', 'Zu viele Versuche. Bitte später erneut versuchen.');
+    }
+    if (DB::fetchOne('SELECT 1 AS x FROM users WHERE lower(email) = ? AND id <> ?', [$email, Auth::userId()])) {
+        $back('error', 'Diese E-Mail-Adresse kann nicht verwendet werden.');
+    }
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    try {
+        $u = DB::fetchOne('SELECT first_name FROM users WHERE id = ?', [Auth::userId()]);
+        $mail = renderMailTemplate('email_change_code', [
+            'vorname' => htmlspecialchars($u['first_name'] ?? ''),
+            'code'    => $code,
+        ], 'Ihr Bestätigungscode – Strom für alle',
+            '<p>Hallo {{vorname}},</p>'
+            . '<p>Ihr Bestätigungscode für die neue E-Mail-Adresse lautet: <strong style="font-size:1.3em;letter-spacing:.2em">{{code}}</strong></p>'
+            . '<p>Er ist 15 Minuten gültig. Falls Sie das nicht angefordert haben, ignorieren Sie diese E-Mail einfach.</p>');
+        Mailer::send($email, $mail['subject'], $mail['body']);
+    } catch (\Throwable $e) {
+        error_log('[email_change_mail] ' . $e->getMessage());
+        $back('error', 'Der Code konnte nicht gesendet werden. Bitte später erneut versuchen.');
+    }
+    $_SESSION['email_change'] = [
+        'email' => $email,
+        'hash'  => hash_hmac('sha256', $code, (getenv('APP_SECRET') ?: '') . Auth::userId()),
+        'exp'   => time() + 900,
+        'tries' => 0,
+    ];
+    $back('success', 'Wir haben einen 6-stelligen Code an die neue Adresse gesendet.');
+});
+
+/** E-Mail-Adresse ändern, Schritt 2: Code prüfen, dann Login-Adresse UND Mitglieds-E-Mail ändern. */
+$router->post('/portal/profile/email/confirm', function () {
+    Auth::requireLogin();
+    $back = function (string $key, string $msg): never {
+        header('Location: /portal/profile?' . $key . '=' . urlencode($msg) . '#email');
+        exit;
+    };
+    $p = $_SESSION['email_change'] ?? null;
+    if (!is_array($p) || $p['exp'] < time()) {
+        unset($_SESSION['email_change']);
+        $back('error', 'Der Code ist abgelaufen. Bitte neu anfordern.');
+    }
+    if ($p['tries'] >= 5) {
+        unset($_SESSION['email_change']);
+        $back('error', 'Zu viele falsche Eingaben. Bitte einen neuen Code anfordern.');
+    }
+    $_SESSION['email_change']['tries']++;
+    $code = preg_replace('/\D/', '', (string)($_POST['code'] ?? ''));
+    if (!hash_equals($p['hash'], hash_hmac('sha256', $code, (getenv('APP_SECRET') ?: '') . Auth::userId()))) {
+        $back('error', 'Der Code stimmt nicht.');
+    }
+    $new = $p['email'];
+    $userId = Auth::userId();
+    if (DB::fetchOne('SELECT 1 AS x FROM users WHERE lower(email) = ? AND id <> ?', [$new, $userId])) {
+        unset($_SESSION['email_change']);
+        $back('error', 'Diese E-Mail-Adresse kann nicht verwendet werden.');
+    }
+    DB::execute('UPDATE users SET email = ? WHERE id = ?', [$new, $userId]);
+    // Mitglieds-E-Mail (Rechnungen, Mails) in allen EEGs mitändern, in denen dieser Login Mitglied ist.
+    $cids = array_column(DB::fetchAll('SELECT DISTINCT community_id FROM user_roles WHERE user_id = ? AND community_id IS NOT NULL', [$userId]), 'community_id');
+    foreach ($cids as $cid) {
+        DB::setCommunity($cid);
+        DB::execute('UPDATE members SET email = ? WHERE user_id = ?', [$new, $userId]);
+    }
+    $_SESSION['user_email'] = $new;
+    unset($_SESSION['email_change']);
+    logAudit(null, 'user.email.change', 'user', $userId, 'E-Mail-Adresse (Login und Mitgliedsdaten) mit Bestätigungscode geändert');
+    $back('success', 'E-Mail-Adresse geändert. Anmeldung, Rechnungen und Mails laufen jetzt über die neue Adresse.');
+});
+
+$router->post('/portal/profile/email/cancel', function () {
+    Auth::requireLogin();
+    unset($_SESSION['email_change']);
+    header('Location: /portal/profile#email');
+    exit;
 });
 
 $router->post('/portal/profile/photo', function () {
@@ -3179,9 +3268,11 @@ $router->post('/portal/profile/2fa/disable', function () {
     exit;
 });
 
+// Passwort ändern ist Teil des Profils (Abschnitt "Passwort ändern"); alte Adresse bleibt als Weiterleitung.
 $router->get('/portal/password', function () {
     Auth::requireLogin();
-    require ROOT . '/src/views/pages/password_change.php';
+    header('Location: /portal/profile#passwort');
+    exit;
 });
 
 $router->post('/portal/password', function () {
@@ -3203,9 +3294,10 @@ $router->post('/portal/password', function () {
     } else {
         $hash = hashPassword($new);
         DB::execute('UPDATE users SET password_hash=? WHERE id=?', [$hash, $userId]);
-        $success = 'Passwort wurde erfolgreich geändert.';
+        header('Location: /portal/profile?success=' . urlencode('Passwort wurde erfolgreich geändert.') . '#passwort');
+        exit;
     }
-    require ROOT . '/src/views/pages/password_change.php';
+    header('Location: /portal/profile?error=' . urlencode($error) . '#passwort');
     exit;
 });
 
