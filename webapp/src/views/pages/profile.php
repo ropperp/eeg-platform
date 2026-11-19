@@ -174,6 +174,8 @@
 </div>
 <?php endif; ?>
 
+<?php // Notzugang-Passkeys (Anmeldedienst aus / Steuerzentrale) nur für Plattform-Admins; normale Mitglieder melden sich über den Abschnitt "Anmeldung" an. ?>
+<?php if (empty($kcLogin) || Auth::isPlatformAdmin()): ?>
 <div class="card" id="passkeys">
   <h3 style="margin-bottom:.5rem"><?= icon('key') ?> <?= !empty($kcLogin) ? 'Passkeys für den Notzugang' : 'Passkeys' ?></h3>
   <?php if (!empty($kcLogin)): ?>
@@ -209,6 +211,7 @@
   <p id="passkey-unsupported" style="color:var(--gray-600);font-size:.85rem">Dieser Browser unterstützt keine Passkeys.</p>
 </div>
 <script src="<?= htmlspecialchars(assetUrl('/assets/js/passkey.js')) ?>" defer></script>
+<?php endif; ?>
 
 <?php if ($profileMember): ?>
 <div class="card">
