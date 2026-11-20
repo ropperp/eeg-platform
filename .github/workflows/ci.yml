@@ -24,7 +24,7 @@ jobs:
       matrix:
         php: ['8.4']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: PHP ${{ matrix.php }} einrichten
         uses: shivammathur/setup-php@v2
@@ -47,7 +47,7 @@ jobs:
   static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: PHP + PHPStan einrichten
         uses: shivammathur/setup-php@v2
@@ -103,7 +103,7 @@ jobs:
       TEST_WORKER_USER: eeg_worker
       TEST_WORKER_USER_PASSWORD: worker
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Schema, Migrationen und Rollen einspielen
         run: PSQL="psql -h localhost -U eeg -d eeg_platform" bash tests/integration/prepare_db.sh
@@ -119,7 +119,7 @@ jobs:
         run: php tests/integration/run.php
 
       - name: Python einrichten
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -140,7 +140,7 @@ jobs:
     # Mandantentrennung per HTTP, App-API, EDA-Upload über den Worker (tests/e2e/).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: End-to-End-Abläufe
         run: bash tests/e2e/run.sh
       - name: Steuerzentrale gegen echtes Docker und Traefik
@@ -151,7 +151,7 @@ jobs:
   http:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Webapp-Image bauen
         run: docker build -f webapp/Dockerfile -t eeg-webapp-ci .
