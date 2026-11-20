@@ -1,5 +1,5 @@
 # Version + Digest fest (reproduzierbare Builds); Updates schlägt Dependabot vor (.github/dependabot.yml).
-FROM php:8.4.27-fpm-alpine@sha256:511af6fa3ef55c4ea0c68bb47096ba4b81771ab4949bde7813807bf177efda11
+FROM php:8.5.12-fpm-alpine@sha256:951fb5b1780219b81d5daffa4cebef8e0077c537f3893d9790a5dfcd66ca334d
 
 # PHP-Extensions. Python/pandas für den EDA-Import liegen seit 16.11.2026 im eigenen Container
 # eda-worker (eda-parser/Dockerfile), nicht mehr hier.
