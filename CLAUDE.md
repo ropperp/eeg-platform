@@ -109,6 +109,13 @@ Dependabot-PR (`.github/dependabot.yml`), nie automatisch.
   auf dem Server nicht an“ → zuerst `ls -la /opt/eeg/latex-templates/`. Liegt die Datei dort und war
   nie bewusst angepasst: löschen (`rm …/<datei>.tex`), dann greift die Image-Version wieder. Bewusst
   angepasste Dateien stattdessen über `/admin/templates` neu hochladen. Hintergrund: `docs/VORFAELLE.md`.
+- **Verträge werden live gerendert, nicht als PDF gespeichert.** Damit ein unterschriebener Vertrag nach einer
+  Textänderung gleich bleibt, gibt es eingefrorene Kopien (`*_elwog2010.tex`) und `members.contract_*_template`;
+  `contractTemplateName()` (portal.php) wählt die Vorlage. **Neue Fassung = neue Vorlage + Altfassung einfrieren**,
+  nie die Datei der Altfassung ändern. Rechnungs-PDFs sind ab Freigabe eingefroren (`pdf_frozen_path`).
+- **Angaben, die nicht in den Code gehören** (Betreiber-Anschrift/Rechtsform, Hosting-Anbieter, Netzgebühr-%):
+  `platform_settings`, Admin → Einstellungen → Allgemein (`platformSettingText()`). Lieferantenpflichten § 69 ElWG:
+  Schalter `communities.supplier_duties_enabled` (`communitySupplierDuties()`), Standard aus.
 - **Assets immer mit `assetUrl('/assets/…')` einbinden** (hängt `?v=<mtime>` an). nginx cached nur
   versionierte Assets lange (`immutable`); Security-Header stehen in `webapp/docker/security-headers.conf`
   und müssen in jeder location mit eigenem `add_header` erneut per `include` eingebunden werden.

@@ -19,6 +19,24 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+## [0.10.0] – 2026-11-21
+Umfasst alle Änderungen seit 0.9.1 (die älteren Einträge stehen darunter) und die Umstellung auf das ElWG.
+
+### ElWG-Rechtstexte und Lieferantenpflichten nach § 69 (21.11.2026)
+- Texte: „nicht auf Gewinn ausgerichteter Verein“ statt „gemeinnützig“ (Website, llms.txt, schema.org). Statuten
+  unverändert, nur Hinweis auf die §§ 65 ff ElWG darüber. Impressum und Verträge verweisen auf das ElWG
+  (§ 66, § 70 Abs 6 Z 4 Regionalbereich, § 71). AGB: Haftung gegenüber Verbrauchern nach § 6 Abs 1 Z 9 KSchG.
+- Verträge: neue Vorlagen mit ElWG-Verweisen. Unterschriebene Verträge bleiben in der eingefrorenen Altfassung
+  (`*_elwog2010.tex`, `members.contract_*_template`), neue Unterschriften halten die aktuelle Fassung fest.
+- Datenschutz: Hosting-Anbieter aus der Konfiguration (kein Anbieter = „eigener Server in Österreich“), Speicherdauern je
+  Kategorie (Abrechnung 7 Jahre, Echtzeitwerte 400 Tage). stromfueralle.at läuft nicht über Cloudflare (geprüft).
+- Impressum: Anschrift und Rechtsform aus Admin → Einstellungen; Dashboard-Hinweis „Impressum unvollständig“.
+- Marketing: Netzgebühr-Ersparnis und Stand der Netztarife konfigurierbar (Fußnote), nichts mehr fest im Text.
+- Neu (optional, pro Gemeinschaft, Standard aus): Lieferantenpflichten § 69 ElWG: Lieferbedingungen und Informationsblatt
+  (`/rc…/alb`, `/rc…/infoblatt`), Bestätigung des Informationsblatts beim Online-Beitritt mit Nachweis, Rechnungsintervall
+  je Mitglied, Rechnung mit abgesetzten Energiewerten und Vertragspartner, Mitteilung über Änderungen (mind. 1 Monat Vorlauf).
+- Migration: `database/migrate_20261121b.sql` (vor dem Update einspielen). Schritte: `docs/BETRIEBSHANDBUCH.md`.
+
 ### Fix: Passkeys in Safari, Abmelden in der Steuerzentrale, Kachel-Kontrast (19.11.2026)
 - Steuerzentrale: „Abmelden“ kam nie bei Keycloak an. Die CSP `form-action 'self'` ließ den Browser die Weiterleitung des
   Formulars zu `auth.` still blockieren; die Keycloak-Sitzung blieb, und die Konsole meldete sofort wieder an. Jetzt ist

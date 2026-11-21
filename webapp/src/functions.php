@@ -1973,6 +1973,24 @@ function copyrightLine(?int $year = null): string
     return '© ' . ($year > 2026 ? '2026–' . $year : '2026') . ' Strom für alle';
 }
 
+/** Aktuelle Fassung der Vertragsvorlagen (ElWG, ab 01.10.2026). Wird beim Unterschreiben je Vertrag festgehalten. */
+const CONTRACT_TEMPLATE_VERSION = 'elwg-2026-11';
+
+/**
+ * Welche LaTeX-Vorlage für einen Vertrag gilt. Verträge werden bei jedem Aufruf live aus der
+ * Vorlage gerendert (kein gespeichertes PDF). Damit ein bereits unterschriebener Vertrag nach
+ * einer Textänderung nicht plötzlich anders aussieht, gilt: unterschrieben + keine festgehaltene
+ * Fassung = Altfassung (ElWOG 2010, eingefrorene Kopie `*_elwog2010.tex`); noch nicht
+ * unterschrieben = immer die aktuelle Fassung; beim Unterschreiben wird die aktuelle festgehalten.
+ */
+function contractTemplateName(string $type, array $member): string
+{
+    $base = $type === 'einspeisung' ? 'einspeisevereinbarung' : 'bezugsvereinbarung';
+    $signed = ($member['contract_' . $type . '_status'] ?? 'none') === 'signed';
+    $pinned = $member['contract_' . $type . '_template'] ?? null;
+    return ($signed && !$pinned) ? $base . '_elwog2010' : $base;
+}
+
 /**
  * Lieferantenpflichten nach § 69 ElWG für diese Gemeinschaft aktiv (communities.supplier_duties_enabled,
  * Standard aus)? Fehlt die Spalte noch (Migration nicht gelaufen), gilt "aus" -- dann ändert sich nichts.
