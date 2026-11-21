@@ -1631,3 +1631,16 @@ docker compose up -d --build
 > Ergebnis liegt in `~/eeg-inventar-<Datum>/` (außerhalb des Repos, enthält Metadaten der Mitglieder-Uploads, nie committen):
 > `manifest.tsv` (neueste zuerst), `latex-templates.tar.gz`, `git.txt`. Den Ordner im Chat oder Vault ablegen, dann kann
 > verglichen werden, welche Fassung die neueste ist.
+
+> **Dateiinventar vom 21.11.2026 (Server, 18:11, Repo-Stand fbc7bbc)** -- Ergebnis des Vergleichs, Skript `scripts/dateien_inventar.sh`:
+> - `/opt/eeg/latex-templates`: keine Vertrags- oder Rechnungsvorlage im Volume, es gelten die Image-Fassungen (gewünscht).
+>   Dateien: `infoblatt.pdf` (27.07.2026, 206750 Byte), Logos (17./25.08.), `hero-banner.jpg/.png` (09.10./24.08.),
+>   `hero-banner.optimized*.{jpg,webp}` (30.10.-18.11.), `_alte-vorlagen-backup-20261004/` (Backup, Besitzer root).
+> - **`infoblatt.pdf` im Volume ist veraltet:** erzeugt am 27.07.2026 (pdfTeX), enthält „Rund 28 % weniger Netzgebühr“ (mehrfach, auch
+>   „28 % Rabatt“ und die Beispielrechnung mit Kelag-Tarif 2024) und keinen Bezug zum ElWG. Die Repo-Quelle `docs/vorlagen/InfoBlatt.tex`
+>   (08.11.2026) hat dieselbe Aussage fest im Text. Das Infoblatt ist das einzige Dokument mit der alten Zahl und muss neu erstellt und unter
+>   `/admin/templates` hochgeladen werden, sobald die Netztarife 2027 feststehen.
+> - `/opt/eeg/webapp-storage`: 66 EDA-Uploads (`uploads/`), 11 Rechnungs-PDFs (`pdfs/invoices/`, alle 18.10.2026, eingefroren), 1 Cache-Datei.
+>   Davon sind 43 Uploads inhaltsgleiche Duplikate (gleiche SHA-256, zusammen ca. 19 MB). Nichts gelöscht; bei Platzbedarf aufräumbar.
+> - `hero-banner.optimized*`: im Code nicht referenziert (nur `public.php`/Keycloak-Dockerfile erwähnen den Begriff); vermutlich eigener Optimierungslauf.
+>   Klären, welche Datei die Website tatsächlich ausliefert.
