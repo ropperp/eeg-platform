@@ -46,8 +46,9 @@ $legalStand = '8. November 2026';
   zugänglich gemacht und nicht an Dritte weitergegeben.
 </p>
 <p>
-  <strong>Speicherdauer:</strong> Dauer der Mitgliedschaft sowie gesetzliche Aufbewahrungsfristen,
-  danach Löschung bzw. Anonymisierung/Aggregation.
+  <strong>Speicherdauer:</strong> Die Einzelwerte der Ausleseeinheit (5-Sekunden-Takt) werden
+  400 Tage gespeichert und danach gelöscht. Eine Zusammenfassung in 15-Minuten-Fenstern bleibt
+  für die Dauer der Mitgliedschaft erhalten. Abrechnungsunterlagen: 7 Jahre (§ 132 BAO).
 </p>
 <p>
   <strong>Schlüssel der Kundenschnittstelle (P1):</strong> Die Daten der P1-Kundenschnittstelle

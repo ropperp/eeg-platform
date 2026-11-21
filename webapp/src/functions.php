@@ -1929,6 +1929,30 @@ function copyrightLine(?int $year = null): string
 }
 
 /**
+ * Zeile der Plattform-Einstellungen (platform_settings, id = 1) pro Anfrage zwischengespeichert.
+ * Leeres Array, wenn die Tabelle/Spalten noch nicht migriert sind -- Aufrufer müssen mit leeren
+ * Werten zurechtkommen (z.B. Impressum, Datenschutzerklärung, Marketing-Texte).
+ */
+function platformSettingsRow(): array
+{
+    static $row = null;
+    if ($row === null) {
+        try {
+            $row = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1') ?: [];
+        } catch (\Throwable $e) {
+            $row = [];
+        }
+    }
+    return $row;
+}
+
+/** Einzelner, getrimmter Text aus den Plattform-Einstellungen ('' wenn leer/nicht vorhanden). */
+function platformSettingText(string $key): string
+{
+    return trim((string)(platformSettingsRow()[$key] ?? ''));
+}
+
+/**
  * Bereinigt HTML aus dem Dokumenten-Editor (/portal/dokumente) auf eine kleine Allowlist --
  * die Texte erscheinen öffentlich auf der Website, also darf kein Skript/Stil/Event-Handler
  * durchrutschen. Gleichzeitig sollen aus Word eingefügte Texte sauber werden (Patrick,
