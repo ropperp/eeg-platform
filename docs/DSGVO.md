@@ -43,6 +43,26 @@ Rechnungen/Buchhaltungsbelege, § 132 BAO). Die Plattform bildet das über zwei 
 Eine echte, vollständige physische Löschung einzelner Mitglieder nach Ablauf der
 Aufbewahrungsfrist ist als organisatorischer Prozess vorzusehen (noch nicht automatisiert).
 
+## Statuten-Generator (Interessenten ohne Konto)
+Seit 21.11.2026 (v0.11.0, `docs/STATUTEN_GENERATOR.md`). Betroffen sind Interessenten, die eine
+Energiegemeinschaft gründen wollen und noch keine Mitglieder der Plattform sind.
+
+- **Zweck und Rechtsgrundlage:** Erstellung von Vereinsstatuten auf Wunsch nach einem Beratungsgespräch
+  (Art 6 Abs 1 lit b DSGVO, vorvertragliche Maßnahme).
+- **Daten:** Bezeichnung des Interessenten (vom Admin, frei wählbar, möglichst ohne Personenbezug), Antworten
+  des Fragebogens (Vereinsname, Sitz, Netzbetreiber, Regeln), freiwillig Namen und Funktionen von
+  Gründungsmitgliedern (nur für Protokollvorlage und Checkliste; ohne Angabe bleiben Leerzeilen). Keine
+  Geburtsdaten, Anschriften oder Kontaktdaten im Fragebogen.
+- **Zugriff:** nur Platform-Admin und wer den persönlichen Link kennt. Der Link steht nur als SHA-256-Hash
+  in der Datenbank. Aktionen (Anlegen, Erzeugen, Widerruf, Freigabe) im `audit_log`.
+- **Speicherort:** Tabellen `statute_invites`, `statute_drafts`; PDFs unter `/opt/eeg/webapp-storage/statuten/`
+  (Teil des Server-Backups).
+- **Löschung:** automatisch 12 Monate nach der letzten Erzeugung, bei nie erzeugten oder widerrufenen
+  Einladungen 12 Monate nach Ablauf bzw. Widerruf: Einladung, alle Entwürfe und PDFs
+  (`scripts/statute_cleanup.php`, täglicher Cron, siehe `docs/BETRIEBSHANDBUCH.md`). Auf Wunsch sofort:
+  Einladung widerrufen und Datensatz per SQL löschen (`DELETE FROM statute_invites WHERE id = …`, Kaskade),
+  Ordner `statuten/<id>/` entfernen.
+
 ## Weitere Maßnahmen
 - **Transport:** ausschließlich HTTPS (SSL-Terminierung am nginx-Proxy).
 - **Passwörter:** bcrypt-Hash (`password_hash`), nie im Klartext, nicht im Export.

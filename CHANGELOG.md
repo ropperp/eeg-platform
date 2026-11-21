@@ -19,6 +19,25 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+## [0.11.0] – 2026-11-21
+
+### Statuten-Generator (nicht öffentlich, Einladungslink)
+- Admin → **Statuten-Einladungen** (`/admin/statuten-einladungen`, nur Platform-Admin): Einladung mit Bezeichnung,
+  Gültigkeit (Standard 30 Tage) und optionaler Vorbelegung (Nahebereich, Netzbetreiber, Bundesland) anlegen. Der
+  Link wird nur einmal angezeigt (in der DB nur SHA-256 des 256-Bit-Tokens), „Neuen Link erzeugen“, Widerrufen,
+  Fassungen ansehen, Entwurf bearbeiten, neue Fassung erzeugen, Freigeben (PDF ohne Entwurfs-Kopfzeile).
+- `/statuten/{token}` ohne Login: Fragebogen A–F mit Zwischenspeichern und serverseitigen Prüfregeln (VerG,
+  ElWG, UStG). Neu gegenüber der Spezifikation: **erwarteter Jahresumsatz** und Umsatzsteuer-Wahl
+  (Kleinunternehmergrenze 55.000 €, Regelbesteuerung mit U12 und 5 Jahren Bindung), Hinweise zu § 22 VerG
+  (Jahresabschluss ab 1 Mio €, Abschlussprüfer ab 3 Mio €). Nach „Statuten erzeugen“ ist der Link 90 Tage nur Download.
+- PDFs über den latex-service: `statuten.tex` (§§ 1–18, Querverweise nur per `\label`/`\ref`,
+  „Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG“), `statuten_anzeige.tex` (Checkliste
+  Vereinsanzeige, Finanzamt, Umsatzsteuer), Protokollvorlage der Gründungsversammlung über `protokoll.tex`.
+- Rate-Limit je IP für die Links, `noindex`, kein Caching. Löschkonzept: Cron `scripts/statute_cleanup.php` (12 Monate).
+- Migration `database/migrate_20261121d.sql`, ADR 0008, `docs/STATUTEN_GENERATOR.md`, `docs/DSGVO.md`.
+- Tests: Prüfregeln und Token-Zustände (Unit), Zugriff mit/ohne/falschem Token und Löschkonzept (Integration),
+  Admin-Ablauf und Interessenten-Link (E2E).
+
 ## [0.10.0] – 2026-11-21
 Umfasst alle Änderungen seit 0.9.1 (die älteren Einträge stehen darunter) und die Umstellung auf das ElWG.
 
