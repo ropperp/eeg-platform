@@ -8,6 +8,12 @@ Einträge aus Cowork/Claude Chat liegen zusätzlich im Obsidian-Vault unter
 
 ---
 
+## 2026-11-21 18:40 — Claude Code — Claude Sonnet 5.5 (claude-sonnet-5-5)
+**Auftrag:** Das vom Server geholte Dateiinventar (Metadaten und Vorlagen-Archiv) mit dem Repo vergleichen, aktuellste Fassungen bestimmen und dokumentieren.
+**Verbesserter Prompt:** „Vergleiche `manifest.tsv`, `git.txt` und `latex-templates.tar.gz` aus `~/Downloads/eeg-inventar-<Datum>` mit dem Repo: Welche Dateien im Volume sind älter oder neuer als die Image-Fassung, welche enthalten veraltete Aussagen (Netzgebühr-Prozent, ElWOG), welche Duplikate gibt es? Ergebnis ins Betriebshandbuch.“
+**Ergebnis:** Keine Vertrags-/Rechnungsvorlage im Volume. `infoblatt.pdf` (27.07.) enthält „28 %“ und ist veraltet, Quelle `docs/vorlagen/InfoBlatt.tex` ebenso. 43 doppelte EDA-Uploads (ca. 19 MB), nichts gelöscht. Dokumentiert im Betriebshandbuch.
+**Fehler/Lehre:** `scp` ohne Ziel (` .`) scheitert; im Kopierbefehl immer Ziel angeben.
+
 ## 2026-11-21 17:10 — Claude Code — Claude Sonnet 5.5 (claude-sonnet-5-5)
 **Auftrag:** Umstellung der Rechtstexte auf das ElWG (seit 01.10.2026): Texte und Verträge, Datenschutz, Impressum und Netzgebühr aus Admin-Einstellungen, optionale Lieferantenpflichten nach § 69 pro Gemeinschaft, Doku. Danach: Rechnungsintervall nur vierteljährlich oder jährlich, und ein Weg, Serverdateien samt Metadaten zu sichern und zu vergleichen.
 **Verbesserter Prompt:** „Stelle Rechtstexte und Vertragsvorlagen auf das ElWG um. Beachte, dass Verträge live gerendert werden: unterschriebene Verträge dürfen sich nicht ändern (Vorlagenfassung je Vertrag festhalten). Betreiberangaben nicht im Code, sondern als Admin-Einstellung. Lieferantenpflichten § 69 als Schalter pro Gemeinschaft (Standard aus). Rechnungsintervall höchstens quartalsweise oder jährlich. Liefere außerdem ein Skript, das Dateien auf dem Server mit Größe, Datum und Prüfsumme auflistet.“
