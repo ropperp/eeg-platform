@@ -971,6 +971,7 @@ function adminFileVariables(): array
             'RAW_ZUSATZPOSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für manuelle Zusatzpositionen, z.B. ein Rabatt (RAW, nicht escapen) -- siehe /portal/billing',
             'RAW_ZAHLUNG_TEXT' => 'Vorformatierter Zahlungstext: SEPA-Lastschrift-Vorabankündigung, Gutschrift-Hinweis oder leer (Vorlage zeigt dann die Standard-Überweisungsbitte) -- RAW, nicht escapen',
             'RAW_SUMME_LABEL' => 'Beschriftung der Summe, z.B. "Ihre Gutschrift" bei einer Gutschrift statt "Gesamtbetrag" (RAW, nicht escapen)',
+            'RAW_LIEFERANTENBLOCK' => 'Kasten nach § 69 Abs 3 ElWG mit den verwendeten Energiewerten je Zählpunkt und dem Vertragspartner -- nur bei aktiven Lieferantenpflichten der Gemeinschaft, sonst leer (RAW, nicht escapen)',
         ],
         'bezugsvereinbarung.tex' => [
             'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',

@@ -832,6 +832,51 @@ function rechnungPositionenLatex(array $items, string $label, bool $gutschrift):
 }
 
 /**
+ * Zusatzblock für die Rechnung nach § 69 Abs 3 ElWG (nur Gemeinschaften mit aktiven
+ * Lieferantenpflichten): deutlich abgesetzt die verwendeten Energiewerte je Zählpunkt sowie Name,
+ * Anschrift und Kontaktadresse des Vertragspartners. Rechnungsbetrag, Fälligkeit und Zählpunkt-
+ * bezeichnungen stehen schon in der Standardvorlage (rechnung.tex). Rückgabe ist fertiges LaTeX
+ * (RAW_LIEFERANTENBLOCK, dynamische Teile über texEscape()).
+ *
+ * @param array<int, array<string, mixed>> $bezugItems        invoice_items vom Typ bezug
+ * @param array<int, array<string, mixed>> $einspeisungItems  invoice_items vom Typ einspeisung
+ */
+function invoiceSupplierBlockLatex(array $invoice, array $bezugItems, array $einspeisungItems): string
+{
+    $zeilen = [];
+    foreach ([['Bezug', $bezugItems], ['Einspeisung', $einspeisungItems]] as [$art, $items]) {
+        foreach ($items as $it) {
+            $zp = trim((string)($it['zaehlpunkt_nr'] ?? ''));
+            $zeilen[] = '  ' . ($zp !== '' ? texEscape($zp) : '--') . ' & ' . $art . ' & '
+                . number_format((float)$it['kwh'], 2, ',', '.') . ' \\\\';
+        }
+    }
+    $kontakt = [];
+    $mail = trim((string)($invoice['eeg_contact_email'] ?? ''));
+    $tel  = trim((string)($invoice['eeg_contact_phone'] ?? ''));
+    if ($mail === '' && $tel === '') { $mail = (string)AppConfig::get()->contactEmail; }
+    if ($mail !== '') $kontakt[] = 'E-Mail: ' . texEscape($mail);
+    if ($tel !== '')  $kontakt[] = 'Telefon: ' . texEscape($tel);
+
+    // Kompakt gehalten (footnotesize), damit die Rechnung mit dem Kasten möglichst auf einer Seite bleibt.
+    $tex  = "\\vspace{3mm}\n\\noindent\\colorbox{cardgray}{%\n  \\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep\\relax}\n  \\footnotesize\n";
+    $tex .= "  {\\bfseries\\color{navy}Verwendete Energiewerte}\\\\[0.5mm]\n";
+    if ($zeilen !== []) {
+        $tex .= "  \\begin{tabular}{@{}l l r@{}}\n" . implode("\n", $zeilen) . "\n  \\end{tabular}\\\\[1.5mm]\n";
+    } else {
+        $tex .= "  Im Abrechnungszeitraum wurden keine Energiewerte verrechnet.\\\\[1.5mm]\n";
+    }
+    $partner = texEscape((string)($invoice['eeg_name'] ?? ''));
+    if (trim((string)($invoice['eeg_address'] ?? '')) !== '') {
+        $partner .= ', ' . texEscape((string)$invoice['eeg_address']);
+    }
+    $tex .= "  {\\bfseries\\color{navy}Ihr Vertragspartner:} " . $partner;
+    if ($kontakt !== []) $tex .= ' \\quad ' . implode(' \\quad ', $kontakt);
+    $tex .= "\n  \\end{minipage}}\n";
+    return $tex;
+}
+
+/**
  * Bereinigt einen String für SEPA-pain.001/pain.008-XML-Textfelder (EndToEndId, MsgId, PmtInfId,
  * MndtId, Namen, Verwendungszweck) auf den von SEPA erlaubten "Latin Character Set" --
  * `a-z A-Z 0-9 / - ? : ( ) . , ' +` und Leerzeichen. Ohne das weist die Bank die GESAMTE Datei

@@ -762,6 +762,9 @@ function invoicePdfPayload(array $invoice): array
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
         'RAW_ZAHLUNG_TEXT'      => $zahlungText,
         'RAW_SUMME_LABEL'       => $summeLabel,
+        // § 69 Abs 3 ElWG: nur bei aktiven Lieferantenpflichten, sonst leer (Vorlage zeigt dann nichts).
+        'RAW_LIEFERANTENBLOCK'  => communitySupplierDuties($invoice['member_community_id'] ?? null)
+            ? invoiceSupplierBlockLatex($invoice, $bezugItems, $einspeisungItems) : '',
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => $faellig,
