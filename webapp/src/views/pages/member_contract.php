@@ -74,7 +74,7 @@
   </div>
 
   <h1>BEITRITTSVEREINBARUNG</h1>
-  <div class="subtitle">Erneuerbare-Energie-Gemeinschaft gem. § 16c EAG</div>
+  <div class="subtitle">Erneuerbare-Energie-Gemeinschaft gem. §§ 66 ff ElWG</div>
 
   <!-- Vertragsparteien -->
   <h2>§ 1 Vertragsparteien</h2>
@@ -110,7 +110,7 @@
   <h2>§ 2 Gegenstand und Zweck</h2>
   <p class="legal-text">
     Die EEG <?= htmlspecialchars($community['name']) ?> ist eine Erneuerbare-Energie-Gemeinschaft nach
-    § 16c Elektrizitätswirtschafts- und -organisationsgesetz (ElWOG 2010) i.V.m. dem Erneuerbaren-Ausbau-Gesetz (EAG).
+    §§ 66 ff Elektrizitätswirtschaftsgesetz (ElWG) i.V.m. dem Erneuerbaren-Ausbau-Gesetz (EAG).
     Zweck der Gemeinschaft ist die gemeinschaftliche Erzeugung, Nutzung und Verteilung von elektrischer Energie
     aus erneuerbaren Quellen innerhalb des Gemeinschaftsgebietes des zuständigen Netzbetreibers.
   </p>

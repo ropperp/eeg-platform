@@ -49,7 +49,7 @@
     <p class="bold" style="font-size:9pt;color:#555;letter-spacing:1pt">VORSCHLAG FÜR EINE</p>
     <h1>VEREINBARUNG über BESTAND und NUTZUNG<br>einer ENERGIEERZEUGUNGSANLAGE</h1>
     <p style="margin-top:6pt;font-size:10.5pt">(Typ: Überschusseinspeiser)</p>
-    <p style="font-size:10pt;color:#555;margin-top:4pt">gemäß §§ 79f EAG und §§ 16c ff ElWOG 2010</p>
+    <p style="font-size:10pt;color:#555;margin-top:4pt">gemäß §§ 66 ff ElWG und § 79 EAG</p>
   </div>
 
   <p class="center bold">abgeschlossen zwischen</p>
@@ -59,7 +59,7 @@
     <?= htmlspecialchars($community['address'] ?? '') ?><br>
     <?php if ($community['zvr_number']): ?>ZVR-Zahl: <?= htmlspecialchars($community['zvr_number']) ?><br><?php endif; ?>
     <?php if ($community['marktpartner_id']): ?>Marktpartner-ID: <?= htmlspecialchars($community['marktpartner_id']) ?><br><?php endif; ?>
-    als „<span class="bold">Erneuerbare-Energie-Gemeinschaft</span>" (<span class="bold">„EEG"</span>) gemäß § 7 Abs 1 Z 6a iVm §§ 16c ff ElWOG 2010 einerseits</p>
+    als „<span class="bold">Erneuerbare-Energie-Gemeinschaft</span>" (<span class="bold">„EEG"</span>) gemäß §§ 66 ff ElWG iVm § 79 EAG einerseits</p>
 
     <p style="margin-top:10pt">sowie</p>
 
@@ -143,7 +143,7 @@
   <!-- §5 -->
   <h2>§ 5 Zählpunktmanagement</h2>
   <p>5.1 Der/die Eigentümer:in verbleibt Inhaber:in der mit der Erzeugungsanlage verbundenen Zählpunkte und Vertragspartner:in des Netzbetreibers.</p>
-  <p>5.2 Der/die Eigentümer:in stellt der EEG sämtliche für die Erfüllung der gesetzlichen Aufgaben gemäß §§ 16c ff ElWOG und §§ 79f EAG erforderlichen Daten zur Verfügung und erteilt der EEG Vollmacht für alle zur Vertragsumsetzung erforderlichen Rechtsgeschäfte.</p>
+  <p>5.2 Der/die Eigentümer:in stellt der EEG sämtliche für die Erfüllung der gesetzlichen Aufgaben gemäß §§ 66 ff ElWG und § 79 EAG erforderlichen Daten zur Verfügung und erteilt der EEG Vollmacht für alle zur Vertragsumsetzung erforderlichen Rechtsgeschäfte.</p>
 
   <!-- §6 Datenschutz -->
   <h2>§ 6 Datenschutz</h2>

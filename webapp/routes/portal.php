@@ -878,7 +878,7 @@ $router->get('/portal/my/contract/bezug', function () {
     $signature = communityManagerSignature($member['community_id']);
     $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null, $member['community_id']);
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
-    streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    streamLatexPdf(contractTemplateName('bezug', $member), $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
 
 $router->get('/portal/my/contract/einspeisung', function () {
@@ -896,7 +896,7 @@ $router->get('/portal/my/contract/einspeisung', function () {
     $signature = communityManagerSignature($member['community_id']);
     $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null, $member['community_id']);
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
-    streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    streamLatexPdf(contractTemplateName('einspeisung', $member), $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
 
 /** Menschenlesbare Bezeichnung des Vertragstyps für Benachrichtigungen/Meldungen. */
@@ -957,6 +957,7 @@ $router->post('/portal/my/contract/:type/sign', function ($params) {
     DB::execute(
         "UPDATE members SET
             contract_{$type}_status = 'signed',
+            contract_{$type}_template = '" . CONTRACT_TEMPLATE_VERSION . "',
             contract_{$type}_customer_signature = ?,
             contract_{$type}_signed_at = now(),
             contract_{$type}_signer_ip = ?
@@ -2417,6 +2418,24 @@ function memberFullName(array $member): string
     return $salutation !== '' ? $salutation . ' ' . $name : $name;
 }
 
+/** Aktuelle Fassung der Vertragsvorlagen (ElWG, ab 01.10.2026). Wird beim Unterschreiben je Vertrag festgehalten. */
+const CONTRACT_TEMPLATE_VERSION = 'elwg-2026-11';
+
+/**
+ * Welche LaTeX-Vorlage für einen Vertrag gilt. Verträge werden bei jedem Aufruf live aus der
+ * Vorlage gerendert (kein gespeichertes PDF). Damit ein bereits unterschriebener Vertrag nach
+ * einer Textänderung nicht plötzlich anders aussieht, gilt: unterschrieben + keine festgehaltene
+ * Fassung = Altfassung (ElWOG 2010, eingefrorene Kopie `*_elwog2010.tex`); noch nicht
+ * unterschrieben = immer die aktuelle Fassung; beim Unterschreiben wird die aktuelle festgehalten.
+ */
+function contractTemplateName(string $type, array $member): string
+{
+    $base = $type === 'einspeisung' ? 'einspeisevereinbarung' : 'bezugsvereinbarung';
+    $signed = ($member['contract_' . $type . '_status'] ?? 'none') === 'signed';
+    $pinned = $member['contract_' . $type . '_template'] ?? null;
+    return ($signed && !$pinned) ? $base . '_elwog2010' : $base;
+}
+
 /**
  * Tarif für die Vertrags-Ansicht/Erneut-Versenden: vor der ersten Erstellung der aktuell
  * gültige, danach für immer der zum Erstellungszeitpunkt gültige Tarif -- sonst würde ein
@@ -2491,7 +2510,7 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     $signature = eegSignatureAsset();
     $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null, $member['community_id']);
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
-    $ok = streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    $ok = streamLatexPdf(contractTemplateName('bezug', $member), $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
     // DB-Update NUR nach erfolgreichem PDF, und nicht mehr nach digitaler Unterschrift --
     // ab dann bleibt generated_at eingefroren, damit der signierte Vertrag bei jeder erneuten
@@ -2537,7 +2556,7 @@ $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
     // sofort auffallen, nicht erst wenn das Mitglied den Portal-Link später öffnet) -- versendet
     // wird kein Anhang mehr, nur eine Benachrichtigung mit Link zur digitalen Unterschrift.
     $error = null;
-    $pdf = generateLatexPdf('bezugsvereinbarung', $vars, $signature['assets'], $error);
+    $pdf = generateLatexPdf(contractTemplateName('bezug', $member), $vars, $signature['assets'], $error);
     if ($pdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
@@ -2679,7 +2698,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     $signature = eegSignatureAsset();
     $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null, $member['community_id']);
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
-    $ok = streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    $ok = streamLatexPdf(contractTemplateName('einspeisung', $member), $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
     if ($ok && $status !== 'signed') {
         DB::execute(
@@ -2708,7 +2727,7 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
     // PDF wird hier nur zur Validierung erzeugt -- versendet wird kein Anhang mehr, nur eine
     // Benachrichtigung mit Link zur digitalen Unterschrift (siehe Kommentar beim Bezugsvertrag).
     $error = null;
-    $pdf = generateLatexPdf('einspeisevereinbarung', $vars, $signature['assets'], $error);
+    $pdf = generateLatexPdf(contractTemplateName('einspeisung', $member), $vars, $signature['assets'], $error);
     if ($pdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
@@ -2765,13 +2784,13 @@ $router->post('/portal/members/:id/contract/send-both', function ($params) {
 
     $error = null;
     $bezugVars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($consumerMps), $signature);
-    $bezugPdf = generateLatexPdf('bezugsvereinbarung', $bezugVars, $signature['assets'], $error);
+    $bezugPdf = generateLatexPdf(contractTemplateName('bezug', $member), $bezugVars, $signature['assets'], $error);
     if ($bezugPdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
     }
     $einspeisungVars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($producerMps), einspeisungAnlagenBeschreibung($producerMps), $signature);
-    $einspeisungPdf = generateLatexPdf('einspeisevereinbarung', $einspeisungVars, $signature['assets'], $error);
+    $einspeisungPdf = generateLatexPdf(contractTemplateName('einspeisung', $member), $einspeisungVars, $signature['assets'], $error);
     if ($einspeisungPdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
