@@ -48,6 +48,56 @@ require __DIR__ . '/../partials/tabs_nav.php';
     <button type="submit" class="btn btn-primary">Speichern</button>
   </form>
 </div>
+
+<div class="card" style="margin-bottom:1.5rem">
+  <h3 style="margin-bottom:.5rem"><?= icon('buildings') ?> Betreiber, Hosting und Netzgebühr</h3>
+  <p style="color:var(--gray-600);font-size:.85rem;margin-bottom:1rem">
+    Diese Angaben erscheinen im Impressum (<code>/impressum</code>, § 5 ECG verlangt eine geografische
+    Anschrift), in der Datenschutzerklärung (Hosting-Anbieter als Auftragsverarbeiter) und auf den
+    Info-Seiten (Netzgebühr). Sie stehen bewusst nicht im Code.
+  </p>
+  <form method="post" action="/admin/settings/betreiber">
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Rechtsform des Betreibers</label>
+        <input type="text" name="operator_legal_form" maxlength="200" placeholder="z. B. Einzelunternehmen"
+               value="<?= htmlspecialchars((string)($platformSettings['operator_legal_form'] ?? '')) ?>">
+      </div>
+      <div class="form-group">
+        <label>Anschrift des Betreibers</label>
+        <textarea name="operator_address" rows="3" maxlength="500" placeholder="Straße Nr.&#10;PLZ Ort"><?= htmlspecialchars((string)($platformSettings['operator_address'] ?? '')) ?></textarea>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Hosting-Anbieter (leer = eigener Server in Österreich)</label>
+        <input type="text" name="hosting_provider" maxlength="200"
+               value="<?= htmlspecialchars((string)($platformSettings['hosting_provider'] ?? '')) ?>">
+        <small style="color:var(--gray-600)">Nur eintragen, wenn ein Anbieter in der EU die Daten verarbeitet
+          (Auftragsverarbeitungsvertrag nach Art. 28 DSGVO nötig). Er erscheint dann in der Datenschutzerklärung.</small>
+      </div>
+      <div class="form-group">
+        <label>Zusatz zum Hosting (optional)</label>
+        <input type="text" name="hosting_provider_note" maxlength="500" placeholder="z. B. Rechenzentrum in Deutschland"
+               value="<?= htmlspecialchars((string)($platformSettings['hosting_provider_note'] ?? '')) ?>">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Ersparnis bei der Netzgebühr (%)</label>
+        <input type="text" name="netz_savings_percent" inputmode="decimal" placeholder="leer = keine Zahl im Text"
+               value="<?= htmlspecialchars(isset($platformSettings['netz_savings_percent']) ? str_replace('.', ',', (string)$platformSettings['netz_savings_percent']) : '') ?>">
+      </div>
+      <div class="form-group">
+        <label>Stand der Netztarife</label>
+        <input type="date" name="netz_tariff_stand"
+               value="<?= htmlspecialchars((string)($platformSettings['netz_tariff_stand'] ?? '')) ?>">
+        <small style="color:var(--gray-600)">Fußnote: „Netztarife laut Systemnutzungsentgelte-Verordnung, Stand …“</small>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Speichern</button>
+  </form>
+</div>
 </section>
 
 <section class="tab-panel" id="tab-geraete" role="tabpanel" aria-labelledby="tabbtn-geraete" tabindex="0" hidden>

@@ -98,6 +98,7 @@
   $backupUnix = (int)($backupStatus['unix'] ?? 0);
   $backupStale = !$backupUnix || (time() - $backupUnix) > 26 * 3600;
   $testMode = !empty($platformSettings['test_mode']);
+  $impressumIncomplete = trim((string)($platformSettings['operator_address'] ?? '')) === '' || trim((string)($platformSettings['operator_legal_form'] ?? '')) === '';
 ?>
 <div class="card" style="margin-bottom:1.5rem">
   <h3 style="margin-bottom:.75rem"><?= icon('pylon') ?> Systemstatus</h3>
@@ -115,6 +116,13 @@
       <span><strong>Sicherung:</strong> <?= $backupUnix ? 'zuletzt ' . htmlspecialchars($fmtAgo(date('c', $backupUnix))) : 'keine Angabe gefunden' ?></span>
       <a href="/admin/backups">Details</a>
     </li>
+    <?php if ($impressumIncomplete): ?>
+    <li>
+      <span class="admin-status-dot is-bad" aria-hidden="true"></span>
+      <span><strong>Impressum unvollständig</strong> (§ 5 ECG: geografische Anschrift, Rechtsform)</span>
+      <a href="/admin/mail-settings#tab-allgemein">Ergänzen</a>
+    </li>
+    <?php endif; ?>
     <li>
       <span class="admin-status-dot <?= $testMode ? 'is-warn' : 'is-ok' ?>" aria-hidden="true"></span>
       <span><strong>Betriebsart:</strong> <?= $testMode ? 'Testmodus' : 'Echtbetrieb' ?></span>

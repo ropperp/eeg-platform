@@ -2,12 +2,16 @@
 // Impressum der Plattform „Strom für alle“ (allgemeiner Teil von /impressum, vor der Auswahl der
 // EEG-Impressen). Standardfassung; Änderungen durch den Plattform-Admin unter /portal/dokumente
 // -> „Plattform: Impressum“ (dort bitte die Anschrift ergänzen, § 5 ECG).
-$legalStand = '8. November 2026';
+$legalStand = '21. November 2026';
+$operatorLegalForm = platformSettingText('operator_legal_form');
+$operatorAddress = platformSettingText('operator_address');
 $legalMeta = 'Angaben gemäß § 5 ECG und § 25 Mediengesetz';
 ?>
 <h2>Betreiber der Plattform</h2>
 <p>
   Patrick Ropper<br>
+  <?php if ($operatorLegalForm !== ''): ?>Rechtsform: <?= htmlspecialchars($operatorLegalForm) ?><br><?php endif; ?>
+  <?php if ($operatorAddress !== ''): ?><?= nl2br(htmlspecialchars($operatorAddress)) ?><br><?php endif; ?>
   E-Mail: <a href="mailto:office@stromfueralle.at">office@stromfueralle.at</a><br>
   Kontaktformular: <a href="/kontakt">stromfueralle.at/kontakt</a>
 </p>
@@ -15,7 +19,7 @@ $legalMeta = 'Angaben gemäß § 5 ECG und § 25 Mediengesetz';
 <h2>Gegenstand</h2>
 <p>
   „Strom für alle“ ist eine Plattform zur Mitgliederverwaltung, Abrechnung und Darstellung von
-  Energiedaten für Erneuerbare-Energie-Gemeinschaften (§§ 79 ff EAG). Die Energiegemeinschaften
+  Energiedaten für Erneuerbare-Energie-Gemeinschaften (§ 79 EAG i. V. m. §§ 66 ff ElWG). Die Energiegemeinschaften
   auf der Plattform sind eigenständige Vereine; für ihre eigenen Inhalte (Statuten, AGB,
   Preise, Mitgliedschaft) sind sie selbst verantwortlich und nennen das in ihrem eigenen Impressum.
 </p>

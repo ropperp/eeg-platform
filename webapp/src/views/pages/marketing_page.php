@@ -81,6 +81,7 @@ ob_start();
         <?php if (!empty($sec['list'])): ?>
           <ul><?php foreach ($sec['list'] as $li): ?><li><?= htmlspecialchars($li) ?></li><?php endforeach; ?></ul>
         <?php endif; ?>
+        <?php if (!empty($sec['footnote'])): ?><p><small><?= htmlspecialchars($sec['footnote']) ?></small></p><?php endif; ?>
       </section>
     <?php endforeach; ?>
     <?php if (!empty($p['cta'])): ?>

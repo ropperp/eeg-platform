@@ -15,9 +15,32 @@ declare(strict_types=1);
  * sections (Liste von [h2, p (Absätze), list (optional)]), faq (Schlüssel aus marketingFaq()), related.
  */
 
+/**
+ * Netzgebühr-Hinweis für Marketing-Texte. Wert (Prozent) und Stand der Netztarife pflegt der
+ * Plattform-Admin (Admin -> Einstellungen), nichts davon steht fest im Text: die Netztarife ändern
+ * sich jährlich (Systemnutzungsentgelte-Verordnung). Ohne gepflegten Wert gibt es keine Zahl.
+ *
+ * @return array{satz: string, fussnote: string}
+ */
+function marketingNetzHinweis(): array
+{
+    $prozent = platformSettingText('netz_savings_percent');
+    $stand = platformSettingText('netz_tariff_stand');
+    $satz = 'Reduzierte Netzentgelte für den Strom, der innerhalb der Gemeinschaft geteilt wird.';
+    $fussnote = '';
+    if ($prozent !== '') {
+        $zahl = rtrim(rtrim(number_format((float)$prozent, 1, ',', ''), '0'), ',');
+        $satz = 'Reduzierte Netzentgelte für den Strom, der innerhalb der Gemeinschaft geteilt wird: derzeit rund ' . $zahl . ' % weniger Netzgebühr.*';
+        $fussnote = '* Netztarife laut Systemnutzungsentgelte-Verordnung' . ($stand !== '' ? ', Stand ' . date('d.m.Y', strtotime($stand)) : '')
+            . '. Die tatsächliche Ersparnis hängt vom Netzbetreiber und von Ihrem Verbrauch ab.';
+    }
+    return ['satz' => $satz, 'fussnote' => $fussnote];
+}
+
 /** @return array<string, array<string, mixed>> */
 function marketingPages(): array
 {
+    $netz = marketingNetzHinweis();
     return [
         'abrechnung' => [
             'title'       => 'EEG-Abrechnung mit EDA-Daten | Strom für alle',
@@ -135,9 +158,9 @@ function marketingPages(): array
                 ['h2' => 'Was eine Energiegemeinschaft bringt', 'list' => [
                     'Strom von Nachbarn aus der Region zu einem fairen, im Verein festgelegten Preis.',
                     'Für Einspeiser: ein fairer, vom Verein festgelegter Preis für den Überschuss.',
-                    'Reduzierte Netzentgelte für den Strom, der innerhalb der Gemeinschaft geteilt wird.',
+                    $netz['satz'],
                     'Ihr bisheriger Stromlieferant bleibt – die Gemeinschaft deckt einen Teil Ihres Bedarfs.',
-                ]],
+                ], 'footnote' => $netz['fussnote']],
                 ['h2' => 'So treten Sie bei', 'list' => [
                     'Prüfen, ob Ihr Zählpunkt im passenden Netzgebiet liegt (Kärnten Netz bietet dafür eine Abfrage).',
                     'Das Online-Beitrittsformular ausfüllen – Zählpunktnummer und Bankverbindung bereithalten.',

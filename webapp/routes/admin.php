@@ -670,6 +670,36 @@ $router->post('/admin/settings/test-mode', function () {
     exit;
 });
 
+/**
+ * Betreiber-Anschrift/Rechtsform (Impressum, § 5 ECG), Hosting-Anbieter (Datenschutzerklärung) und
+ * Netzgebühr-Hinweis (Marketing) -- bewusst nicht im Code (öffentliches Repo). Siehe migrate_20261121b.sql.
+ */
+$router->post('/admin/settings/betreiber', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $text = fn(string $k, int $max) => mb_substr(trim((string)($_POST[$k] ?? '')), 0, $max) ?: null;
+    $percentRaw = str_replace(',', '.', trim((string)($_POST['netz_savings_percent'] ?? '')));
+    $percent = null;
+    if ($percentRaw !== '') {
+        if (!is_numeric($percentRaw) || (float)$percentRaw < 0 || (float)$percentRaw > 100) {
+            header('Location: /admin/mail-settings?error=' . urlencode('Netzgebühr-Ersparnis: bitte eine Zahl zwischen 0 und 100 eingeben.') . '#tab-allgemein');
+            exit;
+        }
+        $percent = round((float)$percentRaw, 1);
+    }
+    $stand = trim((string)($_POST['netz_tariff_stand'] ?? ''));
+    if ($stand !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $stand)) { $stand = ''; }
+    DB::execute(
+        'UPDATE platform_settings SET operator_legal_form = ?, operator_address = ?, hosting_provider = ?,
+                hosting_provider_note = ?, netz_savings_percent = ?, netz_tariff_stand = ?, updated_at = now() WHERE id = 1',
+        [$text('operator_legal_form', 200), $text('operator_address', 500), $text('hosting_provider', 200),
+         $text('hosting_provider_note', 500), $percent, $stand !== '' ? $stand : null]
+    );
+    logAudit(null, 'platform_settings.update', 'platform_settings', null, 'Betreiber-/Hosting-/Netzgebühr-Angaben aktualisiert');
+    header('Location: /admin/mail-settings?success=1#tab-allgemein');
+    exit;
+});
+
 /** Siehe migrate_20260823.sql / espOfflineAfterMinutes(). */
 $router->post('/admin/settings/esp', function () {
     Auth::requireLogin();
