@@ -49,6 +49,19 @@
           Live-Werte werden überall ausgeblendet, neue Beitritte nutzen die Zustimmungen ohne P1-Vollmacht.
         </p>
       </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="supplier_duties_enabled" value="1" <?= communitySupplierDuties($community['id']) ? 'checked' : '' ?>>
+          Lieferantenpflichten nach § 69 ElWG aktiv
+        </label>
+        <p style="font-size:.8rem;color:var(--gray-600);margin-top:.25rem">
+          Pflicht, wenn ein Haushaltsmitglied mit Anlage &gt; 30&nbsp;kW oder die Gemeinschaft bzw. sonstige
+          Teilnehmer mit &gt; 100&nbsp;kW teilnehmen, oder wenn ein Organisator bestellt ist. Schaltet frei:
+          Allgemeine Lieferbedingungen und Informationsblatt (Bestätigung beim Online-Beitritt),
+          Rechnungsintervall je Mitglied, Rechnung mit abgesetzten Energiewerten, Mitteilung über Änderungen.
+          Standard: aus.
+        </p>
+      </div>
     </div>
   </div>
 

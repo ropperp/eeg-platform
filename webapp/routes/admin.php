@@ -419,6 +419,13 @@ $router->post('/admin/communities/:id', function ($params) {
             $params['id'],
         ]
     );
+    // Eigene Anweisung: fehlt die Spalte noch (Migration migrate_20261121b.sql nicht gelaufen), bleibt der Rest gespeichert.
+    try {
+        DB::execute('UPDATE communities SET supplier_duties_enabled = ? WHERE id = ?',
+            [isset($_POST['supplier_duties_enabled']) ? 'true' : 'false', $params['id']]);
+    } catch (\Throwable $e) {
+        error_log('[admin] supplier_duties_enabled nicht gespeichert: ' . $e->getMessage());
+    }
     logAudit($params['id'], 'community.update', 'community', $params['id'], 'EEG "' . trim($_POST['name'] ?? '') . '" bearbeitet');
     header('Location: /admin?success=1');
     exit;

@@ -1929,6 +1929,25 @@ function copyrightLine(?int $year = null): string
 }
 
 /**
+ * Lieferantenpflichten nach § 69 ElWG für diese Gemeinschaft aktiv (communities.supplier_duties_enabled,
+ * Standard aus)? Fehlt die Spalte noch (Migration nicht gelaufen), gilt "aus" -- dann ändert sich nichts.
+ */
+function communitySupplierDuties(?string $communityId): bool
+{
+    static $cache = [];
+    if (!$communityId) return false;
+    if (!array_key_exists($communityId, $cache)) {
+        try {
+            $row = DB::fetchOne('SELECT supplier_duties_enabled FROM communities WHERE id = ?', [$communityId]);
+            $cache[$communityId] = in_array($row['supplier_duties_enabled'] ?? false, [true, 't', 'true', '1', 1], true);
+        } catch (\Throwable $e) {
+            $cache[$communityId] = false;
+        }
+    }
+    return $cache[$communityId];
+}
+
+/**
  * Zeile der Plattform-Einstellungen (platform_settings, id = 1) pro Anfrage zwischengespeichert.
  * Leeres Array, wenn die Tabelle/Spalten noch nicht migriert sind -- Aufrufer müssen mit leeren
  * Werten zurechtkommen (z.B. Impressum, Datenschutzerklärung, Marketing-Texte).
