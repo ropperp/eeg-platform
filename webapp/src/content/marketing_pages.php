@@ -15,9 +15,32 @@ declare(strict_types=1);
  * sections (Liste von [h2, p (Absätze), list (optional)]), faq (Schlüssel aus marketingFaq()), related.
  */
 
+/**
+ * Netzgebühr-Hinweis für Marketing-Texte. Wert (Prozent) und Stand der Netztarife pflegt der
+ * Plattform-Admin (Admin -> Einstellungen), nichts davon steht fest im Text: die Netztarife ändern
+ * sich jährlich (Systemnutzungsentgelte-Verordnung). Ohne gepflegten Wert gibt es keine Zahl.
+ *
+ * @return array{satz: string, fussnote: string}
+ */
+function marketingNetzHinweis(): array
+{
+    $prozent = platformSettingText('netz_savings_percent');
+    $stand = platformSettingText('netz_tariff_stand');
+    $satz = 'Reduzierte Netzentgelte für den Strom, der innerhalb der Gemeinschaft geteilt wird.';
+    $fussnote = '';
+    if ($prozent !== '') {
+        $zahl = rtrim(rtrim(number_format((float)$prozent, 1, ',', ''), '0'), ',');
+        $satz = 'Reduzierte Netzentgelte für den Strom, der innerhalb der Gemeinschaft geteilt wird: derzeit rund ' . $zahl . ' % weniger Netzgebühr.*';
+        $fussnote = '* Netztarife laut Systemnutzungsentgelte-Verordnung' . ($stand !== '' ? ', Stand ' . date('d.m.Y', strtotime($stand)) : '')
+            . '. Die tatsächliche Ersparnis hängt vom Netzbetreiber und von Ihrem Verbrauch ab.';
+    }
+    return ['satz' => $satz, 'fussnote' => $fussnote];
+}
+
 /** @return array<string, array<string, mixed>> */
 function marketingPages(): array
 {
+    $netz = marketingNetzHinweis();
     return [
         'abrechnung' => [
             'title'       => 'EEG-Abrechnung mit EDA-Daten | Strom für alle',
@@ -130,14 +153,14 @@ function marketingPages(): array
             'title'       => 'Energiegemeinschaft Feldkirchen in Kärnten beitreten',
             'description' => 'EEG Strompool Feldkirchen Süd-West: Energiegemeinschaft in Feldkirchen, Kärnten. So treten Sie bei, so funktioniert es, das bringt es Ihnen.',
             'h1'          => 'Energiegemeinschaft in Feldkirchen (Kärnten)',
-            'lead'        => 'Die EEG Strompool Feldkirchen Süd-West ist ein gemeinnütziger Verein, in dem Haushalte und Betriebe aus der Region Strom aus Photovoltaik untereinander teilen. Sie läuft als erste Gemeinschaft auf der Plattform Strom für alle.',
+            'lead'        => 'Die EEG Strompool Feldkirchen Süd-West ist ein nicht auf Gewinn ausgerichteter Verein, in dem Haushalte und Betriebe aus der Region Strom aus Photovoltaik untereinander teilen. Sie läuft als erste Gemeinschaft auf der Plattform Strom für alle.',
             'sections'    => [
                 ['h2' => 'Was eine Energiegemeinschaft bringt', 'list' => [
                     'Strom von Nachbarn aus der Region zu einem fairen, im Verein festgelegten Preis.',
                     'Für Einspeiser: ein fairer, vom Verein festgelegter Preis für den Überschuss.',
-                    'Reduzierte Netzentgelte für den Strom, der innerhalb der Gemeinschaft geteilt wird.',
+                    $netz['satz'],
                     'Ihr bisheriger Stromlieferant bleibt – die Gemeinschaft deckt einen Teil Ihres Bedarfs.',
-                ]],
+                ], 'footnote' => $netz['fussnote']],
                 ['h2' => 'So treten Sie bei', 'list' => [
                     'Prüfen, ob Ihr Zählpunkt im passenden Netzgebiet liegt (Kärnten Netz bietet dafür eine Abfrage).',
                     'Das Online-Beitrittsformular ausfüllen – Zählpunktnummer und Bankverbindung bereithalten.',
@@ -216,7 +239,7 @@ function marketingOrgJsonLd(string $baseUrl, ?array $facts): array
         '@id'         => $base . '/#verein',
         'name'        => $facts['name'] ?? 'EEG Strompool Feldkirchen Süd-West',
         'url'         => $base . '/energiegemeinschaft-feldkirchen',
-        'description' => 'Gemeinnütziger Verein: Erneuerbare-Energie-Gemeinschaft in Feldkirchen in Kärnten, Betreiber der Plattform Strom für alle.',
+        'description' => 'Nicht auf Gewinn ausgerichteter Verein: Erneuerbare-Energie-Gemeinschaft in Feldkirchen in Kärnten, Betreiber der Plattform Strom für alle.',
         'areaServed'  => ['@type' => 'AdministrativeArea', 'name' => 'Kärnten'],
     ];
     if (!empty($facts['address']) && preg_match('/^(.+?),\s*(\d{4})\s+(.+)$/u', (string) $facts['address'], $m)) {

@@ -177,6 +177,14 @@ egal ob nur `webapp` oder Traefik selbst fehlt -- korrektes 502/503/504 in beide
 von Docker-Label-Discovery. DOMAIN dort ist hart eingetragen (keine `${DOMAIN}`-Substitution im
 File-Provider) -- bei Domain-Änderung von Hand mitziehen.
 
+### Verträge: Vorlagenfassung je Vertrag (21.11.2026)
+Verträge werden bei jedem Aufruf live aus der LaTeX-Vorlage gerendert. Damit ein unterschriebener Vertrag nach
+einer Textänderung gleich bleibt, gibt es eingefrorene Kopien (`*_elwog2010.tex`) und
+`members.contract_*_template`; `contractTemplateName()` wählt die Vorlage. Neue Fassung = neue Vorlage plus
+Altfassung einfrieren. Rechnungs-PDFs sind ab Freigabe eingefroren. Betreiber-Anschrift, Hosting-Anbieter und
+Netzgebühr-% stehen in `platform_settings` (Admin → Einstellungen), Lieferantenpflichten § 69 ElWG pro Gemeinschaft
+im Schalter `supplier_duties_enabled` (Standard aus).
+
 ### LaTeX-Vorlagen: persistentes Volume überdeckt jeden Git-Deploy (Vorfall 18.10.2026)
 `/opt/eeg/latex-templates` (`/admin/templates`-Uploads) gewinnt IMMER gegen die im Image
 mitgelieferte, aktuelle Vorlage -- liegt dort z.B. eine alte `rechnung.tex` (bewusst

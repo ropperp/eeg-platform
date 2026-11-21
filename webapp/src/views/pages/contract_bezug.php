@@ -52,7 +52,7 @@
   <div class="center" style="margin-bottom:20pt">
     <p class="bold" style="font-size:9pt;color:#555;letter-spacing:1pt">VORSCHLAG FÜR EINE</p>
     <h1>ENERGIE- und LEISTUNGSBEZUGSVEREINBARUNG</h1>
-    <p style="margin-top:8pt;font-size:10.5pt">gemäß §§ 79f EAG und §§ 16c ff ElWOG 2010</p>
+    <p style="margin-top:8pt;font-size:10.5pt">gemäß §§ 66 ff ElWG und § 79 EAG</p>
   </div>
 
   <p class="center bold">abgeschlossen zwischen</p>
@@ -62,7 +62,7 @@
     <?= htmlspecialchars($community['address'] ?? '') ?><br>
     <?php if ($community['zvr_number']): ?>ZVR-Zahl: <?= htmlspecialchars($community['zvr_number']) ?><br><?php endif; ?>
     <?php if ($community['marktpartner_id']): ?>Marktpartner-ID: <?= htmlspecialchars($community['marktpartner_id']) ?><br><?php endif; ?>
-    als „<span class="bold">Erneuerbare-Energie-Gemeinschaft</span>" (<span class="bold">„EEG"</span>) gemäß § 7 Abs 1 Z 15a iVm §§ 16c ff ElWOG 2010 einerseits</p>
+    als „<span class="bold">Erneuerbare-Energie-Gemeinschaft</span>" (<span class="bold">„EEG"</span>) gemäß §§ 66 ff ElWG iVm § 79 EAG einerseits</p>
 
     <p style="margin-top:10pt">sowie</p>
 
@@ -79,7 +79,7 @@
 
   <!-- §1 -->
   <h2>§ 1 Grundlagen der Leistungserbringung</h2>
-  <p>1.1 Die EEG <?= htmlspecialchars($community['name']) ?> ist eine Erneuerbare-Energie-Gemeinschaft gemäß §§ 79f Erneuerbaren-Ausbau-Gesetz (EAG) iVm §§ 16c ff Elektrizitätswirtschafts- und -organisationsgesetz (ElWOG 2010) und verfügt über Energieerzeugungsanlagen, mit denen sie elektrische Energie aus erneuerbaren Quellen erzeugt, verbraucht, speichert und an ihre Mitglieder abgibt.</p>
+  <p>1.1 Die EEG <?= htmlspecialchars($community['name']) ?> ist eine Erneuerbare-Energie-Gemeinschaft gemäß § 79 Erneuerbaren-Ausbau-Gesetz (EAG) iVm §§ 66 ff Elektrizitätswirtschaftsgesetz (ElWG) und verfügt über Energieerzeugungsanlagen, mit denen sie elektrische Energie aus erneuerbaren Quellen erzeugt, verbraucht, speichert und an ihre Mitglieder abgibt.</p>
   <p>1.2 Das Mitglied ist Mitglied der EEG. Es verfügt über eine Verbrauchsanlage mit folgender Zählpunktnummer:</p>
   <?php $consumer_points = array_filter($metering_points, fn($mp) => $mp['type'] === 'consumer'); ?>
   <?php if ($consumer_points): ?>
@@ -104,7 +104,7 @@
   <!-- §2 -->
   <h2>§ 2 Energiezuweisung und Aufteilung</h2>
   <p>2.1 Die virtuelle Zuweisung der von der EEG erzeugten oder dieser zugewiesenen Energie erfolgt nach dem tatsächlichen physikalischen Bezug (Messung am Zählpunkt) der Verbrauchsanlagen, im Verhältnis zum momentanen Verbrauchsverhalten der teilnehmenden Netzbenutzenden.</p>
-  <p>2.2 Die Zuordnung ist mit dem Energieverbrauch des jeweiligen Mitglieds in der Viertelstunde begrenzt. Bei Nullverbrauch wird die Energie den anderen Mitgliedern zugeordnet. Die EEG arbeitet nach dem dynamischen Aufteilungsmodell gemäß § 16e Abs 3 ElWOG 2010.</p>
+  <p>2.2 Die Zuordnung ist mit dem Energieverbrauch des jeweiligen Mitglieds in der Viertelstunde begrenzt. Bei Nullverbrauch wird die Energie den anderen Mitgliedern zugeordnet. Die EEG arbeitet nach dem dynamischen Aufteilungsmodell gemäß § 71 ElWG. Erzeugungs- und Verbrauchsanlage liegen im Regionalbereich im Sinne des § 70 Abs 6 Z 4 ElWG.</p>
   <p>2.3 Die seitens des Netzbetreibers an die EEG zur Verfügung gestellten Daten zur Einspeisung der Erzeugungsanlagen und zum Bezug der teilnehmenden Netzbenutzenden bilden die Grundlage für die Verrechnung.</p>
 
   <!-- §3 -->

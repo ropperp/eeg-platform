@@ -1581,3 +1581,39 @@ docker compose up -d --build
 > **Wichtig:** Für das eigene Platform-Admin-Konto 2FA oder einen Passkey einrichten (Portal → Profil).
 > **Rückfall:** `KC_KONSOLE_CLIENT_SECRET` in der `.env` auskommentieren, `docker compose up -d konsole` → nur Passkey wie bisher.
 
+
+> **Einmalig nach dem Update vom 21.11.2026 -- ElWG-Rechtstexte (Version 0.10.0)**: Neue Spalten und Tabelle (Migration),
+> neue Vertragsvorlagen, Angaben für Impressum/Datenschutz/Netzgebühr im Admin.
+> ```bash
+> cd /opt/eeg-platform
+> git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261121b.sql   # ZUERST (idempotent)
+> docker compose up -d --build webapp latex-service
+> ls -la /opt/eeg/latex-templates/        # siehe unten
+> ```
+> **LaTeX-Vorlagen im Volume:** Das Volume `/opt/eeg/latex-templates` gewinnt gegen das Image. Liegen dort
+> `bezugsvereinbarung.tex`, `einspeisevereinbarung.tex` oder `rechnung.tex`, kommen die neuen Fassungen nicht an.
+> Nie bewusst angepasst: `rm /opt/eeg/latex-templates/bezugsvereinbarung.tex` (usw.), dann gilt die Image-Version.
+> Bewusst angepasst: Änderungen von Hand übernehmen (ElWG-Verweise, Regionalbereich-Satz, bei `rechnung.tex` der Platzhalter
+> `<<<RAW_LIEFERANTENBLOCK>>>` nach dem grünen Summenbalken). Die eingefrorenen Altfassungen `*_elwog2010.tex` liegen nur
+> im Image und müssen **nicht** ins Volume. **Wichtig:** Sie dürfen dort nicht verändert werden, sonst ändern sich
+> unterschriebene Verträge. Prüfen: einen bereits unterschriebenen Vertrag öffnen, er muss weiter „ElWOG 2010“ nennen.
+>
+> **Gespeicherte Rechtstexte:** Hat der Obmann/Admin unter `/portal/dokumente` schon eine eigene Fassung von AGB,
+> Impressum oder Datenschutz gespeichert, gilt diese, nicht die neue Standardfassung. Dann dort „Standardfassung
+> wiederherstellen“ wählen (AGB: danach prüfen, ob eigene Änderungen verloren gehen) oder die Änderungen von Hand
+> übernehmen. Das gilt auch für die Plattform-Texte (Impressum, Datenschutz).
+>
+> **Im Admin ausfüllen** (Einstellungen → Allgemein → „Betreiber, Hosting und Netzgebühr“): Rechtsform und Anschrift
+> des Betreibers (sonst zeigt das Dashboard „Impressum unvollständig“), Hosting-Anbieter nur falls vorhanden, Netzgebühr-%
+> und Stand der Netztarife (ohne Wert steht keine Zahl im Text). Das Infoblatt als PDF (`/admin/templates`) ist eine
+> hochgeladene Datei und nicht Teil des Repos: dort die Aussage „rund 28 % weniger Netzgebühr“ von Hand anpassen.
+>
+> **Lieferantenpflichten (optional, pro Gemeinschaft):** Admin → Energiegemeinschaft bearbeiten → „Lieferantenpflichten nach
+> § 69 ElWG aktiv“. Danach unter `/portal/dokumente` die Reiter „Lieferbedingungen“ und „Informationsblatt (ElWG)“ befüllen,
+> **bevor** jemand beitritt (ohne Informationsblatt ist der Online-Beitritt gesperrt). Änderungen später über den Reiter
+> „Änderung mitteilen“. Prüfen: `/rc<RC>/alb` und `/rc<RC>/infoblatt` liefern 200 (bei ausgeschaltetem Schalter 404).
+>
+> **Aufbewahrung der Echtzeitwerte prüfen** (Datenschutzerklärung nennt 400 Tage):
+> `docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c "SELECT * FROM timescaledb_information.jobs WHERE proc_name='policy_retention';"`
+> Fehlt die Zeile (Migration vom 16.11.2026 hat nur eine NOTICE ausgegeben), stimmt der Text nicht.

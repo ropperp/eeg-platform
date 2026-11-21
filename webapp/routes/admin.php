@@ -419,6 +419,13 @@ $router->post('/admin/communities/:id', function ($params) {
             $params['id'],
         ]
     );
+    // Eigene Anweisung: fehlt die Spalte noch (Migration migrate_20261121b.sql nicht gelaufen), bleibt der Rest gespeichert.
+    try {
+        DB::execute('UPDATE communities SET supplier_duties_enabled = ? WHERE id = ?',
+            [isset($_POST['supplier_duties_enabled']) ? 'true' : 'false', $params['id']]);
+    } catch (\Throwable $e) {
+        error_log('[admin] supplier_duties_enabled nicht gespeichert: ' . $e->getMessage());
+    }
     logAudit($params['id'], 'community.update', 'community', $params['id'], 'EEG "' . trim($_POST['name'] ?? '') . '" bearbeitet');
     header('Location: /admin?success=1');
     exit;
@@ -667,6 +674,36 @@ $router->post('/admin/settings/test-mode', function () {
     logAudit(null, 'platform_settings.update', 'platform_settings', null,
         'Plattform auf ' . ($testMode ? 'Testmodus' : 'Echtbetrieb') . ' umgestellt');
     header('Location: /admin/mail-settings?success=1');
+    exit;
+});
+
+/**
+ * Betreiber-Anschrift/Rechtsform (Impressum, § 5 ECG), Hosting-Anbieter (Datenschutzerklärung) und
+ * Netzgebühr-Hinweis (Marketing) -- bewusst nicht im Code (öffentliches Repo). Siehe migrate_20261121b.sql.
+ */
+$router->post('/admin/settings/betreiber', function () {
+    Auth::requireLogin();
+    if (!Auth::isPlatformAdmin()) { http_response_code(403); return; }
+    $text = fn(string $k, int $max) => mb_substr(trim((string)($_POST[$k] ?? '')), 0, $max) ?: null;
+    $percentRaw = str_replace(',', '.', trim((string)($_POST['netz_savings_percent'] ?? '')));
+    $percent = null;
+    if ($percentRaw !== '') {
+        if (!is_numeric($percentRaw) || (float)$percentRaw < 0 || (float)$percentRaw > 100) {
+            header('Location: /admin/mail-settings?error=' . urlencode('Netzgebühr-Ersparnis: bitte eine Zahl zwischen 0 und 100 eingeben.') . '#tab-allgemein');
+            exit;
+        }
+        $percent = round((float)$percentRaw, 1);
+    }
+    $stand = trim((string)($_POST['netz_tariff_stand'] ?? ''));
+    if ($stand !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $stand)) { $stand = ''; }
+    DB::execute(
+        'UPDATE platform_settings SET operator_legal_form = ?, operator_address = ?, hosting_provider = ?,
+                hosting_provider_note = ?, netz_savings_percent = ?, netz_tariff_stand = ?, updated_at = now() WHERE id = 1',
+        [$text('operator_legal_form', 200), $text('operator_address', 500), $text('hosting_provider', 200),
+         $text('hosting_provider_note', 500), $percent, $stand !== '' ? $stand : null]
+    );
+    logAudit(null, 'platform_settings.update', 'platform_settings', null, 'Betreiber-/Hosting-/Netzgebühr-Angaben aktualisiert');
+    header('Location: /admin/mail-settings?success=1#tab-allgemein');
     exit;
 });
 
@@ -934,6 +971,7 @@ function adminFileVariables(): array
             'RAW_ZUSATZPOSITIONEN_LISTE' => 'Vorformatierte Tabellenzeilen für manuelle Zusatzpositionen, z.B. ein Rabatt (RAW, nicht escapen) -- siehe /portal/billing',
             'RAW_ZAHLUNG_TEXT' => 'Vorformatierter Zahlungstext: SEPA-Lastschrift-Vorabankündigung, Gutschrift-Hinweis oder leer (Vorlage zeigt dann die Standard-Überweisungsbitte) -- RAW, nicht escapen',
             'RAW_SUMME_LABEL' => 'Beschriftung der Summe, z.B. "Ihre Gutschrift" bei einer Gutschrift statt "Gesamtbetrag" (RAW, nicht escapen)',
+            'RAW_LIEFERANTENBLOCK' => 'Kasten nach § 69 Abs 3 ElWG mit den verwendeten Energiewerten je Zählpunkt und dem Vertragspartner -- nur bei aktiven Lieferantenpflichten der Gemeinschaft, sonst leer (RAW, nicht escapen)',
         ],
         'bezugsvereinbarung.tex' => [
             'ERSTELLT_AM' => 'Erstellungsdatum des Dokuments',

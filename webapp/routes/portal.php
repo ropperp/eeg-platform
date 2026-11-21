@@ -762,6 +762,9 @@ function invoicePdfPayload(array $invoice): array
         'RAW_ZUSATZPOSITIONEN_LISTE' => rechnungExtraItemsLatex($extraItems),
         'RAW_ZAHLUNG_TEXT'      => $zahlungText,
         'RAW_SUMME_LABEL'       => $summeLabel,
+        // § 69 Abs 3 ElWG: nur bei aktiven Lieferantenpflichten, sonst leer (Vorlage zeigt dann nichts).
+        'RAW_LIEFERANTENBLOCK'  => communitySupplierDuties($invoice['member_community_id'] ?? null)
+            ? invoiceSupplierBlockLatex($invoice, $bezugItems, $einspeisungItems) : '',
         'IBAN'                  => $invoice['eeg_iban'] ?? '--',
         'BIC'                   => $invoice['eeg_bic'] ?? '--',
         'ZAHLUNGSZIEL'          => $faellig,
@@ -878,7 +881,7 @@ $router->get('/portal/my/contract/bezug', function () {
     $signature = communityManagerSignature($member['community_id']);
     $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null, $member['community_id']);
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
-    streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    streamLatexPdf(contractTemplateName('bezug', $member), $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
 
 $router->get('/portal/my/contract/einspeisung', function () {
@@ -896,7 +899,7 @@ $router->get('/portal/my/contract/einspeisung', function () {
     $signature = communityManagerSignature($member['community_id']);
     $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null, $member['community_id']);
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
-    streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    streamLatexPdf(contractTemplateName('einspeisung', $member), $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 });
 
 /** Menschenlesbare Bezeichnung des Vertragstyps für Benachrichtigungen/Meldungen. */
@@ -957,6 +960,7 @@ $router->post('/portal/my/contract/:type/sign', function ($params) {
     DB::execute(
         "UPDATE members SET
             contract_{$type}_status = 'signed',
+            contract_{$type}_template = '" . CONTRACT_TEMPLATE_VERSION . "',
             contract_{$type}_customer_signature = ?,
             contract_{$type}_signed_at = now(),
             contract_{$type}_signer_ip = ?
@@ -1783,9 +1787,13 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
+    if (communitySupplierDuties($member['community_id']) && array_key_exists('invoice_interval', $_POST)) {
+        $ivl = in_array($_POST['invoice_interval'], ['monthly', 'yearly'], true) ? $_POST['invoice_interval'] : null;
+        DB::execute('UPDATE members SET invoice_interval = ? WHERE id = ?', [$ivl, $params['id']]);
+    }
     $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     $memberChanges = auditDiff($member, $memberAfter ?? [], [
-        'salutation' => 'Anrede', 'titel_vor' => 'Titel (vorgestellt)', 'titel_nach' => 'Titel (nachgestellt)',
+        'invoice_interval' => 'Rechnungsintervall', 'salutation' => 'Anrede', 'titel_vor' => 'Titel (vorgestellt)', 'titel_nach' => 'Titel (nachgestellt)',
         'first_name' => 'Vorname', 'last_name' => 'Nachname',
         'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
         'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
@@ -2491,7 +2499,7 @@ $router->get('/portal/members/:id/contract/bezug', function ($params) {
     $signature = eegSignatureAsset();
     $memberSig = memberSignatureAsset($member['contract_bezug_customer_signature'] ?? null, $member['community_id']);
     $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
-    $ok = streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    $ok = streamLatexPdf(contractTemplateName('bezug', $member), $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
     // DB-Update NUR nach erfolgreichem PDF, und nicht mehr nach digitaler Unterschrift --
     // ab dann bleibt generated_at eingefroren, damit der signierte Vertrag bei jeder erneuten
@@ -2537,7 +2545,7 @@ $router->post('/portal/members/:id/contract/bezug/send', function ($params) {
     // sofort auffallen, nicht erst wenn das Mitglied den Portal-Link später öffnet) -- versendet
     // wird kein Anhang mehr, nur eine Benachrichtigung mit Link zur digitalen Unterschrift.
     $error = null;
-    $pdf = generateLatexPdf('bezugsvereinbarung', $vars, $signature['assets'], $error);
+    $pdf = generateLatexPdf(contractTemplateName('bezug', $member), $vars, $signature['assets'], $error);
     if ($pdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
@@ -2679,7 +2687,7 @@ $router->get('/portal/members/:id/contract/einspeisung', function ($params) {
     $signature = eegSignatureAsset();
     $memberSig = memberSignatureAsset($member['contract_einspeisung_customer_signature'] ?? null, $member['community_id']);
     $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
-    $ok = streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+    $ok = streamLatexPdf(contractTemplateName('einspeisung', $member), $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
 
     if ($ok && $status !== 'signed') {
         DB::execute(
@@ -2708,7 +2716,7 @@ $router->post('/portal/members/:id/contract/einspeisung/send', function ($params
     // PDF wird hier nur zur Validierung erzeugt -- versendet wird kein Anhang mehr, nur eine
     // Benachrichtigung mit Link zur digitalen Unterschrift (siehe Kommentar beim Bezugsvertrag).
     $error = null;
-    $pdf = generateLatexPdf('einspeisevereinbarung', $vars, $signature['assets'], $error);
+    $pdf = generateLatexPdf(contractTemplateName('einspeisung', $member), $vars, $signature['assets'], $error);
     if ($pdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
@@ -2765,13 +2773,13 @@ $router->post('/portal/members/:id/contract/send-both', function ($params) {
 
     $error = null;
     $bezugVars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($consumerMps), $signature);
-    $bezugPdf = generateLatexPdf('bezugsvereinbarung', $bezugVars, $signature['assets'], $error);
+    $bezugPdf = generateLatexPdf(contractTemplateName('bezug', $member), $bezugVars, $signature['assets'], $error);
     if ($bezugPdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
     }
     $einspeisungVars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($producerMps), einspeisungAnlagenBeschreibung($producerMps), $signature);
-    $einspeisungPdf = generateLatexPdf('einspeisevereinbarung', $einspeisungVars, $signature['assets'], $error);
+    $einspeisungPdf = generateLatexPdf(contractTemplateName('einspeisung', $member), $einspeisungVars, $signature['assets'], $error);
     if ($einspeisungPdf === null) {
         header('Location: /portal/members/' . $params['id'] . '?error=' . urlencode($error));
         exit;
@@ -4807,6 +4815,10 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         'email_anrede_mode' => $_POST['email_anrede_mode'] ?? 'auto',
         'consent_version' => $application['consent_version'] ?? null,
     ]);
+    // Rechnungsintervall aus dem Online-Beitritt (§ 69 ElWG) übernehmen, falls gewählt.
+    if (!empty($application['invoice_interval'])) {
+        DB::execute('UPDATE members SET invoice_interval = ? WHERE id = ?', [$application['invoice_interval'], $result['member_id']]);
+    }
 
     // Vom Antragsteller angegebene Zählpunkte übernehmen, damit sie nicht händisch
     // nachgetragen werden müssen. Zählernummer (Ausleseeinheit) bleibt bewusst leer --
@@ -5352,12 +5364,17 @@ $router->post('/portal/metering-points/:id/assign', function ($params) {
 // Dokumente (allgemeiner Datenschutz-Teil, Barrierefreiheit).
 
 /** Bearbeitbare Dokumente je Bereich: [Reiter-ID => [doc_key, Plattform?]] */
-function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity): array
+function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity, bool $supplierDuties = false): array
 {
     $docs = [];
     if ($hasCommunity) {
         foreach (['agb', 'statuten', 'datenschutz', 'widerruf', 'impressum'] as $k) {
             $docs[$k] = ['doc_key' => $k, 'platform' => false];
+        }
+        // § 69 ElWG: nur mit aktivem Schalter. Reiter-ID "lieferinfo", weil "infoblatt" schon das PDF-Infoblatt ist.
+        if ($supplierDuties) {
+            $docs['alb'] = ['doc_key' => 'alb', 'platform' => false];
+            $docs['lieferinfo'] = ['doc_key' => 'infoblatt', 'platform' => false];
         }
     }
     if ($isPlatformAdmin) {
@@ -5374,7 +5391,7 @@ function legalDocEditContext(string $tabId): array
 {
     Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     $community = communityById($communityId);
-    $docs = editableLegalDocs(Auth::isPlatformAdmin(), $community !== null);
+    $docs = editableLegalDocs(Auth::isPlatformAdmin(), $community !== null, $community !== null && communitySupplierDuties($community['id']));
     if (!isset($docs[$tabId])) { http_response_code(403); echo 'Kein Zugriff'; exit; }
     return [$docs[$tabId]['platform'] ? null : $community, $docs[$tabId]['doc_key']];
 }
@@ -5384,7 +5401,7 @@ $router->get('/portal/dokumente', function () {
     $community = communityById($communityId);
     $isPlatformAdmin = Auth::isPlatformAdmin();
     $editDocs = [];
-    foreach (editableLegalDocs($isPlatformAdmin, $community !== null) as $tabId => $def) {
+    foreach (editableLegalDocs($isPlatformAdmin, $community !== null, $community !== null && communitySupplierDuties($community['id'])) as $tabId => $def) {
         $owner = $def['platform'] ? null : $community;
         $current = legalDocument($owner, $def['doc_key']);
         $history = DB::fetchAll(
@@ -5405,6 +5422,12 @@ $router->get('/portal/dokumente', function () {
     $consentCurrent = null;
     $consentHistory = [];
     $infoblatt = null;
+    $supplierDuties = $community !== null && communitySupplierDuties($community['id']);
+    $termChanges = [];
+    if ($supplierDuties) {
+        DB::setCommunity($community['id']);
+        $termChanges = DB::fetchAll('SELECT * FROM supplier_term_changes WHERE community_id = ? ORDER BY created_at DESC LIMIT 10', [$community['id']]);
+    }
     if ($community) {
         $consentCurrent = consentCurrentVersionFor($community);
         $consentHistory = DB::fetchAll(
@@ -5490,6 +5513,61 @@ $router->post('/portal/dokumente/:tab/restore', function ($params) {
         legalDocumentDefs()[$docKey]['title'] . ': ' . $what . ' wiederhergestellt');
     header('Location: ' . $back . '?success=' . urlencode(ucfirst($what) . ' wiederhergestellt.') . '#' . $params['tab']);
     exit;
+});
+
+/**
+ * Änderung der Lieferbedingungen mitteilen (§ 69 ElWG, nur mit aktiven Lieferantenpflichten): E-Mail an
+ * alle aktiven Mitglieder mit E-Mail-Adresse, Wirksamkeit frühestens einen Monat nach der Mitteilung.
+ * Jede Mitteilung bleibt als Nachweis in supplier_term_changes.
+ */
+$router->post('/portal/dokumente/aenderung', function () {
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    $community = communityById($communityId);
+    $back = '/portal/dokumente';
+    if (!$community || !communitySupplierDuties($communityId)) { http_response_code(403); echo 'Lieferantenpflichten sind für diese Energiegemeinschaft nicht aktiv'; return; }
+    DB::setCommunity($communityId);
+    $beschreibung = trim((string)($_POST['beschreibung'] ?? ''));
+    $wirksamAb = trim((string)($_POST['wirksam_ab'] ?? ''));
+    $ts = preg_match('/^\d{4}-\d{2}-\d{2}$/', $wirksamAb) ? strtotime($wirksamAb) : false;
+    if ($beschreibung === '' || mb_strlen($beschreibung) > 2000) {
+        header('Location: ' . $back . '?error=' . urlencode('Bitte die Änderung beschreiben (max. 2000 Zeichen).') . '#tab-aenderung'); exit;
+    }
+    if ($ts === false || $ts < strtotime('+1 month', strtotime(date('Y-m-d')))) {
+        header('Location: ' . $back . '?error=' . urlencode('Die Änderung darf frühestens einen Monat nach der Mitteilung wirksam werden (§ 69 ElWG).') . '#tab-aenderung'); exit;
+    }
+    $row = DB::fetchOne(
+        'INSERT INTO supplier_term_changes (community_id, beschreibung, wirksam_ab, created_by) VALUES (?, ?, ?, ?) RETURNING id',
+        [$communityId, $beschreibung, date('Y-m-d', $ts), Auth::userId()]
+    );
+    $members = DB::fetchAll(
+        "SELECT first_name, last_name, company_name, salutation, titel_vor, email_anrede_mode, email
+           FROM members WHERE community_id = ? AND status = 'active' AND is_demo = false AND email IS NOT NULL AND email <> ''",
+        [$communityId]
+    );
+    $rc = strtolower((string)$community['marktpartner_id']);
+    $base = rtrim(AppConfig::get()->marketingBaseUrl(), '/');
+    $sent = 0;
+    foreach ($members as $m) {
+        $a = mailSalutation($m);
+        $body = '<p>' . htmlspecialchars(trim($a['anrede'] . ' ' . $a['nachname'])) . ',</p>'
+            . '<p>die Lieferbedingungen der ' . htmlspecialchars((string)$community['name']) . ' ändern sich. '
+            . 'Die Änderung wird am <strong>' . date('d.m.Y', $ts) . '</strong> wirksam.</p>'
+            . '<p><strong>Was sich ändert:</strong><br>' . nl2br(htmlspecialchars($beschreibung)) . '</p>'
+            . '<p>Die aktuellen Unterlagen finden Sie hier: '
+            . '<a href="' . htmlspecialchars($base . '/' . $rc . '/alb') . '">Allgemeine Lieferbedingungen</a>, '
+            . '<a href="' . htmlspecialchars($base . '/' . $rc . '/infoblatt') . '">Informationsblatt</a>.</p>'
+            . '<p>Bei Fragen melden Sie sich bitte bei uns.</p>';
+        try {
+            Mailer::send($m['email'], 'Änderung der Lieferbedingungen – ' . $community['name'], $body);
+            $sent++;
+        } catch (\Throwable $e) {
+            error_log('[supplier_term_change] Versand fehlgeschlagen: ' . $e->getMessage());
+        }
+    }
+    DB::execute('UPDATE supplier_term_changes SET empfaenger = ? WHERE id = ?', [$sent, $row['id']]);
+    logAudit($communityId, 'supplier_term_change.send', 'supplier_term_change', $row['id'],
+        'Änderung der Lieferbedingungen mitgeteilt (wirksam ab ' . date('d.m.Y', $ts) . ', ' . $sent . ' Empfänger:innen)');
+    header('Location: ' . $back . '?success=' . urlencode('Mitteilung an ' . $sent . ' Mitglieder verschickt.') . '#tab-aenderung'); exit;
 });
 
 $router->post('/portal/dokumente/infoblatt', function () {

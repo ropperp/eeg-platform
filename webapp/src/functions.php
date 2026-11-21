@@ -832,6 +832,51 @@ function rechnungPositionenLatex(array $items, string $label, bool $gutschrift):
 }
 
 /**
+ * Zusatzblock für die Rechnung nach § 69 Abs 3 ElWG (nur Gemeinschaften mit aktiven
+ * Lieferantenpflichten): deutlich abgesetzt die verwendeten Energiewerte je Zählpunkt sowie Name,
+ * Anschrift und Kontaktadresse des Vertragspartners. Rechnungsbetrag, Fälligkeit und Zählpunkt-
+ * bezeichnungen stehen schon in der Standardvorlage (rechnung.tex). Rückgabe ist fertiges LaTeX
+ * (RAW_LIEFERANTENBLOCK, dynamische Teile über texEscape()).
+ *
+ * @param array<int, array<string, mixed>> $bezugItems        invoice_items vom Typ bezug
+ * @param array<int, array<string, mixed>> $einspeisungItems  invoice_items vom Typ einspeisung
+ */
+function invoiceSupplierBlockLatex(array $invoice, array $bezugItems, array $einspeisungItems): string
+{
+    $zeilen = [];
+    foreach ([['Bezug', $bezugItems], ['Einspeisung', $einspeisungItems]] as [$art, $items]) {
+        foreach ($items as $it) {
+            $zp = trim((string)($it['zaehlpunkt_nr'] ?? ''));
+            $zeilen[] = '  ' . ($zp !== '' ? texEscape($zp) : '--') . ' & ' . $art . ' & '
+                . number_format((float)$it['kwh'], 2, ',', '.') . ' \\\\';
+        }
+    }
+    $kontakt = [];
+    $mail = trim((string)($invoice['eeg_contact_email'] ?? ''));
+    $tel  = trim((string)($invoice['eeg_contact_phone'] ?? ''));
+    if ($mail === '' && $tel === '') { $mail = (string)AppConfig::get()->contactEmail; }
+    if ($mail !== '') $kontakt[] = 'E-Mail: ' . texEscape($mail);
+    if ($tel !== '')  $kontakt[] = 'Telefon: ' . texEscape($tel);
+
+    // Kompakt gehalten (footnotesize), damit die Rechnung mit dem Kasten möglichst auf einer Seite bleibt.
+    $tex  = "\\vspace{3mm}\n\\noindent\\colorbox{cardgray}{%\n  \\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep\\relax}\n  \\footnotesize\n";
+    $tex .= "  {\\bfseries\\color{navy}Verwendete Energiewerte}\\\\[0.5mm]\n";
+    if ($zeilen !== []) {
+        $tex .= "  \\begin{tabular}{@{}l l r@{}}\n" . implode("\n", $zeilen) . "\n  \\end{tabular}\\\\[1.5mm]\n";
+    } else {
+        $tex .= "  Im Abrechnungszeitraum wurden keine Energiewerte verrechnet.\\\\[1.5mm]\n";
+    }
+    $partner = texEscape((string)($invoice['eeg_name'] ?? ''));
+    if (trim((string)($invoice['eeg_address'] ?? '')) !== '') {
+        $partner .= ', ' . texEscape((string)$invoice['eeg_address']);
+    }
+    $tex .= "  {\\bfseries\\color{navy}Ihr Vertragspartner:} " . $partner;
+    if ($kontakt !== []) $tex .= ' \\quad ' . implode(' \\quad ', $kontakt);
+    $tex .= "\n  \\end{minipage}}\n";
+    return $tex;
+}
+
+/**
  * Bereinigt einen String für SEPA-pain.001/pain.008-XML-Textfelder (EndToEndId, MsgId, PmtInfId,
  * MndtId, Namen, Verwendungszweck) auf den von SEPA erlaubten "Latin Character Set" --
  * `a-z A-Z 0-9 / - ? : ( ) . , ' +` und Leerzeichen. Ohne das weist die Bank die GESAMTE Datei
@@ -1926,6 +1971,67 @@ function copyrightLine(?int $year = null): string
 {
     $year ??= (int)date('Y');
     return '© ' . ($year > 2026 ? '2026–' . $year : '2026') . ' Strom für alle';
+}
+
+/** Aktuelle Fassung der Vertragsvorlagen (ElWG, ab 01.10.2026). Wird beim Unterschreiben je Vertrag festgehalten. */
+const CONTRACT_TEMPLATE_VERSION = 'elwg-2026-11';
+
+/**
+ * Welche LaTeX-Vorlage für einen Vertrag gilt. Verträge werden bei jedem Aufruf live aus der
+ * Vorlage gerendert (kein gespeichertes PDF). Damit ein bereits unterschriebener Vertrag nach
+ * einer Textänderung nicht plötzlich anders aussieht, gilt: unterschrieben + keine festgehaltene
+ * Fassung = Altfassung (ElWOG 2010, eingefrorene Kopie `*_elwog2010.tex`); noch nicht
+ * unterschrieben = immer die aktuelle Fassung; beim Unterschreiben wird die aktuelle festgehalten.
+ */
+function contractTemplateName(string $type, array $member): string
+{
+    $base = $type === 'einspeisung' ? 'einspeisevereinbarung' : 'bezugsvereinbarung';
+    $signed = ($member['contract_' . $type . '_status'] ?? 'none') === 'signed';
+    $pinned = $member['contract_' . $type . '_template'] ?? null;
+    return ($signed && !$pinned) ? $base . '_elwog2010' : $base;
+}
+
+/**
+ * Lieferantenpflichten nach § 69 ElWG für diese Gemeinschaft aktiv (communities.supplier_duties_enabled,
+ * Standard aus)? Fehlt die Spalte noch (Migration nicht gelaufen), gilt "aus" -- dann ändert sich nichts.
+ */
+function communitySupplierDuties(?string $communityId): bool
+{
+    static $cache = [];
+    if (!$communityId) return false;
+    if (!array_key_exists($communityId, $cache)) {
+        try {
+            $row = DB::fetchOne('SELECT supplier_duties_enabled FROM communities WHERE id = ?', [$communityId]);
+            $cache[$communityId] = in_array($row['supplier_duties_enabled'] ?? false, [true, 't', 'true', '1', 1], true);
+        } catch (\Throwable $e) {
+            $cache[$communityId] = false;
+        }
+    }
+    return $cache[$communityId];
+}
+
+/**
+ * Zeile der Plattform-Einstellungen (platform_settings, id = 1) pro Anfrage zwischengespeichert.
+ * Leeres Array, wenn die Tabelle/Spalten noch nicht migriert sind -- Aufrufer müssen mit leeren
+ * Werten zurechtkommen (z.B. Impressum, Datenschutzerklärung, Marketing-Texte).
+ */
+function platformSettingsRow(): array
+{
+    static $row = null;
+    if ($row === null) {
+        try {
+            $row = DB::fetchOne('SELECT * FROM platform_settings WHERE id = 1') ?: [];
+        } catch (\Throwable $e) {
+            $row = [];
+        }
+    }
+    return $row;
+}
+
+/** Einzelner, getrimmter Text aus den Plattform-Einstellungen ('' wenn leer/nicht vorhanden). */
+function platformSettingText(string $key): string
+{
+    return trim((string)(platformSettingsRow()[$key] ?? ''));
 }
 
 /**

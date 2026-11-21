@@ -26,7 +26,7 @@ $legalMeta = 'Angaben gemäß § 5 ECG und § 25 Mediengesetz';
 <p>
   Gemeinsame Erzeugung und Nutzung von Energie aus erneuerbaren Quellen sowie nicht
   gewinnorientierte Verteilung dieser Energie innerhalb der Erneuerbaren-Energie-Gemeinschaft
-  gemäß §§ 79 ff EAG und §§ 16c ff ElWOG 2010. Details siehe
+  gemäß § 79 EAG i. V. m. §§ 66 ff ElWG. Details siehe
   <a href="/rc108175/statuten">Statuten</a>.
 </p>
 

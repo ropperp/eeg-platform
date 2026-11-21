@@ -4,6 +4,12 @@
 $legalStand = '21. Mai 2026';
 $legalMeta = 'ZVR 1778816746 · Version 1.0 – 21. Mai 2026';
 ?>
+<p class="legal-hinweis" style="padding:.75rem 1rem;border-left:4px solid var(--border, #999);margin-bottom:1.5rem">
+  <strong>Hinweis:</strong> Seit 01.10.2026 gelten für Energiegemeinschaften die §§ 65 ff ElWG.
+  Verweise auf das ElWOG 2010 sind entsprechend zu lesen; die Statuten bleiben gültig
+  (§ 189 Abs 17 ElWG).
+</p>
+
 <div style="margin-bottom:2.5rem">
   <a href="/assets/docs/statuten-eeg-strompool-feldkirchen-suedwest.pdf" class="btn btn-primary" download>
     Statuten als PDF herunterladen

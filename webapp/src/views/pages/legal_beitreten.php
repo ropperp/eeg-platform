@@ -44,6 +44,10 @@ ob_start();
     <li><a href="/<?= htmlspecialchars($rc) ?>/datenschutz">Datenschutz</a> — Umgang mit Ihren personenbezogenen Daten</li>
     <li><a href="/<?= htmlspecialchars($rc) ?>/agb">AGBs</a> — allgemeine Geschäftsbedingungen der Mitgliedschaft</li>
     <li><a href="/<?= htmlspecialchars($rc) ?>/preisliste">Preisliste</a> — aktuelle Tarife und Mitgliedsbeitrag</li>
+    <?php if (communitySupplierDuties($community['id'])): ?>
+    <li><a href="/<?= htmlspecialchars($rc) ?>/alb">Allgemeine Lieferbedingungen</a> — Bedingungen der Energielieferung</li>
+    <li><a href="/<?= htmlspecialchars($rc) ?>/infoblatt">Informationsblatt</a> — wichtige Informationen vor Vertragsabschluss (§ 69 ElWG)</li>
+    <?php endif; ?>
     <li><a href="/<?= htmlspecialchars($rc) ?>/zustimmungen">Zustimmungen</a> — vollständiger Wortlaut der Erklärungen in der Beitrittserklärung</li>
   </ul>
 </div>

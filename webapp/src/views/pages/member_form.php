@@ -43,6 +43,18 @@ ob_start();
         <small style="color:var(--gray-600)">Nur die Anrede in E-Mails. Nützlich, wenn z.&nbsp;B. die Ehefrau die
           Mails liest, der Vertrag aber auf den Mann läuft → „Sehr geehrte Familie". Der Nachname bleibt der des Vertragspartners.</small>
       </div>
+      <?php if (communitySupplierDuties(Auth::activeCommunityId())): $ivl = $m['invoice_interval'] ?? $_POST['invoice_interval'] ?? ''; ?>
+      <div class="form-group">
+        <label>Rechnungsintervall (§ 69 ElWG)</label>
+        <select name="invoice_interval">
+          <option value="" <?= $ivl === '' ? 'selected' : '' ?>>nicht gewählt (Standard der Gemeinschaft)</option>
+          <option value="monthly" <?= $ivl === 'monthly' ? 'selected' : '' ?>>monatlich</option>
+          <option value="yearly" <?= $ivl === 'yearly' ? 'selected' : '' ?>>jährlich</option>
+        </select>
+        <small style="color:var(--gray-600)">Wunsch des Mitglieds (beim Online-Beitritt abgefragt). Die Abrechnungsläufe
+          erzeugen weiterhin pro Zeitraum für alle Mitglieder; das Intervall dient zur Auswahl, wer wann abgerechnet wird.</small>
+      </div>
+      <?php endif; ?>
       <?php
         $titelVorVal = $m['titel_vor'] ?? $_POST['titel_vor'] ?? '';
         $titelVorOther = $titelVorVal !== '' && !in_array($titelVorVal, titelVorOptionen(), true);

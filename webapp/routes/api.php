@@ -982,10 +982,10 @@ $router->get('/api/v1/contracts/:type/pdf', function ($params) {
 
     if ($type === 'einspeisung') {
         $vars = einspeisevereinbarungVars($member, $community, $tariff, einspeisungZpLines($mps), einspeisungAnlagenBeschreibung($mps), $signature, $memberSig);
-        streamLatexPdf('einspeisevereinbarung', $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+        streamLatexPdf(contractTemplateName('einspeisung', $member), $vars, 'Einspeisevereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
     } else {
         $vars = bezugsvereinbarungVars($member, $community, $tariff, bezugZpLines($mps), $signature, $memberSig);
-        streamLatexPdf('bezugsvereinbarung', $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
+        streamLatexPdf(contractTemplateName('bezug', $member), $vars, 'Bezugsvereinbarung_' . $member['last_name'] . '.pdf', $signature['assets'] + $memberSig['assets']);
     }
 });
 
@@ -1032,6 +1032,7 @@ $router->post('/api/v1/contracts/:type/sign', function ($params) {
     DB::execute(
         "UPDATE members SET
             contract_{$type}_status = 'signed',
+            contract_{$type}_template = '" . CONTRACT_TEMPLATE_VERSION . "',
             contract_{$type}_customer_signature = ?,
             contract_{$type}_signed_at = now(),
             contract_{$type}_signer_ip = ?

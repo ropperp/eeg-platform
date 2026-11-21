@@ -4,7 +4,9 @@
 // gleich ist, steht hier (Patrick, 08.11.2026: "was übergreifend für alle gilt, vorne rauf");
 // im Teil der jeweiligen EEG nur deren Besonderheiten (Verantwortlicher, Netzbetreiber, Ausleseeinheit).
 // Standardfassung; Änderungen durch den Plattform-Admin unter /portal/dokumente.
-$legalStand = '8. November 2026';
+$legalStand = '21. November 2026';
+$hostingProvider = platformSettingText('hosting_provider');
+$hostingNote = platformSettingText('hosting_provider_note');
 ?>
 <h2>Geltungsbereich und Rollen</h2>
 <p>
@@ -66,21 +68,42 @@ $legalStand = '8. November 2026';
   Microsoft übermittelt. Die Auftragsverarbeitung erfolgt auf Basis des in die
   Microsoft-Produktbedingungen integrierten Data Protection Addendum (DPA).
 </p>
+<?php if ($hostingProvider !== ''): ?>
+<p>
+  <strong><?= htmlspecialchars($hostingProvider) ?></strong> (Hosting der Plattform in der EU)
+  <?php if ($hostingNote !== ''): ?>-- <?= htmlspecialchars($hostingNote) ?><?php endif; ?>
+  Mit dem Anbieter besteht ein Auftragsverarbeitungsvertrag nach Art. 28 DSGVO.
+</p>
+<?php endif; ?>
 
 <h2>Speicherort &amp; Sicherheit</h2>
 <p>
-  Die Daten werden auf Servern in Österreich gehostet. Die Übertragung erfolgt verschlüsselt
+  <?php if ($hostingProvider !== ''): ?>
+  Die Daten werden bei <?= htmlspecialchars($hostingProvider) ?> in der Europäischen Union gehostet.
+  <?php else: ?>
+  Die Daten werden auf einem eigenen Server in Österreich gehostet.
+  <?php endif; ?>
+  Die Übertragung erfolgt verschlüsselt
   (SSL/TLS). Passwörter werden ausschließlich als gehashte Werte gespeichert, besonders
   schützenswerte Zugangsdaten verschlüsselt. Jedes Mitglied sieht ausschließlich seine eigenen Daten.
 </p>
 
 <h2>Speicherdauer</h2>
-<p>
-  Personenbezogene Daten werden für die Dauer der Mitgliedschaft sowie darüber hinaus im
-  Rahmen der gesetzlichen Aufbewahrungsfristen (insbesondere für Abrechnungsunterlagen)
-  gespeichert. Nachrichten über ein Kontaktformular werden gelöscht, sobald die Anfrage
-  erledigt ist und keine Aufbewahrungspflicht besteht.
-</p>
+<p>Die Daten werden je nach Kategorie unterschiedlich lange gespeichert:</p>
+<ul>
+  <li><strong>Stammdaten, Beitrittserklärung, Verträge:</strong> für die Dauer der Mitgliedschaft; danach
+      nur noch, soweit Nachweis- oder Aufbewahrungspflichten bestehen (siehe nächster Punkt).</li>
+  <li><strong>Abrechnungsdaten, Rechnungen und die zugrunde liegenden Viertelstundenwerte des
+      Netzbetreibers:</strong> 7 Jahre (§ 132 BAO).</li>
+  <li><strong>Echtzeitwerte der Ausleseeinheit</strong> (falls die Energiegemeinschaft eine einsetzt):
+      die Einzelwerte (im 5-Sekunden-Takt) werden 400 Tage gespeichert und danach gelöscht. Eine
+      Zusammenfassung in 15-Minuten-Fenstern (Mittel- und Spitzenleistung, letzter Zählerstand)
+      bleibt für die Dauer der Teilnahme erhalten. Die Echtzeitwerte sind nicht Grundlage der
+      Abrechnung.</li>
+  <li><strong>Technische Zugangsdaten</strong> (Login-Session): bis zum Abmelden bzw. Ablauf der Session.</li>
+  <li><strong>Nachrichten über ein Kontaktformular:</strong> bis die Anfrage erledigt ist, sofern keine
+      Aufbewahrungspflicht besteht.</li>
+</ul>
 
 <h2>Cookies</h2>
 <p>
