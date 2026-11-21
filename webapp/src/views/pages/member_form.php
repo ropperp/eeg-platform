@@ -48,7 +48,7 @@ ob_start();
         <label>Rechnungsintervall (§ 69 ElWG)</label>
         <select name="invoice_interval">
           <option value="" <?= $ivl === '' ? 'selected' : '' ?>>nicht gewählt (Standard der Gemeinschaft)</option>
-          <option value="monthly" <?= $ivl === 'monthly' ? 'selected' : '' ?>>monatlich</option>
+          <option value="quarterly" <?= $ivl === 'quarterly' ? 'selected' : '' ?>>vierteljährlich</option>
           <option value="yearly" <?= $ivl === 'yearly' ? 'selected' : '' ?>>jährlich</option>
         </select>
         <small style="color:var(--gray-600)">Wunsch des Mitglieds (beim Online-Beitritt abgefragt). Die Abrechnungsläufe

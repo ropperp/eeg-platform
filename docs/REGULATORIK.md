@@ -27,8 +27,8 @@ sind als Verweise auf das ElWG zu lesen. Die Statuten wurden deshalb nicht geän
 
 **Lieferantenpflichten (§ 69 ElWG):** Gelten, wenn ein Haushaltsmitglied mit Anlage > 30 kW oder die
 Gemeinschaft bzw. sonstige Teilnehmer mit > 100 kW teilnehmen, oder wenn ein Organisator bestellt ist.
-Inhalt: Allgemeine Lieferbedingungen und Informationsblatt vor Vertragsabschluss, Wahl monatlicher oder
-jährlicher Rechnung (§ 69 Abs 1 Z 6, § 43 Abs 2), Rechnungsinhalt nach § 69 Abs 3 (Betrag, Fälligkeit, verwendete
+Inhalt: Allgemeine Lieferbedingungen und Informationsblatt vor Vertragsabschluss, Wahl des Rechnungsintervalls (§ 69 Abs 1 Z 6,
+§ 43 Abs 2; in der Plattform: höchstens quartalsweise oder jährlich, so von Patrick festgelegt), Rechnungsinhalt nach § 69 Abs 3 (Betrag, Fälligkeit, verwendete
 Energiewerte deutlich abgesetzt, Name/Anschrift/Kontakt des Vertragspartners, Zählpunktbezeichnungen), Änderungen
 der Bedingungen nur mit Mitteilung und frühestens einen Monat später.
 

@@ -567,8 +567,8 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
             return;
         }
         $invoiceInterval = $_POST['invoice_interval'] ?? '';
-        if (!in_array($invoiceInterval, ['monthly', 'yearly'], true)) {
-            $error = 'Bitte wählen Sie, ob Sie Rechnungen monatlich oder jährlich erhalten möchten.';
+        if (!in_array($invoiceInterval, ['quarterly', 'yearly'], true)) {
+            $error = 'Bitte wählen Sie, ob Sie Rechnungen vierteljährlich oder jährlich erhalten möchten.';
             require ROOT . '/src/views/pages/beitreten_formular.php';
             return;
         }

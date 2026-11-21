@@ -1788,7 +1788,7 @@ $router->post('/portal/members/:id/edit', function ($params) {
         ]
     );
     if (communitySupplierDuties($member['community_id']) && array_key_exists('invoice_interval', $_POST)) {
-        $ivl = in_array($_POST['invoice_interval'], ['monthly', 'yearly'], true) ? $_POST['invoice_interval'] : null;
+        $ivl = in_array($_POST['invoice_interval'], ['quarterly', 'yearly'], true) ? $_POST['invoice_interval'] : null;
         DB::execute('UPDATE members SET invoice_interval = ? WHERE id = ?', [$ivl, $params['id']]);
     }
     $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);

@@ -1617,3 +1617,17 @@ docker compose up -d --build
 > **Aufbewahrung der Echtzeitwerte prüfen** (Datenschutzerklärung nennt 400 Tage):
 > `docker compose exec -T timescaledb psql -U eeg -d eeg_platform -c "SELECT * FROM timescaledb_information.jobs WHERE proc_name='policy_retention';"`
 > Fehlt die Zeile (Migration vom 16.11.2026 hat nur eine NOTICE ausgegeben), stimmt der Text nicht.
+
+> **Einmalig nach dem Update vom 21.11.2026 (zweiter Teil) -- Rechnungsintervall vierteljährlich/jährlich**: Zusätzlich zu
+> `migrate_20261121b.sql` jetzt `docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261121c.sql`
+> (wandelt „monatlich“ in „vierteljährlich“ um). Vorherige Fassung der Auswahl war monatlich/jährlich.
+>
+> **Dateien auf dem Server sichern und vergleichen (mit Datum, Größe, Prüfsumme):**
+> ```bash
+> cd /opt/eeg-platform && git pull origin main && bash scripts/dateien_inventar.sh
+> # auf dem eigenen Rechner:
+> scp -r admin@<server>:eeg-inventar-$(date +%Y-%m-%d) .
+> ```
+> Ergebnis liegt in `~/eeg-inventar-<Datum>/` (außerhalb des Repos, enthält Metadaten der Mitglieder-Uploads, nie committen):
+> `manifest.tsv` (neueste zuerst), `latex-templates.tar.gz`, `git.txt`. Den Ordner im Chat oder Vault ablegen, dann kann
+> verglichen werden, welche Fassung die neueste ist.

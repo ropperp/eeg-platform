@@ -35,6 +35,7 @@ Umfasst alle Änderungen seit 0.9.1 (die älteren Einträge stehen darunter) und
 - Neu (optional, pro Gemeinschaft, Standard aus): Lieferantenpflichten § 69 ElWG: Lieferbedingungen und Informationsblatt
   (`/rc…/alb`, `/rc…/infoblatt`), Bestätigung des Informationsblatts beim Online-Beitritt mit Nachweis, Rechnungsintervall
   je Mitglied, Rechnung mit abgesetzten Energiewerten und Vertragspartner, Mitteilung über Änderungen (mind. 1 Monat Vorlauf).
+- Rechnungsintervall je Mitglied: vierteljährlich oder jährlich (`migrate_20261121c.sql`). Neues Skript `scripts/dateien_inventar.sh` (Dateiliste mit Datum und Prüfsumme).
 - Migration: `database/migrate_20261121b.sql` (vor dem Update einspielen). Schritte: `docs/BETRIEBSHANDBUCH.md`.
 
 ### Fix: Passkeys in Safari, Abmelden in der Steuerzentrale, Kachel-Kontrast (19.11.2026)
