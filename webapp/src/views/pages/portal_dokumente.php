@@ -35,6 +35,7 @@ foreach ($editDocs as $tabId => $d) {
 if ($community) {
     $tabs['zustimmungen'] = ['label' => 'Zustimmungen'];
     $tabs['infoblatt'] = ['label' => 'Infoblatt'];
+    if (!empty($supplierDuties)) { $tabs['aenderung'] = ['label' => 'Änderung mitteilen']; }
 }
 $firstTab = array_key_first($tabs);
 require __DIR__ . '/../partials/tabs_nav.php';
@@ -195,6 +196,40 @@ require __DIR__ . '/../partials/tabs_nav.php';
     <?php endif; ?>
   </div>
 </section>
+
+<?php if (!empty($supplierDuties)): ?>
+<section class="tab-panel" id="tab-aenderung" role="tabpanel" aria-labelledby="tabbtn-aenderung" tabindex="0" hidden>
+  <div class="card">
+    <h3 style="margin-bottom:.25rem">Änderung der Lieferbedingungen mitteilen</h3>
+    <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:1rem;max-width:46rem">
+      Ändern sich die Lieferbedingungen (§ 69 ElWG), müssen die Mitglieder vorab informiert werden.
+      Die Mitteilung geht per E-Mail an alle aktiven Mitglieder; die Änderung darf frühestens
+      <strong>einen Monat</strong> nach der Mitteilung wirksam werden. Passen Sie vorher die
+      Lieferbedingungen bzw. das Informationsblatt (Reiter oben) an.
+    </p>
+    <form method="post" action="/portal/dokumente/aenderung" data-confirm="Mitteilung jetzt an alle aktiven Mitglieder senden?">
+      <div class="form-group">
+        <label>Was ändert sich?</label>
+        <textarea name="beschreibung" rows="5" maxlength="2000" required></textarea>
+      </div>
+      <div class="form-group" style="max-width:16rem">
+        <label>Wirksam ab</label>
+        <input type="date" name="wirksam_ab" required min="<?= date('Y-m-d', strtotime('+1 month +1 day')) ?>">
+      </div>
+      <button type="submit" class="btn btn-primary">Mitglieder informieren</button>
+    </form>
+    <?php if (!empty($termChanges)): ?>
+      <h4 style="margin:1.5rem 0 .5rem">Bisherige Mitteilungen</h4>
+      <ul style="font-size:.85rem">
+        <?php foreach ($termChanges as $tc): ?>
+          <li><?= htmlspecialchars(fmtVienna($tc['created_at'])) ?> -- wirksam ab <?= htmlspecialchars(date('d.m.Y', strtotime($tc['wirksam_ab']))) ?>,
+              <?= (int)$tc['empfaenger'] ?> Empfänger:innen: <?= htmlspecialchars(mb_strimwidth($tc['beschreibung'], 0, 140, '…')) ?></li>
+        <?php endforeach; ?>
+      </ul>
+    <?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
 <?php endif; ?>
 
 <script src="<?= htmlspecialchars(assetUrl('/assets/js/rich-editor.js')) ?>"></script>

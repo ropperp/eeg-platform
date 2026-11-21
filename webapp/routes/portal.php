@@ -5440,6 +5440,12 @@ $router->get('/portal/dokumente', function () {
     $consentCurrent = null;
     $consentHistory = [];
     $infoblatt = null;
+    $supplierDuties = $community !== null && communitySupplierDuties($community['id']);
+    $termChanges = [];
+    if ($supplierDuties) {
+        DB::setCommunity($community['id']);
+        $termChanges = DB::fetchAll('SELECT * FROM supplier_term_changes WHERE community_id = ? ORDER BY created_at DESC LIMIT 10', [$community['id']]);
+    }
     if ($community) {
         $consentCurrent = consentCurrentVersionFor($community);
         $consentHistory = DB::fetchAll(
@@ -5525,6 +5531,61 @@ $router->post('/portal/dokumente/:tab/restore', function ($params) {
         legalDocumentDefs()[$docKey]['title'] . ': ' . $what . ' wiederhergestellt');
     header('Location: ' . $back . '?success=' . urlencode(ucfirst($what) . ' wiederhergestellt.') . '#' . $params['tab']);
     exit;
+});
+
+/**
+ * Änderung der Lieferbedingungen mitteilen (§ 69 ElWG, nur mit aktiven Lieferantenpflichten): E-Mail an
+ * alle aktiven Mitglieder mit E-Mail-Adresse, Wirksamkeit frühestens einen Monat nach der Mitteilung.
+ * Jede Mitteilung bleibt als Nachweis in supplier_term_changes.
+ */
+$router->post('/portal/dokumente/aenderung', function () {
+    Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
+    $community = communityById($communityId);
+    $back = '/portal/dokumente';
+    if (!$community || !communitySupplierDuties($communityId)) { http_response_code(403); echo 'Lieferantenpflichten sind für diese Energiegemeinschaft nicht aktiv'; return; }
+    DB::setCommunity($communityId);
+    $beschreibung = trim((string)($_POST['beschreibung'] ?? ''));
+    $wirksamAb = trim((string)($_POST['wirksam_ab'] ?? ''));
+    $ts = preg_match('/^\d{4}-\d{2}-\d{2}$/', $wirksamAb) ? strtotime($wirksamAb) : false;
+    if ($beschreibung === '' || mb_strlen($beschreibung) > 2000) {
+        header('Location: ' . $back . '?error=' . urlencode('Bitte die Änderung beschreiben (max. 2000 Zeichen).') . '#tab-aenderung'); exit;
+    }
+    if ($ts === false || $ts < strtotime('+1 month', strtotime(date('Y-m-d')))) {
+        header('Location: ' . $back . '?error=' . urlencode('Die Änderung darf frühestens einen Monat nach der Mitteilung wirksam werden (§ 69 ElWG).') . '#tab-aenderung'); exit;
+    }
+    $row = DB::fetchOne(
+        'INSERT INTO supplier_term_changes (community_id, beschreibung, wirksam_ab, created_by) VALUES (?, ?, ?, ?) RETURNING id',
+        [$communityId, $beschreibung, date('Y-m-d', $ts), Auth::userId()]
+    );
+    $members = DB::fetchAll(
+        "SELECT first_name, last_name, company_name, salutation, titel_vor, email_anrede_mode, email
+           FROM members WHERE community_id = ? AND status = 'active' AND is_demo = false AND email IS NOT NULL AND email <> ''",
+        [$communityId]
+    );
+    $rc = strtolower((string)$community['marktpartner_id']);
+    $base = rtrim(AppConfig::get()->marketingBaseUrl(), '/');
+    $sent = 0;
+    foreach ($members as $m) {
+        $a = mailSalutation($m);
+        $body = '<p>' . htmlspecialchars(trim($a['anrede'] . ' ' . $a['nachname'])) . ',</p>'
+            . '<p>die Lieferbedingungen der ' . htmlspecialchars((string)$community['name']) . ' ändern sich. '
+            . 'Die Änderung wird am <strong>' . date('d.m.Y', $ts) . '</strong> wirksam.</p>'
+            . '<p><strong>Was sich ändert:</strong><br>' . nl2br(htmlspecialchars($beschreibung)) . '</p>'
+            . '<p>Die aktuellen Unterlagen finden Sie hier: '
+            . '<a href="' . htmlspecialchars($base . '/' . $rc . '/alb') . '">Allgemeine Lieferbedingungen</a>, '
+            . '<a href="' . htmlspecialchars($base . '/' . $rc . '/infoblatt') . '">Informationsblatt</a>.</p>'
+            . '<p>Bei Fragen melden Sie sich bitte bei uns.</p>';
+        try {
+            Mailer::send($m['email'], 'Änderung der Lieferbedingungen – ' . $community['name'], $body);
+            $sent++;
+        } catch (\Throwable $e) {
+            error_log('[supplier_term_change] Versand fehlgeschlagen: ' . $e->getMessage());
+        }
+    }
+    DB::execute('UPDATE supplier_term_changes SET empfaenger = ? WHERE id = ?', [$sent, $row['id']]);
+    logAudit($communityId, 'supplier_term_change.send', 'supplier_term_change', $row['id'],
+        'Änderung der Lieferbedingungen mitgeteilt (wirksam ab ' . date('d.m.Y', $ts) . ', ' . $sent . ' Empfänger:innen)');
+    header('Location: ' . $back . '?success=' . urlencode('Mitteilung an ' . $sent . ' Mitglieder verschickt.') . '#tab-aenderung'); exit;
 });
 
 $router->post('/portal/dokumente/infoblatt', function () {
