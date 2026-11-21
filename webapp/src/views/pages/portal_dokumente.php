@@ -28,7 +28,8 @@ $tabsKey = 'dokumente';
 $tabs = [];
 foreach ($editDocs as $tabId => $d) {
     $label = ['agb' => 'AGB', 'statuten' => 'Statuten', 'datenschutz' => 'Datenschutz', 'widerruf' => 'Widerruf',
-              'impressum' => 'Impressum', 'barrierefreiheit' => 'Barrierefreiheit', 'kontakt' => 'Kontakt'][$d['doc_key']];
+              'impressum' => 'Impressum', 'barrierefreiheit' => 'Barrierefreiheit', 'kontakt' => 'Kontakt',
+              'alb' => 'Lieferbedingungen', 'infoblatt' => 'Informationsblatt (ElWG)'][$d['doc_key']];
     $tabs[$tabId] = ['label' => $d['platform'] ? 'Plattform: ' . $label : $label];
 }
 if ($community) {

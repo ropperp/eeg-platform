@@ -1784,9 +1784,13 @@ $router->post('/portal/members/:id/edit', function ($params) {
             $params['id'],
         ]
     );
+    if (communitySupplierDuties($member['community_id']) && array_key_exists('invoice_interval', $_POST)) {
+        $ivl = in_array($_POST['invoice_interval'], ['monthly', 'yearly'], true) ? $_POST['invoice_interval'] : null;
+        DB::execute('UPDATE members SET invoice_interval = ? WHERE id = ?', [$ivl, $params['id']]);
+    }
     $memberAfter = DB::fetchOne('SELECT * FROM members WHERE id = ?', [$params['id']]);
     $memberChanges = auditDiff($member, $memberAfter ?? [], [
-        'salutation' => 'Anrede', 'titel_vor' => 'Titel (vorgestellt)', 'titel_nach' => 'Titel (nachgestellt)',
+        'invoice_interval' => 'Rechnungsintervall', 'salutation' => 'Anrede', 'titel_vor' => 'Titel (vorgestellt)', 'titel_nach' => 'Titel (nachgestellt)',
         'first_name' => 'Vorname', 'last_name' => 'Nachname',
         'company_name' => 'Firma', 'address' => 'Adresse', 'zip' => 'PLZ', 'city' => 'Ort', 'phone' => 'Telefon',
         'invoice_uid' => 'UID', 'member_iban' => 'IBAN', 'member_bic' => 'BIC', 'kontoinhaber' => 'Kontoinhaber',
@@ -4826,6 +4830,10 @@ $router->post('/portal/applications/:id/approve', function ($params) {
         'email_anrede_mode' => $_POST['email_anrede_mode'] ?? 'auto',
         'consent_version' => $application['consent_version'] ?? null,
     ]);
+    // Rechnungsintervall aus dem Online-Beitritt (§ 69 ElWG) übernehmen, falls gewählt.
+    if (!empty($application['invoice_interval'])) {
+        DB::execute('UPDATE members SET invoice_interval = ? WHERE id = ?', [$application['invoice_interval'], $result['member_id']]);
+    }
 
     // Vom Antragsteller angegebene Zählpunkte übernehmen, damit sie nicht händisch
     // nachgetragen werden müssen. Zählernummer (Ausleseeinheit) bleibt bewusst leer --
@@ -5371,12 +5379,17 @@ $router->post('/portal/metering-points/:id/assign', function ($params) {
 // Dokumente (allgemeiner Datenschutz-Teil, Barrierefreiheit).
 
 /** Bearbeitbare Dokumente je Bereich: [Reiter-ID => [doc_key, Plattform?]] */
-function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity): array
+function editableLegalDocs(bool $isPlatformAdmin, bool $hasCommunity, bool $supplierDuties = false): array
 {
     $docs = [];
     if ($hasCommunity) {
         foreach (['agb', 'statuten', 'datenschutz', 'widerruf', 'impressum'] as $k) {
             $docs[$k] = ['doc_key' => $k, 'platform' => false];
+        }
+        // § 69 ElWG: nur mit aktivem Schalter. Reiter-ID "lieferinfo", weil "infoblatt" schon das PDF-Infoblatt ist.
+        if ($supplierDuties) {
+            $docs['alb'] = ['doc_key' => 'alb', 'platform' => false];
+            $docs['lieferinfo'] = ['doc_key' => 'infoblatt', 'platform' => false];
         }
     }
     if ($isPlatformAdmin) {
@@ -5393,7 +5406,7 @@ function legalDocEditContext(string $tabId): array
 {
     Auth::requireLogin(); $communityId = Auth::requireManagerCommunity();
     $community = communityById($communityId);
-    $docs = editableLegalDocs(Auth::isPlatformAdmin(), $community !== null);
+    $docs = editableLegalDocs(Auth::isPlatformAdmin(), $community !== null, $community !== null && communitySupplierDuties($community['id']));
     if (!isset($docs[$tabId])) { http_response_code(403); echo 'Kein Zugriff'; exit; }
     return [$docs[$tabId]['platform'] ? null : $community, $docs[$tabId]['doc_key']];
 }
@@ -5403,7 +5416,7 @@ $router->get('/portal/dokumente', function () {
     $community = communityById($communityId);
     $isPlatformAdmin = Auth::isPlatformAdmin();
     $editDocs = [];
-    foreach (editableLegalDocs($isPlatformAdmin, $community !== null) as $tabId => $def) {
+    foreach (editableLegalDocs($isPlatformAdmin, $community !== null, $community !== null && communitySupplierDuties($community['id'])) as $tabId => $def) {
         $owner = $def['platform'] ? null : $community;
         $current = legalDocument($owner, $def['doc_key']);
         $history = DB::fetchAll(

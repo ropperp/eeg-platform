@@ -73,6 +73,9 @@ function legalDocumentDefs(): array
         'agb'              => ['title' => 'Allgemeine Geschäftsbedingungen', 'scope' => 'eeg'],
         'statuten'         => ['title' => 'Statuten', 'scope' => 'eeg'],
         'widerruf'         => ['title' => 'Widerrufsbelehrung', 'scope' => 'eeg'],
+        // Nur mit aktiven Lieferantenpflichten (§ 69 ElWG, communities.supplier_duties_enabled).
+        'alb'              => ['title' => 'Allgemeine Lieferbedingungen', 'scope' => 'eeg'],
+        'infoblatt'        => ['title' => 'Informationsblatt', 'scope' => 'eeg'],
         'impressum'        => ['title' => 'Impressum', 'scope' => 'beides'],
         'datenschutz'      => ['title' => 'Datenschutzerklärung', 'scope' => 'beides'],
         'barrierefreiheit' => ['title' => 'Erklärung zur Barrierefreiheit', 'scope' => 'plattform'],
@@ -220,10 +223,13 @@ $router->get('/:communityid/barrierefreiheit', function () {
     exit;
 });
 
-foreach (['agb', 'statuten', 'widerruf', 'impressum'] as $docKeyRoute) {
+foreach (['agb', 'statuten', 'widerruf', 'impressum', 'alb', 'infoblatt'] as $docKeyRoute) {
     $router->get('/:communityid/' . $docKeyRoute, function ($params) use ($docKeyRoute) {
         $community = communityByRc($params['communityid']);
         if (!$community) { http_response_code(404); require ROOT . '/src/views/pages/404.php'; return; }
+        if (in_array($docKeyRoute, ['alb', 'infoblatt'], true) && !communitySupplierDuties($community['id'])) {
+            http_response_code(404); require ROOT . '/src/views/pages/404.php'; return;
+        }
         $docKey = $docKeyRoute;
         $docTitle = legalDocumentDefs()[$docKey]['title'];
         $doc = legalDocument($community, $docKey);
@@ -537,6 +543,37 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         return;
     }
 
+    // Lieferantenpflichten (§ 69 ElWG): Informationsblatt muss VOR Abschluss angezeigt und bestätigt
+    // werden (Nachweis: Zeitpunkt + Fingerabdruck des angezeigten Textes), Rechnungsintervall wählen.
+    $supplierDuties = communitySupplierDuties($communityId);
+    $infoblattDoc = $supplierDuties ? legalDocument($community, 'infoblatt') : null;
+    $infoblattHash = $infoblattDoc ? hash('sha256', $infoblattDoc['html']) : null;
+    $invoiceInterval = null;
+    if ($supplierDuties) {
+        if (!$infoblattDoc) {
+            $error = 'Das Informationsblatt dieser Energiegemeinschaft liegt noch nicht vor. Bitte versuchen Sie es später erneut oder wenden Sie sich an die Energiegemeinschaft.';
+            require ROOT . '/src/views/pages/beitreten_formular.php';
+            return;
+        }
+        if (empty($_POST['infoblatt_bestaetigt'])) {
+            $error = 'Bitte bestätigen Sie, dass Sie das Informationsblatt gelesen haben.';
+            require ROOT . '/src/views/pages/beitreten_formular.php';
+            return;
+        }
+        if (($_POST['infoblatt_hash'] ?? '') !== $infoblattHash) {
+            unset($_POST['infoblatt_bestaetigt']);
+            $error = 'Das Informationsblatt wurde in der Zwischenzeit aktualisiert. Bitte lesen Sie es erneut und bestätigen Sie es.';
+            require ROOT . '/src/views/pages/beitreten_formular.php';
+            return;
+        }
+        $invoiceInterval = $_POST['invoice_interval'] ?? '';
+        if (!in_array($invoiceInterval, ['monthly', 'yearly'], true)) {
+            $error = 'Bitte wählen Sie, ob Sie Rechnungen monatlich oder jährlich erhalten möchten.';
+            require ROOT . '/src/views/pages/beitreten_formular.php';
+            return;
+        }
+    }
+
     $signature = $_POST['signature_image'] ?? '';
     if (!str_starts_with($signature, 'data:image/png;base64,')) {
         $error = 'Bitte unterschreiben Sie im Unterschriftsfeld, bevor Sie absenden.';
@@ -605,6 +642,12 @@ $router->post('/:communityid/beitreten/formular', function ($params) {
         'SELECT id FROM membership_applications WHERE community_id = ? AND email = ? ORDER BY created_at DESC LIMIT 1',
         [$communityId, strtolower(trim($_POST['email']))]
     );
+    if ($supplierDuties && $application) {
+        DB::execute(
+            'UPDATE membership_applications SET invoice_interval = ?, infoblatt_confirmed_at = now(), infoblatt_sha256 = ? WHERE id = ?',
+            [$invoiceInterval, $infoblattHash, $application['id']]
+        );
+    }
 
     DB::execute(
         'INSERT INTO notifications (community_id, typ, titel, text, referenz_typ, referenz_id)

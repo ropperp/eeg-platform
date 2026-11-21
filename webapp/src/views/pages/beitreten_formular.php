@@ -11,6 +11,9 @@ $mpid = strtolower($community['marktpartner_id']);
 // /:rc/beitrittserklaerung.pdf in index.php).
 $downloadPdf = '/' . $mpid . '/beitrittserklaerung.pdf';
 $hasDownloadPdf = in_array($mpid, communitiesWithLegalPages(), true);
+// Lieferantenpflichten (§ 69 ElWG): Informationsblatt anzeigen + bestätigen, Rechnungsintervall wählen.
+$supplierDuties = communitySupplierDuties($community['id']);
+$infoblattDoc = $supplierDuties ? legalDocument($community, 'infoblatt') : null;
 ob_start();
 ?>
 
@@ -266,6 +269,42 @@ ob_start();
         — Ihre Eingaben bleiben dabei in diesem Browser erhalten.
       </p>
     </div>
+
+    <?php if ($supplierDuties): ?>
+    <div class="card" style="margin-bottom:1.5rem">
+      <h3 style="margin-bottom:1rem">Informationsblatt &amp; Rechnungsintervall</h3>
+      <?php if ($infoblattDoc): ?>
+        <p style="font-size:.8rem;color:var(--gray-600);margin-bottom:.75rem">
+          Bitte lesen Sie das Informationsblatt, bevor Sie die Beitrittserklärung abschließen
+          (<a href="/<?= htmlspecialchars($mpid) ?>/alb" target="_blank">Allgemeine Lieferbedingungen</a>).
+        </p>
+        <details open style="margin-bottom:1rem">
+          <summary style="cursor:pointer;font-weight:600">Informationsblatt anzeigen</summary>
+          <div class="legal" style="margin-top:.75rem;max-height:24rem;overflow:auto;border:1px solid var(--gray-200);border-radius:8px;padding:1rem">
+            <?= $infoblattDoc['html'] ?>
+          </div>
+        </details>
+        <input type="hidden" name="infoblatt_hash" value="<?= htmlspecialchars(hash('sha256', $infoblattDoc['html'])) ?>">
+        <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;margin-bottom:1.25rem">
+          <input type="checkbox" name="infoblatt_bestaetigt" value="1" required style="width:auto;margin-top:.2rem"
+                 <?= !empty($d['infoblatt_bestaetigt']) ? 'checked' : '' ?>>
+          <strong style="font-size:.9rem">Ich habe das Informationsblatt gelesen.</strong>
+        </label>
+      <?php else: ?>
+        <div class="alert alert-error" style="margin-bottom:1rem">Das Informationsblatt dieser Energiegemeinschaft liegt noch nicht vor -- die Beitrittserklärung kann derzeit nicht abgeschlossen werden.</div>
+      <?php endif; ?>
+      <fieldset style="border:0;padding:0;margin:0">
+        <legend style="font-weight:600;margin-bottom:.35rem">Wie oft möchten Sie eine Rechnung erhalten?</legend>
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:400">
+          <input type="radio" name="invoice_interval" value="monthly" required style="width:auto" <?= ($d['invoice_interval'] ?? '') === 'monthly' ? 'checked' : '' ?>> monatlich
+        </label>
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:400">
+          <input type="radio" name="invoice_interval" value="yearly" required style="width:auto" <?= ($d['invoice_interval'] ?? '') === 'yearly' ? 'checked' : '' ?>> jährlich
+        </label>
+        <p style="font-size:.78rem;color:var(--gray-600);margin-top:.35rem">Sie können zwischen monatlicher und jährlicher Rechnung wählen (§ 69 Abs 1 Z 6 ElWG, § 43 Abs 2 ElWG).</p>
+      </fieldset>
+    </div>
+    <?php endif; ?>
 
     <div class="card" style="margin-bottom:1.5rem">
       <h3 style="margin-bottom:1rem">Unterschrift Beitrittserklärung</h3>
