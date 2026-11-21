@@ -57,3 +57,7 @@ webapp/vendor/
 docker-compose.override.yml
 # Wartungsmodus der Steuerzentrale (konsole), zur Laufzeit erzeugt
 docker/traefik/maintenance.yml
+
+# ESP32-Firmware: Build-Ausgabe (enthält lokale Pfade)
+esp32-firmware/p1-smart-meter/build/
+esp32-firmware/p1-smart-meter/*.bin
