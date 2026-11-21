@@ -167,5 +167,47 @@ req anon3 $PORTAL GET "/portal/unterschrift/versammlung/$(printf '0%.0s' $(seq 1
 check "ungültiger Unterschrifts-Link: 404 mit Hinweis" "$CODE" "404"
 contains "  ... Hinweis auf abgelaufenen Link" "$BODY" "Link nicht mehr gültig"
 
+echo "Statuten-Generator (Einladungslink)"
+req mgr $PORTAL GET /admin/statuten-einladungen
+check "Obmann: Statuten-Einladungen verboten" "$CODE" "403"
+req anon4 $PORTAL GET /admin/statuten-einladungen
+check "anonym: Statuten-Einladungen leiten zum Login" "$CODE $LOC" "302 /portal/login"
+req adm $PORTAL GET /admin/statuten-einladungen
+check "Platform-Admin: Statuten-Einladungen erreichbar" "$CODE" "200"
+req adm $PORTAL POST /admin/statuten-einladungen --data-urlencode "csrf_token=$(token adm)" --data-urlencode "label=E2E Interessent" \
+  --data-urlencode "valid_days=30" --data-urlencode "prefill_area=lokal" --data-urlencode "prefill_state=kaernten"
+INV=$(grep -oE '[0-9a-f-]{36}$' <<<"$LOC")
+check "Einladung anlegen leitet zur Detailseite" "$CODE $([ -n "$INV" ] && echo id)" "302 id"
+req adm $PORTAL GET "/admin/statuten-einladungen/$INV"
+STOK=$(grep -oE '/statuten/[A-Za-z0-9_-]{43}"' <<<"$BODY" | head -1 | cut -d/ -f3 | tr -d '"')
+check "  ... Link wird einmal angezeigt (256-Bit-Token)" "${#STOK}" "43"
+req adm $PORTAL GET "/admin/statuten-einladungen/$INV"
+if grep -qF "$STOK" <<<"$BODY"; then bad "  ... beim zweiten Aufruf nicht mehr sichtbar"; else ok "  ... beim zweiten Aufruf nicht mehr sichtbar"; fi
+req itv $MAIN GET "/statuten/$STOK"
+check "Interessent: Fragebogen ohne Login erreichbar" "$CODE" "200"
+contains "  ... mit Vorbelegung (Lokalbereich)" "$BODY" 'value="lokal" selected'
+contains "  ... nicht indexierbar" "$(cat "$T/h")" "X-Robots-Tag: noindex"
+req itv $MAIN POST "/statuten/$STOK" --data-urlencode "csrf_token=$(token itv)" --data-urlencode "aktion=speichern" \
+  --data-urlencode "name=Erneuerbare-Energie-Gemeinschaft E2E" --data-urlencode "seat=Testort" --data-urlencode "board_size=2"
+check "  ... Zwischenspeichern" "$CODE" "200"
+contains "  ... bestätigt" "$BODY" "Zwischengespeichert"
+req itv $MAIN POST "/statuten/$STOK" --data-urlencode "csrf_token=$(token itv)" --data-urlencode "aktion=erzeugen" \
+  --data-urlencode "name=Erneuerbare-Energie-Gemeinschaft E2E" --data-urlencode "seat=Testort" --data-urlencode "founders_count=1"
+check "  ... Erzeugen mit Regelverstoß (1 Gründer) wird abgelehnt" "$CODE" "422"
+contains "  ... mit Begründung" "$BODY" "zwei Gründungsmitglieder"
+req itv $MAIN GET "/statuten/$STOK"
+contains "  ... gespeicherter Stand bleibt erhalten" "$BODY" 'value="Testort"'
+req itv $MAIN GET "/statuten/$STOK/pdf/statuten"
+check "  ... vor dem Erzeugen kein PDF" "$CODE" "404"
+req itv $MAIN GET "/statuten/$(printf 'A%.0s' $(seq 1 43))"
+check "falscher Token: 404" "$CODE" "404"
+req itv $MAIN POST "/statuten/$STOK" --data-urlencode "aktion=speichern"
+check "POST ohne CSRF-Token abgelehnt" "$CODE" "403"
+req adm $PORTAL POST "/admin/statuten-einladungen/$INV/widerrufen" --data-urlencode "csrf_token=$(token adm)"
+check "Admin widerruft die Einladung" "$CODE" "302"
+req itv $MAIN GET "/statuten/$STOK"
+check "  ... widerrufener Link: 410" "$CODE" "410"
+contains "  ... mit Hinweis" "$BODY" "zurückgezogen"
+
 echo ""
 if [ "$fail" -eq 0 ]; then echo "✓ Alle ${pass} E2E-Tests bestanden"; else echo "✗ ${fail} von $((pass + fail)) E2E-Tests fehlgeschlagen"; exit 1; fi

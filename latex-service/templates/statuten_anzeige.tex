@@ -1,0 +1,96 @@
+% ─────────────────────────────────────────────────────────────────────────────
+% Checkliste "Anzeige der Vereinserrichtung" und nächste Schritte (Statuten-Generator,
+% webapp: LatexStatutePdfRenderer). KEIN amtliches Formular -- die Anzeige selbst erfolgt
+% formlos oder online bei der Vereinsbehörde (§ 11 VerG). RAW_-Variablen kommen escaped aus PHP.
+% ─────────────────────────────────────────────────────────────────────────────
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[left=22mm,right=22mm,top=20mm,bottom=22mm]{geometry}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{xcolor}
+\usepackage[scaled=0.96]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{navy}{RGB}{26,32,51}
+\definecolor{midgray}{RGB}{107,114,128}
+\definecolor{warnred}{RGB}{185,28,28}
+\newcommand{\checkbox}{\ensuremath{\square}}
+\newlist{checkliste}{itemize}{1}
+\setlist[checkliste]{label=\checkbox,leftmargin=7mm,itemsep=1mm}
+
+\def\entwurf{<<<RAW_ENTWURF>>>}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\ifx\entwurf\empty\else\fancyhead[C]{\small\bfseries\color{warnred}\entwurf}\fi
+\fancyfoot[L]{\scriptsize\color{midgray}<<<VEREINSNAME>>> -- Checkliste zur Vereinsgründung, Stand <<<DATUM>>>}
+\fancyfoot[R]{\scriptsize\color{midgray}Seite \thepage{} von \pageref{LastPage}}
+
+\begin{document}
+{\LARGE\bfseries\color{navy}Anzeige der Vereinserrichtung}\par
+\vspace{1mm}
+{\large\color{navy}Checkliste und nächste Schritte für \glqq{}<<<VEREINSNAME>>>\grqq{}}\par
+\vspace{4mm}
+
+\noindent{\renewcommand{\arraystretch}{1.3}%
+\begin{tabularx}{\textwidth}{@{}>{\color{midgray}}p{48mm} X@{}}
+Vereinsname & <<<VEREINSNAME>>> \\
+Sitz & <<<SITZ>>> \\
+Vereinsbehörde & <<<BEHOERDE>>> \\
+Statuten & Fassung <<<VERSION>>> vom <<<DATUM>>> \\
+Gründungsmitglieder & <<<GRUENDER_ANZAHL>>> \\
+\end{tabularx}}
+
+\section*{1. Vor der Anzeige}
+\begin{checkliste}
+  \item Statuten von einer fachkundigen Person prüfen lassen (dieses Dokument ist keine Rechtsberatung).
+  \item Rechtsgrundlagen im RIS auf den aktuellen Stand prüfen (VerG, ElWG, EAG, UStG).
+  \item Netzbetreiber kontaktieren: Lokal-/Regionalbereich und Zählpunkte bestätigen lassen.
+  \item Gründungsversammlung abhalten und die Statuten beschließen (Protokollvorlage liegt bei).
+\end{checkliste}
+
+\section*{2. Anzeige an die Vereinsbehörde (§ 11 VerG)}
+\begin{checkliste}
+  \item Schriftlich oder online (oesterreich.gv.at) bei der Vereinsbehörde: <<<BEHOERDE>>>.
+  \item Ein Exemplar der beschlossenen Statuten beilegen.
+  \item Angaben zu jedem Gründungsmitglied: Name, Geburtsdatum, Geburtsort, Zustellanschrift
+        (bei juristischen Personen: Name, Sitz, Registernummer, vertretungsbefugte Personen).
+  \item Zustellanschrift des Vereins angeben.
+  \item Die Behörde kann binnen vier Wochen (verlängerbar auf sechs Wochen) die Gründung untersagen oder zur
+        Aufnahme der Tätigkeit einladen; erst danach entsteht der Verein (§ 13 VerG).
+  \item Bekanntgabe der organschaftlichen Vertreter (Obmann/Obfrau, Kassier, ggf. weitere) mit Funktion, Name,
+        Geburtsdatum, Geburtsort, Zustellanschrift und Beginn der Vertretungsbefugnis binnen vier Wochen nach der
+        Bestellung.
+\end{checkliste}
+<<<RAW_GRUENDER>>>
+
+\section*{3. Nach der Entstehung des Vereins}
+\begin{checkliste}
+  \item ZVR-Zahl notieren (Auszug aus dem Vereinsregister, kostenlos online abrufbar).
+  \item Vereinskonto eröffnen; für SEPA-Lastschriften eine Creditor-ID bei der OeNB beantragen.
+  \item Finanzamt: Steuernummer beantragen (Formular Verf 15a). Der Verein ist nicht gemeinnützig und mit seinen
+        Gewinnen körperschaftsteuerpflichtig (keine Mindestkörperschaftsteuer).
+  \item <<<RAW_UST>>>
+  \item Vertrag mit dem Netzbetreiber über die Teilnahme an der gemeinsamen Energienutzung abschließen; Zählpunkte
+        anmelden, Mitglieder erteilen die Datenfreigabe im Portal des Netzbetreibers.
+  \item Mitgliedsverträge (Beitritt, Energiebezug, Einspeisung), Datenschutzinformation und ggf. AGB bereitstellen.
+  \item Auftragsverarbeitungsverträge mit Dienstleistern abschließen (z. B. Abrechnungsplattform, Hosting).
+  \item Prüfen, ob Lieferantenpflichten nach § 69 ElWG greifen (Anlagen über 100 kW der Gemeinschaft bzw.
+        über 30 kW von Haushaltskunden).
+  \item Einnahmen-Ausgaben-Rechnung samt Vermögensübersicht binnen fünf Monaten nach Ende jedes Rechnungsjahres
+        (§ 21 VerG); Prüfung durch die Rechnungsprüfer binnen vier Monaten.
+\end{checkliste}
+
+\vspace{4mm}
+{\small\color{midgray}Erstellt mit dem Statuten-Generator. Vorlage, keine Rechtsberatung. Vor Einreichung von einer
+fachkundigen Person prüfen lassen.}
+\end{document}

@@ -1,0 +1,334 @@
+% ─────────────────────────────────────────────────────────────────────────────
+% Statuten eines Vereins "Erneuerbare-Energie-Gemeinschaft" (Statuten-Generator, webapp:
+% LatexStatutePdfRenderer, fachlich: docs/STATUTEN_GENERATOR.md).
+%
+% Regeln für diese Vorlage:
+%  - Querverweise AUSSCHLIESSLICH mit \label/\ref (nie händische Paragraphen-Nummern).
+%    \ref auf einen Paragraphen ergibt "§ n", auf einen Absatz "§ n Abs m".
+%  - RAW_-Variablen kommen fertig escaped aus PHP (wahlabhängige Absätze, inkl. \item/\label).
+%  - Kopfzeile "Entwurf – keine Rechtsberatung" (RAW_ENTWURF) bis zur Freigabe durch den Admin.
+%  - Rechtsstand: VerG 2002, ElWG (BGBl. I 91/2025), EAG § 79 -- vor Freigabe im RIS prüfen.
+% ─────────────────────────────────────────────────────────────────────────────
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[left=25mm,right=25mm,top=25mm,bottom=25mm]{geometry}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{xcolor}
+\usepackage[scaled=0.96]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{navy}{RGB}{26,32,51}
+\definecolor{midgray}{RGB}{107,114,128}
+\definecolor{warnred}{RGB}{185,28,28}
+
+% Paragraphen: "§ 1 Name, Sitz ..." -- \ref liefert "§ 1"
+\renewcommand{\thesection}{\S\,\arabic{section}}
+\titleformat{\section}{\large\bfseries\color{navy}}{\thesection}{0.8em}{}
+\titlespacing*{\section}{0pt}{5mm}{1.5mm}
+% Absätze: "(1)" -- \ref auf einen Absatz liefert "§ n Abs m"
+\newlist{absaetze}{enumerate}{1}
+\setlist[absaetze]{label=(\arabic*),ref=\thesection~Abs~\arabic*,leftmargin=9mm,itemsep=1mm,topsep=1mm}
+
+\def\entwurf{<<<RAW_ENTWURF>>>}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\ifx\entwurf\empty\else
+  \fancyhead[C]{\small\bfseries\color{warnred}\entwurf}
+\fi
+\fancyfoot[L]{\scriptsize\color{midgray}Statuten <<<VEREINSNAME>>> -- Fassung <<<VERSION>>> vom <<<DATUM>>>}
+\fancyfoot[R]{\scriptsize\color{midgray}Seite \thepage{} von \pageref{LastPage}}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{navy}Statuten}\par
+  \vspace{2mm}
+  {\Large\bfseries <<<VEREINSNAME>>>}\par
+  \vspace{2mm}
+  {\small Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG}\par
+\end{center}
+\vspace{4mm}
+
+% ─── § 1 ───────────────────────────────────────────────────────────────────
+\section{Name, Sitz und Tätigkeitsbereich}\label{par:name}
+\begin{absaetze}
+  \item Der Verein führt den Namen \glqq{}<<<VEREINSNAME>>>\grqq{}.
+  \item Er hat seinen Sitz in <<<SITZ>>> und erstreckt seine Tätigkeit auf <<<RAW_TAETIGKEITSBEREICH>>>.
+  \item Der Verein ist eine Erneuerbare-Energie-Gemeinschaft im Sinne des § 79 EAG und des § 66 ElWG. Die Anlagen
+        der Mitglieder befinden sich im <<<NAHEBEREICH>>> (§ 70 Abs 6 ElWG) des Verteilernetzes der <<<NETZBETREIBER>>><<<RAW_NAHEBEREICH_ID>>>.\label{abs:nahebereich}
+  \item Die Errichtung von Zweigvereinen ist nicht beabsichtigt.
+\end{absaetze}
+
+% ─── § 2 ───────────────────────────────────────────────────────────────────
+\section{Zweck}\label{par:zweck}
+\begin{absaetze}
+  \item Der Verein bezweckt die gemeinsame Erzeugung, Speicherung, den Verbrauch und den Verkauf von Energie aus
+        erneuerbaren Quellen (<<<ENERGIETRAEGER>>>) durch und für seine Mitglieder.
+  \item Hauptzweck ist nicht die Erzielung finanzieller Gewinne, sondern es sollen den Mitgliedern und dem Gebiet, in
+        dem der Verein tätig ist, ökologische, wirtschaftliche und sozialgemeinschaftliche Vorteile verschafft werden.
+  \item Der Verein ist nicht gemeinnützig im Sinne der §§ 34 ff BAO.\label{abs:nichtgemeinnuetzig}
+  \item Der Verein dient der Energiewende, der Stärkung der regionalen Versorgung und der Bewusstseinsbildung für einen
+        sparsamen und effizienten Umgang mit Energie.
+\end{absaetze}
+
+% ─── § 3 ───────────────────────────────────────────────────────────────────
+\section{Mittel zur Erreichung des Vereinszwecks}\label{par:mittel}
+\begin{absaetze}
+  \item Der Vereinszweck soll durch die in \ref{abs:ideell} und \ref{abs:materiell} angeführten ideellen und
+        materiellen Mittel erreicht werden.
+  \item Als ideelle Mittel dienen\label{abs:ideell}
+        \begin{enumerate}[label=\alph*)]
+          \item die Organisation der gemeinsamen Nutzung der von den Mitgliedern oder vom Verein erzeugten Energie
+                (<<<ANLAGENMODELL>>>),
+          \item die Abwicklung des Datenaustauschs mit dem Netzbetreiber und die Abrechnung unter den Mitgliedern,
+          \item Information, Beratung und Veranstaltungen.
+        \end{enumerate}
+  \item Die erforderlichen materiellen Mittel werden aufgebracht durch\label{abs:materiell}
+        \begin{enumerate}[label=\alph*)]
+          \item Entgelte für die von den Mitgliedern bezogene Energie,
+          \item Mitgliedsbeiträge<<<RAW_EINTRITTSGELD>>>,
+          \item Förderungen, Spenden, Zuwendungen und sonstige Erträge.
+        \end{enumerate}
+  \item <<<RAW_PREISE>>>
+  \item Etwaige Überschüsse dürfen nur für den Vereinszweck verwendet werden, insbesondere zur Senkung der Entgelte.
+        Eine Ausschüttung von Gewinnen an die Mitglieder ist ausgeschlossen. Die Mitglieder haben bei ihrem Ausscheiden
+        und bei Auflösung des Vereins keinen Anspruch auf das Vereinsvermögen.
+  \item <<<RAW_NACHSCHUSS>>>
+\end{absaetze}
+
+% ─── § 4 ───────────────────────────────────────────────────────────────────
+\section{Arten der Mitgliedschaft}\label{par:arten}
+\begin{absaetze}
+  \item <<<RAW_MITGLIEDSARTEN>>>
+  \item Ordentliche Mitglieder nehmen mit mindestens einer Verbrauchs- oder Erzeugungsanlage (Zählpunkt) an der
+        Erneuerbare-Energie-Gemeinschaft teil.
+\end{absaetze}
+
+% ─── § 5 ───────────────────────────────────────────────────────────────────
+\section{Erwerb der Mitgliedschaft}\label{par:erwerb}
+\begin{absaetze}
+  \item Ordentliche Mitglieder können natürliche Personen, Gemeinden, Rechtsträger von Behörden in Bezug auf lokale
+        Dienststellen, sonstige juristische Personen des öffentlichen Rechts sowie kleine und mittlere Unternehmen sein
+        (§ 6 Abs 1 Z 45 ElWG), deren Anlagen sich im Nahebereich gemäß \ref{abs:nahebereich} befinden. Große Unternehmen
+        können nicht ordentliche Mitglieder sein. Bei privaten Unternehmen darf die Teilnahme nicht ihre gewerbliche
+        oder berufliche Haupttätigkeit sein.\label{abs:mitgliedkreis}
+  \item Haushalte, die als schutzbedürftig gelten oder von Energiearmut betroffen sind, dürfen von der Mitgliedschaft
+        nicht ausgeschlossen oder benachteiligt werden.\label{abs:schutzbeduerftig}
+  \item <<<RAW_AUFNAHME>>>
+  \item Die Mitgliedschaft wird mit der Aufnahme wirksam; die Teilnahme an der gemeinsamen Energienutzung beginnt mit
+        der Zuordnung des Zählpunkts durch den Netzbetreiber.
+  \item Bis zur Entstehung des Vereins erfolgt die vorläufige Aufnahme durch die Gründungsmitglieder.
+\end{absaetze}
+
+% ─── § 6 ───────────────────────────────────────────────────────────────────
+\section{Beendigung der Mitgliedschaft}\label{par:ende}
+\begin{absaetze}
+  \item Die Mitgliedschaft erlischt durch Tod, bei juristischen Personen durch Verlust der Rechtspersönlichkeit,
+        durch freiwilligen Austritt, durch Ausschluss und durch Wegfall der Voraussetzungen nach
+        \ref{abs:mitgliedkreis}.
+  \item <<<RAW_RECHTSNACHFOLGE>>>
+  \item Der Austritt ist jederzeit <<<AUSTRITTSFRIST>>> möglich und dem Vorstand schriftlich (auch per E-Mail)
+        mitzuteilen. Zwingende gesetzliche Kündigungs- und Rücktrittsrechte, insbesondere für Verbraucher und
+        Kleinunternehmen, bleiben unberührt und gehen dieser Bestimmung vor.\label{abs:austritt}
+  \item <<<RAW_AUSSCHLUSS>>>
+  \item Gegen den Ausschluss kann das Mitglied binnen vier Wochen die Schlichtungseinrichtung (\ref{par:schlichtung})
+        anrufen.
+  \item Mit dem Ende der Mitgliedschaft endet die Teilnahme an der gemeinsamen Energienutzung. Bis dahin entstandene
+        Forderungen und Verbindlichkeiten werden in der nächsten Abrechnung ausgeglichen.
+\end{absaetze}
+
+% ─── § 7 ───────────────────────────────────────────────────────────────────
+\section{Rechte und Pflichten der Mitglieder}\label{par:rechte}
+\begin{absaetze}
+  \item Die Mitglieder sind berechtigt, an allen Veranstaltungen des Vereins teilzunehmen und die Einrichtungen des
+        Vereins zu beanspruchen. Das Stimmrecht in der Mitgliederversammlung sowie das aktive und passive Wahlrecht
+        stehen nur den ordentlichen Mitgliedern zu.
+  \item Jedes Mitglied kann vom Vorstand die Ausfolgung der Statuten verlangen. Mindestens ein Zehntel der Mitglieder
+        kann vom Vorstand die Einberufung einer Mitgliederversammlung verlangen (\ref{abs:aomv}).
+  \item Die Mitglieder sind in jeder Mitgliederversammlung vom Vorstand über die Tätigkeit und die finanzielle
+        Gebarung des Vereins zu informieren. Der geprüfte Rechnungsabschluss ist den Mitgliedern auf Verlangen
+        zugänglich zu machen.
+  \item Die Mitglieder sind verpflichtet, die Interessen des Vereins zu fördern, die Statuten und die Beschlüsse der
+        Vereinsorgane zu beachten und die Mitgliedsbeiträge sowie die Entgelte pünktlich zu bezahlen.
+  \item <<<RAW_DATENFREIGABE>>>
+  \item Der Verein rechnet die Energie spätestens <<<ABRECHNUNGSFRIST>>> Tage nach Ende der Abrechnungsperiode ab.
+\end{absaetze}
+
+% ─── § 8 ───────────────────────────────────────────────────────────────────
+\section{Vereinsorgane}\label{par:organe}
+Organe des Vereins sind die Mitgliederversammlung (\ref{par:mv}, \ref{par:mvaufgaben}), der Vorstand
+(\ref{par:vorstand} bis \ref{par:obliegenheiten}), die Rechnungsprüfer (\ref{par:rp}) und die Schlichtungseinrichtung
+(\ref{par:schlichtung}).
+
+% ─── § 9 ───────────────────────────────────────────────────────────────────
+\section{Mitgliederversammlung}\label{par:mv}
+\begin{absaetze}
+  \item Die Mitgliederversammlung ist die \glqq{}Mitgliederversammlung\grqq{} im Sinne des Vereinsgesetzes 2002. Eine
+        ordentliche Mitgliederversammlung findet <<<MV_INTERVALL>>> statt.
+  \item Eine außerordentliche Mitgliederversammlung findet auf Beschluss des Vorstands oder der ordentlichen
+        Mitgliederversammlung, auf schriftlichen Antrag von mindestens einem Zehntel der Mitglieder oder auf
+        Verlangen der Rechnungsprüfer binnen <<<AOMV_WOCHEN>>> Wochen statt.\label{abs:aomv}
+  \item Zu den Mitgliederversammlungen sind alle Mitglieder mindestens <<<EINLADUNG_TAGE>>> Tage vor dem Termin
+        <<<RAW_EINLADUNG>>> unter Angabe der Tagesordnung einzuladen. Die Einberufung erfolgt durch den Vorstand.
+  \item Anträge zur Mitgliederversammlung sind mindestens drei Tage vor dem Termin beim Vorstand schriftlich
+        einzureichen. Gültige Beschlüsse, ausgenommen über einen Antrag auf Einberufung einer außerordentlichen
+        Mitgliederversammlung, können nur zur Tagesordnung gefasst werden.
+  \item <<<RAW_VIRTUELL>>>
+  \item <<<RAW_STIMMRECHT>>>
+  \item <<<RAW_BESCHLUSSFAEHIGKEIT>>>
+  \item Die Wahlen und die Beschlussfassungen erfolgen in der Regel mit einfacher Mehrheit der abgegebenen gültigen
+        Stimmen. Beschlüsse, mit denen die Statuten geändert oder der Verein aufgelöst werden soll, bedürfen einer
+        qualifizierten Mehrheit von <<<MEHRHEIT>>> der abgegebenen gültigen Stimmen.\label{abs:mehrheit}
+  \item Den Vorsitz führt der Obmann bzw. die Obfrau, bei Verhinderung die Stellvertretung nach
+        \ref{abs:vertretung}. Ist auch diese verhindert, führt das an Jahren älteste anwesende Vorstandsmitglied den
+        Vorsitz.
+\end{absaetze}
+
+% ─── § 10 ──────────────────────────────────────────────────────────────────
+\section{Aufgaben der Mitgliederversammlung}\label{par:mvaufgaben}
+Der Mitgliederversammlung sind folgende Aufgaben vorbehalten:
+\begin{enumerate}[label=\alph*)]
+  \item Entgegennahme und Genehmigung des Rechenschaftsberichts und des Rechnungsabschlusses unter Einbindung der
+        Rechnungsprüfer,
+  \item Wahl und Enthebung der Mitglieder des Vorstands und der Rechnungsprüfer,
+  \item Genehmigung von Rechtsgeschäften zwischen Rechnungsprüfern und Verein,
+  \item Entlastung des Vorstands,
+  \item <<<RAW_MV_ENTGELTE>>>
+<<<RAW_MV_EHREN>>>
+  \item Beschlussfassung über Statutenänderungen und über die freiwillige Auflösung des Vereins
+        (\ref{abs:mehrheit}),
+  \item Beratung und Beschlussfassung über sonstige auf der Tagesordnung stehende Fragen.
+\end{enumerate}
+
+% ─── § 11 ──────────────────────────────────────────────────────────────────
+\section{Vorstand}\label{par:vorstand}
+\begin{absaetze}
+  \item <<<RAW_VORSTAND_BESETZUNG>>>
+  \item Der Vorstand wird von der Mitgliederversammlung gewählt. Die Funktionsperiode beträgt <<<FUNKTIONSPERIODE>>>;
+        sie dauert jedenfalls bis zur Wahl eines neuen Vorstands. <<<RAW_WIEDERWAHL>>>
+  \item <<<RAW_KOOPTIERUNG>>>
+  \item Der Vorstand wird vom Obmann bzw. der Obfrau, bei Verhinderung von der Stellvertretung nach
+        \ref{abs:vertretung}, schriftlich oder mündlich einberufen.
+  \item Der Vorstand ist beschlussfähig, wenn alle seine Mitglieder eingeladen wurden und mindestens die Hälfte von
+        ihnen anwesend ist. <<<RAW_VORSTAND_BESCHLUSS>>>
+  \item <<<RAW_UMLAUF>>>
+  \item Die Funktion eines Vorstandsmitglieds erlischt durch Tod, Ablauf der Funktionsperiode, Enthebung durch die
+        Mitgliederversammlung und Rücktritt. Der Rücktritt ist dem Vorstand, im Fall des Rücktritts des gesamten
+        Vorstands der Mitgliederversammlung schriftlich zu erklären.
+  \item Die Vorstandsmitglieder üben ihre Funktion ehrenamtlich aus; der Ersatz angemessener Auslagen ist zulässig.
+\end{absaetze}
+
+% ─── § 12 ──────────────────────────────────────────────────────────────────
+\section{Aufgaben des Vorstands}\label{par:vorstandaufgaben}
+Dem Vorstand obliegt die Leitung des Vereins. Er ist das \glqq{}Leitungsorgan\grqq{} im Sinne des Vereinsgesetzes 2002.
+Ihm kommen alle Aufgaben zu, die nicht durch die Statuten einem anderen Vereinsorgan zugewiesen sind, insbesondere:
+\begin{enumerate}[label=\alph*)]
+  \item Einrichtung eines den Anforderungen des Vereins entsprechenden Rechnungswesens mit laufender Aufzeichnung der
+        Einnahmen und Ausgaben und Führung eines Vermögensverzeichnisses,
+  \item Erstellung des Jahresvoranschlags, des Rechenschaftsberichts und des Rechnungsabschlusses binnen fünf Monaten
+        nach Ende des Rechnungsjahres (§ 21 VerG),
+  \item Vorbereitung und Einberufung der Mitgliederversammlung (\ref{par:mv}),
+  \item <<<RAW_VORSTAND_ENTGELTE>>>
+  \item Aufnahme und Ausschluss von Mitgliedern, soweit nicht der Mitgliederversammlung vorbehalten
+        (\ref{par:erwerb}, \ref{par:ende}),
+  \item Abschluss der Verträge mit dem Netzbetreiber und den Mitgliedern sowie die Abwicklung der gemeinsamen
+        Energienutzung.
+\end{enumerate}
+
+% ─── § 13 ──────────────────────────────────────────────────────────────────
+\section{Besondere Obliegenheiten einzelner Vorstandsmitglieder}\label{par:obliegenheiten}
+\begin{absaetze}
+  \item Der Obmann bzw. die Obfrau führt die laufenden Geschäfte des Vereins. Der Kassier bzw. die Kassierin ist für
+        die ordnungsgemäße Geldgebarung verantwortlich.
+  \item <<<RAW_VERTRETUNG_AUSSEN>>>
+  \item Rechtsgeschäfte über einem Betrag von <<<VIER_AUGEN>>> Euro bedürfen der gemeinsamen Zeichnung von Obmann bzw.
+        Obfrau und Kassier bzw. Kassierin. Rechtsgeschäfte zwischen Vorstandsmitgliedern und dem Verein bedürfen der
+        Zustimmung eines anderen, zur Vertretung befugten Vorstandsmitglieds (§ 6 Abs 4 VerG).\label{abs:vieraugen}
+  \item Bei Gefahr im Verzug kann der Obmann bzw. die Obfrau auch in Angelegenheiten, die in den Wirkungsbereich der
+        Mitgliederversammlung oder des Vorstands fallen, selbständig Anordnungen treffen; diese bedürfen der
+        nachträglichen Genehmigung durch das zuständige Vereinsorgan.
+  \item <<<RAW_SCHRIFTFUEHRER>>>
+  \item <<<RAW_STELLVERTRETUNG>>>\label{abs:vertretung}
+\end{absaetze}
+
+% ─── § 14 ──────────────────────────────────────────────────────────────────
+\section{Rechnungsprüfer}\label{par:rp}
+\begin{absaetze}
+  \item <<<RP_ANZAHL>>> Rechnungsprüfer werden von der Mitgliederversammlung für die Dauer von <<<RP_PERIODE>>>
+        gewählt. Wiederwahl ist möglich. Die Rechnungsprüfer müssen nicht Mitglied des Vereins sein.
+  \item Die Rechnungsprüfer müssen unabhängig und unbefangen sein und dürfen keinem Organ – mit Ausnahme der
+        Mitgliederversammlung – angehören, dessen Tätigkeit Gegenstand der Prüfung ist (§ 5 Abs 5 VerG).
+  \item Den Rechnungsprüfern obliegen die laufende Geschäftskontrolle sowie die Prüfung der Finanzgebarung des Vereins
+        im Hinblick auf die Ordnungsmäßigkeit der Rechnungslegung und die statutengemäße Verwendung der Mittel binnen
+        vier Monaten ab Erstellung der Einnahmen- und Ausgabenrechnung. Sie berichten der Mitgliederversammlung über
+        das Ergebnis der Prüfung.
+  \item Überschreiten die gewöhnlichen Einnahmen oder Ausgaben die Schwellenwerte des § 22 VerG, gelten die dort
+        vorgesehenen Pflichten (Jahresabschluss bzw. Abschlussprüfer) zusätzlich.
+\end{absaetze}
+
+% ─── § 15 ──────────────────────────────────────────────────────────────────
+\section{Schlichtungseinrichtung}\label{par:schlichtung}
+\begin{absaetze}
+  \item Zur Schlichtung von allen aus dem Vereinsverhältnis entstehenden Streitigkeiten ist die vereinsinterne
+        Schlichtungseinrichtung berufen. Sie ist eine \glqq{}Schlichtungseinrichtung\grqq{} im Sinne des § 8 VerG und kein
+        Schiedsgericht nach den §§ 577 ff ZPO.
+  \item Die Schlichtungseinrichtung setzt sich aus drei ordentlichen Mitgliedern zusammen. Jeder Streitteil macht
+        binnen sieben Tagen ein Mitglied namhaft; diese wählen binnen weiterer 14 Tage ein drittes Mitglied zum
+        Vorsitzenden. Die Mitglieder der Schlichtungseinrichtung dürfen keinem Organ – mit Ausnahme der
+        Mitgliederversammlung – angehören, dessen Tätigkeit Gegenstand der Streitigkeit ist.
+  \item Die Schlichtungseinrichtung entscheidet nach Gewährung beiderseitigen Gehörs bei Anwesenheit aller ihrer
+        Mitglieder mit einfacher Mehrheit. Ihre Entscheidungen sind vereinsintern endgültig.
+  \item Der ordentliche Rechtsweg steht nach Ablauf von sechs Monaten ab Anrufung der Schlichtungseinrichtung offen,
+        sofern das Verfahren nicht früher beendet ist (§ 8 Abs 1 VerG).
+\end{absaetze}
+
+% ─── § 16 ──────────────────────────────────────────────────────────────────
+\section{Datenschutz}\label{par:datenschutz}
+\begin{absaetze}
+  \item Der Verein verarbeitet personenbezogene Daten seiner Mitglieder (insbesondere Name, Anschrift,
+        Kontaktdaten, Bankverbindung, Zählpunktnummern und Energiedaten) im Einklang mit der DSGVO und dem DSG,
+        soweit dies für die Mitgliederverwaltung, die gemeinsame Energienutzung und die Abrechnung erforderlich ist.
+  \item Die Daten werden an den Netzbetreiber und über die Energiewirtschaftliche Datenaustauschplattform (EDA)
+        übermittelt, soweit dies gesetzlich oder für die Teilnahme erforderlich ist. Mit Dienstleistern, die Daten im
+        Auftrag des Vereins verarbeiten, werden Auftragsverarbeitungsverträge geschlossen (Art 28 DSGVO).
+  \item Buchhaltungsunterlagen werden für die Dauer der gesetzlichen Aufbewahrungspflicht (§ 132 BAO, sieben Jahre)
+        aufbewahrt; sonstige Daten werden nach dem Ende der Mitgliedschaft gelöscht, sobald sie nicht mehr benötigt
+        werden.
+\end{absaetze}
+
+% ─── § 17 ──────────────────────────────────────────────────────────────────
+\section{Freiwillige Auflösung des Vereins}\label{par:aufloesung}
+\begin{absaetze}
+  \item Die freiwillige Auflösung des Vereins kann nur in einer zu diesem Zweck einberufenen Mitgliederversammlung
+        mit der Mehrheit nach \ref{abs:mehrheit} beschlossen werden.
+  \item Diese Mitgliederversammlung hat – sofern Vereinsvermögen vorhanden ist – über die Abwicklung zu beschließen,
+        insbesondere einen Abwickler zu berufen.
+  \item Das nach Abdeckung der Verbindlichkeiten verbleibende Vereinsvermögen ist <<<AUFLOESUNG_VERMOEGEN>>> zu
+        übertragen bzw. zu verwenden. Eine Verteilung an die Mitglieder ist ausgeschlossen (\ref{par:mittel}).
+  \item Der letzte Vereinsvorstand hat die freiwillige Auflösung binnen vier Wochen nach Beschlussfassung der
+        zuständigen Vereinsbehörde schriftlich anzuzeigen (§ 28 VerG). Die Abmeldung beim Netzbetreiber ist rechtzeitig
+        zu veranlassen.
+\end{absaetze}
+
+% ─── § 18 ──────────────────────────────────────────────────────────────────
+\section{Schlussbestimmungen}\label{par:schluss}
+\begin{absaetze}
+  \item Personenbezogene Bezeichnungen gelten für alle Geschlechter gleichermaßen.
+  \item Sollten einzelne Bestimmungen dieser Statuten unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen
+        unberührt. Anstelle der unwirksamen Bestimmung gilt die gesetzliche Regelung.
+\end{absaetze}
+
+\vspace{8mm}
+{\small\color{midgray}<<<RAW_HINWEIS>>>}
+
+\end{document}

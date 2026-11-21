@@ -116,6 +116,27 @@ class RateLimiter
         return self::count($key) <= $max;
     }
 
+    // ─── Statuten-Generator: Einmal-Links ohne Login (/statuten/{token}) ─────────
+    // Ein Token hat 256 Bit -- Raten ist aussichtslos; die Bremse verhindert trotzdem, dass
+    // jemand massenhaft Links durchprobiert oder den PDF-Dienst über einen gültigen Link flutet.
+    private const STATUTE_MISS_MAX = 10;
+    private const STATUTE_MISS_WINDOW = 900;   // 10 falsche Links je IP in 15 Minuten
+    private const STATUTE_HIT_MAX = 120;
+    private const STATUTE_HIT_WINDOW = 600;    // 120 Aufrufe je IP in 10 Minuten
+
+    /** true = diese IP hat zuletzt zu viele falsche Statuten-Links probiert oder zu viele Aufrufe. */
+    public static function isStatuteBlocked(): bool
+    {
+        $ip = hash('sha256', self::clientIp());
+        return self::count('ratelimit:statute_miss:' . $ip) >= self::STATUTE_MISS_MAX
+            || !self::allow('statute_hit', self::clientIp(), self::STATUTE_HIT_MAX, self::STATUTE_HIT_WINDOW);
+    }
+
+    public static function registerStatuteMiss(): void
+    {
+        self::increment('ratelimit:statute_miss:' . hash('sha256', self::clientIp()), self::STATUTE_MISS_WINDOW);
+    }
+
     /** true = Login-Versuch aktuell gesperrt (zu viele Fehlversuche zuletzt). */
     public static function isLoginBlocked(string $email): bool
     {
