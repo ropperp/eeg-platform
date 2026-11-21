@@ -130,7 +130,7 @@ function marketingPages(): array
             'title'       => 'Energiegemeinschaft Feldkirchen in Kärnten beitreten',
             'description' => 'EEG Strompool Feldkirchen Süd-West: Energiegemeinschaft in Feldkirchen, Kärnten. So treten Sie bei, so funktioniert es, das bringt es Ihnen.',
             'h1'          => 'Energiegemeinschaft in Feldkirchen (Kärnten)',
-            'lead'        => 'Die EEG Strompool Feldkirchen Süd-West ist ein gemeinnütziger Verein, in dem Haushalte und Betriebe aus der Region Strom aus Photovoltaik untereinander teilen. Sie läuft als erste Gemeinschaft auf der Plattform Strom für alle.',
+            'lead'        => 'Die EEG Strompool Feldkirchen Süd-West ist ein nicht auf Gewinn ausgerichteter Verein, in dem Haushalte und Betriebe aus der Region Strom aus Photovoltaik untereinander teilen. Sie läuft als erste Gemeinschaft auf der Plattform Strom für alle.',
             'sections'    => [
                 ['h2' => 'Was eine Energiegemeinschaft bringt', 'list' => [
                     'Strom von Nachbarn aus der Region zu einem fairen, im Verein festgelegten Preis.',
@@ -216,7 +216,7 @@ function marketingOrgJsonLd(string $baseUrl, ?array $facts): array
         '@id'         => $base . '/#verein',
         'name'        => $facts['name'] ?? 'EEG Strompool Feldkirchen Süd-West',
         'url'         => $base . '/energiegemeinschaft-feldkirchen',
-        'description' => 'Gemeinnütziger Verein: Erneuerbare-Energie-Gemeinschaft in Feldkirchen in Kärnten, Betreiber der Plattform Strom für alle.',
+        'description' => 'Nicht auf Gewinn ausgerichteter Verein: Erneuerbare-Energie-Gemeinschaft in Feldkirchen in Kärnten, Betreiber der Plattform Strom für alle.',
         'areaServed'  => ['@type' => 'AdministrativeArea', 'name' => 'Kärnten'],
     ];
     if (!empty($facts['address']) && preg_match('/^(.+?),\s*(\d{4})\s+(.+)$/u', (string) $facts['address'], $m)) {

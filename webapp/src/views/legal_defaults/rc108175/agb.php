@@ -1,7 +1,7 @@
 <?php
 // Standardfassung (bisheriger Text). Gilt, solange unter /portal/dokumente keine eigene
 // Fassung gespeichert wurde. Inhaltlich nicht hier ändern, sondern im Portal-Editor.
-$legalStand = '7. November 2026';
+$legalStand = '21. November 2026';
 ?>
 <h2>1. Geltungsbereich</h2>
 <p>
@@ -52,8 +52,10 @@ $legalStand = '7. November 2026';
 <h2>6. Haftung</h2>
 <p>
   Für die Verfügbarkeit von Netz und Zählpunkten sowie für Datenlieferungen des Netzbetreibers
-  wird keine Haftung übernommen. Die Gemeinschaft haftet nur für Vorsatz und grobe
-  Fahrlässigkeit.
+  wird keine Haftung übernommen, soweit dies gesetzlich zulässig ist. Die Haftung der
+  Gemeinschaft für leichte Fahrlässigkeit ist ausgeschlossen, soweit gesetzlich zulässig.
+  Die Haftung für Personenschäden sowie für Vorsatz und grobe Fahrlässigkeit wird gegenüber
+  Verbrauchern im Sinne des KSchG nicht ausgeschlossen (§ 6 Abs 1 Z 9 KSchG).
 </p>
 
 <h2>7. Ausleseeinheit für Smart Meter (verpflichtend)</h2>

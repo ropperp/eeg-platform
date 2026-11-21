@@ -7,7 +7,7 @@
 
 Wichtig zur Einordnung:
 - Plattform und Verein sind zwei Dinge: „Strom für alle“ ist die Software-Plattform; betrieben wird sie vom
-  gemeinnützigen Verein EEG Strompool Feldkirchen Süd-West (ZVR 1778816746, Marktpartner-ID RC108175).
+  nicht auf Gewinn ausgerichteten Verein EEG Strompool Feldkirchen Süd-West (ZVR 1778816746, Marktpartner-ID RC108175).
 - Zielgruppe: Vorstände und Betreiber von Energiegemeinschaften in ganz Österreich sowie deren Mitglieder.
 - Kosten: auf Anfrage, je nach Umfang (nur Verwaltung und Abrechnung oder zusätzlich Echtzeit-Ausleseeinheit
   mit Visualisierung).
