@@ -13,3 +13,4 @@ ADR xxxx“ markiert.
 | [0005](0005-eda-import-als-worker.md) | EDA-Import als eigener Worker mit Jobtabelle | angenommen |
 | [0006](0006-steuerzentrale.md) | Steuerzentrale als eigener Container mit Docker-Socket | angenommen |
 | [0007](0007-keycloak.md) | Keycloak als Anmeldedienst (SSO, Google, stille Übernahme der Passwörter) | angenommen, in Umsetzung |
+| [0008](0008-statuten-generator.md) | Statuten-Generator über persönlichen Einladungslink (Token nur als Hash) | angenommen |

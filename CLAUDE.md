@@ -209,6 +209,15 @@ Rücksprung `/portal/auth/callback`. **Das Portal bleibt Quelle** für Profil, P
 schreiben Änderungen in `keycloak_sync_queue`, die Webapp gleicht nach jeder Anfrage ab, Cron
 `bin/keycloak_sync.php` holt nach. Keycloak aus → automatisch bisherige Anmeldung. Details: `docs/adr/0007-keycloak.md`.
 
+## Statuten-Generator (nicht öffentlich)
+
+Platform-Admin → `/admin/statuten-einladungen` erzeugt einen persönlichen Link `/statuten/{token}` (256 Bit, in der
+DB nur SHA-256, **nur einmal angezeigt**). Interessent füllt ohne Login den Fragebogen aus; nach „Statuten
+erzeugen“ ist der Link 90 Tage **nur Download**. Tabellen `statute_invites`/`statute_drafts` (plattformweit, ohne
+RLS), PDFs in `/opt/eeg/webapp-storage/statuten/`, Vorlagen `statuten.tex` (Querverweise **nur** `\label`/`\ref`),
+`statuten_anzeige.tex`, `protokoll.tex`. Löschung nach 12 Monaten: Cron `scripts/statute_cleanup.php`.
+Prüfregeln/Rechtsstand: `docs/STATUTEN_GENERATOR.md`, Entscheidung: `docs/adr/0008-statuten-generator.md`.
+
 ## Messe-/Präsentations-Demo
 
 Checkbox „Simulierte Werte anzeigen“ in den Obmann-Einstellungen. Ein Thread im `mqtt-subscriber`

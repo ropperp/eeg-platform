@@ -231,6 +231,9 @@
       <a href="/admin/templates" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/templates') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('folder-simple') ?></span><span class="sidebar-text">Dateien</span>
       </a>
+      <a href="/admin/statuten-einladungen" class="<?= str_contains($_SERVER['REQUEST_URI'], '/admin/statuten-einladungen') ? 'active' : '' ?>">
+        <span class="sidebar-icon"><?= icon('note-pencil') ?></span><span class="sidebar-text">Statuten-Einladungen</span>
+      </a>
       <a href="/portal/dokumente" class="<?= str_contains($_SERVER['REQUEST_URI'], '/portal/dokumente') ? 'active' : '' ?>">
         <span class="sidebar-icon"><?= icon('file-text') ?></span><span class="sidebar-text">Rechtstexte</span>
       </a>

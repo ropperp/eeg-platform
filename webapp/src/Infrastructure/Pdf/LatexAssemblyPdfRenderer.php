@@ -147,8 +147,13 @@ final class LatexAssemblyPdfRenderer implements AssemblyPdfRenderer
         return $ts ? date('d.m.Y', $ts) : $value;
     }
 
-    /** "Strom für alle"-Logo für den Briefkopf (hochgeladenes Website-Logo, sonst Standard). */
-    private static function brandAsset(): array
+    /**
+     * "Strom für alle"-Logo für den Briefkopf (hochgeladenes Website-Logo, sonst Standard).
+     * Öffentlich seit 21.11.2026: auch die Protokollvorlage des Statuten-Generators nutzt es.
+     *
+     * @return array<string, string>
+     */
+    public static function brandAsset(): array
     {
         $path = (function_exists('adminFilePath') ? \adminFilePath('logo-light.png') : null)
             ?? ROOT . '/public/assets/images/logo.png';

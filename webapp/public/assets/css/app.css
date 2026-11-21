@@ -1196,3 +1196,20 @@ footer {
 .info-contact p { color: var(--gray-600); max-width: 620px; margin: 0 auto 1.25rem; }
 .home-facts { font-size: 1.05rem; color: var(--gray-700, #374151); margin: 0 auto 1.5rem; max-width: 640px; }
 
+
+/* ─── Statuten-Generator (Fragebogen /statuten/{token} und /admin/statuten-einladungen) ─── */
+.statute-form fieldset.statute-section { border: 0; margin: 0 0 1rem; }
+.statute-form legend { padding: 0; margin-bottom: .5rem; }
+.statute-form legend h3 { margin: 0; }
+.statute-form label { display: block; margin-bottom: .75rem; font-size: .9rem; }
+.statute-form label input:not([type=checkbox]), .statute-form label select, .statute-form label textarea { display: block; width: 100%; margin-top: .25rem; }
+.statute-form small { display: block; color: var(--gray-600); font-size: .78rem; margin-top: .2rem; }
+.statute-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .25rem 1rem; }
+.statute-label { display: block; font-size: .9rem; margin-bottom: .25rem; }
+.statute-form label.statute-check { display: flex; gap: .4rem; align-items: center; margin-bottom: .35rem; }
+.statute-fixed { font-size: .85rem; color: var(--gray-700); background: var(--gray-100); border-radius: 8px; padding: .5rem .75rem; }
+.statute-hints ul { margin: 0 0 0 1.1rem; padding: 0; font-size: .875rem; }
+.statute-hints li { margin-bottom: .35rem; }
+.statute-actions { display: flex; gap: .75rem; flex-wrap: wrap; margin: 1rem 0 2rem; }
+.statute-link { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.statute-link input { flex: 1 1 20rem; font-family: ui-monospace, monospace; font-size: .8rem; }

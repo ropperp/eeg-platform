@@ -1534,3 +1534,13 @@ $router->post('/admin/templates/:name/upload', function ($params) {
         'Datei "' . $registry[$params['name']]['label'] . '" (' . $params['name'] . ') hochgeladen/ersetzt');
     uploadRedirect('/admin/templates?success=' . urlencode($registry[$params['name']]['label'] . ' wurde aktualisiert.'));
 });
+
+// ─── Statuten-Einladungen (Statuten-Generator, nur Platform-Admin) ──────
+$statuteAdmin = fn() => \App\Support\Services::statuteAdminController();
+$router->get('/admin/statuten-einladungen', fn() => $statuteAdmin()->index($_GET)->send());
+$router->post('/admin/statuten-einladungen', fn() => $statuteAdmin()->create($_POST)->send());
+$router->get('/admin/statuten-einladungen/:id', fn($p) => $statuteAdmin()->show($p['id'], $_GET)->send());
+$router->get('/admin/statuten-einladungen/:id/pdf/:version/:doc', fn($p) => $statuteAdmin()->pdf($p['id'], $p['version'], $p['doc'])->send());
+foreach (['widerrufen', 'neuer-link', 'speichern', 'erzeugen', 'freigeben'] as $statuteAction) {
+    $router->post('/admin/statuten-einladungen/:id/' . $statuteAction, fn($p) => $statuteAdmin()->act($p['id'], $statuteAction, $_POST)->send());
+}

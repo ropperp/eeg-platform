@@ -49,6 +49,14 @@ $router->get('/faq', function () {
     require ROOT . '/src/views/pages/marketing_page.php';
 });
 
+// ─── Statuten-Generator: persönlicher Einladungslink ohne Login ─────────
+// Nicht öffentlich verlinkt; der Link entsteht nur im Admin-Bereich (/admin/statuten-einladungen).
+// Steht vor den /:communityid/...-Mustern. Details: docs/STATUTEN_GENERATOR.md.
+$statuteCtl = fn() => \App\Support\Services::statuteController();
+$router->get('/statuten/:token', fn($p) => $statuteCtl()->show($p['token'])->send());
+$router->post('/statuten/:token', fn($p) => $statuteCtl()->submit($p['token'], $_POST)->send());
+$router->get('/statuten/:token/pdf/:doc', fn($p) => $statuteCtl()->pdf($p['token'], $p['doc'])->send());
+
 // ─── Informieren und Beitreten: Auswahl der Energiegemeinschaft ─────────
 $router->get('/beitreten', function () {
     $communities = DB::fetchAll('SELECT * FROM communities WHERE active = true ORDER BY name');

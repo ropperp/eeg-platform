@@ -1644,3 +1644,19 @@ docker compose up -d --build
 >   Davon sind 43 Uploads inhaltsgleiche Duplikate (gleiche SHA-256, zusammen ca. 19 MB). Nichts gelöscht; bei Platzbedarf aufräumbar.
 > - `hero-banner.optimized*`: im Code nicht referenziert (nur `public.php`/Keycloak-Dockerfile erwähnen den Begriff); vermutlich eigener Optimierungslauf.
 >   Klären, welche Datei die Website tatsächlich ausliefert.
+
+> **Einmalig nach dem Update auf v0.11.0 (21.11.2026) -- Statuten-Generator:**
+> ```bash
+> cd /opt/eeg-platform && git pull origin main
+> docker compose exec -T timescaledb psql -U eeg -d eeg_platform < database/migrate_20261121d.sql
+> sudo mkdir -p /opt/eeg/webapp-storage/statuten && sudo chown -R 82:82 /opt/eeg/webapp-storage/statuten
+> docker compose up -d --build webapp latex-service
+> ( crontab -l 2>/dev/null; echo "30 3 * * * cd /opt/eeg-platform && docker compose exec -T webapp php < scripts/statute_cleanup.php >> /var/log/eeg-statute-cleanup.log 2>&1" ) | crontab -
+> ```
+> Reihenfolge: zuerst die Migration (sonst Fehler beim Öffnen von „Statuten-Einladungen“), dann der Ordner (gehört
+> sonst root, PHP kann keine PDFs schreiben), dann Container neu bauen (neue Vorlagen `statuten.tex` und
+> `statuten_anzeige.tex` kommen mit dem latex-service-Image), zuletzt der tägliche Lösch-Cron.
+> Prüfen: `ls -la /opt/eeg/latex-templates/ | grep statuten` darf nichts zeigen (sonst gewinnt eine alte Kopie im
+> Volume). Admin → „Statuten-Einladungen“ → Testeinladung anlegen, Link im privaten Fenster öffnen, Fragebogen
+> ausfüllen, „Statuten erzeugen“, alle drei PDFs öffnen, Einladung danach widerrufen.
+

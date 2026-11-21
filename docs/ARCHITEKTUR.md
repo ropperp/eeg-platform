@@ -43,7 +43,8 @@ webapp/
 ```
 
 Fertig nach diesem Muster: **Support-Tickets** (`SupportController`, `Api\SupportApiController`,
-`Domain\Support\SupportTicketService`, `Infrastructure\Database\PdoSupportTicketRepository`). Der Rest
+`Domain\Support\SupportTicketService`, `Infrastructure\Database\PdoSupportTicketRepository`). Ebenso
+**Versammlungsprotokolle** (`Domain\Assembly`) und der **Statuten-Generator** (`Domain\Statutes`). Der Rest
 liegt noch als Closures in `routes/*.php` und wird nur bei Berührung umgezogen (ADR 0002).
 
 ## Regeln für neuen Code

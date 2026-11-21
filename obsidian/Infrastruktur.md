@@ -274,6 +274,15 @@ DB-Ausfall geht). Kann Wartungsmodus setzen, Status/Logs zeigen und Dienste aus 
 festen Liste neu starten (Docker-Socket, nichts sonst). Aktionen in `/opt/eeg/konsole/audit.log`.
 Entscheidung und Restrisiko: `docs/adr/0006-steuerzentrale.md`, nginx-Block: `docs/NGINX_PROXY.md`.
 
+## Statuten-Generator (nicht öffentlich)
+
+Platform-Admin → `/admin/statuten-einladungen` erzeugt einen persönlichen Link `/statuten/{token}` (256 Bit, in der
+DB nur SHA-256, **nur einmal angezeigt**). Interessent füllt ohne Login den Fragebogen aus; nach „Statuten
+erzeugen“ ist der Link 90 Tage **nur Download**. Tabellen `statute_invites`/`statute_drafts` (plattformweit, ohne
+RLS), PDFs in `/opt/eeg/webapp-storage/statuten/`, Vorlagen `statuten.tex` (Querverweise **nur** `\label`/`\ref`),
+`statuten_anzeige.tex`, `protokoll.tex`. Löschung nach 12 Monaten: Cron `scripts/statute_cleanup.php`.
+Prüfregeln/Rechtsstand: `docs/STATUTEN_GENERATOR.md`, Entscheidung: `docs/adr/0008-statuten-generator.md`.
+
 ## Anmeldedienst (keycloak)
 
 Keycloak unter `auth.<DOMAIN>` (Traefik-Router `auth`, öffentlich nur `/realms/stromfueralle/` und `/resources/`;
