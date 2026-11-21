@@ -354,6 +354,9 @@ function toggleTitelOther(which) {
 (function() {
   const STORAGE_KEY = 'beitritt_draft_<?= $mpid ?>';
   const SIGNATURE_FIELDS = ['signature_image', 'sepa_signature_image'];
+  // Nie im Browser zwischenspeichern: Bankdaten, Geburtsdatum und die Bestätigung des Informationsblatts
+  // (muss bei jedem Beitritt neu und bewusst gegeben werden, Nachweis nach § 69 ElWG).
+  const NEVER_STORE = ['member_iban', 'member_bic', 'kontoinhaber', 'konto_adresse', 'geburtsdatum', 'infoblatt_hash', 'infoblatt_bestaetigt'];
 
   function makeSignaturePad(canvasId) {
     const canvas = document.getElementById(canvasId);
@@ -410,17 +413,17 @@ function toggleTitelOther(which) {
 
   const form = document.getElementById('beitritt-form');
   const fields = Array.from(form.querySelectorAll('input[name], select[name]'))
-    .filter(f => !SIGNATURE_FIELDS.includes(f.name));
+    .filter(f => !SIGNATURE_FIELDS.includes(f.name) && !NEVER_STORE.includes(f.name));
 
   function saveDraft() {
     const data = {};
     fields.forEach(f => { data[f.name] = f.type === 'checkbox' ? f.checked : f.value; });
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
   }
 
   function restoreDraft() {
     let raw;
-    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return; }
+    try { raw = sessionStorage.getItem(STORAGE_KEY); } catch (e) { return; }
     if (!raw) return;
     let data;
     try { data = JSON.parse(raw); } catch (e) { return; }
@@ -436,6 +439,8 @@ function toggleTitelOther(which) {
   const serverHasData = <?= empty($d) ? 'false' : 'true' ?>;
   if (!serverHasData) restoreDraft();
   fields.forEach(f => { f.addEventListener('input', saveDraft); f.addEventListener('change', saveDraft); });
+  // Nach dem Absenden ist der Entwurf nicht mehr nötig (bei einem Fehler zeigt PHP die Werte selbst).
+  form.addEventListener('submit', () => { try { sessionStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_KEY); } catch (e) {} });
 
   function updateConditional() {
     document.getElementById('bezug-fields').style.display = document.getElementById('bezug_gewuenscht').checked ? 'grid' : 'none';
