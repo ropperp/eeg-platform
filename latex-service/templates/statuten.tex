@@ -48,16 +48,39 @@
 \fancyfoot[L]{\scriptsize\color{midgray}Statuten <<<VEREINSNAME>>> -- Fassung <<<VERSION>>> vom <<<DATUM>>>}
 \fancyfoot[R]{\scriptsize\color{midgray}Seite \thepage{} von \pageref{LastPage}}
 
+% Deckblatt ohne Fußzeile; die Entwurfs-Kopfzeile bleibt bis zur Freigabe sichtbar.
+\fancypagestyle{deckblatt}{%
+  \fancyhf{}%
+  \ifx\entwurf\empty\else\fancyhead[C]{\small\bfseries\color{warnred}\entwurf}\fi
+}
+% Inhaltsverzeichnis: Platz für "§ 10" usw.
+\makeatletter
+\renewcommand*\l@section{\@dottedtocline{1}{0em}{2.8em}}
+\makeatother
+
 \begin{document}
 
+\thispagestyle{deckblatt}
 \begin{center}
-  {\LARGE\bfseries\color{navy}Statuten}\par
-  \vspace{2mm}
-  {\Large\bfseries <<<VEREINSNAME>>>}\par
-  \vspace{2mm}
-  {\small Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG}\par
+  \vspace*{3cm}
+  {\Huge\bfseries\color{navy}STATUTEN\par}
+  \vspace{0.5cm}
+  {\Large des Vereins\par}
+  \vspace{1cm}
+  {\LARGE\bfseries Erneuerbare-Energie-Gemeinschaft\par}
+  \vspace{0.3cm}
+  {\Large\bfseries <<<DECKBLATT_NAME>>>\par}
+  \vspace{2cm}
+  {\large <<<NAHEBEREICH_ART>>> Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG\par}
+  \vspace{0.5cm}
+  <<<RAW_DECKBLATT_ID>>>
+  \vspace{0.5cm}
+  {\large Netzbetreiber: <<<NETZBETREIBER>>>\par}
 \end{center}
-\vspace{4mm}
+
+\newpage
+\tableofcontents
+\newpage
 
 % ─── § 1 ───────────────────────────────────────────────────────────────────
 \section{Name, Sitz und Tätigkeitsbereich}\label{par:name}

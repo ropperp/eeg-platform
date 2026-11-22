@@ -20,6 +20,14 @@ final class LatexStatutePdfRenderer implements StatutePdfRenderer
 {
     public const DRAFT_HEADER = 'Entwurf -- keine Rechtsberatung';
 
+    /** Netzebenen (ElWG/SNE-VO): 4/5 Regionalbereich, 6/7 Lokalbereich. Nur Ziffer → Klartext auf dem Deckblatt. */
+    private const GRID_LEVEL_TEXT = [
+        '4' => 'Umspannung Hoch-/Mittelspannung',
+        '5' => 'Mittelspannung',
+        '6' => 'Umspannung Mittel-/Niederspannung',
+        '7' => 'Niederspannung',
+    ];
+
     /** Anlagenmodell im Satz „Organisation der gemeinsamen Nutzung … (…)“ in § 3. */
     private const PLANT_TEXT = [
         'ueberschuss' => 'insbesondere Überschusseinspeisung aus Anlagen der Mitglieder',
@@ -182,10 +190,26 @@ final class LatexStatutePdfRenderer implements StatutePdfRenderer
                 : 'An die Stelle des Schriftführers bzw. der Schriftführerin tritt ein vom Vorsitz bestimmtes Vorstandsmitglied.';
         }
 
+        // Deckblatt (Aufbau wie bewährte EEG-Statuten): Typ, Name, Rechtsgrundlage, ID/Netzebene, Netzbetreiber
+        $prefix = 'Erneuerbare-Energie-Gemeinschaft';
+        $name = trim((string) $a['name']);
+        $coverName = str_starts_with($name, $prefix) ? (string) preg_replace('/^[\s\-–]+/u', '', substr($name, strlen($prefix))) : $name;
+        $coverId = [];
+        if ($areaId !== '') {
+            $coverId[] = ($a['area'] === 'lokal' ? 'Lokale' : 'Regionale') . ' ID: ' . $e($areaId);
+        }
+        if ($gridLevel !== '') {
+            $levelText = self::GRID_LEVEL_TEXT[$gridLevel] ?? null;
+            $coverId[] = 'Netzebene~' . $e($gridLevel) . ($levelText !== null ? ' (' . $levelText . ')' : '');
+        }
+
         $hinweis = 'Erstellt mit dem Statuten-Generator (Fassung ' . $version . '). Vorlage, keine Rechtsberatung. Vor Einreichung bei der Vereinsbehörde von einer fachkundigen Person prüfen lassen. Rechtsgrundlagen: Vereinsgesetz 2002, Elektrizitätswirtschaftsgesetz (ElWG), Erneuerbaren-Ausbau-Gesetz (EAG); Stand der Gesetze vor Einreichung im RIS prüfen.';
 
         return [
             'VEREINSNAME'        => (string) $a['name'],
+            'DECKBLATT_NAME'     => $coverName !== '' ? $coverName : $name,
+            'NAHEBEREICH_ART'    => $a['area'] === 'lokal' ? 'Lokale' : 'Regionale',
+            'RAW_DECKBLATT_ID'   => $coverId === [] ? '' : '{\\large ' . implode(' \\textbar{} ', $coverId) . '\\par}\\vspace{0.5cm}',
             'SITZ'               => (string) $a['seat'],
             'RAW_TAETIGKEITSBEREICH' => self::activityArea($a),
             'NAHEBEREICH'        => $area,

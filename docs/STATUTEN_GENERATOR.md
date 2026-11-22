@@ -75,11 +75,14 @@ Fest eingebaut, kein Feld: „nicht gemeinnützig“, schutzbedürftige Haushalt
 
 | Dokument | Vorlage | Inhalt |
 |---|---|---|
-| Statuten | `latex-service/templates/statuten.tex` | §§ 1–18; Querverweise nur per `\label`/`\ref` |
+| Statuten | `latex-service/templates/statuten.tex` | Deckblatt, Inhaltsverzeichnis, §§ 1–18; Querverweise nur per `\label`/`\ref` |
 | Checkliste Vereinsanzeige | `latex-service/templates/statuten_anzeige.tex` | § 11 VerG, Finanzamt, USt, Netzbetreiber |
 | Protokollvorlage 1. MV | vorhandene `protokoll.tex` | Tagesordnung mit Leerstellen |
 
-Rechtsgrundlagen-Zeile: „Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG“.
+Rechtsgrundlagen-Zeile: „Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG“ (auf dem Deckblatt mit
+„Lokale“/„Regionale“ davor). Deckblatt-Aufbau nach bewährten EEG-Statuten: „STATUTEN des Vereins“, Typ
+„Erneuerbare-Energie-Gemeinschaft“ und Name ohne diesen Präfix, ID und Netzebene (4–7 im Klartext), Netzbetreiber.
+Kein Verweis auf das ElWOG 2010 (aufgehoben durch das ElWG, BGBl. I 91/2025).
 Regeln für die Vorlage: nie händische Paragraphen-Nummern (Fehler der Statuten V1.0: falsche Verweise in §§ 10 und 14);
 ein `\ref` auf einen Absatz ergibt „§ n Abs m“. `tests/statute_invite_test.php` prüft, dass jedes `\ref` ein `\label` hat.
 

@@ -19,6 +19,14 @@ getesteter Stand deployen oder dorthin zurückrollen (siehe „Bestimmte Version
 ## [Unreleased]
 Änderungen, die noch keinem Versions-Tag zugeordnet sind, sammeln sich hier.
 
+## [0.11.1] – 2026-11-22
+
+### Statuten-Generator: Deckblatt und Inhaltsverzeichnis
+- Statuten-PDF beginnt mit einem Deckblatt („STATUTEN des Vereins“, Typ und Name getrennt, Rechtsgrundlage
+  „Lokale/Regionale Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG“, Lokal-/Regional-ID mit
+  Netzebene im Klartext, Netzbetreiber), danach Inhaltsverzeichnis. Entwurfs-Kopfzeile bleibt auch auf dem Deckblatt.
+- Test: Vorlage enthält keinen Verweis mehr auf das ElWOG 2010.
+
 ## [0.11.0] – 2026-11-21
 
 ### Statuten-Generator (nicht öffentlich, Einladungslink)

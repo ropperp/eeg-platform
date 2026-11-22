@@ -271,8 +271,18 @@ test('LaTeX: Statuten-Variablen escaped, Entwurfs-Kopfzeile, Rechtsgrundlage, Qu
             assertFalse((bool) preg_match('/§|Absatz\s*~?\d|Abs\s*~?\d/u', (string) $rest), "händische Nummer in {$k}: {$val}");
         }
     }
+    // Deckblatt: Typ und Name getrennt, ID/Netzebene, Rechtsgrundlage nach ElWG (nicht ElWOG 2010)
+    $c = LatexStatutePdfRenderer::statuteVars(SQ2::normalize(['name' => 'Erneuerbare-Energie-Gemeinschaft Sonnental', 'area' => 'regional',
+        'area_id' => '99R1', 'grid_level' => '5']), 1, true);
+    assertSame('Sonnental', $c['DECKBLATT_NAME']);
+    assertSame('Regionale', $c['NAHEBEREICH_ART']);
+    assertContains('Regionale ID: 99R1', $c['RAW_DECKBLATT_ID']);
+    assertContains('Netzebene~5 (Mittelspannung)', $c['RAW_DECKBLATT_ID']);
+    assertSame('EEG A & B_%', $v['DECKBLATT_NAME']); // kein RAW_: escaped der latex-service
+    assertSame('', LatexStatutePdfRenderer::statuteVars(SQ2::normalize(['name' => 'X', 'area' => 'lokal']), 1, true)['RAW_DECKBLATT_ID']);
     $tex = (string) file_get_contents(__DIR__ . '/../latex-service/templates/statuten.tex');
     assertContains('Erneuerbare-Energie-Gemeinschaft gemäß § 79 EAG und §§ 66 ff ElWG', $tex);
+    assertFalse(str_contains($tex, 'ElWOG'), 'Vorlage verweist noch auf ElWOG 2010');
     preg_match_all('/\\\\ref\{([a-z:]+)\}/', $tex . implode(' ', $v), $refs);
     preg_match_all('/\\\\label\{([a-z:]+)\}/', $tex, $labels);
     foreach (array_unique($refs[1]) as $ref) {
